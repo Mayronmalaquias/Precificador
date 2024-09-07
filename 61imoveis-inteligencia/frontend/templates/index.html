@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Analisar Imóvel Detalhado</title>
+    <link rel="stylesheet" href="../static/styles.css"> <!-- Link para o CSS separado -->
+    <script>
+        function submitOnChange() {
+            const formData = new FormData(document.getElementById('formularioAnalise'));
+            const formObject = Object.fromEntries(formData.entries());
+
+            fetch('/analisar', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded'
+                },
+                body: new URLSearchParams(formObject)
+            })
+            .then(response => {
+                if (response.ok) {
+                    return response.json();
+                } else {
+                    return response.json().then(err => { throw new Error(err.error || "Erro desconhecido"); });
+                }
+            })
+            .then(data => {
+                // Animação para atualização suave dos valores
+                animateUpdate('vlrM2Venda', `Valor de M² de Venda: ${data.valorM2Venda}`);
+                animateUpdate('vlrVendaNominal', `Valor de Venda Nominal: ${data.valorVendaNominal}`);
+                animateUpdate('mtrMediaVenda', `Metragem Média de Venda: ${data.metragemMediaVenda}`);
+                animateUpdate('coeficienteVar', `Coeficiente de Variação de Venda: ${data.coeficienteVariacaoVenda}`);
+                animateUpdate('tamAmostra', `Tamanho da Amostra de Venda: ${data.tamanhoAmostraVenda}`);
+                animateUpdate('vlrM2Loc', `Valor de M² de Locação: ${data.valorM2Locacao}`);
+                animateUpdate('vlrLocacaoNominal', `Valor de Locação Nominal: ${data.valorLocacaoNominal}`);
+                animateUpdate('mtrMediaLoc', `Metragem Média de Locação: ${data.metragemMediaLocacao}`);
+                animateUpdate('coeficienteVarLoc', `Coeficiente de Variação de Locação: ${data.coeficienteVariacaoLocacao}`);
+                animateUpdate('tamAmostraLoc', `Tamanho da Amostra de Locação: ${data.tamanhoAmostraLocacao}`);
+                animateUpdate('Rentabilidade', `Rentabilidade Média: ${data.rentabilidadeMedia}`);
+            })
+            .catch(error => {
+                console.error('Erro:', error);
+                alert("Amostra insuficiente para analise");
+            });
+        }
+
+        // Animação suave de atualização
+        function animateUpdate(elementId, newText) {
+            const element = document.getElementById(elementId);
+            element.style.opacity = 0;
+            setTimeout(() => {
+                element.innerText = newText;
+                element.style.opacity = 1;
+            }, 300);
+        }
+
+        document.addEventListener('DOMContentLoaded', function() {
+            submitOnChange();
+        });
+    </script>
+</head>
+<body>
+    <header>
+        <h1>Analisar Imóvel Detalhado</h1>
+    </header>
+
+    <main>
+        <form id="formularioAnalise" method="post">
+            <label for="tipoImovel">Tipo de Imóvel:</label>
+            <select id="tipoImovel" name="tipoImovel" required onchange="submitOnChange()">
+                <option value="Apartamento">Apartamento</option>
+                <option value="Casa">Casa</option>
+                <option value="Loja">Loja</option>
+                <option value="Lote">Lote</option>
+                <option value="Casa Condominio">Casa Condominio</option>
+            </select><br>
+
+            <label for="bairro">Bairro:</label>
+            <select id="bairro" name="bairro" required onchange="submitOnChange()">
+                <option value="ASA NORTE">ASA NORTE</option>
+                <option value="ASA SUL">ASA SUL</option>
+                <option value="LAGO SUL">LAGO SUL</option>
+                <option value="LAGO NORTE">LAGO NORTE</option>
+                <option value="NOROESTE">NOROESTE</option>
+                <option value="SUDOESTE">SUDOESTE</option>
+                <option value="PARK WAY">PARK WAY</option>
+                <option value="PARK SUL">PARK SUL</option>
+                <option value="OCTOGONAL">OCTOGONAL</option>
+                <option value="SIG">SIG</option>
+                <option value="VILA PLANALTO">VILA PLANALTO</option>
+                <option value="NÚCLEO BANDEIRANTE">NÚCLEO BANDEIRANTE</option>
+            </select><br>
+
+            <label for="nrCluster">Número de Clusters (1 a 9):</label>
+            <input type="range" id="nrCluster" name="nrCluster" min="1" max="9" value="5" oninput="this.nextElementSibling.value = this.value; submitOnChange();">
+            <output>5</output><br>
+
+            <ul>
+                <li id="vlrM2Venda"><strong>Valor de M² de Venda:</strong> </li>
+                <li id="vlrVendaNominal"><strong>Valor de Venda Nominal:</strong> </li>
+                <li id="mtrMediaVenda"><strong>Metragem Média de Venda:</strong> </li>
+                <li id="coeficienteVar"><strong>Coeficiente de Variação de Venda:</strong> </li>
+                <li id="tamAmostra"><strong>Tamanho da Amostra de Venda:</strong> </li>
+                <li id="vlrM2Loc"><strong>Valor de M² de Locação:</strong> </li>
+                <li id="vlrLocacaoNominal"><strong>Valor de Locação Nominal:</strong> </li>
+                <li id="mtrMediaLoc"><strong>Metragem Média de Locação:</strong> </li>
+                <li id="coeficienteVarLoc"><strong>Coeficiente de Variação de Locação:</strong> </li>
+                <li id="tamAmostraLoc"><strong>Tamanho da Amostra de Locação:</strong> </li>
+                <li id="Rentabilidade"><strong>Rentabilidade Média:</strong> </li>
+            </ul>
+        </form>
+
+        <h2>Mapa de Calor de Anúncios por Bairro</h2>
+        <div id="map">
+            {{ mapa_html | safe }}
+        </div>
+
+        <h2>Relatório de Mercado do DF</h2>
+        <div id="report">
+            <iframe title="Bi Valor_m2-Preco" src="https://app.powerbi.com/view?r=eyJrIjoiMjUxNzBlZDYtYzk1NS00NDlhLThjMGQtYWMzYzlmMTE3ZjJjIiwidCI6ImMxNWY0MDJjLTAyMjUtNGU2Ni1hMDJiLTZiOWM3ODAzYWIzYiJ9" allowFullScreen="true"></iframe>
+        </div>
+    </main>
+
+    <footer>
+        <p>61Imóveis - Contato: (61) 99999-9999 | Email: contato@61imoveis.com.br</p>
+        <p>Desenvolvido por <a href="https://61imoveis.com.br" target="_blank">61Imóveis</a></p>
+    </footer>
+</body>
+</html>
