@@ -1,0 +1,51 @@
+header {
+    background-color: #fb4f4f;
+    color: #fff;
+    padding: 20px 0;
+    position: fixed;
+    width: 100%;
+    top: 0;
+    z-index: 1000;
+  }
+  
+  header {
+      background-color: #fb4f4f;
+      color: #fff;
+      padding: 10px 0;
+      position: fixed;
+      width: 100%;
+      top: 0;
+      z-index: 1000;
+      height: 80px; /* Limita a altura do cabeçalho */
+    }
+    
+    header .container {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      max-width: 1200px; /* Define um limite de largura */
+      margin: 0 auto; /* Centraliza o conteúdo */
+      height: 100%; /* Garante que o conteúdo use toda a altura */
+    }
+    
+    header .logo img {
+      height: 50px; /* Limita a altura da logo */
+      max-width: 150px; /* Limita a largura máxima da logo */
+    }
+    
+    header nav ul {
+      display: flex;
+      list-style: none;
+      margin: 0;
+      padding: 0;
+    }
+    
+    header nav ul li {
+      margin-right: 20px;
+    }
+    
+    header nav ul li a {
+      color: #fff;
+      text-decoration: none;
+      font-family: 'Montserrat', sans-serif;
+    }
