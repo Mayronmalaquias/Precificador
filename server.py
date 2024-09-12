@@ -1,15 +1,21 @@
 from flask import Flask, request, jsonify, render_template
 import pandas as pd
+import openai
 from clusterizacao import analisar_imovel_detalhado  # Substitua pelo nome correto do arquivo de funções
 import folium  # Importando a biblioteca folium
 from folium.plugins import HeatMap  # Importando o plugin HeatMap
+import os
+from dotenv import load_dotenv
 
 app = Flask(__name__)
+
+df = pd.read_csv('./static/dados/2024-09-06.csv')
+load_dotenv()
+openai.api_key = os.getenv('OPENAI_API_KEY')
 
 # Rota para exibir o formulário
 @app.route('/', methods=['GET'])
 def index():
-    df = pd.read_csv('./2024-09-06.csv')
     mapa_html = gerar_mapa(df)
     return render_template('index.html', mapa_html=mapa_html)
 
@@ -25,10 +31,6 @@ def analisar():
 
     # Transpor o DataFrame para corrigir a estrutura
     resultados_df = resultados_df.T
-
-    # Verificar a estrutura do DataFrame
-    print("Estrutura do DataFrame (após transposição):", resultados_df.head())
-    print("Colunas disponíveis (após transposição):", resultados_df.columns)
 
     if resultados_df.empty:
         return jsonify({"error": "Nenhum dado encontrado para os parâmetros selecionados."}), 404
@@ -92,6 +94,49 @@ def gerar_mapa(df):
     HeatMap(heat_data).add_to(mapa)
 
     return mapa._repr_html_()
+
+def prever_preco(tipo_imovel, bairro):
+    resultados = analisar_imovel_detalhado(tipo_imovel=tipo_imovel, bairro=bairro)
+    if not resultados.empty:
+        preco_m2_venda = resultados['VALOR DE M² DE VENDA'].mean()  # Usando a média dos resultados
+        return f"Baseado nos dados da 61imóveis, o valor médio do m² de venda para {tipo_imovel} no bairro {bairro} é de aproximadamente R$ {preco_m2_venda:.2f}."
+    else:
+        return "Desculpe, não temos dados suficientes para prever o preço desse imóvel."
+
+# Função de interação com o ChatGPT, incluindo contexto personalizado
+def chatgpt_response(message):
+    try:
+        response = openai.ChatCompletion.create(
+            model="gpt-4",  # Usando o modelo GPT-4 ou GPT-3.5, se preferir
+            messages=[{"role": "user", "content": message}],
+            max_tokens=200,
+            temperature=0.7
+        )
+        return response['choices'][0]['message']['content'].strip()
+    except Exception as e:
+        print(f"Erro: {e}")  # Imprimir o erro no console para verificar o problema
+        return "Desculpe, o chat está indisponivel no momento."
+
+# Função para processar perguntas específicas antes de enviar ao ChatGPT
+def processar_perguntas(message):
+    # Verifica se a pergunta é relacionada a previsões de preço de imóveis
+    if 'preço' in message.lower() or 'custo' in message.lower():
+        # Exemplo simplificado de análise: extrair dados do tipo de imóvel e bairro
+        tipo_imovel = 'Apartamento'  # Padrão ou extraído da mensagem
+        bairro = 'ASA SUL'  # Padrão ou extraído da mensagem
+        return prever_preco(tipo_imovel, bairro)
+    
+    # Caso a pergunta não seja específica, delegar ao ChatGPT
+    else:
+        return chatgpt_response(message)
+
+# Rota para o chatbot
+@app.route('/chatbot', methods=['POST'])
+def chatbot():
+    data = request.get_json()
+    user_message = data['message']
+    response = chatgpt_response(user_message)
+    return jsonify({'response': response})
 
 if __name__ == '__main__':
     app.run(debug=True)
