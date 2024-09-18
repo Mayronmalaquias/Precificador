@@ -3,21 +3,41 @@ import pandas as pd
 import openai
 from clusterizacao import analisar_imovel_detalhado  # Substitua pelo nome correto do arquivo de funções
 import folium  # Importando a biblioteca folium
-from folium.plugins import HeatMap  # Importando o plugin HeatMap
+from folium.plugins import HeatMap, MarkerCluster  # Importando o plugin HeatMap
 import os
 from dotenv import load_dotenv
+from flask_caching import Cache
+
 
 app = Flask(__name__)
 
 df = pd.read_csv('./static/dados/2024-09-06.csv')
+csv_file_path = './static/dados/dados_map.csv'  # Substitua pelo caminho do arquivo CSV
+df_map = pd.read_csv(csv_file_path)
 load_dotenv()
 openai.api_key = os.getenv('OPENAI_API_KEY')
+
+
+# Configuração do cache
+cache = Cache(app, config={'CACHE_TYPE': 'simple'})
+
+@cache.cached(timeout=60)
+def carregar_dados():
+    df = pd.read_csv('./static/dados/2024-09-06.csv')
+    df_map = pd.read_csv(csv_file_path)
+    return df, df_map
+
+# Carregar dados uma vez e usá-los a partir do cache
+df, df_map = carregar_dados()
 
 # Rota para exibir o formulário
 @app.route('/', methods=['GET'])
 def index():
-    mapa_html = gerar_mapa(df)
-    return render_template('index.html', mapa_html=mapa_html)
+    return render_template('index.html')
+
+@app.route('/carregar_mapa', methods=['GET'])
+def carregar_mapa():
+    return gerar_mapa()
 
 @app.route('/analisar', methods=['POST'])
 def analisar():
@@ -69,30 +89,66 @@ def analisar():
         "rentabilidadeMedia": rentabilidadeMedia
     })
 
-def gerar_mapa(df):
-    coordenadas_bairros = {
-        'ASA NORTE': [-15.7625, -47.8692],
-        'ASA SUL': [-15.7986, -47.8919],
-        'LAGO SUL': [-15.8376, -47.8753],
-        'LAGO NORTE': [-15.7300, -47.8297],
-        'SUDOESTE': [-15.7895, -47.9275],
-        'NOROESTE': [-15.7500, -47.9300],
-        'PARK WAY': [-15.8489, -47.9382],
-        'JARDIM BOTANICO': [-15.8703, -47.7965],
-        # Adicionar mais coordenadas de bairros aqui...
-    }
+def gerar_mapa():
+    """
+    Função para gerar um mapa de calor a partir de um arquivo CSV contendo latitude, longitude e preço.
+    O mapa será otimizado para mostrar clusters e limitar o número de pontos com a mesma latitude e longitude.
+    
+    Parâmetros:
+    csv_file_path (str): Caminho para o arquivo CSV que contém colunas 'latitude', 'longitude' e 'preco'.
 
-    df['latitude'] = df['bairro'].apply(lambda x: coordenadas_bairros.get(x, [0, 0])[0])
-    df['longitude'] = df['bairro'].apply(lambda x: coordenadas_bairros.get(x, [0, 0])[1])
+    Retorna:
+    O HTML do mapa de calor gerado.
+    """
+    
+    # Carregar o CSV diretamente
+    df = pd.read_csv(csv_file_path)
+    
+    # Certifique-se de que o DataFrame tem as colunas necessárias
+    if 'latitude' not in df.columns or 'longitude' not in df.columns or 'preco' not in df.columns:
+        raise ValueError("O arquivo CSV deve conter as colunas 'latitude', 'longitude' e 'preco'.")
+    
+    # Remover linhas com dados ausentes
+    df_filtrado = df[['latitude', 'longitude', 'preco']].dropna()
 
-    df_filtrado = df[(df['latitude'] != 0) & (df['longitude'] != 0)]
+    # Limitar os dados para coordenadas duplicadas (mesma latitude e longitude)
+    df_filtrado = df_filtrado.groupby(['latitude', 'longitude']).head(5)
 
-    mapa = folium.Map(location=[-15.7942, -47.8822], zoom_start=11)
+    # Criar o mapa centralizado em Brasília
+    mapa = folium.Map(location=[-15.7942, -47.8822], zoom_start=12)
 
+    # Preparar os dados para o HeatMap, apenas para zoom 12 ou inferior
     heat_data = [[row['latitude'], row['longitude'], row['preco']] for index, row in df_filtrado.iterrows()]
 
-    HeatMap(heat_data).add_to(mapa)
+    # Adicionar o HeatMap ao mapa (somente visível para zoom <= 12)
+    HeatMap(heat_data, min_zoom=10, max_zoom=12).add_to(mapa)
 
+    # Criar clusters para quando o zoom for menor que 10
+    marker_cluster = MarkerCluster().add_to(mapa)
+
+    # Adicionar marcadores ao cluster, limitando os marcadores por coordenada
+    for index, row in df_filtrado.iterrows():
+        folium.Marker(
+            location=[row['latitude'], row['longitude']],
+            popup=f"Preço: R$ {row['preco']}",
+        ).add_to(marker_cluster)
+
+    # Adicionar legenda personalizada
+    legenda = """
+    <div style="position: fixed; 
+                bottom: 50px; left: 50px; width: 200px; height: 100px; 
+                background-color: white; border:2px solid grey; z-index:9999; font-size:14px;
+                ">
+        <h4>Legenda</h4>
+        <p>Quantidade de anúncios em cada agrupamento. O mapa mostra até 5 pontos por coordenada.</p>
+    </div>
+    """
+    mapa.get_root().html.add_child(folium.Element(legenda))
+
+    # Salvar o mapa em um arquivo HTML
+    mapa.save("mapa_de_calor_com_limite.html")
+
+    # Retornar o HTML do mapa gerado
     return mapa._repr_html_()
 
 def prever_preco(tipo_imovel, bairro):

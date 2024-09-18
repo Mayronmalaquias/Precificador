@@ -49,3 +49,18 @@ function animateUpdate(elementId, newText) {
 document.addEventListener('DOMContentLoaded', function() {
     submitOnChange();
 });
+
+        // Função para carregar o mapa via AJAX após a página ser carregada
+document.addEventListener('DOMContentLoaded', function () {
+    fetch('/carregar_mapa')
+    .then(response => response.text())
+    .then(data => {
+                        // Inserir o mapa no contêiner e esconder o spinner de carregamento
+            document.getElementById('map').innerHTML = data;
+            document.getElementById('loading').style.display = 'none';  // Esconder o spinner
+            document.getElementById('map').style.display = 'block';     // Mostrar o mapa
+        })
+    .catch(error => {
+        console.error('Erro ao carregar o mapa:', error);
+        });
+});

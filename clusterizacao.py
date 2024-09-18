@@ -2,7 +2,7 @@ import pandas as pd
 from sklearn.cluster import KMeans
 import numpy as np
 
-input_file = "./2024-09-06.csv"
+input_file = "./static/dados/2024-09-06.csv"
 
 def remover_outliers_iqr(df, coluna):
     Q1 = df[coluna].quantile(0.25)

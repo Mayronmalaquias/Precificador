@@ -4,7 +4,36 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Analisar Imóvel Detalhado</title>
-    <link rel="stylesheet" href="../static/styles.css"> <!-- Link para o CSS separado -->
+    <link rel="stylesheet" href="../static/css/styles.css"> <!-- Link para o CSS separado -->
+    <style>
+        /* Estilos para o spinner de carregamento */
+        #loading {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 24px;
+            z-index: 9999;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        #loading-spinner {
+            border: 16px solid #f3f3f3;
+            border-radius: 50%;
+            border-top: 16px solid #3498db;
+            width: 120px;
+            height: 120px;
+            animation: spin 2s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+    </style>
 </head>
 <body>
     <header>
@@ -57,14 +86,20 @@
             </ul>
         </form>
 
-        <h2>Mapa de Calor de Anúncios por Bairro</h2>
-        <div id="map">
-            {{ mapa_html | safe }}
+        <div class="map-container">
+            <!-- Spinner de carregamento sobre o mapa -->
+            <div id="loading">
+                <div id="loading-spinner"></div>
+                <p>Carregando o mapa...</p>
+            </div>
+
+            <!-- Contêiner onde o mapa será carregado -->
+            <div id="map"></div>
         </div>
 
         <h2>Relatório de Mercado do DF</h2>
         <div id="report">
-            <iframe title="Bi Valor_m2-Preco" src="https://app.powerbi.com/view?r=eyJrIjoiMjUxNzBlZDYtYzk1NS00NDlhLThjMGQtYWMzYzlmMTE3ZjJjIiwidCI6ImMxNWY0MDJjLTAyMjUtNGU2Ni1hMDJiLTZiOWM3ODAzYWIzYiJ9" allowFullScreen="true"></iframe>
+            <iframe title="Bi Valor_m2-Preco" width="600" height="373.5" src="https://app.powerbi.com/view?r=eyJrIjoiZWM4NTEyY2MtYTVhMy00ZmE5LThmYjMtN2Q3MDBlMzJmMDY5IiwidCI6ImMxNWY0MDJjLTAyMjUtNGU2Ni1hMDJiLTZiOWM3ODAzYWIzYiJ9" frameborder="0" allowFullScreen="true"></iframe>
         </div>
     </main>
 
