@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Analisar Imóvel Detalhado</title>
+    <link rel="stylesheet" href="../static/css/styles.css"> <!-- Link para o CSS separado -->
+    <style>
+        /* Estilos para o spinner de carregamento */
+        #loading {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 24px;
+            z-index: 9999;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        #loading-spinner {
+            border: 16px solid #f3f3f3;
+            border-radius: 50%;
+            border-top: 16px solid #3498db;
+            width: 120px;
+            height: 120px;
+            animation: spin 2s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+    </style>
+</head>
+<body>
+    <header>
+        <h1>Analisar Imóvel Detalhado</h1>
+    </header>
+
+    <main>
+        <form id="formularioAnalise" method="post">
+            <label for="tipoImovel">Tipo de Imóvel:</label>
+            <select id="tipoImovel" name="tipoImovel" required onchange="submitOnChange()">
+                <option value="Apartamento">Apartamento</option>
+                <option value="Casa">Casa</option>
+                <option value="Loja">Loja</option>
+                <option value="Lote">Lote</option>
+                <option value="Casa Condominio">Casa Condominio</option>
+            </select><br>
+
+            <label for="bairro">Bairro:</label>
+            <select id="bairro" name="bairro" required onchange="submitOnChange()">
+                <option value="ASA NORTE">ASA NORTE</option>
+                <option value="ASA SUL">ASA SUL</option>
+                <option value="LAGO SUL">LAGO SUL</option>
+                <option value="LAGO NORTE">LAGO NORTE</option>
+                <option value="NOROESTE">NOROESTE</option>
+                <option value="SUDOESTE">SUDOESTE</option>
+                <option value="PARK WAY">PARK WAY</option>
+                <option value="PARK SUL">PARK SUL</option>
+                <option value="OCTOGONAL">OCTOGONAL</option>
+                <option value="SIG">SIG</option>
+                <option value="VILA PLANALTO">VILA PLANALTO</option>
+                <option value="NÚCLEO BANDEIRANTE">NÚCLEO BANDEIRANTE</option>
+            </select><br>
+
+            <label for="quartos">Quartos:</label>
+            <select id="quartos" name="quartos" required onchange="submitOnChange()">
+                <option value="0">Todos</option>
+                <option value="1">1</option>
+                <option value="2">2</option>
+                <option value="3">3</option>
+                <option value="4">4</option>
+                <option value="5">5</option>
+                <option value="6">6</option>
+            </select><br>
+
+            <label for="vagas">Vagas:</label>
+            <select id="vagas" name="vagas" required onchange="submitOnChange()">
+                <option value="10">Todos</option>
+                <option value="0">0</option>
+                <option value="1">1</option>
+                <option value="2">2</option>
+                <option value="3">3</option>
+                <option value="4">4</option>
+            </select><br>
+
+            <!-- <label for="metragem">Metragem (m²):</label>
+            <input type="number" id="metragem" name="metragem" step="0.01" min="0" placeholder="Digite a metragem" value="0" onchange="submitOnChange()"> -->
+
+            <label for="nrCluster">Número de Clusters (1 a 9):</label>
+            <input type="range" id="nrCluster" name="nrCluster" min="1" max="9" value="5" oninput="this.nextElementSibling.value = this.value; submitOnChange();">
+            <output>5</output><br>
+
+            <div id="nome">
+                <button type="button" onclick="alterarCluster(2)">ORIGINAL</button>
+                <button type="button" onclick="alterarCluster(5)">SEMI-REFORMADO</button>
+                <button type="button" onclick="alterarCluster(8)">REFORMADO</button>
+            </div>
+
+            <ul>
+                <li id="vlrM2Venda"><strong>Valor de M² de Venda:</strong> </li>
+                <li id="vlrVendaNominal"><strong>Valor de Venda Nominal:</strong> </li>
+                <li id="mtrMediaVenda"><strong>Metragem Média de Venda:</strong> </li>
+                <li id="coeficienteVar"><strong>Coeficiente de Variação de Venda:</strong> </li>
+                <li id="tamAmostra"><strong>Tamanho da Amostra de Venda:</strong> </li>
+                <li id="vlrM2Loc"><strong>Valor de M² de Locação:</strong> </li>
+                <li id="vlrLocacaoNominal"><strong>Valor de Locação Nominal:</strong> </li>
+                <li id="mtrMediaLoc"><strong>Metragem Média de Locação:</strong> </li>
+                <li id="coeficienteVarLoc"><strong>Coeficiente de Variação de Locação:</strong> </li>
+                <li id="tamAmostraLoc"><strong>Tamanho da Amostra de Locação:</strong> </li>
+                <li id="Rentabilidade"><strong>Rentabilidade Média:</strong> </li>
+            </ul>
+        </form>
+
+        <div class="map-container">
+            <!-- Spinner de carregamento sobre o mapa -->
+            <div id="loading">
+                <div id="loading-spinner"></div>
+                <p>Carregando o mapa...</p>
+            </div>
+
+            <!-- Contêiner onde o mapa será carregado -->
+            <div id="map"></div>
+        </div>
+
+        <h2>Relatório de Mercado do DF</h2>
+        <div id="report">
+            <iframe title="Bi Valor_m2-Preco" width="600" height="373.5" src="https://app.powerbi.com/view?r=eyJrIjoiZWM4NTEyY2MtYTVhMy00ZmE5LThmYjMtN2Q3MDBlMzJmMDY5IiwidCI6ImMxNWY0MDJjLTAyMjUtNGU2Ni1hMDJiLTZiOWM3ODAzYWIzYiJ9" frameborder="0" allowFullScreen="true"></iframe>
+        </div>
+    </main>
+
+    <footer>
+        <p>61Imóveis - Contato: (61) 99999-9999 | Email: contato@61imoveis.com.br</p>
+        <p>Desenvolvido por <a href="https://61imoveis.com.br" target="_blank">61Imóveis</a></p>
+    </footer>
+    <script src="{{ url_for('static', filename='js/script.js') }}">
+        function alterarCluster(valor) {
+            console.log("chegou aqui");
+            document.getElementById('nrCluster').value = valor; // Atualiza o valor do range
+            document.querySelector('output').value = valor; // Atualiza o valor mostrado no output
+            document.getElementById('formularioAnalise').submit(); // Submete o formulário
+        }
+    </script>
+</body>
+</html>
