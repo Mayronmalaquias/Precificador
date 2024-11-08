@@ -8,17 +8,17 @@
     <style>
         /* Estilos para o spinner de carregamento */
         #loading {
-            position: fixed;
+            position: absolute; /* Altera para absolute para centralizar na div "pai" */
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);
             font-size: 24px;
-            z-index: 9999;
             display: flex;
             flex-direction: column;
             align-items: center;
+            z-index: 1; /* Ajuste o z-index conforme a necessidade */
         }
-
+        
         #loading-spinner {
             border: 16px solid #f3f3f3;
             border-radius: 50%;
@@ -116,7 +116,13 @@
             </ul>
         </form>
 
-        <div class="map-container">
+        <div class="map-container" style="position: relative;">
+            <div class="MapSelector">
+                <select name="mapaSelector" id="map-selector">
+                    <option value="mapaAnuncio">Mapa de anuncio</option>
+                    <option value="mapaM2">Mapa de valor de m²</option>
+                </select>
+            </div>
             <!-- Spinner de carregamento sobre o mapa -->
             <div id="loading">
                 <div id="loading-spinner"></div>

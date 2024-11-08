@@ -1,7 +1,7 @@
 from flask import Flask, request, jsonify, render_template, send_file
 import pandas as pd
 import openai
-from app.clusterizacao import analisar_imovel_detalhado
+from app.clusterizacao import analisar_imovel_detalhado, clusterizar_dados2
 import folium
 from folium.plugins import HeatMap, MarkerCluster
 import os
@@ -32,8 +32,13 @@ def create_app():
 
     @app.route('/carregar_mapa', methods=['GET'])
     def carregar_mapa():
+        tipo_mapa = request.args.get('tipo')
         df, df_map = carregar_dados()
-        return gerar_mapa()
+        if(tipo_mapa == "mapaAnuncio" or tipo_mapa == "Mapa de anuncio"):
+            return gerar_mapa()
+        else:
+            return gerar_mapa2()
+        # return gerar_mapa()
 
     @app.route('/exibir_mapa', methods=['GET'])
     def exibir_mapa():
@@ -61,7 +66,6 @@ def create_app():
 
         if resultados_df.empty:
             return jsonify({"error": "Nenhum dado encontrado para os parâmetros selecionados."}), 404
-
         valorM2Venda = resultados_df.iloc[nrCluster]['VALOR DE M² DE VENDA']
         valorM2Locacao = resultados_df.iloc[nrCluster]['VALOR DE M² DE ALUGUEL']
 
@@ -92,26 +96,37 @@ def create_app():
         })
 
     def gerar_mapa():
+        cluster_selecionado = 1
+        csv_file_path = './static/dados/vendaC.csv'
         df = pd.read_csv(csv_file_path)
 
-        if 'latitude' not in df.columns or 'longitude' not in df.columns or 'preco' not in df.columns:
-            raise ValueError("O arquivo CSV deve conter as colunas 'latitude', 'longitude' e 'preco'.")
+        # Verifica a presença das colunas necessárias
+        if 'latitude' not in df.columns or 'longitude' not in df.columns or 'preco' not in df.columns or 'cluster' not in df.columns:
+            raise ValueError("O arquivo CSV deve conter as colunas 'latitude', 'longitude', 'preco' e 'cluster'.")
 
-        df_filtrado = df[['latitude', 'longitude', 'preco']].dropna()
-        df_filtrado = df_filtrado.groupby(['latitude', 'longitude']).head(5)
+        # Converte latitude e longitude para o formato correto, dividindo por 1.000.000
+        df['latitude'] = df['latitude'] / 1e7
+        df['longitude'] = df['longitude'] / 1e7
 
+        # Filtra o DataFrame para o cluster especificado
+        df_clusterizado = df[df['cluster'] == cluster_selecionado].dropna(subset=['latitude', 'longitude', 'preco'])
+
+        # Cria o mapa
         mapa = folium.Map(location=[-15.7942, -47.8822], zoom_start=12)
 
-        heat_data = [[row['latitude'], row['longitude'], row['preco']] for index, row in df_filtrado.iterrows()]
+        # Adiciona os dados de calor no mapa
+        heat_data = [[row['latitude'], row['longitude'], row['preco']] for index, row in df_clusterizado.iterrows()]
         HeatMap(heat_data, min_zoom=10, max_zoom=12).add_to(mapa)
 
+        # Adiciona marcadores no mapa para cada ponto filtrado
         marker_cluster = MarkerCluster().add_to(mapa)
-        for index, row in df_filtrado.iterrows():
+        for index, row in df_clusterizado.iterrows():
             folium.Marker(
                 location=[row['latitude'], row['longitude']],
                 popup=f"Preço: R$ {row['preco']}",
             ).add_to(marker_cluster)
 
+        # Adiciona uma legenda ao mapa
         legenda = """
         <div style="position: fixed; 
                     bottom: 50px; left: 50px; width: 200px; height: 100px; 
@@ -122,6 +137,43 @@ def create_app():
         """
         mapa.get_root().html.add_child(folium.Element(legenda))
         mapa.save("./static/mapas/mapa_de_calor_com_limite.html")
+
+        return mapa._repr_html_()
+    
+    def gerar_mapa2():
+        cluster_selecionado = 1
+        csv_file_path = './static/dados/vendaC.csv'
+        df = pd.read_csv(csv_file_path)
+
+        # Verifica a presença das colunas necessárias
+        if 'latitude' not in df.columns or 'longitude' not in df.columns or 'valor_m2' not in df.columns or 'cluster' not in df.columns:
+            raise ValueError("O arquivo CSV deve conter as colunas 'latitude', 'longitude', 'valor_m2' e 'cluster'.")
+
+        # Converte latitude e longitude para o formato correto, dividindo por 1.000.000
+        df['latitude'] = df['latitude'] / 1e7
+        df['longitude'] = df['longitude'] / 1e7
+
+        # Filtra o DataFrame para o cluster especificado
+        df_clusterizado = df[df['cluster'] == cluster_selecionado].dropna(subset=['latitude', 'longitude', 'valor_m2'])
+
+        # Cria o mapa
+        mapa = folium.Map(location=[-15.7942, -47.8822], zoom_start=12)
+
+        # Adiciona os dados de calor no mapa, usando valor_m2 como peso para a intensidade do calor
+        heat_data = [[row['latitude'], row['longitude'], row['valor_m2']] for index, row in df_clusterizado.iterrows()]
+        HeatMap(heat_data, min_opacity=0.2, max_val=df['valor_m2'].max(), radius=15, blur=20, max_zoom=12).add_to(mapa)
+
+        # Adiciona uma legenda ao mapa
+        legenda = """
+        <div style="position: fixed; 
+                    bottom: 50px; left: 50px; width: 200px; height: 100px; 
+                    background-color: white; border:2px solid grey; z-index:9999; font-size:14px;">
+            <h4>Legenda</h4>
+            <p>Áreas com cores mais intensas representam locais com maior valor de M².</p>
+        </div>
+        """
+        mapa.get_root().html.add_child(folium.Element(legenda))
+        mapa.save("./static/mapas/mapa_de_calor_valor_m2.html")
 
         return mapa._repr_html_()
 

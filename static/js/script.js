@@ -29,11 +29,35 @@ function submitOnChange() {
         animateUpdate('coeficienteVarLoc', `Coeficiente de Variação de Locação: ${data.coeficienteVariacaoLocacao}`);
         animateUpdate('tamAmostraLoc', `Tamanho da Amostra de Locação: ${data.tamanhoAmostraLocacao}`);
         animateUpdate('Rentabilidade', `Rentabilidade Média: ${data.rentabilidadeMedia}`);
+        
+        // Atualiza o mapa chamando a função de carregamento do mapa
+        carregarMapa(document.getElementById('map-selector').value);
     })
     .catch(error => {
         console.error('Erro:', error);
-        alert("Amostra insuficiente para analise");
+        alert("Amostra insuficiente para análise");
     });
+}
+
+// Função para carregar o mapa via AJAX
+// Função para carregar o mapa via AJAX com o tipo de mapa selecionado
+function carregarMapa(tipoMapa) {
+    // Exibir o spinner antes de carregar o mapa
+    document.getElementById('loading').style.display = 'flex'; 
+    document.getElementById('map').style.display = 'none'; 
+
+    fetch(`/carregar_mapa?tipo=${tipoMapa}`)
+        .then(response => response.text())
+        .then(data => {
+            // Inserir o mapa no contêiner e esconder o spinner de carregamento
+            document.getElementById('map').innerHTML = data;
+            document.getElementById('loading').style.display = 'none';  // Esconder o spinner
+            document.getElementById('map').style.display = 'block';     // Mostrar o mapa
+        })
+        .catch(error => {
+            console.error('Erro ao carregar o mapa:', error);
+            alert("Erro ao carregar o mapa.");
+        });
 }
 
 // Animação suave de atualização
@@ -48,19 +72,9 @@ function animateUpdate(elementId, newText) {
 
 document.addEventListener('DOMContentLoaded', function() {
     submitOnChange();
+    carregarMapa(); // Carregar o mapa inicialmente ao carregar a página
 });
 
-        // Função para carregar o mapa via AJAX após a página ser carregada
-document.addEventListener('DOMContentLoaded', function () {
-    fetch('/carregar_mapa')
-    .then(response => response.text())
-    .then(data => {
-                        // Inserir o mapa no contêiner e esconder o spinner de carregamento
-            document.getElementById('map').innerHTML = data;
-            document.getElementById('loading').style.display = 'none';  // Esconder o spinner
-            document.getElementById('map').style.display = 'block';     // Mostrar o mapa
-        })
-    .catch(error => {
-        console.error('Erro ao carregar o mapa:', error);
-        });
+document.getElementById('map-selector').addEventListener('change', function() {
+    carregarMapa(this.value);
 });

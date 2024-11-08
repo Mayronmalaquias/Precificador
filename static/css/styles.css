@@ -117,6 +117,12 @@
     margin: 30px auto;
     border-radius: 12px;
     box-shadow: 0 10px 20px rgba(0, 0, 0, 0.2);
+    box-sizing: border-box;
+    overflow: hidden; /* esconde o conteúdo que ultrapassar */
+    overflow: auto; 
+    display: flex;
+    flex-wrap: wrap; 
+    padding: 10px;/* adiciona uma barra de rolagem se necessário */
   }
   
   iframe {

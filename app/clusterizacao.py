@@ -2,7 +2,7 @@ import pandas as pd
 from sklearn.cluster import KMeans
 import numpy as np
 
-input_file = "./static/dados/2024-09-06.csv"
+input_file = "./static/dados/dados_map.csv"
 
 def remover_outliers_iqr(df, coluna):
     Q1 = df[coluna].quantile(0.25)
@@ -55,13 +55,15 @@ def formatar_resultados(df):
 
 def clusterizar_dados(df, valor_coluna, oferta_tipo, n_clusters=9):
     df_oferta = df[df['oferta'] == oferta_tipo].copy()
-
     if not df_oferta.empty and valor_coluna in df_oferta.columns and len(df_oferta) >= n_clusters:
         X = df_oferta[[valor_coluna]].values
         kmeans = KMeans(n_clusters=n_clusters, random_state=42, n_init=10)
         df_oferta.loc[:, "cluster"] = kmeans.fit_predict(X)
         df_oferta.loc[:, 'cluster'] = df_oferta['cluster'].astype('category')
-
+        if(oferta_tipo == 'Aluguel'):
+            df_oferta.to_csv("./static/dados/aluguelC.csv")
+        elif(oferta_tipo == 'Venda'):
+            df_oferta.to_csv("./static/dados/vendaC.csv")
         metricas_clusters = []
         for cluster in sorted(df_oferta['cluster'].unique()):
             cluster_data = df_oferta[df_oferta['cluster'] == cluster]
@@ -70,6 +72,7 @@ def clusterizar_dados(df, valor_coluna, oferta_tipo, n_clusters=9):
             metricas_clusters.append(metricas)
 
         metricas_df = pd.DataFrame(metricas_clusters)
+        print(metricas_df)
 
         if oferta_tipo == 'Venda':
             metricas_df = metricas_df.reindex(columns=['VALOR DE M² DE VENDA', 'VALOR DE VENDA NOMINAL',
@@ -162,3 +165,20 @@ def analisar_imovel_detalhado(tipo_imovel=None, bairro=None, cidade=None, cep=No
     return resultados_formatados.T
 
 
+def clusterizar_dados2(df, valor_coluna, oferta_tipo, cluster, n_clusters=9):
+    # Filtra o DataFrame para o tipo de oferta desejado
+    df_oferta = df[df['oferta'] == oferta_tipo].copy()
+
+    # Verifica se a coluna existe, o DataFrame não está vazio, e possui pelo menos n_clusters linhas
+    if not df_oferta.empty and valor_coluna in df_oferta.columns and len(df_oferta) >= n_clusters:
+        X = df_oferta[[valor_coluna]].values
+        kmeans = KMeans(n_clusters=n_clusters, random_state=42, n_init=10)
+        df_oferta.loc[:, "cluster"] = kmeans.fit_predict(X)
+        df_oferta.loc[:, 'cluster'] = df_oferta['cluster'].astype('category')
+        
+        # Filtra para retornar apenas o cluster especificado
+        print(df_oferta)
+        return df_oferta[df_oferta['cluster'] == cluster]
+    else:
+        # Retorna um DataFrame vazio se as condições não forem atendidas
+        return df_oferta.iloc[0:0]
