@@ -33,11 +33,13 @@ def create_app():
     @app.route('/carregar_mapa', methods=['GET'])
     def carregar_mapa():
         tipo_mapa = request.args.get('tipo')
+        cluster_selecionado = request.args.get('cluster')
         df, df_map = carregar_dados()
+        
         if(tipo_mapa == "mapaAnuncio" or tipo_mapa == "Mapa de anuncio"):
-            return gerar_mapa()
+            return gerar_mapa(cluster_selecionado)
         else:
-            return gerar_mapa2()
+            return gerar_mapa2(cluster_selecionado)
         # return gerar_mapa()
 
     @app.route('/exibir_mapa', methods=['GET'])
@@ -95,8 +97,10 @@ def create_app():
             "rentabilidadeMedia": rentabilidadeMedia
         })
 
-    def gerar_mapa():
-        cluster_selecionado = 1
+    def gerar_mapa(cluster_selecionado):
+        # cluster_selecionado = 1
+        cluster_selecionado = int(cluster_selecionado)
+        print(f"MIRON AQUI{cluster_selecionado} FUNCAO GERAR MAPA1")
         csv_file_path = './static/dados/vendaC.csv'
         df = pd.read_csv(csv_file_path)
 
@@ -140,8 +144,10 @@ def create_app():
 
         return mapa._repr_html_()
     
-    def gerar_mapa2():
-        cluster_selecionado = 1
+    def gerar_mapa2(cluster_selecionado):
+        # cluster_selecionado = 1
+        cluster_selecionado = int(cluster_selecionado)
+        print(f"MIRON AQUI{cluster_selecionado} FUNCAO GERAR MAPA2")
         csv_file_path = './static/dados/vendaC.csv'
         df = pd.read_csv(csv_file_path)
 
@@ -161,7 +167,7 @@ def create_app():
 
         # Adiciona os dados de calor no mapa, usando valor_m2 como peso para a intensidade do calor
         heat_data = [[row['latitude'], row['longitude'], row['valor_m2']] for index, row in df_clusterizado.iterrows()]
-        HeatMap(heat_data, min_opacity=0.2, max_val=df['valor_m2'].max(), radius=15, blur=20, max_zoom=12).add_to(mapa)
+        HeatMap(heat_data, min_opacity=0.2, radius=15, blur=20, max_zoom=12).add_to(mapa)
 
         # Adiciona uma legenda ao mapa
         legenda = """

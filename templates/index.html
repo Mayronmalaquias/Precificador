@@ -93,7 +93,7 @@
 
             <label for="nrCluster">Número de Clusters (1 a 9):</label>
             <input type="range" id="nrCluster" name="nrCluster" min="1" max="9" value="5" oninput="this.nextElementSibling.value = this.value; submitOnChange();">
-            <output>5</output><br>
+            <output id="outCluster">5</output><br>
 
             <div id="nome">
                 <button type="button" onclick="alterarCluster(2)">ORIGINAL</button>
@@ -144,12 +144,6 @@
         <p>Desenvolvido por <a href="https://61imoveis.com.br" target="_blank">61Imóveis</a></p>
     </footer>
     <script src="{{ url_for('static', filename='js/script.js') }}">
-        function alterarCluster(valor) {
-            console.log("chegou aqui");
-            document.getElementById('nrCluster').value = valor; // Atualiza o valor do range
-            document.querySelector('output').value = valor; // Atualiza o valor mostrado no output
-            document.getElementById('formularioAnalise').submit(); // Submete o formulário
-        }
     </script>
 </body>
 </html>

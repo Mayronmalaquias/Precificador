@@ -72,7 +72,7 @@ def clusterizar_dados(df, valor_coluna, oferta_tipo, n_clusters=9):
             metricas_clusters.append(metricas)
 
         metricas_df = pd.DataFrame(metricas_clusters)
-        print(metricas_df)
+        # print(metricas_df)
 
         if oferta_tipo == 'Venda':
             metricas_df = metricas_df.reindex(columns=['VALOR DE M² DE VENDA', 'VALOR DE VENDA NOMINAL',
@@ -177,7 +177,7 @@ def clusterizar_dados2(df, valor_coluna, oferta_tipo, cluster, n_clusters=9):
         df_oferta.loc[:, 'cluster'] = df_oferta['cluster'].astype('category')
         
         # Filtra para retornar apenas o cluster especificado
-        print(df_oferta)
+        # print(df_oferta)
         return df_oferta[df_oferta['cluster'] == cluster]
     else:
         # Retorna um DataFrame vazio se as condições não forem atendidas
