@@ -33,7 +33,7 @@ function submitOnChange() {
         // Atualiza o mapa chamando a função de carregamento do mapa
         console.log("MIRON HEHE");
         console.log(document.getElementById('outCluster').value);
-        carregarMapa(document.getElementById('map-selector').value,document.getElementById('outCluster').value);
+        carregarMapa(document.getElementById('map-selector').value,document.getElementById('outCluster').value, document.getElementById('mapOption').value);
     })
     .catch(error => {
         console.error('Erro:', error);
@@ -43,11 +43,12 @@ function submitOnChange() {
 
 // Função para carregar o mapa via AJAX
 // Função para carregar o mapa via AJAX com o tipo de mapa selecionado
-function carregarMapa(tipoMapa, cluster) {
+function carregarMapa(tipoMapa, cluster, tamanho_mapa) {
     // Exibir o spinner antes de carregar o mapa
     const clusterTemp = cluster ?? 5;
     const clusterElement = document.getElementById('nrCluster'); // Assumindo que o elemento tem o ID 'cluster'
     const clusterOutput = document.getElementById('outCluster');
+
     if (clusterElement) {
         clusterElement.value = clusterTemp;
         clusterOutput.value = clusterTemp // Atualiza o valor exibido para o cluster selecionado
@@ -55,7 +56,7 @@ function carregarMapa(tipoMapa, cluster) {
     document.getElementById('loading').style.display = 'flex'; 
     document.getElementById('map').style.display = 'none'; 
 
-    fetch(`/carregar_mapa?tipo=${tipoMapa}&cluster=${clusterTemp}`)
+    fetch(`/carregar_mapa?tipo=${tipoMapa}&cluster=${clusterTemp}&tamanho=${tamanho_mapa}`)
         .then(response => response.text())
         .then(data => {
             // Inserir o mapa no contêiner e esconder o spinner de carregamento
@@ -85,7 +86,11 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 document.getElementById('map-selector').addEventListener('change', function() {
-    carregarMapa(this.value);
+    carregarMapa(document.getElementById('map-selector').value,document.getElementById('outCluster').value, document.getElementById('mapOption').value);
+});
+
+document.getElementById('mapOption').addEventListener('change', function() {
+    carregarMapa(document.getElementById('map-selector').value,document.getElementById('outCluster').value, document.getElementById('mapOption').value);
 });
 
 function alterarCluster(valor) {

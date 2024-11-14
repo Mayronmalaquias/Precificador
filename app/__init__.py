@@ -34,12 +34,19 @@ def create_app():
     def carregar_mapa():
         tipo_mapa = request.args.get('tipo')
         cluster_selecionado = request.args.get('cluster')
+        tipo_mapa_tam = request.args.get('tamanho')
         df, df_map = carregar_dados()
         
         if(tipo_mapa == "mapaAnuncio" or tipo_mapa == "Mapa de anuncio"):
-            return gerar_mapa(cluster_selecionado)
+            if(tipo_mapa_tam == "mapaCluster" or tipo_mapa_tam == "Mapa Clusterizado"):
+                return gerar_mapa_anuncio_clusterizado(cluster_selecionado)
+            else:
+                return gerar_mapa_anuncio_completo()
         else:
-            return gerar_mapa2(cluster_selecionado)
+            if(tipo_mapa_tam == "mapaCluster" or tipo_mapa_tam == "Mapa Clusterizado"):
+                return gerar_mapa_m2_cluterizado(cluster_selecionado)
+            elif(tipo_mapa_tam == "mapaCompleto" or tipo_mapa_tam == "Mapa Completo"):
+                return gerar_mapa_m2_completo(cluster_selecionado)
         # return gerar_mapa()
 
     @app.route('/exibir_mapa', methods=['GET'])
@@ -97,7 +104,7 @@ def create_app():
             "rentabilidadeMedia": rentabilidadeMedia
         })
 
-    def gerar_mapa(cluster_selecionado):
+    def gerar_mapa_anuncio_clusterizado(cluster_selecionado):
         # cluster_selecionado = 1
         cluster_selecionado = int(cluster_selecionado)
         print(f"MIRON AQUI{cluster_selecionado} FUNCAO GERAR MAPA1")
@@ -143,31 +150,73 @@ def create_app():
         mapa.save("./static/mapas/mapa_de_calor_com_limite.html")
 
         return mapa._repr_html_()
+
+    def gerar_mapa_anuncio_completo():
+        df = pd.read_csv(csv_file_path)
+
+        if 'latitude' not in df.columns or 'longitude' not in df.columns or 'preco' not in df.columns:
+            raise ValueError("O arquivo CSV deve conter as colunas 'latitude', 'longitude' e 'preco'.")
+
+        df_filtrado = df[['latitude', 'longitude', 'preco']].dropna()
+        df_filtrado = df_filtrado.groupby(['latitude', 'longitude']).head(5)
+
+        mapa = folium.Map(location=[-15.7942, -47.8822], zoom_start=12)
+
+        heat_data = [[row['latitude'], row['longitude'], row['preco']] for index, row in df_filtrado.iterrows()]
+        HeatMap(heat_data, min_zoom=10, max_zoom=12).add_to(mapa)
+
+        marker_cluster = MarkerCluster().add_to(mapa)
+        for index, row in df_filtrado.iterrows():
+            folium.Marker(
+                location=[row['latitude'], row['longitude']],
+                popup=f"Preço: R$ {row['preco']}",
+            ).add_to(marker_cluster)
+
+        legenda = """
+        <div style="position: fixed; 
+                    bottom: 50px; left: 50px; width: 200px; height: 100px; 
+                    background-color: white; border:2px solid grey; z-index:9999; font-size:14px;">
+            <h4>Legenda</h4>
+            <p>Quantidade de anúncios em cada agrupamento. O mapa mostra até 5 pontos por coordenada.</p>
+        </div>
+        """
+        mapa.get_root().html.add_child(folium.Element(legenda))
+        mapa.save("./static/mapas/mapa_de_calor_com_limite.html")
+
+        return mapa._repr_html_()
     
-    def gerar_mapa2(cluster_selecionado):
+    def gerar_mapa3(cluster_selecionado):
         # cluster_selecionado = 1
         cluster_selecionado = int(cluster_selecionado)
         print(f"MIRON AQUI{cluster_selecionado} FUNCAO GERAR MAPA2")
         csv_file_path = './static/dados/vendaC.csv'
-        df = pd.read_csv(csv_file_path)
+        # df = pd.read_csv(csv_file_path)
+        df = pd.read_csv("./static/dados/dados_map.csv")
 
         # Verifica a presença das colunas necessárias
-        if 'latitude' not in df.columns or 'longitude' not in df.columns or 'valor_m2' not in df.columns or 'cluster' not in df.columns:
+        if 'latitude' not in df.columns or 'longitude' not in df.columns or 'valor_m2' not in df.columns: #or 'cluster' not in df.columns:
             raise ValueError("O arquivo CSV deve conter as colunas 'latitude', 'longitude', 'valor_m2' e 'cluster'.")
 
         # Converte latitude e longitude para o formato correto, dividindo por 1.000.000
-        df['latitude'] = df['latitude'] / 1e7
-        df['longitude'] = df['longitude'] / 1e7
+        # df['latitude'] = df['latitude'] / 1e7
+        # df['longitude'] = df['longitude'] / 1e7
 
         # Filtra o DataFrame para o cluster especificado
-        df_clusterizado = df[df['cluster'] == cluster_selecionado].dropna(subset=['latitude', 'longitude', 'valor_m2'])
+        # df_clusterizado = df[df['cluster'] == cluster_selecionado].dropna(subset=['latitude', 'longitude', 'valor_m2'])
 
         # Cria o mapa
         mapa = folium.Map(location=[-15.7942, -47.8822], zoom_start=12)
 
         # Adiciona os dados de calor no mapa, usando valor_m2 como peso para a intensidade do calor
-        heat_data = [[row['latitude'], row['longitude'], row['valor_m2']] for index, row in df_clusterizado.iterrows()]
-        HeatMap(heat_data, min_opacity=0.2, radius=15, blur=20, max_zoom=12).add_to(mapa)
+        heat_data = [[row['latitude'], row['longitude'], row['valor_m2']] for index, row in df.iterrows()]       #df_clusterizado.iterrows()]
+        HeatMap(
+            heat_data,
+            min_opacity=0.4,
+            radius=10,             # Menor raio para destacar os valores
+            blur=15,               # Menor desfoque para mais contraste
+            max_zoom=12,
+            gradient={0.2: 'blue', 0.4: 'lime', 0.6: 'yellow', 0.8: 'orange', 1: 'red'}
+        ).add_to(mapa)
 
         # Adiciona uma legenda ao mapa
         legenda = """
@@ -182,5 +231,128 @@ def create_app():
         mapa.save("./static/mapas/mapa_de_calor_valor_m2.html")
 
         return mapa._repr_html_()
+
+    def gerar_mapa_m2_completo(cluster_selecionado):
+        # Carrega os dados
+        df = pd.read_csv("./static/dados/dados_map.csv")
+
+        # Verifica a presença das colunas necessárias
+        if 'bairro' not in df.columns or 'latitude' not in df.columns or 'longitude' not in df.columns or 'valor_m2' not in df.columns:
+            raise ValueError("O arquivo CSV deve conter as colunas 'regiao', 'latitude', 'longitude' e 'valor_m2'.")
+
+        # Calcula a média de valor_m2 por região
+        media_por_regiao = df.groupby('bairro')['valor_m2'].mean().reset_index()
+        media_por_regiao = media_por_regiao.rename(columns={'valor_m2': 'media_valor_m2'})
+
+        # Mescla as médias de volta ao DataFrame original
+        df = df.merge(media_por_regiao, on='bairro')
+
+        # Aplicar um peso decrescente para ajustar a intensidade ao redor das áreas mais vermelhas
+        # Aqui vamos ajustar o valor com base em uma "intensidade máxima" de 10%
+        df['valor_m2_ajustado'] = df.apply(
+            lambda row: row['media_valor_m2'] * 0.9 if row['media_valor_m2'] < df['media_valor_m2'].max() else row['media_valor_m2'],
+            axis=1
+        )
+
+        # Normaliza o valor ajustado para a faixa 0-1
+        df['valor_m2_normalizado'] = (df['valor_m2_ajustado'] - df['valor_m2_ajustado'].min()) / (df['valor_m2_ajustado'].max() - df['valor_m2_ajustado'].min())
+
+        # Cria o mapa
+        mapa = folium.Map(location=[-15.7942, -47.8822], zoom_start=12)
+
+        # Adiciona os dados de calor no mapa com o valor normalizado ajustado
+        heat_data = [[row['latitude'], row['longitude'], row['valor_m2_normalizado']] for index, row in df.iterrows()]
+        HeatMap(
+            heat_data,
+            min_opacity=0.4,
+            radius=25,
+            blur=20,
+            max_zoom=12,
+            gradient={0.2: 'blue', 0.4: 'lime', 0.6: 'yellow', 0.8: 'orange', 1: 'red'}
+        ).add_to(mapa)
+
+        # Adiciona uma legenda ao mapa
+        legenda = """
+        <div style="position: fixed; 
+                    bottom: 50px; left: 50px; width: 200px; height: 100px; 
+                    background-color: white; border:2px solid grey; z-index:9999; font-size:14px;">
+            <h4>Legenda</h4>
+            <p>Áreas com cores mais intensas representam locais com maior valor de M² ajustado.</p>
+        </div>
+        """
+        mapa.get_root().html.add_child(folium.Element(legenda))
+        mapa.save("./static/mapas/mapa_de_calor_valor_m2_ajustado.html")
+
+        return mapa._repr_html_()
+    
+    def gerar_mapa_m2_cluterizado(cluster_selecionado):
+        # Carrega os dados
+        df = pd.read_csv("./static/dados/vendaC.csv")
+
+        # Verifica se há dados após o filtro de cluster
+        df['cluster'] = df['cluster'].astype(int)
+        df = df[df['cluster'] == int(cluster_selecionado)].dropna(subset=['latitude', 'longitude', 'valor_m2'])
+        if df.empty:
+            raise ValueError(f"Nenhum dado encontrado para o cluster selecionado: {cluster_selecionado}")
+
+        # Verifica a presença das colunas necessárias
+        if 'bairro' not in df.columns or 'latitude' not in df.columns or 'longitude' not in df.columns or 'valor_m2' not in df.columns or 'cluster' not in df.columns:
+            raise ValueError("O arquivo CSV deve conter as colunas 'bairro', 'latitude', 'longitude' e 'valor_m2'.")
+
+        # Calcula a média de valor_m2 por bairro
+        media_por_regiao = df.groupby('bairro')['valor_m2'].mean().reset_index()
+        media_por_regiao = media_por_regiao.rename(columns={'valor_m2': 'media_valor_m2'})
+
+        df['latitude'] = df['latitude'] / 1e7
+        df['longitude'] = df['longitude'] / 1e7
+
+        # Mescla as médias de volta ao DataFrame original
+        df = df.merge(media_por_regiao, on='bairro', how='left')
+        if df['media_valor_m2'].isnull().all():
+            raise ValueError("Erro ao calcular a média de valor_m2 por bairro. Verifique os dados de 'bairro' e 'valor_m2'.")
+
+        # # Aplicar um peso decrescente para ajustar a intensidade ao redor das áreas mais vermelhas
+        df['valor_m2_ajustado'] = df.apply(
+            lambda row: row['media_valor_m2'] * 0.9 if row['media_valor_m2'] < df['media_valor_m2'].max() else row['media_valor_m2'],
+            axis=1
+        )
+
+        # # # Normaliza o valor ajustado para a faixa 0-1
+        # if df['valor_m2_ajustado'].max() == df['valor_m2_ajustado'].min():
+        #     raise ValueError("Todos os valores ajustados são iguais. Não é possível normalizar.")
+        # df['valor_m2_normalizado'] = (df['valor_m2_ajustado'] - df['valor_m2_ajustado'].min()) / (df['valor_m2_ajustado'].max() - df['valor_m2_ajustado'].min())
+
+        # Cria o mapa
+        mapa = folium.Map(location=[-15.7942, -47.8822], zoom_start=12)
+
+        # Adiciona os dados de calor no mapa com o valor normalizado ajustado
+        heat_data = [[row['latitude'], row['longitude'], row['valor_m2']] for index, row in df.iterrows()]
+        if not heat_data:
+            raise ValueError("Nenhum dado de calor encontrado para plotar no mapa.")
+        HeatMap(
+            heat_data,
+            min_opacity=0.4,
+            radius=25,
+            blur=20,
+            max_zoom=12,
+            gradient={0.2: 'blue', 0.4: 'lime', 0.6: 'yellow', 0.8: 'orange', 1: 'red'}
+        ).add_to(mapa)
+
+        # Adiciona uma legenda ao mapa
+        legenda = """
+        <div style="position: fixed; 
+                    bottom: 50px; left: 50px; width: 200px; height: 100px; 
+                    background-color: white; border:2px solid grey; z-index:9999; font-size:14px;">
+            <h4>Legenda</h4>
+            <p>Áreas com cores mais intensas representam locais com maior valor de M² ajustado.</p>
+        </div>
+        """
+        mapa.get_root().html.add_child(folium.Element(legenda))
+        mapa.save("./static/mapas/mapa_de_calor_valor_m2_ajustado.html")
+
+        return mapa._repr_html_()
+    
+    
+
 
     return app
