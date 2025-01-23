@@ -177,7 +177,7 @@ def create_app():
                     bottom: 50px; left: 50px; width: 200px; height: 100px; 
                     background-color: white; border:2px solid grey; z-index:9999; font-size:14px;">
             <h4>Legenda</h4>
-            <p>Quantidade de anúncios em cada agrupamento. O mapa mostra até 5 pontos por coordenada.</p>
+            <p>Quantidade de anúncios em cada agrupamento.</p>
         </div>
         """
         mapa.get_root().html.add_child(folium.Element(legenda))
