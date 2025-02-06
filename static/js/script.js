@@ -33,7 +33,7 @@ function submitOnChange() {
         // Atualiza o mapa chamando a função de carregamento do mapa
         console.log("MIRON HEHE");
         console.log(document.getElementById('outCluster').value);
-        carregarMapa(document.getElementById('map-selector').value,document.getElementById('outCluster').value, document.getElementById('mapOption').value);
+        // carregarMapa(document.getElementById('map-selector').value,document.getElementById('outCluster').value, document.getElementById('mapOption').value);
     })
     .catch(error => {
         console.error('Erro:', error);

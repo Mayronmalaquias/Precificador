@@ -29,6 +29,6 @@ footer {
   
   /* Efeito sutil de elevação ao passar o mouse */
   footer:hover {
-    background-color: #022c70;
+    background-color: #e1005b;
     box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.15);
   }
