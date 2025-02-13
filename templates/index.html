@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Inteligência Imobiliária 61</title>
-    <link rel="icon" type="image/png" href="../static/img/14.png">
+    <link rel="icon" type="image/png" href="../static/img/61imoveis _ rosa_png.png">
     <link rel="stylesheet" href="../static/css/styles.css"> <!-- Link para o CSS separado -->
     <link rel="stylesheet" href="../static/css/report.css">
     <!-- <link rel="stylesheet" href="../static/css/map.css"> -->
@@ -89,22 +89,22 @@
                 <select id="bairro" name="bairro" required onchange="submitOnChange()">
                     <option value="ASA NORTE">ASA NORTE</option>
                     <option value="ASA SUL">ASA SUL</option>
-                    <option value="LAGO SUL">LAGO SUL</option>
-                    <option value="LAGO NORTE">LAGO NORTE</option>
+                    <!-- <option value="LAGO SUL">LAGO SUL</option> -->
+                    <!-- <option value="LAGO NORTE">LAGO NORTE</option> -->
                     <option value="NOROESTE">NOROESTE</option>
                     <option value="SUDOESTE">SUDOESTE</option>
-                    <option value="PARK WAY">PARK WAY</option>
-                    <option value="PARK SUL">PARK SUL</option>
+                    <!-- <option value="PARK WAY">PARK WAY</option> -->
+                    <!-- <option value="PARK SUL">PARK SUL</option> -->
                     <!-- <option value="OCTOGONAL">OCTOGONAL</option> -->
                     <!-- <option value="SIG">SIG</option> -->
                     <!-- <option value="VILA PLANALTO">VILA PLANALTO</option> -->
                     <!-- <option value="NÚCLEO BANDEIRANTE">NÚCLEO BANDEIRANTE</option> -->
                     <option value="SUL">AGUAS CLARAS SUL</option>
                     <option value="NORTE">AGUAS CLARAS NORTE</option>
-                    <option value="SOBRADINHO">SOBRADINHO</option>
-                    <option value="ARNIQUEIRA">ARNIQUEIRA</option>
-                    <option value="JARDIM BOTANICO">JARDIM BOTANICO</option>
-                    <option value="VICENTE PIRES">VICENTE PIRES</option>
+                    <!-- <option value="SOBRADINHO">SOBRADINHO</option> -->
+                    <!-- <option value="ARNIQUEIRA">ARNIQUEIRA</option> -->
+                    <!-- <option value="JARDIM BOTANICO">JARDIM BOTANICO</option> -->
+                    <!-- <option value="VICENTE PIRES">VICENTE PIRES</option> -->
                 </select><br>
     
                 <label for="quartos">Quartos:</label>
@@ -113,19 +113,19 @@
                     <option value="1">1</option>
                     <option value="2">2</option>
                     <option value="3">3</option>
-                    <option value="4">4</option>
-                    <option value="5">5</option>
-                    <option value="6">6</option>
+                    <option value="4">4+</option>
+                    <!-- <option value="5">5</option> -->
+                    <!-- <option value="6">6</option> -->
                 </select><br>
     
                 <label for="vagas">Vagas:</label>
                 <select id="vagas" name="vagas" required onchange="submitOnChange()">
                     <option value="10">Todos</option>
                     <option value="0">0</option>
-                    <option value="1">1</option>
-                    <option value="2">2</option>
-                    <option value="3">3</option>
-                    <option value="4">4</option>
+                    <option value="1">1+</option>
+                    <!-- <option value="2">2</option> -->
+                    <!-- <option value="3">3</option> -->
+                    <!-- <option value="4">4</option> -->
                 </select><br>
     
                 <label for="metragem">Metragem (m²):</label>
@@ -152,9 +152,13 @@
                     <li id="Rentabilidade"><strong>Rentabilidade Média:</strong> </li>
                 </ul>
 
-                <label for="nrCluster">Número de Clusters (1 a 9):</label>
-                <input type="range" id="nrCluster" name="nrCluster" min="1" max="9" value="5" oninput="this.nextElementSibling.value = this.value; submitOnChange();">
-                <output id="outCluster">5</output><br>
+                <div class="container">
+                    <label for="nrCluster" class="TituloCluster">Número de Clusters (1 a 9):</label>
+                    <input type="range" id="nrCluster" name="nrCluster" min="1" max="9" value="5"
+                        oninput="this.nextElementSibling.value = this.value; submitOnChange();">
+                    <output id="outCluster">5</output>
+                    <img src="../static/img/61imoveis _ rosa_png.png" alt="Imagem sobre o campo" class="imagem-sobreposta">
+                </div>
             </form>
         </div> 
     </main>

@@ -138,6 +138,22 @@ input[type="number"]::placeholder {
   color: #999;
 }
 
+.container {
+  position: relative;
+  display: inline-block; /* Mantém o tamanho ajustado ao conteúdo */
+}
+
 #nrCluster, #outCluster, label[for="nrCluster"] {
   visibility: hidden;
+}
+
+.imagem-sobreposta {
+  position: absolute;
+  top: 25%;
+  left: 50%;
+  transform: translate(125%, -30%);
+  width: 150px;
+  height: 150px;
+  cursor: pointer;
+  z-index: 2;
 }
