@@ -3,7 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Analisar Imóvel Detalhado</title>
+    <title>Inteligência Imobiliária 61</title>
+    <link rel="icon" type="image/png" href="../static/img/14.png">
     <link rel="stylesheet" href="../static/css/styles.css"> <!-- Link para o CSS separado -->
     <link rel="stylesheet" href="../static/css/report.css">
     <!-- <link rel="stylesheet" href="../static/css/map.css"> -->
@@ -33,16 +34,43 @@
             animation: spin 2s linear infinite;
         }
 
+        .negrito {
+            font-weight: bold;
+        }
+
         @keyframes spin {
             0% { transform: rotate(0deg); }
             100% { transform: rotate(360deg); }
+        }
+
+        .lista-com-imagem {
+            position: relative; /* Garante que o ::before fique dentro da ul */
+            padding: 20px;
+            border-radius: 10px;
+            z-index: 1; /* Garante que o conteúdo fique acima da imagem */
+        }
+        
+        .lista-com-imagem::before {
+            content: "";
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 90%;
+            height: 90%;
+            background-image: url('../static/img/LOGO\ 61\ IMOVEIS\ and\ NETIMOVEI.2.png'); /* Define a imagem */
+            background-size: cover; /* Faz a imagem cobrir toda a área */
+            background-position: center;
+            background-repeat: no-repeat;
+            opacity: 0.1; /* Define a transparência da imagem */
+            border-radius: 10px; /* Mantém as bordas arredondadas se necessário */
+            z-index: 1; /* Coloca a imagem atrás do conteúdo */
         }
 
     </style>
 </head>
 <body>
     <header>
-        <h1>Analisar Imóvel Detalhado</h1>
+        <h1>Inteligência Imobiliária 61</h1>
     </header>
 
     <main>
@@ -51,10 +79,10 @@
                 <label for="tipoImovel">Tipo de Imóvel:</label>
                 <select id="tipoImovel" name="tipoImovel" required onchange="submitOnChange()">
                     <option value="Apartamento">Apartamento</option>
-                    <option value="Casa">Casa</option>
+                    <!-- <option value="Casa">Casa</option>
                     <option value="Loja">Loja</option>
                     <option value="Lote">Lote</option>
-                    <option value="Casa Condominio">Casa Condominio</option>
+                    <option value="Casa Condominio">Casa Condominio</option> -->
                 </select><br>
     
                 <label for="bairro">Bairro:</label>
@@ -67,10 +95,16 @@
                     <option value="SUDOESTE">SUDOESTE</option>
                     <option value="PARK WAY">PARK WAY</option>
                     <option value="PARK SUL">PARK SUL</option>
-                    <option value="OCTOGONAL">OCTOGONAL</option>
-                    <option value="SIG">SIG</option>
-                    <option value="VILA PLANALTO">VILA PLANALTO</option>
-                    <option value="NÚCLEO BANDEIRANTE">NÚCLEO BANDEIRANTE</option>
+                    <!-- <option value="OCTOGONAL">OCTOGONAL</option> -->
+                    <!-- <option value="SIG">SIG</option> -->
+                    <!-- <option value="VILA PLANALTO">VILA PLANALTO</option> -->
+                    <!-- <option value="NÚCLEO BANDEIRANTE">NÚCLEO BANDEIRANTE</option> -->
+                    <option value="SUL">AGUAS CLARAS SUL</option>
+                    <option value="NORTE">AGUAS CLARAS NORTE</option>
+                    <option value="SOBRADINHO">SOBRADINHO</option>
+                    <option value="ARNIQUEIRA">ARNIQUEIRA</option>
+                    <option value="JARDIM BOTANICO">JARDIM BOTANICO</option>
+                    <option value="VICENTE PIRES">VICENTE PIRES</option>
                 </select><br>
     
                 <label for="quartos">Quartos:</label>
@@ -94,40 +128,41 @@
                     <option value="4">4</option>
                 </select><br>
     
-                <!-- <label for="metragem">Metragem (m²):</label>
-                <input type="number" id="metragem" name="metragem" step="0.01" min="0" placeholder="Digite a metragem" value="0" onchange="submitOnChange()"> -->
+                <label for="metragem">Metragem (m²):</label>
+                <input type="number" id="metragem" name="metragem" step="1" min="0" placeholder="Digite a metragem" value="0" onchange="submitOnChange()">
     
-                <label for="nrCluster">Número de Clusters (1 a 9):</label>
-                <input type="range" id="nrCluster" name="nrCluster" min="1" max="9" value="5" oninput="this.nextElementSibling.value = this.value; submitOnChange();">
-                <output id="outCluster">5</output><br>
-    
+                
                 <div id="nome">
                     <button type="button" onclick="alterarCluster(2)">ORIGINAL</button>
                     <button type="button" onclick="alterarCluster(5)">SEMI-REFORMADO</button>
                     <button type="button" onclick="alterarCluster(8)">REFORMADO</button>
                 </div>
     
-                <ul>
-                    <li id="vlrM2Venda"><strong>Valor de M² de Venda:</strong> </li>
-                    <li id="vlrVendaNominal"><strong>Valor de Venda Nominal:</strong> </li>
-                    <li id="mtrMediaVenda"><strong>Metragem Média de Venda:</strong> </li>
-                    <li id="coeficienteVar"><strong>Coeficiente de Variação de Venda:</strong> </li>
-                    <li id="tamAmostra"><strong>Tamanho da Amostra de Venda:</strong> </li>
-                    <li id="vlrM2Loc"><strong>Valor de M² de Locação:</strong> </li>
-                    <li id="vlrLocacaoNominal"><strong>Valor de Locação Nominal:</strong> </li>
-                    <li id="mtrMediaLoc"><strong>Metragem Média de Locação:</strong> </li>
-                    <li id="coeficienteVarLoc"><strong>Coeficiente de Variação de Locação:</strong> </li>
-                    <li id="tamAmostraLoc"><strong>Tamanho da Amostra de Locação:</strong> </li>
+                <ul class="lista-com-imagem">
+                    <li id="vlrM2Venda" class="negrito"><strong>Valor de M² de Venda:</strong> </li>
+                    <li id="vlrVendaNominal" class="negrito"><strong>Valor de Venda Nominal:</strong> </li>
+                    <!-- <li id="mtrMediaVenda"><strong>Metragem Média de Venda:</strong> </li> -->
+                    <!-- <li id="coeficienteVar"><strong>Coeficiente de Variação de Venda:</strong> </li> -->
+                    <!-- <li id="tamAmostra"><strong>Tamanho da Amostra de Venda:</strong> </li> -->
+                    <li id="vlrM2Loc" class="negrito"><strong>Valor de M² de Locação:</strong> </li>
+                    <li id="vlrLocacaoNominal" class="negrito"><strong>Valor de Locação Nominal:</strong> </li>
+                    <!-- <li id="mtrMediaLoc"><strong>Metragem Média de Locação:</strong> </li> -->
+                    <!-- <li id="coeficienteVarLoc"><strong>Coeficiente de Variação de Locação:</strong> </li> -->
+                    <!-- <li id="tamAmostraLoc"><strong>Tamanho da Amostra de Locação:</strong> </li> -->
                     <li id="Rentabilidade"><strong>Rentabilidade Média:</strong> </li>
                 </ul>
+
+                <label for="nrCluster">Número de Clusters (1 a 9):</label>
+                <input type="range" id="nrCluster" name="nrCluster" min="1" max="9" value="5" oninput="this.nextElementSibling.value = this.value; submitOnChange();">
+                <output id="outCluster">5</output><br>
             </form>
         </div> 
     </main>
     </div>
     
     <footer>
-        <p>61Imóveis - Contato: (61) 99999-9999 | Email: contato@61imoveis.com.br</p>
-        <p>Desenvolvido por <a href="https://61imoveis.com.br" target="_blank">61Imóveis</a></p>
+        <p>61Imóveis - Contato: (61) 3686-2430 | Email: 61@61imoveis.com</p>
+        <p>Desenvolvido por <a href="https://www.61imoveis.com/" target="_blank">61Imóveis</a></p>
     </footer>
     <script src="{{ url_for('static', filename='js/script.js') }}">
     </script>

@@ -108,3 +108,36 @@ footer a {
   0% { transform: rotate(0deg); }
   100% { transform: rotate(360deg); }
 }
+
+
+label {
+  font-size: 16px;
+  font-weight: bold;
+  color: #333;
+  display: block;
+  margin-bottom: 5px;
+}
+
+input[type="number"] {
+  width: 100%;
+  max-width: 200px;
+  padding: 8px 10px;
+  font-size: 16px;
+  border: 2px solid #ccc;
+  border-radius: 8px;
+  outline: none;
+  transition: border-color 0.3s ease-in-out;
+}
+
+input[type="number"]:focus {
+  border-color: #007bff;
+  box-shadow: 0 0 5px rgba(0, 123, 255, 0.5);
+}
+
+input[type="number"]::placeholder {
+  color: #999;
+}
+
+#nrCluster, #outCluster, label[for="nrCluster"] {
+  visibility: hidden;
+}

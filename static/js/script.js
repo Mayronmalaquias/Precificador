@@ -20,14 +20,14 @@ function submitOnChange() {
         // Animação para atualização suave dos valores
         animateUpdate('vlrM2Venda', `Valor de M² de Venda: ${data.valorM2Venda}`);
         animateUpdate('vlrVendaNominal', `Valor de Venda Nominal: ${data.valorVendaNominal}`);
-        animateUpdate('mtrMediaVenda', `Metragem Média de Venda: ${data.metragemMediaVenda}`);
-        animateUpdate('coeficienteVar', `Coeficiente de Variação de Venda: ${data.coeficienteVariacaoVenda}`);
-        animateUpdate('tamAmostra', `Tamanho da Amostra de Venda: ${data.tamanhoAmostraVenda}`);
+        // animateUpdate('mtrMediaVenda', `Metragem Média de Venda: ${data.metragemMediaVenda}`);
+        // animateUpdate('coeficienteVar', `Coeficiente de Variação de Venda: ${data.coeficienteVariacaoVenda}`);
+        // animateUpdate('tamAmostra', `Tamanho da Amostra de Venda: ${data.tamanhoAmostraVenda}`);
         animateUpdate('vlrM2Loc', `Valor de M² de Locação: ${data.valorM2Locacao}`);
         animateUpdate('vlrLocacaoNominal', `Valor de Locação Nominal: ${data.valorLocacaoNominal}`);
-        animateUpdate('mtrMediaLoc', `Metragem Média de Locação: ${data.metragemMediaLocacao}`);
-        animateUpdate('coeficienteVarLoc', `Coeficiente de Variação de Locação: ${data.coeficienteVariacaoLocacao}`);
-        animateUpdate('tamAmostraLoc', `Tamanho da Amostra de Locação: ${data.tamanhoAmostraLocacao}`);
+        // animateUpdate('mtrMediaLoc', `Metragem Média de Locação: ${data.metragemMediaLocacao}`);
+        // animateUpdate('coeficienteVarLoc', `Coeficiente de Variação de Locação: ${data.coeficienteVariacaoLocacao}`);
+        // animateUpdate('tamAmostraLoc', `Tamanho da Amostra de Locação: ${data.tamanhoAmostraLocacao}`);
         animateUpdate('Rentabilidade', `Rentabilidade Média: ${data.rentabilidadeMedia}`);
         
         // Atualiza o mapa chamando a função de carregamento do mapa

@@ -197,7 +197,7 @@ form {
   }
   
   /* Estilo do contêiner para o slider */
-  #nrCluster {
+  /* #nrCluster {
     width: 90%;
     height: 10px;
     -webkit-appearance: none;
@@ -279,4 +279,8 @@ form {
   output#outCluster:hover {
     transform: scale(1.1);
     border-color: var(--primary-color);
-  }
+  } */
+
+  #nrCluster, #outCluster, label[for="nrCluster"] {
+    visibility: hidden;
+}
