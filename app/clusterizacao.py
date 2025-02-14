@@ -26,7 +26,8 @@ def calcular_metricas_cluster(df, valor_coluna, oferta_tipo, metragem = None):
         metricas['TAMANHO DA AMOSTRA DE VENDA'] = len(df)
     else:
         metricas['VALOR DE M² DE ALUGUEL'] = df[valor_coluna].mean()
-        metricas['VALOR DE ALUGUEL NOMINAL'] = df['preco'].mean()
+        # metricas['VALOR DE ALUGUEL NOMINAL'] = df['preco'].mean()
+        metricas['VALOR DE ALUGUEL NOMINAL'] =  metricas['VALOR DE M² DE ALUGUEL'] * metragem if metragem else df['preco'].mean()
         metricas['METRAGEM MÉDIA DE ALUGUEL'] = df['area_util'].mean()
         metricas['COEFICIENTE DE VARIAÇÃO DE ALUGUEL'] = df[valor_coluna].std() / df[valor_coluna].mean() if df[valor_coluna].mean() != 0 else np.nan
         metricas['TAMANHO DA AMOSTRA DE ALUGUEL'] = len(df)
@@ -139,7 +140,7 @@ def analisar_imovel_detalhado(tipo_imovel=None, bairro=None, cidade=None, cep=No
     if "valor_m2" in aluguel_df.columns:
         aluguel_df = remover_outliers_iqr(aluguel_df, "valor_m2")
     print(f"Total de registros de ALUGUEL após remoção de outliers: {len(aluguel_df)}")
-    metricas_aluguel = clusterizar_dados(aluguel_df, "valor_m2", "Aluguel")
+    metricas_aluguel = clusterizar_dados(aluguel_df, "valor_m2", "Aluguel", n_clusters=9,  metragem=metragem)
 
     # Ordenar os clusters de "Venda" e
         # "Aluguel" separadamente
