@@ -12,7 +12,7 @@ def remover_outliers_iqr(df, coluna):
     return df[filtro]
 
 def calcular_rentabilidade(valor_locacao, valor_venda):
-    return (valor_locacao * 12) / valor_venda if valor_venda != 0 else np.nan
+    return (valor_locacao) / valor_venda if valor_venda != 0 else np.nan
 
 def calcular_metricas_cluster(df, valor_coluna, oferta_tipo, metragem = None):
     metricas = {}
