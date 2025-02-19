@@ -117,7 +117,7 @@ def analisar_imovel_detalhado(tipo_imovel=None, bairro=None, cidade=None, cep=No
     if quadra:
         filtro &= (df["quadra"] == quadra)
     if quartos:
-        filtro &= (df["quartos"] == quartos)
+        filtro &= (df["quartos"] == quartos if (quartos < 4) else df["quartos"] >= quartos)
     if metragem:
         filtro &= ((df["area_util"] >= metragem * 0.9) & (df["area_util"] <= metragem * 1.1))
 

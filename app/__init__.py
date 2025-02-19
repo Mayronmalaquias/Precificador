@@ -63,10 +63,14 @@ def create_app():
         nrQuartos = int(params.get('quartos'))
         nrVagas = int(params.get('vagas'))
 
-        metragem = int(params.get('metragem'))
+        try:
+            metragem = int(params.get('metragem'))
+        except ValueError:
+            metragem = None
+        
         if(bairro == "LAGO SUL" or bairro == "LAGO NORTE"):
             tipo_imovel = "Casa"
-        if (metragem == 0):
+        if (metragem == 0 or metragem == ' '):
             metragem = None
         if nrQuartos == 0:
             nrQuartos = None
