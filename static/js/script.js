@@ -103,3 +103,14 @@ function alterarCluster(valor) {
     // Submete o formulário
     // document.getElementById('formularioAnalise').submit(); 
 }
+
+function changeTab(tabId) {
+    // Esconde todas as seções
+    document.querySelectorAll('.tab-content').forEach(tab => tab.classList.remove('active-content'));
+    // Mostra apenas a seção correspondente
+    document.getElementById(tabId).classList.add('active-content');
+
+    // Atualiza a aba ativa
+    document.querySelectorAll('.tab').forEach(tab => tab.classList.remove('active-tab'));
+    event.target.classList.add('active-tab');
+}

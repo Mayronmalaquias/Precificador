@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Inteligência Imobiliária 61</title>
+    <link rel="icon" type="image/png" href="../static/img/61imoveis _ rosa_png.png">
+    <link rel="stylesheet" href="../static/css/footer copy.css"> <!-- Link para o CSS separado -->
+    <link rel="stylesheet" href="../static/css/report copy.css">
+    <!-- <link rel="stylesheet" href="../static/css/map.css"> -->
+    <link rel="stylesheet" href="../static/css/styles copy.css">
+    <link rel="stylesheet" href="../static/css/chat.css">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Material+Symbols+Outlined:opsz, wght, FILL, GRAD@48,400,0,0" />
+</head>
+<body>
+    <header>
+        <h1>Inteligência Imobiliária 61</h1>
+    </header>
+
+    <main>
+        <div class="main-container">
+            <form id="formularioAnalise" method="post">
+                <label for="tipoImovel">Tipo de Imóvel:</label>
+                <select id="tipoImovel" name="tipoImovel" required onchange="submitOnChange()">
+                    <option value="Apartamento">Apartamento</option>
+                    <!-- <option value="Casa">Casa</option>
+                    <option value="Loja">Loja</option>
+                    <option value="Lote">Lote</option>
+                    <option value="Casa Condominio">Casa Condominio</option> -->
+                </select><br>
+    
+                <label for="bairro">Bairro:</label>
+                <select id="bairro" name="bairro" required onchange="submitOnChange()">
+                    <option value="ASA NORTE">ASA NORTE</option>
+                    <option value="ASA SUL">ASA SUL</option>
+                    <!-- <option value="LAGO SUL">LAGO SUL</option> -->
+                    <!-- <option value="LAGO NORTE">LAGO NORTE</option> -->
+                    <option value="NOROESTE">NOROESTE</option>
+                    <option value="SUDOESTE">SUDOESTE</option>
+                    <!-- <option value="PARK WAY">PARK WAY</option> -->
+                    <!-- <option value="PARK SUL">PARK SUL</option> -->
+                    <!-- <option value="OCTOGONAL">OCTOGONAL</option> -->
+                    <!-- <option value="SIG">SIG</option> -->
+                    <!-- <option value="VILA PLANALTO">VILA PLANALTO</option> -->
+                    <!-- <option value="NÚCLEO BANDEIRANTE">NÚCLEO BANDEIRANTE</option> -->
+                    <option value="SUL">AGUAS CLARAS SUL</option>
+                    <option value="NORTE">AGUAS CLARAS NORTE</option>
+                    <!-- <option value="SOBRADINHO">SOBRADINHO</option> -->
+                    <!-- <option value="ARNIQUEIRA">ARNIQUEIRA</option> -->
+                    <!-- <option value="JARDIM BOTANICO">JARDIM BOTANICO</option> -->
+                    <!-- <option value="VICENTE PIRES">VICENTE PIRES</option> -->
+                </select><br>
+    
+                <label for="quartos">Quartos:</label>
+                <select id="quartos" name="quartos" required onchange="submitOnChange()">
+                    <option value="0">Todos</option>
+                    <option value="1">1</option>
+                    <option value="2">2</option>
+                    <option value="3">3</option>
+                    <option value="4">4+</option>
+                    <!-- <option value="5">5</option> -->
+                    <!-- <option value="6">6</option> -->
+                </select><br>
+    
+                <label for="vagas">Vagas:</label>
+                <select id="vagas" name="vagas" required onchange="submitOnChange()">
+                    <option value="10">Todos</option>
+                    <option value="0">0</option>
+                    <option value="1">1+</option>
+                    <!-- <option value="2">2</option> -->
+                    <!-- <option value="3">3</option> -->
+                    <!-- <option value="4">4</option> -->
+                </select><br>
+                
+                
+                <div id="nome">
+                    <label for="metragem">Metragem (m²):</label>
+                    <input type="number" id="metragem" name="metragem" step="1" min="0" placeholder="Digite a metragem" value="0" onchange="submitOnChange()" onkeydown="if (event.key === 'Enter') { event.preventDefault(); submitOnChange(); }">
+                    <button type="button" onclick="alterarCluster(2)">ORIGINAL</button>
+                    <button type="button" onclick="alterarCluster(5)">SEMI-REFORMADO</button>
+                    <button type="button" onclick="alterarCluster(8)">REFORMADO</button>
+                </div>
+    
+                <ul class="lista-com-imagem">
+                    <li id="vlrM2Venda" class="negrito"><strong>Valor de M² de Venda:</strong> </li>
+                    <li id="vlrVendaNominal" class="negrito"><strong>Valor de Venda Nominal:</strong> </li>
+                    <!-- <li id="mtrMediaVenda"><strong>Metragem Média de Venda:</strong> </li> -->
+                    <!-- <li id="coeficienteVar"><strong>Coeficiente de Variação de Venda:</strong> </li> -->
+                    <!-- <li id="tamAmostra"><strong>Tamanho da Amostra de Venda:</strong> </li> -->
+                    <li id="vlrM2Loc" class="negrito"><strong>Valor de M² de Locação:</strong> </li>
+                    <li id="vlrLocacaoNominal" class="negrito"><strong>Valor de Locação Nominal:</strong> </li>
+                    <!-- <li id="mtrMediaLoc"><strong>Metragem Média de Locação:</strong> </li> -->
+                    <!-- <li id="coeficienteVarLoc"><strong>Coeficiente de Variação de Locação:</strong> </li> -->
+                    <!-- <li id="tamAmostraLoc"><strong>Tamanho da Amostra de Locação:</strong> </li> -->
+                    <li id="Rentabilidade"><strong>Rentabilidade Média:</strong> </li>
+                </ul>
+
+                <div class="container">
+                    <label for="nrCluster" class="TituloCluster">Número de Clusters (1 a 9):</label>
+                    <input type="range" id="nrCluster" name="nrCluster" min="1" max="9" value="5"
+                        oninput="this.nextElementSibling.value = this.value; submitOnChange();">
+                    <output id="outCluster">5</output>
+                    <img src="../static/img/1.png" alt="Imagem sobre o campo" class="imagem-sobreposta">
+                </div>
+            </form>
+        </div> 
+    </main>
+    </div>
+    
+    <footer>
+        <p>61Imóveis - Contato: (61) 3686-2430 | Email: 61@61imoveis.com</p>
+        <p>Desenvolvido por <a href="https://www.61imoveis.com/" target="_blank">61Imóveis</a></p>
+    </footer>
+    <script src="{{ url_for('static', filename='js/scriptCopy.js') }}">
+    </script>
+    <script src="{{ url_for('static', filename='js/scriptchat.js') }}">
+    </script>
+    
+</body>
+</html>

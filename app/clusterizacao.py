@@ -12,20 +12,22 @@ def remover_outliers_iqr(df, coluna):
     return df[filtro]
 
 def calcular_rentabilidade(valor_locacao, valor_venda):
-    return (valor_locacao * 12) / valor_venda if valor_venda != 0 else np.nan
+    return (valor_locacao) / valor_venda if valor_venda != 0 else np.nan
 
-def calcular_metricas_cluster(df, valor_coluna, oferta_tipo):
+def calcular_metricas_cluster(df, valor_coluna, oferta_tipo, metragem = None):
     metricas = {}
 
     if oferta_tipo == 'Venda':
         metricas['VALOR DE M² DE VENDA'] = df[valor_coluna].mean()
-        metricas['VALOR DE VENDA NOMINAL'] = df['preco'].mean()
+        # metricas['VALOR DE VENDA NOMINAL'] = df['preco'].mean()
+        metricas['VALOR DE VENDA NOMINAL'] = df[valor_coluna].mean() * metragem if metragem else df['preco'].mean()
         metricas['METRAGEM MÉDIA DE VENDA'] = df['area_util'].mean()
         metricas['COEFICIENTE DE VARIAÇÃO DE VENDA'] = df[valor_coluna].std() / df[valor_coluna].mean() if df[valor_coluna].mean() != 0 else np.nan
         metricas['TAMANHO DA AMOSTRA DE VENDA'] = len(df)
     else:
         metricas['VALOR DE M² DE ALUGUEL'] = df[valor_coluna].mean()
-        metricas['VALOR DE ALUGUEL NOMINAL'] = df['preco'].mean()
+        # metricas['VALOR DE ALUGUEL NOMINAL'] = df['preco'].mean()
+        metricas['VALOR DE ALUGUEL NOMINAL'] =  metricas['VALOR DE M² DE ALUGUEL'] * metragem if metragem else df['preco'].mean()
         metricas['METRAGEM MÉDIA DE ALUGUEL'] = df['area_util'].mean()
         metricas['COEFICIENTE DE VARIAÇÃO DE ALUGUEL'] = df[valor_coluna].std() / df[valor_coluna].mean() if df[valor_coluna].mean() != 0 else np.nan
         metricas['TAMANHO DA AMOSTRA DE ALUGUEL'] = len(df)
@@ -53,7 +55,7 @@ def formatar_resultados(df):
 
     return df_formatted
 
-def clusterizar_dados(df, valor_coluna, oferta_tipo, n_clusters=9):
+def clusterizar_dados(df, valor_coluna, oferta_tipo, n_clusters=9, metragem=None):
     df_oferta = df[df['oferta'] == oferta_tipo].copy()
     if not df_oferta.empty and valor_coluna in df_oferta.columns and len(df_oferta) >= n_clusters:
         X = df_oferta[[valor_coluna]].values
@@ -67,7 +69,7 @@ def clusterizar_dados(df, valor_coluna, oferta_tipo, n_clusters=9):
         metricas_clusters = []
         for cluster in sorted(df_oferta['cluster'].unique()):
             cluster_data = df_oferta[df_oferta['cluster'] == cluster]
-            metricas = calcular_metricas_cluster(cluster_data, valor_coluna, oferta_tipo)
+            metricas = calcular_metricas_cluster(cluster_data, valor_coluna, oferta_tipo, metragem)
             metricas['Cluster'] = cluster
             metricas_clusters.append(metricas)
 
@@ -115,7 +117,7 @@ def analisar_imovel_detalhado(tipo_imovel=None, bairro=None, cidade=None, cep=No
     if quadra:
         filtro &= (df["quadra"] == quadra)
     if quartos:
-        filtro &= (df["quartos"] == quartos)
+        filtro &= (df["quartos"] == quartos if (quartos < 4) else df["quartos"] >= quartos)
     if metragem:
         filtro &= ((df["area_util"] >= metragem * 0.9) & (df["area_util"] <= metragem * 1.1))
 
@@ -130,7 +132,7 @@ def analisar_imovel_detalhado(tipo_imovel=None, bairro=None, cidade=None, cep=No
     if "valor_m2" in venda_df.columns:
         venda_df = remover_outliers_iqr(venda_df, "valor_m2")
     print(f"Total de registros de VENDA após remoção de outliers: {len(venda_df)}")
-    metricas_venda = clusterizar_dados(venda_df, "valor_m2", "Venda")
+    metricas_venda = clusterizar_dados(venda_df, "valor_m2", "Venda", n_clusters=9,  metragem=metragem)
 
     # Clusterização e remoção de outliers para "Aluguel"
     aluguel_df = df_filtrado[df_filtrado['oferta'] == 'Aluguel'].copy()
@@ -138,7 +140,7 @@ def analisar_imovel_detalhado(tipo_imovel=None, bairro=None, cidade=None, cep=No
     if "valor_m2" in aluguel_df.columns:
         aluguel_df = remover_outliers_iqr(aluguel_df, "valor_m2")
     print(f"Total de registros de ALUGUEL após remoção de outliers: {len(aluguel_df)}")
-    metricas_aluguel = clusterizar_dados(aluguel_df, "valor_m2", "Aluguel")
+    metricas_aluguel = clusterizar_dados(aluguel_df, "valor_m2", "Aluguel", n_clusters=9,  metragem=metragem)
 
     # Ordenar os clusters de "Venda" e
         # "Aluguel" separadamente

@@ -28,6 +28,12 @@ def create_app():
     @app.route('/', methods=['GET'])
     def index():
         df, df_map = carregar_dados()
+        return render_template('indexCopy.html')
+    
+    # Rota para exibir o formulário
+    @app.route('/interno', methods=['GET'])
+    def index_interno():
+        df, df_map = carregar_dados()
         return render_template('index.html')
 
     @app.route('/carregar_mapa', methods=['GET'])
@@ -63,7 +69,15 @@ def create_app():
         nrQuartos = int(params.get('quartos'))
         nrVagas = int(params.get('vagas'))
 
-        metragem = None
+        try:
+            metragem = int(params.get('metragem'))
+        except ValueError:
+            metragem = None
+        
+        if(bairro == "LAGO SUL" or bairro == "LAGO NORTE"):
+            tipo_imovel = "Casa"
+        if (metragem == 0 or metragem == ' '):
+            metragem = None
         if nrQuartos == 0:
             nrQuartos = None
         if nrVagas == 10:
@@ -139,12 +153,7 @@ def create_app():
 
         # Adiciona uma legenda ao mapa
         legenda = """
-        <div style="position: fixed; 
-                    bottom: 50px; left: 50px; width: 200px; height: 100px; 
-                    background-color: white; border:2px solid grey; z-index:9999; font-size:14px;">
-            <h4>Legenda</h4>
-            <p>Quantidade de anúncios em cada agrupamento. O mapa mostra até 5 pontos por coordenada.</p>
-        </div>
+        
         """
         mapa.get_root().html.add_child(folium.Element(legenda))
         mapa.save("./static/mapas/mapa_de_calor_com_limite.html")
@@ -173,12 +182,6 @@ def create_app():
             ).add_to(marker_cluster)
 
         legenda = """
-        <div style="position: fixed; 
-                    bottom: 50px; left: 50px; width: 200px; height: 100px; 
-                    background-color: white; border:2px solid grey; z-index:9999; font-size:14px;">
-            <h4>Legenda</h4>
-            <p>Quantidade de anúncios em cada agrupamento.</p>
-        </div>
         """
         mapa.get_root().html.add_child(folium.Element(legenda))
         mapa.save("./static/mapas/mapa_de_calor_com_limite.html")
@@ -220,12 +223,6 @@ def create_app():
 
         # Adiciona uma legenda ao mapa
         legenda = """
-        <div style="position: fixed; 
-                    bottom: 50px; left: 50px; width: 200px; height: 100px; 
-                    background-color: white; border:2px solid grey; z-index:9999; font-size:14px;">
-            <h4>Legenda</h4>
-            <p>Áreas com cores mais intensas representam locais com maior valor de M².</p>
-        </div>
         """
         mapa.get_root().html.add_child(folium.Element(legenda))
         mapa.save("./static/mapas/mapa_de_calor_valor_m2.html")
@@ -273,12 +270,6 @@ def create_app():
 
         # Adiciona uma legenda ao mapa
         legenda = """
-        <div style="position: fixed; 
-                    bottom: 50px; left: 50px; width: 200px; height: 100px; 
-                    background-color: white; border:2px solid grey; z-index:9999; font-size:14px;">
-            <h4>Legenda</h4>
-            <p>Áreas com cores mais intensas representam locais com maior valor de M² ajustado.</p>
-        </div>
         """
         mapa.get_root().html.add_child(folium.Element(legenda))
         mapa.save("./static/mapas/mapa_de_calor_valor_m2_ajustado.html")
@@ -340,12 +331,6 @@ def create_app():
 
         # Adiciona uma legenda ao mapa
         legenda = """
-        <div style="position: fixed; 
-                    bottom: 50px; left: 50px; width: 200px; height: 100px; 
-                    background-color: white; border:2px solid grey; z-index:9999; font-size:14px;">
-            <h4>Legenda</h4>
-            <p>Áreas com cores mais intensas representam locais com maior valor de M² ajustado.</p>
-        </div>
         """
         mapa.get_root().html.add_child(folium.Element(legenda))
         mapa.save("./static/mapas/mapa_de_calor_valor_m2_ajustado.html")
