@@ -58,51 +58,59 @@
             <div class="main-container">
 
                 <form id="formularioAnalise" method="post">
-                    <label for="tipoImovel">Tipo de Imóvel:</label>
-                    <select id="tipoImovel" name="tipoImovel" required onchange="submitOnChange()">
-                        <option value="Apartamento">Apartamento</option>
-                        <option value="Casa">Casa</option>
-                        <option value="Loja">Loja</option>
-                        <option value="Lote">Lote</option>
-                        <option value="Casa Condominio">Casa Condominio</option>
-                    </select><br>
+                    <div id="tipoImovel-section">
+                        <label for="tipoImovel">Tipo de Imóvel:</label>
+                        <select id="tipoImovel" name="tipoImovel" required onchange="submitOnChange()">
+                            <option value="Apartamento">Apartamento</option>
+                            <option value="Casa">Casa</option>
+                            <option value="Loja">Loja</option>
+                            <option value="Lote">Lote</option>
+                            <option value="Casa Condominio">Casa Condominio</option>
+                        </select><br>
+                    </div>
         
-                    <label for="bairro">Bairro:</label>
-                    <select id="bairro" name="bairro" required onchange="submitOnChange()">
-                        <option value="ASA NORTE">ASA NORTE</option>
-                        <option value="ASA SUL">ASA SUL</option>
-                        <option value="LAGO SUL">LAGO SUL</option>
-                        <option value="LAGO NORTE">LAGO NORTE</option>
-                        <option value="NOROESTE">NOROESTE</option>
-                        <option value="SUDOESTE">SUDOESTE</option>
-                        <option value="PARK WAY">PARK WAY</option>
-                        <option value="PARK SUL">PARK SUL</option>
-                        <option value="OCTOGONAL">OCTOGONAL</option>
-                        <option value="SIG">SIG</option>
-                        <option value="VILA PLANALTO">VILA PLANALTO</option>
-                        <option value="NÚCLEO BANDEIRANTE">NÚCLEO BANDEIRANTE</option>
-                    </select><br>
+                    <div id="bairro-section">
+                        <label for="bairro">Bairro:</label>
+                        <select id="bairro" name="bairro" required onchange="submitOnChange()">
+                            <option value="ASA NORTE">ASA NORTE</option>
+                            <option value="ASA SUL">ASA SUL</option>
+                            <option value="LAGO SUL">LAGO SUL</option>
+                            <option value="LAGO NORTE">LAGO NORTE</option>
+                            <option value="NOROESTE">NOROESTE</option>
+                            <option value="SUDOESTE">SUDOESTE</option>
+                            <option value="PARK WAY">PARK WAY</option>
+                            <option value="PARK SUL">PARK SUL</option>
+                            <option value="OCTOGONAL">OCTOGONAL</option>
+                            <option value="SIG">SIG</option>
+                            <option value="VILA PLANALTO">VILA PLANALTO</option>
+                            <option value="NÚCLEO BANDEIRANTE">NÚCLEO BANDEIRANTE</option>
+                        </select><br>
+                    </div>
         
-                    <label for="quartos">Quartos:</label>
-                    <select id="quartos" name="quartos" required onchange="submitOnChange()">
-                        <option value="0">Todos</option>
-                        <option value="1">1</option>
-                        <option value="2">2</option>
-                        <option value="3">3</option>
-                        <option value="4">4</option>
-                        <option value="5">5</option>
-                        <option value="6">6</option>
-                    </select><br>
+                    <div id="quartos-section">
+                        <label for="quartos">Quartos:</label>
+                        <select id="quartos" name="quartos" required onchange="submitOnChange()">
+                            <option value="0">Todos</option>
+                            <option value="1">1</option>
+                            <option value="2">2</option>
+                            <option value="3">3</option>
+                            <option value="4">4</option>
+                            <option value="5">5</option>
+                            <option value="6">6</option>
+                        </select><br>
+                    </div>
         
-                    <label for="vagas">Vagas:</label>
-                    <select id="vagas" name="vagas" required onchange="submitOnChange()">
-                        <option value="10">Todos</option>
-                        <option value="0">0</option>
-                        <option value="1">1</option>
-                        <option value="2">2</option>
-                        <option value="3">3</option>
-                        <option value="4">4</option>
-                    </select><br>
+                    <div id="vagas-section">
+                        <label for="vagas">Vagas:</label>
+                        <select id="vagas" name="vagas" required onchange="submitOnChange()">
+                            <option value="10">Todos</option>
+                            <option value="0">0</option>
+                            <option value="1">1</option>
+                            <option value="2">2</option>
+                            <option value="3">3</option>
+                            <option value="4">4</option>
+                        </select><br>
+                    </div>
     
                     <div id="nome">
                         <label for="metragem">Metragem (m²):</label>
@@ -144,7 +152,74 @@
 
 
         <div id="mapa" class="tab-content">
+            
+            <div class="main-container">
+
+                <div id="tipoImovel-section">
+                    <label for="tipoImovel">Tipo de Imóvel:</label>
+                    <select id="tipoImovelCopia" name="tipoImovel" onchange="submitOnChangeInCopy()">
+                        <option value="Apartamento">Apartamento</option>
+                        <option value="Casa">Casa</option>
+                        <option value="Loja">Loja</option>
+                        <option value="Lote">Lote</option>
+                        <option value="Casa Condominio">Casa Condominio</option>
+                    </select><br>
+                </div>
+    
+                <div id="bairro-section">
+                    <label for="bairro">Bairro:</label>
+                    <select id="bairroCopia" name="bairro" onchange="submitOnChangeInCopy()">
+                        <option value="ASA NORTE">ASA NORTE</option>
+                        <option value="ASA SUL">ASA SUL</option>
+                        <option value="LAGO SUL">LAGO SUL</option>
+                        <option value="LAGO NORTE">LAGO NORTE</option>
+                        <option value="NOROESTE">NOROESTE</option>
+                        <option value="SUDOESTE">SUDOESTE</option>
+                        <option value="PARK WAY">PARK WAY</option>
+                        <option value="PARK SUL">PARK SUL</option>
+                        <option value="OCTOGONAL">OCTOGONAL</option>
+                        <option value="SIG">SIG</option>
+                        <option value="VILA PLANALTO">VILA PLANALTO</option>
+                        <option value="NÚCLEO BANDEIRANTE">NÚCLEO BANDEIRANTE</option>
+                    </select><br>
+                </div>
+    
+                <div id="quartos-section">
+                    <label for="quartos">Quartos:</label>
+                    <select id="quartosCopia" name="quartos" onchange="submitOnChangeInCopy()">
+                        <option value="0">Todos</option>
+                        <option value="1">1</option>
+                        <option value="2">2</option>
+                        <option value="3">3</option>
+                        <option value="4">4</option>
+                        <option value="5">5</option>
+                        <option value="6">6</option>
+                    </select><br>
+                </div>
+    
+                <div id="vagas-section">
+                    <label for="vagas">Vagas:</label>
+                    <select id="vagasCopia" name="vagas"onchange="submitOnChangeInCopy()">
+                        <option value="10">Todos</option>
+                        <option value="0">0</option>
+                        <option value="1">1</option>
+                        <option value="2">2</option>
+                        <option value="3">3</option>
+                        <option value="4">4</option>
+                    </select><br>
+                </div>
+
+                <div id="nome">
+                    <label for="metragem">Metragem (m²):</label>
+                    <input type="number" id="metragemCopia" name="metragem" step="1" min="0" placeholder="Digite a metragem" value="0" onchange="submitOnChangeInCopy()" onkeydown="if (event.key === 'Enter') { event.preventDefault(); submitOnChangeInCopy(); }">
+                </div>
+
+                <label for="nrCluster">Número de Clusters (1 a 9):</label>
+                <input type="range" id="nrClusterCopia" name="nrCluster" min="1" max="9" value="5" oninput="this.nextElementSibling.value = this.value; submitOnChangeInCopy();">
+                <output id="outClusterCopia">5</output><br>
+            </div>
             <div class="map-container" style="position: relative;">
+
                 <div class="MapSelector">
                     <select name="mapaSelector" id="map-selector">
                         <option value="mapaAnuncio">Mapa de anuncio</option>

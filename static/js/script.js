@@ -114,3 +114,19 @@ function changeTab(tabId) {
     document.querySelectorAll('.tab').forEach(tab => tab.classList.remove('active-tab'));
     event.target.classList.add('active-tab');
 }
+
+function submitOnChangeInCopy() {
+    // Copiar valores dos selects
+    document.getElementById("tipoImovel").value = document.getElementById("tipoImovelCopia").value;
+    document.getElementById("bairro").value = document.getElementById("bairroCopia").value;
+    document.getElementById("quartos").value = document.getElementById("quartosCopia").value;
+    document.getElementById("vagas").value = document.getElementById("vagasCopia").value;
+    
+    // Copiar valores dos inputs
+    document.getElementById("metragem").value = document.getElementById("metragemCopia").value;
+    document.getElementById("nrCluster").value = document.getElementById("nrClusterCopia").value;
+    document.getElementById("outCluster").value = document.getElementById("outClusterCopia").value;
+
+    // Chama a função para processar as mudanças
+    submitOnChange();
+}
