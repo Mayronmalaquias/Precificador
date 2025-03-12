@@ -107,7 +107,11 @@ def analisar_imovel_detalhado(tipo_imovel=None, bairro=None, cidade=None, cep=No
     if tipo_imovel:
         filtro &= (df["tipo"] == tipo_imovel)
     if bairro:
-        filtro &= (df["bairro"] == bairro)
+        if bairro == "AGUAS CLARAS":
+            bairro_aguas = ["NORTE", "SUL"]
+            filtro &= (df['bairro'].isin(bairro_aguas))
+        else:
+            filtro &= (df["bairro"] == bairro)
     if cidade:
         filtro &= (df["cidade"] == cidade)
     if cep:

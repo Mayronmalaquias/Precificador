@@ -1,4 +1,10 @@
 function submitOnChange() {
+    document.getElementById("tipoImovelCopia").value = document.getElementById("tipoImovel").value;
+    document.getElementById("bairroCopia").value = document.getElementById("bairro").value;
+    document.getElementById("quartosCopia").value = document.getElementById("quartos").value ;
+    document.getElementById("vagasCopia").value = document.getElementById("vagas").value;
+    document.getElementById("metragemCopia").value = document.getElementById("metragem").value;
+
     const formData = new FormData(document.getElementById('formularioAnalise'));
     const formObject = Object.fromEntries(formData.entries());
 
@@ -37,7 +43,7 @@ function submitOnChange() {
     })
     .catch(error => {
         console.error('Erro:', error);
-        alert("Amostra insuficiente para análise");
+        // alert("Amostra insuficiente para análise");
     });
 }
 
@@ -95,11 +101,15 @@ document.getElementById('mapOption').addEventListener('change', function() {
 
 function alterarCluster(valor) {
     console.log("chegou aqui");
+    if (valor === "geral") {
+        carregarMapa(document.getElementById('map-selector').value,0, document.getElementById('mapOption').value);
+    }else{
+        document.getElementById('nrCluster').value = parseInt(valor); // Atualiza o valor do campo de entrada
+        document.getElementById('outCluster').value = parseInt(valor); // Atualiza o valor do output
+        submitOnChange()
+    }
 
     // Atualiza o valor do cluster
-    document.getElementById('nrCluster').value = parseInt(valor); // Atualiza o valor do campo de entrada
-    document.getElementById('outCluster').value = parseInt(valor); // Atualiza o valor do output
-    submitOnChange()
     // Submete o formulário
     // document.getElementById('formularioAnalise').submit(); 
 }
@@ -124,9 +134,20 @@ function submitOnChangeInCopy() {
     
     // Copiar valores dos inputs
     document.getElementById("metragem").value = document.getElementById("metragemCopia").value;
-    document.getElementById("nrCluster").value = document.getElementById("nrClusterCopia").value;
-    document.getElementById("outCluster").value = document.getElementById("outClusterCopia").value;
+    // document.getElementById("nrCluster").value = document.getElementById("nrClusterCopia").value;
+    // document.getElementById("outCluster").value = document.getElementById("outClusterCopia").value;
 
     // Chama a função para processar as mudanças
     submitOnChange();
+}
+
+function alterarClusterCopy(valor){
+    console.log("chegou aqui");
+    if (valor === "geral") {
+        carregarMapa(document.getElementById('map-selector').value,0, document.getElementById('mapOption').value);
+    }else{
+        document.getElementById('nrCluster').value = parseInt(valor); // Atualiza o valor do campo de entrada
+        document.getElementById('outCluster').value = parseInt(valor); // Atualiza o valor do output
+        submitOnChange()
+    }
 }

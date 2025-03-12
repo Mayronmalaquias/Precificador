@@ -62,10 +62,10 @@
                         <label for="tipoImovel">Tipo de Imóvel:</label>
                         <select id="tipoImovel" name="tipoImovel" required onchange="submitOnChange()">
                             <option value="Apartamento">Apartamento</option>
-                            <option value="Casa">Casa</option>
+                            <!-- <option value="Casa">Casa</option>
                             <option value="Loja">Loja</option>
                             <option value="Lote">Lote</option>
-                            <option value="Casa Condominio">Casa Condominio</option>
+                            <option value="Casa Condominio">Casa Condominio</option> -->
                         </select><br>
                     </div>
         
@@ -74,16 +74,17 @@
                         <select id="bairro" name="bairro" required onchange="submitOnChange()">
                             <option value="ASA NORTE">ASA NORTE</option>
                             <option value="ASA SUL">ASA SUL</option>
-                            <option value="LAGO SUL">LAGO SUL</option>
-                            <option value="LAGO NORTE">LAGO NORTE</option>
+                            <!-- <option value="LAGO SUL">LAGO SUL</option> -->
+                            <!-- <option value="LAGO NORTE">LAGO NORTE</option> -->
                             <option value="NOROESTE">NOROESTE</option>
                             <option value="SUDOESTE">SUDOESTE</option>
-                            <option value="PARK WAY">PARK WAY</option>
-                            <option value="PARK SUL">PARK SUL</option>
-                            <option value="OCTOGONAL">OCTOGONAL</option>
-                            <option value="SIG">SIG</option>
-                            <option value="VILA PLANALTO">VILA PLANALTO</option>
-                            <option value="NÚCLEO BANDEIRANTE">NÚCLEO BANDEIRANTE</option>
+                            <option value="AGUAS CLARAS">AGUAS CLARAS</option>
+                            <!-- <option value="PARK WAY">PARK WAY</option> -->
+                            <!-- <option value="PARK SUL">PARK SUL</option> -->
+                            <!-- <option value="OCTOGONAL">OCTOGONAL</option> -->
+                            <!-- <option value="SIG">SIG</option> -->
+                            <!-- <option value="VILA PLANALTO">VILA PLANALTO</option> -->
+                            <!-- <option value="NÚCLEO BANDEIRANTE">NÚCLEO BANDEIRANTE</option> -->
                         </select><br>
                     </div>
         
@@ -94,9 +95,7 @@
                             <option value="1">1</option>
                             <option value="2">2</option>
                             <option value="3">3</option>
-                            <option value="4">4</option>
-                            <option value="5">5</option>
-                            <option value="6">6</option>
+                            <option value="4">4+</option>
                         </select><br>
                     </div>
         
@@ -105,10 +104,7 @@
                         <select id="vagas" name="vagas" required onchange="submitOnChange()">
                             <option value="10">Todos</option>
                             <option value="0">0</option>
-                            <option value="1">1</option>
-                            <option value="2">2</option>
-                            <option value="3">3</option>
-                            <option value="4">4</option>
+                            <option value="1">1+</option>
                         </select><br>
                     </div>
     
@@ -159,10 +155,10 @@
                     <label for="tipoImovel">Tipo de Imóvel:</label>
                     <select id="tipoImovelCopia" name="tipoImovel" onchange="submitOnChangeInCopy()">
                         <option value="Apartamento">Apartamento</option>
-                        <option value="Casa">Casa</option>
+                        <!-- <option value="Casa">Casa</option>
                         <option value="Loja">Loja</option>
                         <option value="Lote">Lote</option>
-                        <option value="Casa Condominio">Casa Condominio</option>
+                        <option value="Casa Condominio">Casa Condominio</option> -->
                     </select><br>
                 </div>
     
@@ -171,16 +167,17 @@
                     <select id="bairroCopia" name="bairro" onchange="submitOnChangeInCopy()">
                         <option value="ASA NORTE">ASA NORTE</option>
                         <option value="ASA SUL">ASA SUL</option>
-                        <option value="LAGO SUL">LAGO SUL</option>
-                        <option value="LAGO NORTE">LAGO NORTE</option>
+                        <!-- <option value="LAGO SUL">LAGO SUL</option>
+                        <option value="LAGO NORTE">LAGO NORTE</option> -->
                         <option value="NOROESTE">NOROESTE</option>
                         <option value="SUDOESTE">SUDOESTE</option>
-                        <option value="PARK WAY">PARK WAY</option>
+                        <option value="AGUAS CLARAS">AGUAS CLARAS</option>
+                        <!-- <option value="PARK WAY">PARK WAY</option>
                         <option value="PARK SUL">PARK SUL</option>
                         <option value="OCTOGONAL">OCTOGONAL</option>
                         <option value="SIG">SIG</option>
                         <option value="VILA PLANALTO">VILA PLANALTO</option>
-                        <option value="NÚCLEO BANDEIRANTE">NÚCLEO BANDEIRANTE</option>
+                        <option value="NÚCLEO BANDEIRANTE">NÚCLEO BANDEIRANTE</option> -->
                     </select><br>
                 </div>
     
@@ -191,9 +188,7 @@
                         <option value="1">1</option>
                         <option value="2">2</option>
                         <option value="3">3</option>
-                        <option value="4">4</option>
-                        <option value="5">5</option>
-                        <option value="6">6</option>
+                        <option value="4">4+</option>
                     </select><br>
                 </div>
     
@@ -202,21 +197,22 @@
                     <select id="vagasCopia" name="vagas"onchange="submitOnChangeInCopy()">
                         <option value="10">Todos</option>
                         <option value="0">0</option>
-                        <option value="1">1</option>
-                        <option value="2">2</option>
-                        <option value="3">3</option>
-                        <option value="4">4</option>
+                        <option value="1">1+</option>
                     </select><br>
                 </div>
 
                 <div id="nome">
                     <label for="metragem">Metragem (m²):</label>
                     <input type="number" id="metragemCopia" name="metragem" step="1" min="0" placeholder="Digite a metragem" value="0" onchange="submitOnChangeInCopy()" onkeydown="if (event.key === 'Enter') { event.preventDefault(); submitOnChangeInCopy(); }">
+                    <button type="button" onclick="alterarCluster('geral')">GERAL</button>
+                    <button type="button" onclick="alterarClusterCopy(2)">ORIGINAL</button>
+                    <button type="button" onclick="alterarClusterCopy(5)">SEMI-REFORMADO</button>
+                    <button type="button" onclick="alterarClusterCopy(8)">REFORMADO</button>
                 </div>
 
-                <label for="nrCluster">Número de Clusters (1 a 9):</label>
+                <!-- <label for="nrCluster">Número de Clusters (1 a 9):</label>
                 <input type="range" id="nrClusterCopia" name="nrCluster" min="1" max="9" value="5" oninput="this.nextElementSibling.value = this.value; submitOnChangeInCopy();">
-                <output id="outClusterCopia">5</output><br>
+                <output id="outClusterCopia">5</output><br> -->
             </div>
             <div class="map-container" style="position: relative;">
 
@@ -248,32 +244,6 @@
         </div>
 
     </main>
-
-    <!-- <div class="snow-chatbot">
-        <button class="chatbot-toggler" aria-label="Abrir chatbot">
-            <span class="material-symbols-outlined">mode_comment</span>
-            <span class="material-symbols-outlined">close</span>
-        </button>
-        <div class="chatbot">
-            <header>
-                <h4>Chatbot</h4>
-                <span class="close-btn material-symbols-outlined" aria-label="Fechar chatbot" tabindex="0">close</span>
-            </header>
-            <ul class="chatbox" id="chatbox">
-                <li class="chat incoming">
-                    <span class="material-symbols-outlined">smart_toy</span>
-                    <p>Fala irmão</p>
-                </li>
-                <li class="chat outgoing">
-                    <p>Opa mano</p>
-                </li>
-            </ul>
-            <div class="chat-input">
-                <textarea placeholder="Digite uma mensagem..." rows="1"></textarea>
-                <span id="send-btn" class="material-symbols-outlined" aria-label="Enviar mensagem" tabindex="0">send</span>
-            </div>
-        </div>
-    </div> -->
     
     <footer>
         <p>61Imóveis - Contato: (61) 3686-2430 | Email: 61@61imoveis.com</p>

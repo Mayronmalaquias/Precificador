@@ -1,6 +1,5 @@
 /* Estilo do rodapé */
 footer {
-    background-color: var(--secondary-color);
     color: #ffffff;
     padding: 30px;
     text-align: center;
@@ -29,6 +28,7 @@ footer {
   
   /* Efeito sutil de elevação ao passar o mouse */
   footer:hover {
+    background-color: #ff0066;
     background-color: #e1005b;
     box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.15);
   }

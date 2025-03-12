@@ -134,8 +134,20 @@ def create_app():
         df['longitude'] = df['longitude'] / 1e7
 
         # Filtra o DataFrame para o cluster especificado
-        df_clusterizado = df[df['cluster'] == cluster_selecionado].dropna(subset=['latitude', 'longitude', 'preco'])
+        if(cluster_selecionado != 0):
 
+            cluster_grupo1 = [1,2,3]
+            cluster_grupo2 = [4,5,6]
+            cluster_grupo3 = [7,8,9]
+            if(cluster_selecionado in cluster_grupo1):
+                cluster_grupo_mapa = cluster_grupo1
+            elif(cluster_selecionado in cluster_grupo2):
+                cluster_grupo_mapa = cluster_grupo2
+            elif (cluster_selecionado in cluster_grupo3):
+                cluster_grupo_mapa = cluster_grupo3
+            df_clusterizado = df[df['cluster'].isin(cluster_grupo_mapa)].dropna(subset=['latitude', 'longitude', 'preco'])
+        else:
+            df_clusterizado = df.copy()
         # Cria o mapa
         mapa = folium.Map(location=[-15.7942, -47.8822], zoom_start=12)
 
