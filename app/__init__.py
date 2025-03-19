@@ -7,6 +7,7 @@ from folium.plugins import HeatMap, MarkerCluster
 import os
 from dotenv import load_dotenv
 from flask_caching import Cache
+import numpy as np
 
 def create_app():
     app = Flask(__name__,template_folder='../templates', static_folder='../static')
@@ -101,8 +102,23 @@ def create_app():
         metragemMediaLocacao = resultados_df.iloc[nrCluster]['METRAGEM MÉDIA DE ALUGUEL']
         coeficienteVariacaoLocacao = resultados_df.iloc[nrCluster]['COEFICIENTE DE VARIAÇÃO DE ALUGUEL']
         tamanhoAmostraLocacao = resultados_df.iloc[nrCluster]['TAMANHO DA AMOSTRA DE ALUGUEL']
+        if pd.isna(tamanhoAmostraLocacao):
+            tamanhoAmostraLocacao = 0
 
         rentabilidadeMedia = resultados_df.iloc[nrCluster]['RENTABILIDADE MÉDIA']
+
+        # Agora imprime os valores com nan substituídos por 0
+        print("valorM2Venda:", valorM2Venda)
+        print("valorVendaNominal:", valorVendaNominal)
+        print("metragemMediaVenda:", metragemMediaVenda)
+        print("coeficienteVariacaoVenda:", coeficienteVariacaoVenda)
+        print("tamanhoAmostraVenda:", tamanhoAmostraVenda)
+        print("valorM2Locacao:", valorM2Locacao)
+        print("valorLocacaoNominal:", valorLocacaoNominal)
+        print("metragemMediaLocacao:", metragemMediaLocacao)
+        print("coeficienteVariacaoLocacao:", coeficienteVariacaoLocacao)
+        print("tamanhoAmostraLocacao:", tamanhoAmostraLocacao)
+        print("rentabilidadeMedia:", rentabilidadeMedia)
 
         return jsonify({
             "valorM2Venda": valorM2Venda,

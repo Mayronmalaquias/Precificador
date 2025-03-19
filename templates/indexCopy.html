@@ -43,8 +43,7 @@
                     <!-- <option value="SIG">SIG</option> -->
                     <!-- <option value="VILA PLANALTO">VILA PLANALTO</option> -->
                     <!-- <option value="NÚCLEO BANDEIRANTE">NÚCLEO BANDEIRANTE</option> -->
-                    <option value="SUL">AGUAS CLARAS SUL</option>
-                    <option value="NORTE">AGUAS CLARAS NORTE</option>
+                    <option value="AGUAS CLARAS">AGUAS CLARAS</option>
                     <!-- <option value="SOBRADINHO">SOBRADINHO</option> -->
                     <!-- <option value="ARNIQUEIRA">ARNIQUEIRA</option> -->
                     <!-- <option value="JARDIM BOTANICO">JARDIM BOTANICO</option> -->
@@ -76,9 +75,9 @@
                 <div id="nome">
                     <label for="metragem">Metragem (m²):</label>
                     <input type="number" id="metragem" name="metragem" step="1" min="0" placeholder="Digite a metragem" value="0" onchange="submitOnChange()" onkeydown="if (event.key === 'Enter') { event.preventDefault(); submitOnChange(); }">
-                    <button type="button" onclick="alterarCluster(2)">ORIGINAL</button>
-                    <button type="button" onclick="alterarCluster(5)">SEMI-REFORMADO</button>
-                    <button type="button" onclick="alterarCluster(8)">REFORMADO</button>
+                    <button type="button" onclick="alterarCluster(2, this)">ORIGINAL</button>
+                    <button type="button" onclick="alterarCluster(5, this)">SEMI-REFORMADO</button>
+                    <button type="button" onclick="alterarCluster(8, this)">REFORMADO</button>
                 </div>
     
                 <ul class="lista-com-imagem">

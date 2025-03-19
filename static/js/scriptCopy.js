@@ -37,6 +37,7 @@ function submitOnChange() {
     })
     .catch(error => {
         console.error('Erro:', error);
+        console.log(error)
         alert("Amostra insuficiente para análise");
     });
 }
@@ -93,7 +94,13 @@ document.getElementById('mapOption').addEventListener('change', function() {
     carregarMapa(document.getElementById('map-selector').value,document.getElementById('outCluster').value, document.getElementById('mapOption').value);
 });
 
-function alterarCluster(valor) {
+function alterarCluster(valor, botao) {
+
+        // Remove a classe 'active-button' de todos os botões
+    document.querySelectorAll("button").forEach(btn => btn.classList.remove("active-button"));
+    botao.classList.add("active-button");
+    console.log("Cluster alterado para:", valor);
+
     console.log("chegou aqui");
 
     // Atualiza o valor do cluster
@@ -103,3 +110,4 @@ function alterarCluster(valor) {
     // Submete o formulário
     // document.getElementById('formularioAnalise').submit(); 
 }
+

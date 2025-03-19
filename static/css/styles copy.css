@@ -224,3 +224,9 @@ input[type="number"]::placeholder {
     height: 150px;
   }
 }
+
+.active-button {
+  background-color: #3cff00; /* Verde */
+  color: rgb(0, 0, 0);
+  font-weight: bold;
+}
