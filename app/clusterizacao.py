@@ -221,8 +221,8 @@ def analisar_imovel_detalhado(tipo_imovel=None, bairro=None, cidade=None, cep=No
     # Clusterização e remoção de outliers para "Venda"
     venda_df = df_filtrado[df_filtrado['oferta'] == 'Venda'].copy()
     print(f"Total de registros de VENDA antes da remoção de outliers: {len(venda_df)}")
-    # if "valor_m2" in venda_df.columns:
-    #     venda_df = remover_outliers_iqr(venda_df, "valor_m2")
+    if "valor_m2" in venda_df.columns:
+        venda_df = remover_outliers_iqr(venda_df, "valor_m2")
     print(f"Total de registros de VENDA após remoção de outliers: {len(venda_df)}")
     metricas_venda = clusterizar_dados(venda_df, "valor_m2", "Venda", n_clusters=9,  metragem=metragem)
 
@@ -230,8 +230,8 @@ def analisar_imovel_detalhado(tipo_imovel=None, bairro=None, cidade=None, cep=No
     aluguel_df = df_filtrado[df_filtrado['oferta'] == 'Aluguel'].copy()
     print(f"Total de registros de ALUGUEL antes da remoção de outliers: {len(aluguel_df)}")
 
-    # if "valor_m2" in aluguel_df.columns:
-    #     aluguel_df = remover_outliers_iqr(aluguel_df, "valor_m2")
+    if "valor_m2" in aluguel_df.columns:
+        aluguel_df = remover_outliers_iqr(aluguel_df, "valor_m2")
     print(f"Total de registros de ALUGUEL após remoção de outliers: {len(aluguel_df)}")
     metricas_aluguel = clusterizar_dados(aluguel_df, "valor_m2", "Aluguel", n_clusters=9,  metragem=metragem)
 
