@@ -1,0 +1,78 @@
+/* Estilo moderno e clean para a tela de login */
+.divLogin {
+    max-width: 420px;
+    margin: 5vh auto;
+    padding: 20px;
+    background: linear-gradient(135deg, #ffffff, #f9f9f9);
+    border-radius: 16px;
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+  
+  .divLogin h2 {
+    font-size: 1.8rem;
+    color: #222;
+    margin-bottom: 20px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
+  
+  .divLogin form {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 0px;
+  }
+  
+  .divLogin label {
+    display: flex;
+    flex-direction: column;
+    font-weight: 600;
+    color: #444;
+    font-size: 0.95rem;
+  }
+  
+  .divLogin input {
+    padding: 12px;
+    margin-top: 0px;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    background-color: #fff;
+    transition: all 0.3s ease;
+    font-size: 1rem;
+  }
+  
+  .divLogin input:focus {
+    border-color: #e1005b;
+    box-shadow: 0 0 0 2px rgba(225, 0, 91, 0.2);
+    outline: none;
+  }
+  
+  .divLogin button {
+    padding: 14px;
+    background: #e1005b;
+    color: #fff;
+    border: none;
+    border-radius: 10px;
+    font-size: 1rem;
+    font-weight: bold;
+    cursor: pointer;
+    transition: background 0.3s ease, transform 0.2s ease;
+  }
+  
+  .divLogin button:hover {
+    background: #c9004e;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  }
+  
+  @media (max-width: 480px) {
+    .divLogin {
+      margin: 6vh 16px;
+      padding: 30px 20px;
+    }
+  }
+  
