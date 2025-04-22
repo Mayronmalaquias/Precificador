@@ -30,7 +30,7 @@ function Mapa() {
 
     setCarregandoMapa(true);
 // const url = `http://localhost:5000/api/analise/imovel?tipoImovel=${tipoImovel}&bairro=${bairro}&quartos=${quartos}&vagas=${vagas}&metragem=${metragem}&nrCluster=${nrCluster}`;
-    fetch(`http://localhost:5000/api/mapa/carregar?tipo=${tipo}&cluster=${cluster}&tamanho=${tamanho}`)
+    fetch(`/api/mapa/carregar?tipo=${tipo}&cluster=${cluster}&tamanho=${tamanho}`)
       .then((res) => res.text())
       .then(setMapaHtml)
       .catch(err => {
@@ -48,7 +48,7 @@ function Mapa() {
 
   const buscarDados = () => {
     const { tipoImovel, bairro, quartos, vagas, metragem, nrCluster } = formData;
-    const url = `http://localhost:5000/api/analise/imovel?tipoImovel=${tipoImovel}&bairro=${bairro}&quartos=${quartos}&vagas=${vagas}&metragem=${metragem}&nrCluster=${nrCluster}`;
+    const url = `/api/analise/imovel?tipoImovel=${tipoImovel}&bairro=${bairro}&quartos=${quartos}&vagas=${vagas}&metragem=${metragem}&nrCluster=${nrCluster}`;
 
     fetch(url)
       .then((res) => res.ok ? res.json() : res.json().then(err => { throw new Error(err.error || "Erro desconhecido") }))

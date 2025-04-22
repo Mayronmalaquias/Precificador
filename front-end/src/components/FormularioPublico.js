@@ -32,7 +32,7 @@ function FormularioAnalise() {
 
   const buscarDados = () => {
     const { tipoImovel, bairro, quartos, vagas, metragem, nrCluster } = formData;
-    const url = `http://localhost:5000/api/analise/imovel?tipoImovel=${tipoImovel}&bairro=${bairro}&quartos=${quartos}&vagas=${vagas}&metragem=${metragem}&nrCluster=${nrCluster}`;
+    const url = `/api/analise/imovel?tipoImovel=${tipoImovel}&bairro=${bairro}&quartos=${quartos}&vagas=${vagas}&metragem=${metragem}&nrCluster=${nrCluster}`;
 
     fetch(url)
       .then((res) => res.ok ? res.json() : res.json().then(err => { throw new Error(err.error || "Erro desconhecido") }))
