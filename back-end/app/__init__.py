@@ -40,9 +40,9 @@ def create_app():
         df_map = pd.read_csv(csv_file_path)
         return df, df_map
 
-    @app.route('/', methods=['GET'])
-    def index():
-        return send_file('indexPaginaUnica.html')
+    # @app.route('/', methods=['GET'])
+    # def index():
+    #     return send_file('indexPaginaUnica.html')
     
     api.add_namespace(mapa_ns, path='/')
     api.add_namespace(analise_ns, path='/')
