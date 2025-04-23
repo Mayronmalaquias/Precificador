@@ -27,7 +27,7 @@ def create_app():
               version='1.0',
               title='API Imobiliaria',
               description='API para analise e mapeamento de imoveis',
-              doc='/api/docs')
+              doc='/docs')
 
     cache = Cache(app, config={'CACHE_TYPE': 'simple'})
     load_dotenv()
