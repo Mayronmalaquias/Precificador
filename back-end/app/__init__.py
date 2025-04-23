@@ -27,7 +27,7 @@ def create_app():
               version='1.0',
               title='API Imobiliaria',
               description='API para analise e mapeamento de imoveis',
-              doc='/api')
+              doc='/')
 
     cache = Cache(app, config={'CACHE_TYPE': 'simple'})
     load_dotenv()
@@ -44,8 +44,8 @@ def create_app():
     def index():
         return send_file('indexPaginaUnica.html')
     
-    api.add_namespace(mapa_ns, path='/api')
-    api.add_namespace(analise_ns, path='/api')
+    api.add_namespace(mapa_ns, path='/')
+    api.add_namespace(analise_ns, path='/')
 
 
     return app
