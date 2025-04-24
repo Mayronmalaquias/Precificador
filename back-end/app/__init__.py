@@ -44,8 +44,8 @@ def create_app():
     # def index():
     #     return send_file('indexPaginaUnica.html')
     
-    api.add_namespace(mapa_ns, path='/api')
-    api.add_namespace(analise_ns, path='/api')
+    api.add_namespace(mapa_ns, path='/')
+    api.add_namespace(analise_ns, path='/')
 
 
     return app
