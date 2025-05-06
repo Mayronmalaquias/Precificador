@@ -1,6 +1,9 @@
 import pandas as pd
 from sklearn.cluster import KMeans
 import numpy as np
+# from app import db
+# from app.models import ImovelVenda, ImovelAluguel
+from app.models.imovel import Imovel
 
 input_file = "./dados/dados_map.csv"
 
@@ -11,8 +14,10 @@ def remover_outliers_iqr(df, coluna):
     filtro = (df[coluna] >= (Q1 - 1.5 * IQR)) & (df[coluna] <= (Q3 + 1.5 * IQR))
     return df[filtro]
 
+
 def calcular_rentabilidade(valor_locacao, valor_venda):
     return (valor_locacao) / valor_venda if valor_venda != 0 else np.nan
+
 
 def calcular_metricas_cluster(df, valor_coluna, oferta_tipo, metragem = None):
     metricas = {}
@@ -40,6 +45,7 @@ def calcular_metricas_cluster(df, valor_coluna, oferta_tipo, metragem = None):
 
     return metricas
 
+
 def formatar_resultados(df):
     df_formatted = df.copy()
 
@@ -60,6 +66,7 @@ def formatar_resultados(df):
     df_formatted['rentabilidadeMedia'] = df_formatted['rentabilidadeMedia'].fillna(0).apply(lambda x: f"{x:.2%}")
 
     return df_formatted
+
 
 def clusterizar_dados(df, valor_coluna, oferta_tipo, n_clusters=9, metragem=None):
     df_oferta = df[df['oferta'] == oferta_tipo].copy()
@@ -110,8 +117,11 @@ def clusterizar_dados(df, valor_coluna, oferta_tipo, n_clusters=9, metragem=None
                                          'metragemMediaAluguel', 'coeficienteVariacaoAluguel',
                                          'tamanhoAmostraAluguel'])
 
+
 def analisar_imovel_detalhado(tipo_imovel=None, bairro=None, cidade=None, cep=None, vaga_garagem=None, quadra=None, quartos=None, metragem=None):
     df = pd.read_csv(input_file, sep=",", thousands=".", decimal=",")
+    df_bd = carregar_dados_do_banco()
+    print(f"{len(df)} && {len(df_bd)}")
 
     # Exibir informações iniciais sobre os dados
 
@@ -157,6 +167,10 @@ def analisar_imovel_detalhado(tipo_imovel=None, bairro=None, cidade=None, cep=No
         if tamanho_amostra_aluguel < 9 or tamanho_amostra_venda < 9:
             numero_interacoes = 0
             valor = 0.15
+            valor_venda = 0.15
+            valor_aluguel = 0.15
+            boo_venda = False
+            boo_aluguel = False
             max_interacoes = 17
 
             micro_filtro = filtro.copy()  # Fazendo uma cópia do filtro atual
@@ -173,6 +187,14 @@ def analisar_imovel_detalhado(tipo_imovel=None, bairro=None, cidade=None, cep=No
                 novo_micro_filtro = filtro.copy()  # Fazendo uma cópia do filtro atual
 
                 # Aplicar a lógica da metragem
+                if valores_descendo_loop > 9 and not boo_aluguel:
+                    valor_aluguel = valor
+                    boo_aluguel = True
+
+                if tamanho_amostra_venda > 9 and not boo_venda:
+                    valor_venda = valor
+                    boo_venda = True
+
                 novo_micro_filtro &= ((df["area_util"] >= metragem * (1 - valor)) & (df["area_util"] <= metragem * (1 + valor)))
                 df_filtrado_metragem = df[novo_micro_filtro]  # Aplicar o filtro de metragem
                 valores_descendo_loop = len(df_filtrado_metragem[df_filtrado_metragem['oferta'] == 'Aluguel'])
@@ -182,11 +204,32 @@ def analisar_imovel_detalhado(tipo_imovel=None, bairro=None, cidade=None, cep=No
                 df_filtrado_metragem_venda = df[micro_filtro_venda]  # Aplicar o filtro de metragem
                 tamanho_amostra_venda_loop = len(df_filtrado_metragem_venda[df_filtrado_metragem_venda['oferta'] == 'Venda'])
 
-                numero_interacoes += 1
-                valor += 0.5
 
-            filtro &= ((df["area_util"] >= metragem * (1 - valor)) & (df["area_util"] <= metragem * (1 + valor)))
-        else:                
+                numero_interacoes += 1
+                valor += 0.05
+                if valores_descendo_loop > 9 and not boo_aluguel:
+                    valor_aluguel = valor
+                    boo_aluguel = True
+
+                if tamanho_amostra_venda > 9 and not boo_venda:
+                    valor_venda = valor
+                    boo_venda = True
+
+            filtro_aluguel = filtro.copy()
+            filtro_venda = filtro.copy()
+            print(f"valor venda miron {valor_venda}")
+            print(f"valor aluguel miron: {valor_aluguel}")
+            filtro_venda &= (
+                (df["area_util"] >= metragem * (1 - valor_venda)) &
+                (df["area_util"] <= metragem * (1 + valor_venda)) &
+                (df["oferta"] == 'Venda'))
+            filtro_aluguel &= (
+                (df["area_util"] >= metragem * (1 - valor_aluguel)) &
+                (df["area_util"] <= metragem * (1 + valor_aluguel)) &
+                (df["oferta"] == 'Aluguel'))
+            filtro = filtro_venda | filtro_aluguel
+        else:      
+            print("na vedadde miron esta aq haha")          
             filtro &= ((df["area_util"] >= metragem * 0.9) & (df["area_util"] <= metragem * 1.1))
 
 
@@ -226,18 +269,25 @@ def analisar_imovel_detalhado(tipo_imovel=None, bairro=None, cidade=None, cep=No
 
 
     # Combinar e alinhar as duas amostras de "Venda" e "Aluguel"
+    # print(metricas_aluguel)
+    # print(metricas_venda)
     resultados_alinhados = pd.concat([metricas_venda, metricas_aluguel], axis=1)
 
     # Calcular a rentabilidadeMedia para cada linha
+# Calcular a rentabilidadeMedia para cada linha (opcional, pode manter se for útil em algum contexto)
     resultados_alinhados['rentabilidadeMedia'] = resultados_alinhados.apply(
         lambda row: calcular_rentabilidade(row['valorAluguelNominal'], row['valorVendaNominal']), axis=1
     )
 
-    # Aplicar formatação aos resultados
-    resultados_formatados = formatar_resultados(resultados_alinhados)
+    # Gerar JSONs separados sem formatação
+    venda_json = metricas_venda.to_dict(orient='records')
+    aluguel_json = metricas_aluguel.to_dict(orient='records')
 
-    # Retornar o DataFrame formatado
-    return resultados_formatados.T
+    # Retornar os dois resultados separadamente
+    return {
+        'venda': venda_json,
+        'aluguel': aluguel_json
+    }
 
 
 def clusterizar_dados2(df, valor_coluna, oferta_tipo, cluster, n_clusters=9):
@@ -256,3 +306,27 @@ def clusterizar_dados2(df, valor_coluna, oferta_tipo, cluster, n_clusters=9):
     else:
         # Retorna um DataFrame vazio se as condições não forem atendidas
         return df_oferta.iloc[0:0]
+    
+
+def carregar_dados_do_banco():
+    # Consulta todos os imóveis
+    # imoveis = db.session.query(Imovel).all()
+
+    # Converte para DataFrame
+    dados = [{
+        "codigo": i.codigo,
+        "anunciante": i.anunciante,
+        "oferta": i.oferta,
+        "tipo": i.tipo,
+        "area_util": i.area_util,
+        "bairro": i.bairro,
+        "cidade": i.cidade,
+        "preco": i.preco,
+        "valor_m2": i.valor_m2,
+        "quartos": i.quartos,
+        "vagas": i.vagas,
+        "latitude": i.latitude,
+        "longitude": i.longitude
+    } for i in imoveis]
+
+    return pd.DataFrame(dados)

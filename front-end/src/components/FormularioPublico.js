@@ -16,6 +16,7 @@ function FormularioAnalise() {
   });
 
   const [dadosAPI, setDadosAPI] = useState(null);
+  const [dadosAPI2, setDadosAPI2] = useState(null);
   const [mapaHtml, setMapaHtml] = useState('');
   const [carregandoMapa, setCarregandoMapa] = useState(false);
 
@@ -30,13 +31,20 @@ function FormularioAnalise() {
     buscarDados();
   }, [formData]);
 
-  const buscarDados = () => {
+  const buscarDados = () => { // /api/.. resto da rota
     const { tipoImovel, bairro, quartos, vagas, metragem, nrCluster } = formData;
-    const url = `/api/analise/imovel?tipoImovel=${tipoImovel}&bairro=${bairro}&quartos=${quartos}&vagas=${vagas}&metragem=${metragem}&nrCluster=${nrCluster}`;
+    const url = `http://localhost:5000/imovel/venda?tipoImovel=${tipoImovel}&bairro=${bairro}&quartos=${quartos}&vagas=${vagas}&metragem=${metragem}&nrCluster=${nrCluster}`;
+    const url2 = `http://localhost:5000/imovel/aluguel?tipoImovel=${tipoImovel}&bairro=${bairro}&quartos=${quartos}&vagas=${vagas}&metragem=${metragem}&nrCluster=${nrCluster}`;
+
 
     fetch(url)
       .then((res) => res.ok ? res.json() : res.json().then(err => { throw new Error(err.error || "Erro desconhecido") }))
       .then(setDadosAPI)
+      .catch(err => console.error(err));
+
+    fetch(url2)
+      .then((res) => res.ok ? res.json() : res.json().then(err => { throw new Error(err.error || "Erro desconhecido") }))
+      .then(setDadosAPI2)
       .catch(err => console.error(err));
   };
 
@@ -114,11 +122,11 @@ function FormularioAnalise() {
           </div>
 
           <ul className="lista-com-imagem">
-            <li className="negrito"><strong>Valor de M² de Venda:</strong> {dadosAPI?.valorM2Venda}</li>
-            <li className="negrito"><strong>Valor de Venda Nominal:</strong> {dadosAPI?.valorVendaNominal}</li>
-            <li className="negrito"><strong>Valor de M² de Locação:</strong> {dadosAPI?.valorM2Aluguel}</li>
-            <li className="negrito"><strong>Valor de Locação Nominal:</strong> {dadosAPI?.valorAluguelNominal}</li>
-            <li><strong>Rentabilidade Média:</strong> {dadosAPI?.rentabilidadeMedia}</li>
+            <li className="negrito"><strong>Valor de M² de Venda:</strong> R$ {dadosAPI?.valorM2Venda != null ? dadosAPI.valorM2Venda.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '-'} /m²</li>
+            <li className="negrito"><strong>Valor de Venda Nominal:</strong> R$ {dadosAPI?.valorVendaNominal != null ? dadosAPI?.valorVendaNominal.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '-'}</li>
+            <li className="negrito"><strong>Valor de M² de Locação:</strong> R$ {dadosAPI2?.valorM2Aluguel != null ? dadosAPI2?.valorM2Aluguel.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '-'} /m²</li>
+            <li className="negrito"><strong>Valor de Locação Nominal:</strong> R$ {dadosAPI2?.valorAluguelNominal != null ? dadosAPI2?.valorAluguelNominal.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '-'}</li>
+            {/* <li><strong>Rentabilidade Média:</strong> {dadosAPI?.rentabilidadeMedia}</li> */}
           </ul>
 
           <div className="container">

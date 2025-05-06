@@ -14,9 +14,9 @@ caminho_csv = "./dados/dados_map.csv"
 df = pd.read_csv(caminho_csv)
 
 # Ajustando os tipos de dados conforme a estrutura do banco
-df["area_util"] = pd.to_numeric(df["area_util"], errors='coerce')
-df["preco"] = pd.to_numeric(df["preco"], errors='coerce')
-df["valor_m2"] = pd.to_numeric(df["valor_m2"], errors='coerce')
+df["area_util"] = pd.to_integer(df["area_util"], errors='coerce')
+df["preco"] = pd.to_integer(df["preco"], errors='coerce')
+df["valor_m2"] = pd.to_integer(df["valor_m2"], errors='coerce')
 df["latitude"] = pd.to_numeric(df["latitude"], errors='coerce')
 df["longitude"] = pd.to_numeric(df["longitude"], errors='coerce')
 

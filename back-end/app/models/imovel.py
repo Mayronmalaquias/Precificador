@@ -1,40 +1,57 @@
-from app.__init__ import db
+from sqlalchemy import Column, Integer, String, Numeric, ForeignKey, create_engine
+from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import relationship
+from app.models.base import Base
 
-class Imovel(db.Model):
+# Conexão com o banco
+engine = create_engine('postgresql://postgres:1234@localhost:5432/database', echo=True)
+
+
+class Imovel(Base):
     __tablename__ = "imoveis"
-
-    codigo = db.Column(db.String(50), primary_key=True)
-    anunciante = db.Column(db.String(100))
-    oferta = db.Column(db.String(20))
-    tipo = db.Column(db.String(50))
-    area_util = db.Column(db.Numeric)
-    bairro = db.Column(db.String(100))
-    cidade = db.Column(db.String(100))
-    preco = db.Column(db.Numeric)
-    valor_m2 = db.Column(db.Numeric)
-    quartos = db.Column(db.String(10))
-    vagas = db.Column(db.String(10))
-    latitude = db.Column(db.Numeric)
-    longitude = db.Column(db.Numeric)
-
-    def __repr__(self):
-        return f"<Imovel {self.codigo} - {self.bairro}>"
     
+    id = Column(Integer, primary_key=True)
+    codigo = Column(String(50))
+    anunciante = Column(String(100))
+    oferta = Column(String(20))
+    tipo = Column(String(50))
+    area_util = Column(Integer)
+    bairro = Column(String(100))
+    cidade = Column(String(100))
+    preco = Column(Integer)
+    valor_m2 = Column(Integer)
+    quartos = Column(Integer)
+    vagas = Column(Integer)
+    latitude = Column(Numeric)
+    longitude = Column(Numeric)
+    tipo_imovel = Column(String(50))
+
+    __mapper_args__ = {
+        'polymorphic_identity': 'imovel',
+        'polymorphic_on': tipo_imovel
+    }
 
 class ImovelVenda(Imovel):
     __tablename__ = "imoveis_venda"
     
-    # Adiciona qualquer campo específico para imóveis de venda
-    cluster = db.Column(db.Integer)  # Coluna 'cluster' para armazenar o cluster dos imóveis de venda
+    id = Column(Integer, ForeignKey("imoveis.id"), primary_key=True)
+    cluster = Column(Integer)
 
-    def __repr__(self):
-        return f"<ImovelVenda {self.codigo} - {self.bairro} - Cluster {self.cluster}>"
+    __mapper_args__ = {
+        'polymorphic_identity': 'venda'
+    }
 
 class ImovelAluguel(Imovel):
     __tablename__ = "imoveis_aluguel"
+    
+    id = Column(Integer, ForeignKey("imoveis.id"), primary_key=True)
+    cluster = Column(Integer)
 
-    # Adiciona qualquer campo específico para imóveis de aluguel
-    cluster = db.Column(db.Integer)  # Coluna 'cluster' para armazenar o cluster dos imóveis de aluguel
+    __mapper_args__ = {
+        'polymorphic_identity': 'aluguel'
+    }
 
-    def __repr__(self):
-        return f"<ImovelAluguel {self.codigo} - {self.bairro} - Cluster {self.cluster}>"
+# Cria as tabelas
+print("Criando tabelas...")
+Base.metadata.create_all(engine)
+print("Tabelas criadas com sucesso.")
