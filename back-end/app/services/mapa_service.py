@@ -1,20 +1,34 @@
 import pandas as pd
 import folium
 from folium.plugins import HeatMap, MarkerCluster
+from app.models.imovel import Imovel, ImovelAluguel, ImovelVenda
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+from app.models.imovel import Imovel
+from app import SessionLocal
+from sqlalchemy.orm import with_polymorphic
+from app import engine
+
+
+# DATABASE_URL = 'postgresql://postgres:1234@localhost:5432/database'
+# engine = create_engine(DATABASE_URL)
+Session = sessionmaker(bind=engine)
 
 def gerar_mapa_anuncio_clusterizado(cluster_selecionado):
         # cluster_selecionado = 1
     cluster_selecionado = int(cluster_selecionado)
     csv_file_path = './dados/vendaC.csv'
     df = pd.read_csv(csv_file_path)
+    df = carregar_imoveis_venda()
+    print(df['latitude'])
 
         # Verifica a presença das colunas necessárias
     if 'latitude' not in df.columns or 'longitude' not in df.columns or 'preco' not in df.columns or 'cluster' not in df.columns:
         raise ValueError("O arquivo CSV deve conter as colunas 'latitude', 'longitude', 'preco' e 'cluster'.")
 
         # Converte latitude e longitude para o formato correto, dividindo por 1.000.000
-    df['latitude'] = df['latitude'] / 1e7
-    df['longitude'] = df['longitude'] / 1e7
+    # df['latitude'] = df['latitude'] / 1e7
+    # df['longitude'] = df['longitude'] / 1e7
 
         # Filtra o DataFrame para o cluster especificado
     if(cluster_selecionado != 0):
@@ -199,3 +213,60 @@ def gerar_mapa_m2_cluterizado(cluster_selecionado):
 
     # return mapa._repr_html_()
     return "../mapas/mapa_de_calor_valor_m2_ajustado.html"
+
+
+def carregar_imoveis_venda():
+    session = SessionLocal()
+    try:
+        # Faz o join entre Imovel e ImovelVenda
+        results = session.query(
+            Imovel,
+            ImovelVenda.cluster
+        ).join(
+            ImovelVenda, Imovel.id == ImovelVenda.id
+        ).all()
+
+        dados = []
+        for imovel, cluster in results:
+            dados.append({
+                "id": imovel.id,
+                "codigo": imovel.codigo,
+                "anunciante": imovel.anunciante,
+                "oferta": imovel.oferta,
+                "tipo": imovel.tipo,
+                "area_util": imovel.area_util,
+                "bairro": imovel.bairro,
+                "cidade": imovel.cidade,
+                "preco": imovel.preco,
+                "valor_m2": imovel.valor_m2,
+                "quartos": imovel.quartos,
+                "vagas": imovel.vagas,
+                "latitude": float(imovel.latitude) if imovel.latitude else None,
+                "longitude": float(imovel.longitude) if imovel.longitude else None,
+                "tipo_imovel": imovel.tipo_imovel,
+                "cluster": cluster  # vem da ImovelVenda
+            })
+
+        return pd.DataFrame(dados)
+    finally:
+        session.close()
+
+def carregar_imoveis_aluguel():
+    session = Session()
+    imoveis_aluguel = session.query(ImovelAluguel).all()
+
+    dados = [{
+        "id": i.id,
+        "codigo": i.codigo,
+        "bairro": i.bairro,
+        "cidade": i.cidade,
+        "preco": i.preco,
+        "valor_m2": i.valor_m2,
+        "quartos": i.quartos,
+        "vagas": i.vagas,
+        "area_util": i.area_util,
+        "cluster": i.cluster
+    } for i in imoveis_aluguel]
+
+    session.close()
+    return pd.DataFrame(dados)

@@ -3,7 +3,16 @@ from sklearn.cluster import KMeans
 import numpy as np
 # from app import db
 # from app.models import ImovelVenda, ImovelAluguel
+from app.models.imovel import Imovel, ImovelAluguel, ImovelVenda
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
 from app.models.imovel import Imovel
+from app import SessionLocal
+from app import engine
+
+# DATABASE_URL = 'postgresql://postgres:1234@localhost:5432/database'
+# engine = create_engine(DATABASE_URL)
+Session = sessionmaker(bind=engine)
 
 input_file = "./dados/dados_map.csv"
 
@@ -85,8 +94,10 @@ def clusterizar_dados(df, valor_coluna, oferta_tipo, n_clusters=9, metragem=None
             df_oferta.loc[:, "cluster"] = df_oferta["cluster"].astype("category")
         if(oferta_tipo == 'Aluguel'):
             df_oferta.to_csv("./dados/aluguelC.csv")
+            salvar_oferta_no_banco(df_oferta, oferta_tipo)
         elif(oferta_tipo == 'Venda'):
             df_oferta.to_csv("./dados/vendaC.csv")
+            salvar_oferta_no_banco(df_oferta, oferta_tipo)
         else:
             print(df_oferta)
         metricas_clusters = []
@@ -120,8 +131,8 @@ def clusterizar_dados(df, valor_coluna, oferta_tipo, n_clusters=9, metragem=None
 
 def analisar_imovel_detalhado(tipo_imovel=None, bairro=None, cidade=None, cep=None, vaga_garagem=None, quadra=None, quartos=None, metragem=None):
     df = pd.read_csv(input_file, sep=",", thousands=".", decimal=",")
-    df_bd = carregar_dados_do_banco()
-    print(f"{len(df)} && {len(df_bd)}")
+    df = carregar_dados_do_banco()
+    # print(f"{len(df)} && {len(df_bd)}")
 
     # Exibir informações iniciais sobre os dados
 
@@ -309,11 +320,14 @@ def clusterizar_dados2(df, valor_coluna, oferta_tipo, cluster, n_clusters=9):
     
 
 def carregar_dados_do_banco():
+    session = Session()
+
     # Consulta todos os imóveis
-    # imoveis = db.session.query(Imovel).all()
+    imoveis = session.query(Imovel).all()
 
     # Converte para DataFrame
     dados = [{
+        "id":i.id,
         "codigo": i.codigo,
         "anunciante": i.anunciante,
         "oferta": i.oferta,
@@ -325,8 +339,47 @@ def carregar_dados_do_banco():
         "valor_m2": i.valor_m2,
         "quartos": i.quartos,
         "vagas": i.vagas,
-        "latitude": i.latitude,
-        "longitude": i.longitude
+        "latitude": float(i.latitude),
+        "longitude": float(i.longitude)
     } for i in imoveis]
 
+    session.close()
     return pd.DataFrame(dados)
+
+
+def salvar_oferta_no_banco(df_oferta, oferta_tipo):
+    from app import SessionLocal
+    session = SessionLocal()
+
+    try:
+        # Limpa os dados antigos da tabela auxiliar
+        if oferta_tipo == 'Aluguel':
+            session.query(ImovelAluguel).delete()
+        elif oferta_tipo == 'Venda':
+            session.query(ImovelVenda).delete()
+
+        session.commit()
+
+        for _, row in df_oferta.iterrows():
+            # Confere se o imóvel existe na base principal
+            imovel = session.query(Imovel).filter_by(id=row['id']).first()
+            if not imovel:
+                # print(f"[AVISO] Imóvel com ID {row['id']} não encontrado. Ignorando.")
+                continue
+
+            # Cria o registro na tabela auxiliar
+            if oferta_tipo == 'Aluguel':
+                novo = ImovelAluguel(id=imovel.id, cluster=row.get('cluster'))
+            else:
+                novo = ImovelVenda(id=imovel.id, cluster=row.get('cluster'))
+
+            session.add(novo)
+
+        session.commit()
+        print(f"[OK] Tabela de {oferta_tipo} preenchida com sucesso.")
+
+    except Exception as e:
+        session.rollback()
+        print(f"[ERRO] Falha ao salvar dados de {oferta_tipo}: {e}")
+    finally:
+        session.close()

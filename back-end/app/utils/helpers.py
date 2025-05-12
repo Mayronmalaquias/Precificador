@@ -1,7 +1,6 @@
 import pandas as pd
-from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
-from app.models.imovel import Base, Imovel, ImovelVenda, ImovelAluguel
+from app.models.imovel import Imovel
 from app import engine
 
 # Conexão

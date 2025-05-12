@@ -11,6 +11,7 @@ function Mapa() {
   });
 
   const [dadosAPI, setDadosAPI] = useState(null);
+  const [dadosAPI2, setDadosAPI2] = useState(null);
   const [mapaHtml, setMapaHtml] = useState('');
   const [carregandoMapa, setCarregandoMapa] = useState(false);
 
@@ -29,8 +30,8 @@ function Mapa() {
     const cluster = formData.nrCluster || '5';
 
     setCarregandoMapa(true);
-// const url = `http://localhost:5000/api/analise/imovel?tipoImovel=${tipoImovel}&bairro=${bairro}&quartos=${quartos}&vagas=${vagas}&metragem=${metragem}&nrCluster=${nrCluster}`;
-    fetch(`/api/mapa/carregar?tipo=${tipo}&cluster=${cluster}&tamanho=${tamanho}`)
+    const mapurl = `http://localhost:5000/mapa/carregar?tipo=${tipo}&cluster=${cluster}&tamanho=${tamanho}`; // colocar prefixo /api
+    fetch(mapurl)
       .then((res) => res.text())
       .then(setMapaHtml)
       .catch(err => {
@@ -46,15 +47,22 @@ function Mapa() {
   }, [formData]);
 
 
-  const buscarDados = () => {
+  const buscarDados = () => { // /api/.. resto da rota
     const { tipoImovel, bairro, quartos, vagas, metragem, nrCluster } = formData;
-    const url = `/api/analise/imovel?tipoImovel=${tipoImovel}&bairro=${bairro}&quartos=${quartos}&vagas=${vagas}&metragem=${metragem}&nrCluster=${nrCluster}`;
+    const url = `http://localhost:5000/imovel/venda?tipoImovel=${tipoImovel}&bairro=${bairro}&quartos=${quartos}&vagas=${vagas}&metragem=${metragem}&nrCluster=${nrCluster}`;
+    const url2 = `http://localhost:5000/imovel/aluguel?tipoImovel=${tipoImovel}&bairro=${bairro}&quartos=${quartos}&vagas=${vagas}&metragem=${metragem}&nrCluster=${nrCluster}`;
+    // trocar prefixo para /api
 
     fetch(url)
       .then((res) => res.ok ? res.json() : res.json().then(err => { throw new Error(err.error || "Erro desconhecido") }))
       .then(setDadosAPI)
       .catch(err => console.error(err));
-  };
+
+    fetch(url2)
+      .then((res) => res.ok ? res.json() : res.json().then(err => { throw new Error(err.error || "Erro desconhecido") }))
+      .then(setDadosAPI2)
+      .catch(err => console.error(err));
+    };
 
   const alterarClusterCopy = (valor) => {
     const novoCluster = valor === 'geral' ? '0' : valor.toString();

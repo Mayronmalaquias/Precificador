@@ -7,15 +7,32 @@ function Login() {
   const [senha, setSenha] = useState('');
   const navigate = useNavigate();
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
 
-    // Simula autenticação
-    if (email === 'admin@teste.com' && senha === '1234') {
-      localStorage.setItem('auth', 'true');
-      navigate('/interno');
-    } else {
-      alert('Credenciais inválidas');
+    try {
+      const response = await fetch('http://localhost:5000/auth/login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          username: email,
+          password: senha
+        })
+      });
+
+      const data = await response.json();
+
+      if (response.ok && data.login === true) {
+        localStorage.setItem('auth', 'true');
+        navigate('/interno');
+      } else {
+        alert(data.error || 'Credenciais inválidas');
+      }
+    } catch (error) {
+      console.error('Erro ao fazer login:', error);
+      alert('Erro de conexão com o servidor.');
     }
   };
 
