@@ -150,7 +150,7 @@ function Mapa() {
           <button
             type="button"
             className={`botao-cluster ${formData.nrCluster === '0' ? 'botao-cluster-selecionado' : ''}`}
-            onClick={() => alterarClusterCopy('geral')}
+            onClick={() => alterarClusterCopy(0)}
           >
             GERAL
           </button>

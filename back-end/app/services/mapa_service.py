@@ -29,9 +29,9 @@ def gerar_mapa_anuncio_clusterizado(cluster_selecionado):
         # Filtra o DataFrame para o cluster especificado
     if(cluster_selecionado != 0):
 
-        cluster_grupo1 = [1,2,3]
-        cluster_grupo2 = [4,5,6]
-        cluster_grupo3 = [7,8,9]
+        cluster_grupo1 = [0,1,2]
+        cluster_grupo2 = [3,4,5]
+        cluster_grupo3 = [6,7,8]
         if(cluster_selecionado in cluster_grupo1):
             cluster_grupo_mapa = cluster_grupo1
         elif(cluster_selecionado in cluster_grupo2):
