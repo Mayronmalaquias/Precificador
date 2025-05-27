@@ -45,8 +45,8 @@ const alterarClusterCopy = (valor) => {
     setDadosAPI2(null);
 
     const { tipoImovel, bairro, quartos, vagas, metragem, nrCluster } = formData;
-    const url = `http://localhost:5000/imovel/venda?tipoImovel=${tipoImovel}&bairro=${bairro}&quartos=${quartos}&vagas=${vagas}&metragem=${metragem}&nrCluster=${nrCluster}`;
-    const url2 = `http://localhost:5000/imovel/aluguel?tipoImovel=${tipoImovel}&bairro=${bairro}&quartos=${quartos}&vagas=${vagas}&metragem=${metragem}&nrCluster=${nrCluster}`;
+    const url = `/api/imovel/venda?tipoImovel=${tipoImovel}&bairro=${bairro}&quartos=${quartos}&vagas=${vagas}&metragem=${metragem}&nrCluster=${nrCluster}`;
+    const url2 = `/api/imovel/aluguel?tipoImovel=${tipoImovel}&bairro=${bairro}&quartos=${quartos}&vagas=${vagas}&metragem=${metragem}&nrCluster=${nrCluster}`;
 
     const fetchVenda = fetch(url)
       .then(async (res) => {
@@ -94,7 +94,7 @@ const alterarClusterCopy = (valor) => {
     setCarregandoMapa(true);
 
     // Ajuste a URL conforme necessário, por exemplo, para localhost ou prefixo /api
-    fetch(`http://localhost:5000/carregar_mapa?tipo=${tipo}&cluster=${cluster}&tamanho=${tamanho}`)
+    fetch(`/api/carregar_mapa?tipo=${tipo}&cluster=${cluster}&tamanho=${tamanho}`)
       .then(res => res.text())
       .then(html => setMapaHtml(html))
       .catch(err => {
