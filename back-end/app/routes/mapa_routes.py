@@ -1,9 +1,6 @@
 from flask import request, send_file
 from flask_restx import Namespace, Resource
-import pandas as pd
-from flask_caching import Cache
 from app.services.mapa_service import gerar_mapa_m2_completo, gerar_mapa_m2_cluterizado, gerar_mapa_anuncio_clusterizado, gerar_mapa_anuncio_completo
-# from app.utils import cache
 
 mapa_ns = Namespace('mapa', description='Operacoes relacionadas a mapas')
 

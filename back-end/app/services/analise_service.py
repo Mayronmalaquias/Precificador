@@ -1,17 +1,12 @@
 import pandas as pd
 from sklearn.cluster import KMeans
 import numpy as np
-# from app import db
-# from app.models import ImovelVenda, ImovelAluguel
 from app.models.imovel import Imovel, ImovelAluguel, ImovelVenda
-from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from app.models.imovel import Imovel
-from app import SessionLocal
-from app import engine
+from app import engine, cache
+from sqlalchemy import text
 
-# DATABASE_URL = 'postgresql://postgres:1234@localhost:5432/database'
-# engine = create_engine(DATABASE_URL)
 Session = sessionmaker(bind=engine)
 
 input_file = "./dados/dados_map.csv"
@@ -130,8 +125,9 @@ def clusterizar_dados(df, valor_coluna, oferta_tipo, n_clusters=9, metragem=None
 
 
 def analisar_imovel_detalhado(tipo_imovel=None, bairro=None, cidade=None, cep=None, vaga_garagem=None, quadra=None, quartos=None, metragem=None):
-    df = pd.read_csv(input_file, sep=",", thousands=".", decimal=",")
-    df = carregar_dados_do_banco()
+    # df = pd.read_csv(input_file, sep=",", thousands=".", decimal=",")
+    # df = carregar_dados_do_banco()
+    df = carregar_dados_df()
     # print(f"{len(df)} && {len(df_bd)}")
 
     # Exibir informações iniciais sobre os dados
@@ -347,34 +343,57 @@ def carregar_dados_do_banco():
     return pd.DataFrame(dados)
 
 
+@cache.cached(timeout=600)  # cache válido por 10 minutos (600s)
+def carregar_dados_df():
+    session = Session()
+    imoveis = session.query(Imovel).all()
+    
+    dados = [{
+        "id": i.id,
+        "codigo": i.codigo,
+        "anunciante": i.anunciante,
+        "oferta": i.oferta,
+        "tipo": i.tipo,
+        "area_util": i.area_util,
+        "bairro": i.bairro,
+        "cidade": i.cidade,
+        "preco": i.preco,
+        "valor_m2": i.valor_m2,
+        "quartos": i.quartos,
+        "vagas": i.vagas,
+        "latitude": float(i.latitude),
+        "longitude": float(i.longitude)
+    } for i in imoveis]
+
+    session.close()
+    return pd.DataFrame(dados)
+
+
 def salvar_oferta_no_banco(df_oferta, oferta_tipo):
     from app import SessionLocal
     session = SessionLocal()
 
     try:
-        # Limpa os dados antigos da tabela auxiliar
+        # Corrigido: use text() para comandos SQL diretos
         if oferta_tipo == 'Aluguel':
-            session.query(ImovelAluguel).delete()
+            session.execute(text("TRUNCATE TABLE imoveis_aluguel RESTART IDENTITY CASCADE"))
         elif oferta_tipo == 'Venda':
-            session.query(ImovelVenda).delete()
+            session.execute(text("TRUNCATE TABLE imoveis_venda RESTART IDENTITY CASCADE"))
 
-        session.commit()
+        ids_df = df_oferta['id'].tolist()
+        ids_existentes = {id for (id,) in session.query(Imovel.id).filter(Imovel.id.in_(ids_df)).all()}
 
+        objetos = []
         for _, row in df_oferta.iterrows():
-            # Confere se o imóvel existe na base principal
-            imovel = session.query(Imovel).filter_by(id=row['id']).first()
-            if not imovel:
-                # print(f"[AVISO] Imóvel com ID {row['id']} não encontrado. Ignorando.")
+            if row['id'] not in ids_existentes:
                 continue
 
-            # Cria o registro na tabela auxiliar
             if oferta_tipo == 'Aluguel':
-                novo = ImovelAluguel(id=imovel.id, cluster=row.get('cluster'))
+                objetos.append(ImovelAluguel(id=row['id'], cluster=row.get('cluster')))
             else:
-                novo = ImovelVenda(id=imovel.id, cluster=row.get('cluster'))
+                objetos.append(ImovelVenda(id=row['id'], cluster=row.get('cluster')))
 
-            session.add(novo)
-
+        session.bulk_save_objects(objetos)
         session.commit()
         print(f"[OK] Tabela de {oferta_tipo} preenchida com sucesso.")
 

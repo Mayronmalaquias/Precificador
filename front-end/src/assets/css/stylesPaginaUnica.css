@@ -54,6 +54,24 @@ button:hover {
   background-color: #e1005b;
 }
 
+/* No seu arquivo CSS (ex: chat.css ou stylesPaginaUnica.css) */
+.botao-cluster {
+  /* Seus estilos normais de botão aqui */
+  padding: 8px 15px;
+  margin: 5px;
+  border: 1px solid #ccc;
+  background-color: #f0f0f0;
+  cursor: pointer;
+  border-radius: 4px;
+}
+
+.botao-cluster-selecionado {
+  background-color: #007bff; /* Cor de fundo para o botão selecionado */
+  color: white; /* Cor do texto para o botão selecionado */
+  border-color: #0056b3; /* Cor da borda para o botão selecionado */
+  font-weight: bold;
+}
+
 ul {
   list-style: none;
   padding: 0;
@@ -146,9 +164,9 @@ input[type="number"]::placeholder {
   display: inline-block; /* Mantém o tamanho ajustado ao conteúdo */
 }
 
-#nrCluster, #outCluster, label[for="nrCluster"] {
+/* #nrCluster, #outCluster, label[for="nrCluster"] {
   visibility: hidden;
-}
+} */
 
 
 /* Estilos para o spinner de carregamento */

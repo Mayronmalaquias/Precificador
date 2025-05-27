@@ -1,6 +1,5 @@
 from sqlalchemy import Column, Integer, String, Numeric, ForeignKey
 from app.models.base import Base
-from app import engine
 
 
 class Imovel(Base):
@@ -45,5 +44,3 @@ class ImovelAluguel(Base):
     id = Column(Integer, ForeignKey("imoveis.id"), primary_key=True)
     cluster = Column(Integer)
 
-if __name__ == '__main__':
-    Base.metadata.create_all(engine)

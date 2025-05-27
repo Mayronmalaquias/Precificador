@@ -3,9 +3,7 @@ from sqlalchemy.orm import sessionmaker
 from app.models.imovel import Imovel
 from app import engine
 
-# Conexão
-# DATABASE_URL = 'postgresql://postgres:1234@db:5432/database'
-# engine = create_engine(DATABASE_URL)
+
 Session = sessionmaker(bind=engine)
 session = Session()
 
@@ -52,3 +50,5 @@ def inserir_dados():
 
     session.commit()
     print("Imóveis importados com sucesso.")
+
+

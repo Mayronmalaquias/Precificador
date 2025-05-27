@@ -2,16 +2,12 @@ import pandas as pd
 import folium
 from folium.plugins import HeatMap, MarkerCluster
 from app.models.imovel import Imovel, ImovelAluguel, ImovelVenda
-from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from app.models.imovel import Imovel
 from app import SessionLocal
-from sqlalchemy.orm import with_polymorphic
-from app import engine
+from app import engine, cache
 
 
-# DATABASE_URL = 'postgresql://postgres:1234@localhost:5432/database'
-# engine = create_engine(DATABASE_URL)
 Session = sessionmaker(bind=engine)
 
 def gerar_mapa_anuncio_clusterizado(cluster_selecionado):
@@ -71,6 +67,7 @@ def gerar_mapa_anuncio_clusterizado(cluster_selecionado):
 def gerar_mapa_anuncio_completo():
     csv_file_path = './dados/dados_map.csv'
     df = pd.read_csv(csv_file_path)
+    df = carregar_dados_df()
 
     if 'latitude' not in df.columns or 'longitude' not in df.columns or 'preco' not in df.columns:
         raise ValueError("O arquivo CSV deve conter as colunas 'latitude', 'longitude' e 'preco'.")
@@ -106,6 +103,7 @@ def gerar_mapa_m2_completo(cluster_selecionado):
     csv_file_path = './dados/vendaC.csv'
         # Carrega os dados
     df = pd.read_csv("./dados/dados_map.csv")
+    df = carregar_dados_df()
 
         # Verifica a presença das colunas necessárias
     if 'bairro' not in df.columns or 'latitude' not in df.columns or 'longitude' not in df.columns or 'valor_m2' not in df.columns:
@@ -155,6 +153,7 @@ def gerar_mapa_m2_cluterizado(cluster_selecionado):
     csv_file_path = './dados/vendaC.csv'
         # Carrega os dados
     df = pd.read_csv("./dados/vendaC.csv")
+    df = carregar_imoveis_venda()
 
         # Verifica se há dados após o filtro de cluster
     df['cluster'] = df['cluster'].astype(int)
@@ -170,8 +169,8 @@ def gerar_mapa_m2_cluterizado(cluster_selecionado):
     media_por_regiao = df.groupby('bairro')['valor_m2'].mean().reset_index()
     media_por_regiao = media_por_regiao.rename(columns={'valor_m2': 'media_valor_m2'})
 
-    df['latitude'] = df['latitude'] / 1e7
-    df['longitude'] = df['longitude'] / 1e7
+    # df['latitude'] = df['latitude'] / 1e7
+    # df['longitude'] = df['longitude'] / 1e7
 
         # Mescla as médias de volta ao DataFrame original
     df = df.merge(media_por_regiao, on='bairro', how='left')
@@ -267,6 +266,32 @@ def carregar_imoveis_aluguel():
         "area_util": i.area_util,
         "cluster": i.cluster
     } for i in imoveis_aluguel]
+
+    session.close()
+    return pd.DataFrame(dados)
+
+
+@cache.cached(timeout=600)  # cache válido por 10 minutos (600s)
+def carregar_dados_df():
+    session = Session()
+    imoveis = session.query(Imovel).all()
+    
+    dados = [{
+        "id": i.id,
+        "codigo": i.codigo,
+        "anunciante": i.anunciante,
+        "oferta": i.oferta,
+        "tipo": i.tipo,
+        "area_util": i.area_util,
+        "bairro": i.bairro,
+        "cidade": i.cidade,
+        "preco": i.preco,
+        "valor_m2": i.valor_m2,
+        "quartos": i.quartos,
+        "vagas": i.vagas,
+        "latitude": float(i.latitude),
+        "longitude": float(i.longitude)
+    } for i in imoveis]
 
     session.close()
     return pd.DataFrame(dados)

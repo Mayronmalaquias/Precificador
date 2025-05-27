@@ -78,12 +78,70 @@ display: block;
 margin-top: 10px;
 }
 
-select, input[type="range"] {
+/* select, input[type="range"] {
 width: 100%;
 padding: 10px;
 margin-top: 5px;
 border: 1px solid #ccc;
 border-radius: 5px;
+} */
+
+input[type="range"] {
+  -webkit-appearance: none; /* Remove a aparência padrão no Chrome, Safari, Opera, Edge */
+  appearance: none;
+  width: 100%; /* Mantém a largura total */
+  height: 8px; /* Altura da trilha (track) */
+  background: #a40303; /* Cor de fundo da trilha */
+  outline: none; /* Remove o outline ao focar */
+  border-radius: 5px; /* Bordas arredondadas para a trilha */
+  margin-top: 5px; /* Ajuste a margem se necessário */
+  padding: 0; /* Remova o padding para melhor controle */
+  border: none; /* Remova a borda se estiver usando background para a trilha */
+}
+
+/* Thumb (a bolinha deslizante) - Para WebKit (Chrome, Safari, Opera, Edge) */
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 20px; /* Largura do thumb */
+  height: 20px; /* Altura do thumb */
+  background: #e1005b; /* Sua cor principal */
+  cursor: pointer;
+  border-radius: 50%; /* Deixa o thumb redondo */
+  /* margin-top: -6px; */ /* Pode ser necessário para centralizar o thumb verticalmente na trilha.
+                           Calcule como: (altura_thumb - altura_trilha) / 2 e inverta o sinal.
+                           Ex: (20px - 8px) / 2 = 6px -> margin-top: -6px; */
+}
+
+/* Thumb - Para Firefox */
+input[type="range"]::-moz-range-thumb {
+  width: 20px;
+  height: 20px;
+  background: #e1005b;
+  cursor: pointer;
+  border-radius: 50%;
+  border: none; /* Remove a borda padrão do Firefox no thumb */
+}
+
+/* Track (a trilha) - Para Firefox (exemplo, pois o ::-moz-range-track é o padrão) */
+/* Geralmente, o estilo base do input[type="range"] já afeta o track no Firefox se você definir background, height, etc. */
+/*
+input[type="range"]::-moz-range-track {
+  width: 100%;
+  height: 8px;
+  background: #ddd;
+  border-radius: 5px;
+  border: none;
+}
+*/
+
+/* Opcional: Estilo para quando o input range está focado (melhora a acessibilidade) */
+input[type="range"]:focus::-webkit-slider-thumb {
+  box-shadow: 0 0 0 3px rgba(225, 0, 91, 0.3); /* Sombra ao focar - cor do tema */
+}
+
+input[type="range"]:focus::-moz-range-thumb {
+  box-shadow: 0 0 0 3px rgba(225, 0, 91, 0.3);
 }
 
 button {
@@ -98,6 +156,24 @@ border-radius: 5px;
 
 button:hover {
 background-color: #e1005b;
+}
+
+/* No seu arquivo CSS (ex: chat.css ou stylesPaginaUnica.css) */
+.botao-cluster {
+  /* Seus estilos normais de botão aqui */
+  padding: 8px 15px;
+  margin: 5px;
+  border: 1px solid #ccc;
+  background-color: #f0f0f0;
+  cursor: pointer;
+  border-radius: 4px;
+}
+
+.botao-cluster-selecionado {
+  background-color: #007bff; /* Cor de fundo para o botão selecionado */
+  color: white; /* Cor do texto para o botão selecionado */
+  border-color: #0056b3; /* Cor da borda para o botão selecionado */
+  font-weight: bold;
 }
 
 ul {
@@ -229,14 +305,14 @@ font-weight: bold;
 }
 
 .imagem-sobreposta {
-position: absolute;
-top: 25%;
-left: 50%;
-transform: translate(40%, -40%);
-width: 300px;
-height: 300px;
-cursor: pointer;
-z-index: 2;
+  position: absolute;
+  top: 25%;
+  left: 50%;
+  transform: translate(40%, -40%); /* Este translate pode estar movendo a imagem sobre o slider */
+  width: 300px;
+  height: 300px;
+  cursor: pointer;
+  z-index: 2; /* z-index maior pode fazer com que cubra outros elementos */
 }
 .lista-com-imagem {
 position: relative; /* Garante que o ::before fique dentro da ul */
@@ -306,3 +382,91 @@ display: block;
   border-radius: 10px;
   box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
 }
+
+/* Em styles.css ou um arquivo CSS dedicado ao header */
+
+nav {
+  display: flex;
+  gap: 10px; /* Ajustado o gap para os separadores '|' parecerem mais naturais */
+  align-items: center;
+}
+
+/* Estilo base para os NavLinks */
+.nav-link {
+  color: #fff;
+  text-decoration: none;
+  font-weight: 500;
+  padding: 8px 12px; /* Adicionado padding para melhor área de toque e visual */
+  border-radius: 4px; /* Bordas levemente arredondadas */
+  transition: background-color 0.3s, color 0.3s;
+}
+
+/* Estilo para quando o mouse passa por cima de um NavLink */
+.nav-link:hover {
+  color: #ffd6e6; /* Sua cor de hover existente */
+  background-color: rgba(255, 255, 255, 0.1); /* Leve fundo no hover */
+}
+
+/* Estilo para o NavLink ATIVO */
+.nav-link.active-link {
+  font-weight: bold;
+  background-color: rgba(255, 255, 255, 0.2); /* Um pouco mais de destaque para o ativo */
+  /* Você também pode adicionar outras propriedades, como:
+  text-decoration: underline;
+  border-bottom: 2px solid #fff;
+  */
+}
+
+/* Estilo opcional para o botão de logout para se alinhar melhor se necessário */
+.logout-button {
+  background-color: #fff;
+  color: #e1005b;
+  border: none;
+  padding: 8px 16px; /* Mantido o padding do seu nav button original */
+  font-weight: bold;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background-color 0.3s, transform 0.2s;
+}
+
+.logout-button:hover {
+  background-color: #ffe6ef; /* Mantido o hover do seu nav button original */
+  transform: scale(1.05);
+}
+
+/* O seu CSS existente para header e nav button (se não for o logout-button) */
+header {
+  background-color: #e1005b;
+  color: rgb(255, 255, 255);
+  text-align: center; /* Se quiser manter o texto centralizado, pode precisar ajustar o flex da nav ou usar margin: auto para a nav */
+  padding: 15px 20px; /* Aumentado um pouco o padding */
+  font-size: 24px;
+  box-shadow: 0 0 10px rgba(0, 0, 0, 0.15);
+  display: flex; /* Adicionado para melhor alinhamento do título e nav */
+  justify-content: space-between; /* Alinha título à esquerda e nav à direita */
+  align-items: center; /* Alinha verticalmente */
+}
+
+header h1 {
+  margin: 0; /* Remove margem padrão do h1 */
+  font-size: 1.5em; /* Ajuste o tamanho conforme necessário */
+}
+
+/* Se você tiver outros botões no nav que não sejam de logout e precisem do estilo original: */
+/*
+nav button {
+  background-color: #fff;
+  color: #e1005b;
+  border: none;
+  padding: 8px 16px;
+  font-weight: bold;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.3s, transform 0.2s;
+}
+
+nav button:hover {
+  background-color: #ffe6ef;
+  transform: scale(1.05);
+}
+*/

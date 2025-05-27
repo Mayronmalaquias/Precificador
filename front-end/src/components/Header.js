@@ -1,4 +1,5 @@
-import { Link, useNavigate } from 'react-router-dom';
+// Header.js
+import { NavLink, useNavigate } from 'react-router-dom'; // Alterado Link para NavLink
 
 function Header() {
   const navigate = useNavigate();
@@ -9,22 +10,33 @@ function Header() {
     navigate('/login');
   };
 
+  // Função para determinar a classe do NavLink
+  const getNavLinkClass = ({ isActive }) => {
+    return isActive ? 'nav-link active-link' : 'nav-link';
+  };
+
   return (
     <header>
       <h1>Inteligência Imobiliária 61</h1>
       <nav>
-        <Link to="/">Início</Link>
+        <NavLink to="/" end className={getNavLinkClass}> {/* Adicionado 'end' para correspondência exata */}
+          Início
+        </NavLink>
         {isLogado ? (
           <>
             {' | '}
-            <Link to="/interno">Acessar Página</Link>
+            <NavLink to="/interno" className={getNavLinkClass}>
+              Acessar Página
+            </NavLink>
             {' | '}
-            <button onClick={handleLogout}>Sair</button>
+            <button onClick={handleLogout} className="logout-button">Sair</button> {/* Adicionada classe para estilização específica se necessário */}
           </>
         ) : (
           <>
             {' | '}
-            <Link to="/login">Login</Link>
+            <NavLink to="/login" className={getNavLinkClass}>
+              Login
+            </NavLink>
           </>
         )}
       </nav>

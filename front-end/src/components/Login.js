@@ -3,7 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import '../assets/css/login.css';
 
 function Login() {
-  const [email, setEmail] = useState('');
+  // 1. Renomear o estado de 'email' para 'username'
+  const [username, setUsername] = useState('');
   const [senha, setSenha] = useState('');
   const navigate = useNavigate();
 
@@ -17,7 +18,8 @@ function Login() {
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          username: email,
+          // 2. Usar a variável de estado 'username' aqui
+          username: username, // ou simplesmente 'username,' se a chave e a variável tiverem o mesmo nome
           password: senha
         })
       });
@@ -37,16 +39,21 @@ function Login() {
   };
 
   return (
-    <div class="divLogin">
+    // No React, é uma boa prática usar 'className' em vez de 'class' para atributos CSS
+    <div className="divLogin"> {/* Alterado class para className */}
       <h2>Login</h2>
       <form onSubmit={handleSubmit}>
         <label>
-          E-mail:
+          Username:
           <input
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            required />
+            // 3. Alterar o type do input
+            type="text"
+            // 4. Usar o estado e setter corretos
+            value={username}
+            onChange={(e) => setUsername(e.target.value)}
+            required
+            placeholder="Digite seu nome de usuário" // Opcional: adicionar placeholder
+          />
         </label>
         <br />
         <label>
@@ -55,7 +62,9 @@ function Login() {
             type="password"
             value={senha}
             onChange={(e) => setSenha(e.target.value)}
-            required />
+            required
+            placeholder="Digite sua senha" // Opcional: adicionar placeholder
+          />
         </label>
         <br />
         <button type="submit">Entrar</button>
