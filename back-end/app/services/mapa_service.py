@@ -40,7 +40,7 @@ def gerar_mapa_anuncio_clusterizado(cluster_selecionado):
             cluster_grupo_mapa = cluster_grupo3
         df_clusterizado = df[df['cluster'].isin(cluster_grupo_mapa)].dropna(subset=['latitude', 'longitude', 'preco'])
     else:
-        df_clusterizado = df.copy()
+        df_clusterizado = df.copy().dropna(subset=['latitude', 'longitude', 'preco'])
         # Cria o mapa
     mapa = folium.Map(location=[-15.7942, -47.8822], zoom_start=12)
 
