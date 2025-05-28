@@ -77,7 +77,7 @@ function Mapa() {
 
   const alterarClusterCopy = (valor) => {
     const novoCluster = valor === 'geral' ? '0' : valor.toString();
-    setFormData((prev) => ({ ...prev, nrCluster: valor }));
+    setFormData((prev) => ({ ...prev, nrCluster: novoCluster }));
   };
 
   const handleAplicarFiltros = () => {
