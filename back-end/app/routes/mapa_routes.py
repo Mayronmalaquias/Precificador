@@ -15,6 +15,7 @@ class CarregarMapa(Resource):
         tipo_mapa = request.args.get('tipo')
         cluster_selecionado = int(request.args.get('cluster'))
         tipo_mapa_tam = request.args.get('tamanho')
+        print(f"[LOG]: Cluster: {cluster_selecionado} Tipo: {type(cluster_selecionado)}")
         # df, df_map = carregar_dados()
         
         if tipo_mapa == "mapaAnuncio" or tipo_mapa == "Mapa de anuncio":
