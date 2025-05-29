@@ -35,6 +35,38 @@ const alterarClusterCopy = (valor) => {
   setFormData((prev) => ({ ...prev, nrCluster: novoCluster }));
 };
 
+const renderDataOrError = (data, error, field, formatOptions = { minimumFractionDigits: 2, maximumFractionDigits: 2 }, prefix = 'R$ ', suffix = '') => {
+  if (error) {
+    return <span style={{ color: 'red' }}> {error}</span>;
+  }
+  const value = data?.[field];
+  if (value != null) {
+    if (typeof value === 'number') {
+      if (field === 'coeficienteVariacaoVenda' || field === 'coeficienteVariacaoAluguel') {
+        return `${(value * 100).toLocaleString('pt-BR', formatOptions)}%`;
+      } else {
+        return `${prefix}${value.toLocaleString('pt-BR', formatOptions)}${suffix}`;
+      }
+    } else {
+      return `${prefix}${value}${suffix}`;
+    }
+  }
+  // Se carregandoDados for true E não houver erro, podemos mostrar um placeholder de loading aqui também
+  // if (carregandoDados) return <span style={{ color: 'gray' }}>Carregando...</span>;
+  return '-';
+};
+
+const renderRentabilidade = () => {
+  if (erroDadosVenda || erroDadosAluguel) {
+    return <span style={{ color: 'red' }}> Erro ao calcular rentabilidade</span>;
+  }
+  if (dadosAPI2?.valorAluguelNominal != null && dadosAPI?.valorVendaNominal != null && dadosAPI.valorVendaNominal !== 0) {
+    return `${((dadosAPI2.valorAluguelNominal / dadosAPI.valorVendaNominal) * 100).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}%`;
+  }
+  // if (carregandoDados) return <span style={{ color: 'gray' }}>Carregando...</span>;
+  return '-';
+};
+
   // Envolver buscarDados com useCallback
   const buscarDados = useCallback(() => {
     console.log("buscarDados chamada com:", formData);
@@ -246,6 +278,7 @@ const alterarClusterCopy = (valor) => {
                   ` R$ ${dadosAPI2?.valorAluguelNominal != null ? dadosAPI2?.valorAluguelNominal.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '-'}`
                 }
               </li>
+              <li><strong>Rentabilidade Média: </strong>{renderRentabilidade()}</li>
             </ul>
           )}
 
