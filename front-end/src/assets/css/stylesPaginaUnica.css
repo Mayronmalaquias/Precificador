@@ -59,8 +59,8 @@ button:hover {
   /* Seus estilos normais de botão aqui */
   padding: 8px 15px;
   margin: 5px;
-  border: 1px solid #ccc;
-  background-color: #f0f0f0;
+  border: 1px solid hsl(0, 0%, 0%);
+  background-color: #000000;
   cursor: pointer;
   border-radius: 4px;
 }
@@ -247,4 +247,41 @@ input[type="number"]::placeholder {
   background-color: #3cff00; /* Verde */
   color: rgb(0, 0, 0);
   font-weight: bold;
+}
+
+.guias {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  list-style: none;
+  padding: 0;
+  margin: 2rem auto;
+  max-width: 800px;
+  justify-content: center;
+}
+
+.guias li {
+  flex: 1 1 300px;
+}
+
+.guias a {
+  display: block;
+  background: #ffffff;
+  border: 2px solid #e0e0e0;
+  border-radius: 12px;
+  padding: 1.2rem;
+  text-align: center;
+  text-decoration: none;
+  color: #333;
+  font-weight: 600;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+}
+
+.guias a:hover {
+  background: #e1005b;
+  color: #fff;
+  border-color: #e1005b;
+  box-shadow: 0 6px 18px rgba(0, 102, 255, 0.2);
+  transform: translateY(-3px);
 }

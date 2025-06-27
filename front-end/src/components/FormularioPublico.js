@@ -5,6 +5,7 @@ import '../assets/css/reportPaginaUnica.css';
 import '../assets/css/stylesPaginaUnica.css';
 import '../assets/css/chat.css';
 
+
 function FormularioAnalise() {
   const [formData, setFormData] = useState({
     tipoImovel: 'Apartamento',
@@ -68,7 +69,7 @@ const renderRentabilidade = () => {
 };
 
   // Envolver buscarDados com useCallback
-  const buscarDados = useCallback(() => {
+const buscarDados = useCallback(() => {
     console.log("buscarDados chamada com:", formData);
     setCarregandoDados(true);
     setErroDadosVenda(null);
@@ -78,8 +79,9 @@ const renderRentabilidade = () => {
 
     const { tipoImovel, bairro, quartos, vagas, metragem, nrCluster } = formData;
     const url = `/api/imovel/venda?tipoImovel=${tipoImovel}&bairro=${bairro}&quartos=${quartos}&vagas=${vagas}&metragem=${metragem}&nrCluster=${nrCluster}`;
-    const url2 = `/api/imovel/aluguel?tipoImovel=${tipoImovel}&bairro=${bairro}&quartos=${quartos}&vagas=${vagas}&metragem=${metragem}&nrCluster=${nrCluster}`;
+    const urlAluguelOriginal = `/api/imovel/aluguel?tipoImovel=${tipoImovel}&bairro=${bairro}&quartos=${quartos}&vagas=${vagas}&metragem=${metragem}&nrCluster=${nrCluster}`;
 
+    // A requisição de Venda permanece a mesma
     const fetchVenda = fetch(url)
       .then(async (res) => {
         if (!res.ok) {
@@ -94,25 +96,54 @@ const renderRentabilidade = () => {
         setErroDadosVenda(`Erro análise venda!`);
       });
 
-    const fetchAluguel = fetch(url2)
+    // --- LÓGICA DE REQUISIÇÃO E RETENTATIVA PARA ALUGUEL ---
+    const fetchAluguel = fetch(urlAluguelOriginal)
       .then(async (res) => {
         if (!res.ok) {
+          // Se não estiver OK, joga um erro para ser pego pelo .catch()
           const errorData = await res.json().catch(() => ({}));
           throw new Error(errorData.error || `Erro HTTP ${res.status}`);
         }
         return res.json();
       })
-      .then(data => setDadosAPI2(data))
+      .then(data => {
+        // Se a primeira tentativa deu certo, atualiza o estado e pronto.
+        setDadosAPI2(data);
+      })
       .catch(err => {
-        console.error('Erro ao buscar dados de aluguel:', err);
-        setErroDadosAluguel(`Erro análise aluguel!`);
+        // A PRIMEIRA TENTATIVA FALHOU. VAMOS TENTAR DE NOVO.
+        console.warn('1ª tentativa de aluguel falhou. Tentando novamente com 0 quartos...', err.message);
+
+        // Cria a nova URL com quartos=0
+        const urlAluguelRetry = `/api/imovel/aluguel?tipoImovel=${tipoImovel}&bairro=${bairro}&quartos=0&vagas=${vagas}&metragem=${metragem}&nrCluster=${nrCluster}`;
+        
+        // Retorna a nova promessa de fetch para que o Promise.allSettled espere por ela
+        return fetch(urlAluguelRetry)
+          .then(async (res) => {
+            if (!res.ok) {
+              // Se a segunda tentativa também falhar, joga um erro final.
+              const errorData = await res.json().catch(() => ({}));
+              throw new Error(errorData.error || `Erro HTTP ${res.status} na retentativa`);
+            }
+            return res.json();
+          })
+          .then(data => {
+            // A SEGUNDA TENTATIVA DEU CERTO!
+            console.log('2ª tentativa (0 quartos) bem-sucedida!');
+            setDadosAPI2(data);
+          })
+          .catch(retryErr => {
+            // A SEGUNDA TENTATIVA TAMBÉM FALHOU. AGORA MOSTRAMOS O ERRO.
+            console.error('2ª tentativa (0 quartos) também falhou:', retryErr.message);
+            setErroDadosAluguel(`Erro análise aluguel!`);
+          });
       });
 
     Promise.allSettled([fetchVenda, fetchAluguel])
       .finally(() => {
         setCarregandoDados(false);
       });
-  }, [formData]);
+}, [formData]);
 
   // Envolver carregarMapa com useCallback
   const carregarMapa = useCallback(() => {
@@ -166,6 +197,8 @@ const renderRentabilidade = () => {
   return (
     <main>
       <div className="main-container">
+        {/* <iframe width="560" height="315" src="https://www.youtube.com/embed/dQw4w9WgXcQ" title="YouTube video player" frameBorder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowFullScreen></iframe> */}
+
         <form>
           {/* --- Seus inputs e selects --- */}
           <label>Tipo de Imóvel:</label>
@@ -191,15 +224,15 @@ const renderRentabilidade = () => {
             <option value="4">4+</option>
           </select>
 
-          <label>Vagas:</label>
+          {/* <label>Vagas:</label>
           <select value={formData.vagas} onChange={e => updateField('vagas', e.target.value)}>
             <option value="10">Todos</option>
             <option value="0">0</option>
             <option value="1">1+</option>
-          </select>
-
-          <label>Metragem (m²):</label>
-          <input
+            </select>
+            
+            <label>Metragem (m²):</label>
+            <input
             type="number"
             value={formData.metragem}
             onChange={e => updateField('metragem', e.target.value)}
@@ -208,9 +241,9 @@ const renderRentabilidade = () => {
                 e.preventDefault();
                 // Opcional: Chamar handleAplicarFiltros() no Enter também
                 handleAplicarFiltros();
-              }
-            }}
-          />
+                }
+                }}
+                /> */}
 
           <div>
             <button
@@ -281,22 +314,29 @@ const renderRentabilidade = () => {
               <li><strong>Rentabilidade Média: </strong>{renderRentabilidade()}</li>
             </ul>
           )}
+          <ul class="guias">
+            <li><a href="https://lp.61imoveis.com/guia-61-de-venda-de-imoveis" target="_blank" rel="noreferrer">Guia de Venda</a></li>
+            <li><a href="https://lp.61imoveis.com/guia-61-de-aluguel-de-imoveis" target="_blank" rel="noreferrer">Guia de Locação</a></li>
+            <li><a href="https://lp.61imoveis.com/guia-61-do-comprador-de-imoveis" target="_blank" rel="noreferrer">Guia do Comprador de Imoveis</a></li>
+            <li><a href="https://lp.61imoveis.com/lp-guia-61-do-inventario-de-imoveis" target="_blank" rel="noreferrer">Guia do inventario de imoveis</a></li>
+          </ul>
 
           {/* <div className="container">
             <label htmlFor="nrCluster" className="TituloCluster">Número de Clusters (1 a 9):</label>
             <input
-              type="range"
-              min="1" // Ajustado para 1 conforme label
-              id="nrCluster"
-              name="nrCluster"
-              max="9" // Ajustado para 9 conforme label
-              value={formData.nrCluster}
+            type="range"
+            min="1" // Ajustado para 1 conforme label
+            id="nrCluster"
+            name="nrCluster"
+            max="9" // Ajustado para 9 conforme label
+            value={formData.nrCluster}
               onChange={(e) => updateField('nrCluster', e.target.value)}
             />
             <output id="outCluster">{formData.nrCluster}</output>
             <img src={Logo61} alt="Imagem sobre o campo" className="imagem-sobreposta" />
           </div> */}
         </form>
+      <iframe width="560" height="315" src="https://www.youtube.com/embed/q_qsPITTfK8?si=W4XwmBvTVv5hBXMX" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>
       </div>
     </main>
   );
