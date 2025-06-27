@@ -314,6 +314,9 @@ const buscarDados = useCallback(() => {
               <li><strong>Rentabilidade Média: </strong>{renderRentabilidade()}</li>
             </ul>
           )}
+          <div class="container-central">
+              <a class="ZapComentario" href="https://api.whatsapp.com/send?phone=5561998786161" target="_blank">Fale com corretor 61</a>
+          </div>
           <ul class="guias">
             <li><a href="https://lp.61imoveis.com/guia-61-de-venda-de-imoveis" target="_blank" rel="noreferrer">Guia de Venda</a></li>
             <li><a href="https://lp.61imoveis.com/guia-61-de-aluguel-de-imoveis" target="_blank" rel="noreferrer">Guia de Locação</a></li>

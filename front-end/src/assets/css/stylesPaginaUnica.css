@@ -262,6 +262,7 @@ input[type="number"]::placeholder {
 
 .guias li {
   flex: 1 1 300px;
+  background: white;
 }
 
 .guias a {
@@ -284,4 +285,30 @@ input[type="number"]::placeholder {
   border-color: #e1005b;
   box-shadow: 0 6px 18px rgba(0, 102, 255, 0.2);
   transform: translateY(-3px);
+}
+
+.ZapComentario {
+    /* Centralização */
+    display: block; /* Essencial para 'margin: 0 auto' funcionar no texto */
+    margin: 1px auto; /* Centraliza horizontalmente e adiciona espaço acima/abaixo */
+    width: fit-content; /* Largura se adapta ao conteúdo do texto para a centralização */
+
+    /* Estilo do Texto */
+    font-family: 'Montserrat', sans-serif; /* Uma fonte moderna e limpa */
+    font-size: 0.8em; /* Tamanho da fonte um pouco maior para destaque */
+    color:#e1005b; /* Um azul vibrante para o link */
+    text-decoration: none; /* Remove o sublinhado padrão do link */
+    font-weight: 600; /* Deixa o texto mais encorpado */
+
+    /* Transição suave para o hover */
+    transition: color 0.3s ease;
+    margin-bottom: -30px;
+}
+
+.ZapComentario:hover {
+    color: #0056b3; /* Um azul um pouco mais escuro ao passar o mouse */
+    text-decoration: underline; /* Opcional: Adiciona sublinhado ao passar o mouse */
+}
+.container-central {
+    text-align: center; /* Centraliza o texto e elementos inline dentro deste div */
 }

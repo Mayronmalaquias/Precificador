@@ -41,11 +41,12 @@
   margin-bottom: 1rem;
 }
 
-.footer-logo{
-    margin-top: 80px;
-    max-width: 262px;
-    margin-bottom: -100px;
+.footer-logo {
+    margin-top: 0px;
+    max-width: 200px;
+    margin-bottom: -90px;
     width: 240px;
+    margin-left: 70px;
 }
 
 .footer-brand .footer-tagline {
@@ -70,6 +71,12 @@
 
 .social-icons svg {
   width: 24px;
+  max-width: 24px;
+  height: 24px;
+}
+.whatsapp-icon-img{
+  width: 24px;
+  max-width: 24px;
   height: 24px;
 }
 

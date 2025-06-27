@@ -1,5 +1,6 @@
 // Footer.jsx
-import logo61 from '../assets/img/LOGO 61 PNG (3).png';
+import logo61 from '../assets/img/LOGO 61 PNG (2) (1).png';
+import zapzap from '../assets/img/whatsapp.png'
 
 function Footer() {
   // Links para facilitar a manutenção
@@ -71,9 +72,8 @@ function Footer() {
         {/* --- BARRA INFERIOR --- */}
         <div className="footer-bottom-bar">
             <div className="social-icons">
-              <a href={socialLinks.whatsapp} target="_blank" rel="noreferrer" aria-label="WhatsApp">
-                {/* Ícone SVG do WhatsApp */}
-                <svg viewBox="0 0 24 24" fill="currentColor"><path d="M16.75 13.96c.27.13.42.25.5.38.13.19.13.44.08.64s-.16.38-.5.61c-.32.24-.72.38-1.04.38h-.02c-.39 0-1.03-.13-1.88-.59-.97-.54-1.83-1.35-2.56-2.22-.84-.97-1.42-2.1-1.63-2.61-.22-.52-.13-1.03.22-1.39.29-.29.64-.44.92-.44.25 0 .47.08.64.25.22.22.33.54.38.72.05.19.05.44-.03.69-.08.24-.16.42-.27.56-.1.13-.22.25-.32.35-.1.1-.19.19-.16.35.03.15.22.61.69 1.14.72.78 1.44 1.13 1.63 1.22.19.08.39.08.54-.03zM12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8z"/></svg>
+              <a href={socialLinks.whatsapp} target="_blank" rel="noreferrer" aria-label="WhatsApp" class="whatsapp-icon-link">
+                <img src={zapzap} alt="Ícone do WhatsApp" class="whatsapp-icon-img" />
               </a>
               <a href={socialLinks.instagram} target="_blank" rel="noreferrer" aria-label="Instagram">
                 {/* Ícone SVG do Instagram */}
