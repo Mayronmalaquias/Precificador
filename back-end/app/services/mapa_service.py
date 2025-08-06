@@ -11,58 +11,70 @@ from app import engine, cache
 Session = sessionmaker(bind=engine)
 
 def gerar_mapa_anuncio_clusterizado(cluster_selecionado):
-        # cluster_selecionado = 1
+    """
+    Gera um mapa de calor e marcadores clusterizados com base nos dados de imóveis.
+    """
     cluster_selecionado = int(cluster_selecionado)
-    csv_file_path = './dados/vendaC.csv'
-    df = pd.read_csv(csv_file_path)
+
+    # 1. Carrega os dados do banco. A linha que lia o CSV foi removida por ser redundante.
     df = carregar_imoveis_venda()
-    print(df['latitude'])
 
-        # Verifica a presença das colunas necessárias
-    if 'latitude' not in df.columns or 'longitude' not in df.columns or 'preco' not in df.columns or 'cluster' not in df.columns:
-        raise ValueError("O arquivo CSV deve conter as colunas 'latitude', 'longitude', 'preco' e 'cluster'.")
+    # 2. Verifica a presença das colunas necessárias
+    required_cols = ['latitude', 'longitude', 'preco', 'cluster']
+    if not all(col in df.columns for col in required_cols):
+        raise ValueError(f"O DataFrame deve conter as colunas: {required_cols}")
 
-        # Converte latitude e longitude para o formato correto, dividindo por 1.000.000
-    # df['latitude'] = df['latitude'] / 1e7
-    # df['longitude'] = df['longitude'] / 1e7
+    # --- LIMPEZA ROBUSTA DOS DADOS ---
+    # 3. Converte colunas para tipo numérico. Valores que não podem ser convertidos viram NaN (Not a Number).
+    for col in ['latitude', 'longitude', 'preco']:
+        df[col] = pd.to_numeric(df[col], errors='coerce')
 
-        # Filtra o DataFrame para o cluster especificado
-    if(cluster_selecionado != 0):
+    # 4. Remove qualquer linha que tenha NaN nas colunas essenciais APÓS a conversão.
+    df.dropna(subset=['latitude', 'longitude', 'preco'], inplace=True)
 
-        cluster_grupo1 = [0,1,2]
-        cluster_grupo2 = [3,4,5]
-        cluster_grupo3 = [6,7,8]
-        if(cluster_selecionado in cluster_grupo1):
+    # 5. Filtra o DataFrame para o cluster especificado
+    df_filtrado = df
+    if cluster_selecionado != 0:
+        cluster_grupo1 = [0, 1, 2]
+        cluster_grupo2 = [3, 4, 5]
+        cluster_grupo3 = [6, 7, 8]
+        
+        cluster_grupo_mapa = []
+        if cluster_selecionado in cluster_grupo1:
             cluster_grupo_mapa = cluster_grupo1
-        elif(cluster_selecionado in cluster_grupo2):
+        elif cluster_selecionado in cluster_grupo2:
             cluster_grupo_mapa = cluster_grupo2
-        elif (cluster_selecionado in cluster_grupo3):
+        elif cluster_selecionado in cluster_grupo3:
             cluster_grupo_mapa = cluster_grupo3
-        df_clusterizado = df[df['cluster'].isin(cluster_grupo_mapa)].dropna(subset=['latitude', 'longitude', 'preco'])
-    else:
-        df_clusterizado = df.copy().dropna(subset=['latitude', 'longitude', 'preco'])
-        # Cria o mapa
-    mapa = folium.Map(location=[-15.7942, -47.8822], zoom_start=12)
+        
+        df_filtrado = df[df['cluster'].isin(cluster_grupo_mapa)]
 
-        # Adiciona os dados de calor no mapa
-    heat_data = [[row['latitude'], row['longitude'], row['preco']] for index, row in df_clusterizado.iterrows()]
+    # Verifica se há dados para exibir
+    if df_filtrado.empty:
+        # Você pode retornar um mapa vazio ou uma mensagem de erro
+        return "Nenhum dado encontrado para o cluster selecionado."
+
+    # Cria o mapa centralizado na média das coordenadas dos dados filtrados
+    mapa = folium.Map(location=[df_filtrado['latitude'].mean(), df_filtrado['longitude'].mean()], zoom_start=12)
+
+    # Adiciona os dados de calor no mapa (forma mais eficiente)
+    heat_data = df_filtrado[['latitude', 'longitude', 'preco']].values.tolist()
     HeatMap(heat_data, min_zoom=10, max_zoom=12).add_to(mapa)
 
-        # Adiciona marcadores no mapa para cada ponto filtrado
+    # Adiciona marcadores no mapa para cada ponto filtrado
     marker_cluster = MarkerCluster().add_to(mapa)
-    for index, row in df_clusterizado.iterrows():
+    for index, row in df_filtrado.iterrows():
         folium.Marker(
             location=[row['latitude'], row['longitude']],
-            popup=f"Preço: R$ {row['preco']}",
+            popup=f"Preço: R$ {row['preco']:,}", # Formata o preço com separador de milhar
         ).add_to(marker_cluster)
 
-        # Adiciona uma legenda ao mapa
-    legenda = """"""
-    mapa.get_root().html.add_child(folium.Element(legenda))
+    # Salva o mapa em um arquivo HTML
+    # É uma boa prática usar caminhos absolutos ou relativos a partir de um ponto fixo do projeto.
     mapa.save("./mapas/mapa_de_calor_com_limite.html")
 
+    # Retorna o caminho para o arquivo gerado
     return "../mapas/mapa_de_calor_com_limite.html"
-    # return mapa._repr_html_()
 
 def gerar_mapa_anuncio_completo():
     csv_file_path = './dados/dados_map.csv'
@@ -242,7 +254,7 @@ def carregar_imoveis_venda():
                 "vagas": imovel.vagas,
                 "latitude": float(imovel.latitude) if imovel.latitude else None,
                 "longitude": float(imovel.longitude) if imovel.longitude else None,
-                "tipo_imovel": imovel.tipo_imovel,
+                # "tipo_imovel": imovel.tipo_imovel,
                 "cluster": cluster  # vem da ImovelVenda
             })
 

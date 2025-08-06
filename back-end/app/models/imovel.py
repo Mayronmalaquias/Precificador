@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Numeric, ForeignKey
+from sqlalchemy import Column, Integer, String, Numeric, ForeignKey, Date
 from app.models.base import Base
 
 
@@ -7,6 +7,7 @@ class Imovel(Base):
     
     id = Column(Integer, primary_key=True)
     codigo = Column(String(50))
+    data_coleta = Column(Date)
     anunciante = Column(String(100))
     oferta = Column(String(20))
     tipo = Column(String(50))
@@ -19,11 +20,11 @@ class Imovel(Base):
     vagas = Column(Integer)
     latitude = Column(Numeric)
     longitude = Column(Numeric)
-    tipo_imovel = Column(String(50))
+    creci = Column(String(50))
 
     __mapper_args__ = {
-        "polymorphic_identity": "imovel",
-        "polymorphic_on": tipo_imovel
+        "polymorphic_identity": "imovel"
+        # "polymorphic_on": tipo_imovel
     }
 
 

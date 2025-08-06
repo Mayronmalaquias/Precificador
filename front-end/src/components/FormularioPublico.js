@@ -68,6 +68,45 @@ const renderRentabilidade = () => {
   return '-';
 };
 
+  // --- NOVOS ESTADOS PARA O GRÁFICO ---
+const [graficoLinha, setGraficoLinha] = useState('');
+const [carregandoGrafico, setCarregandoGrafico] = useState(false);
+const [erroGrafico, setErroGrafico] = useState(null);
+// --- NOVA FUNÇÃO PARA BUSCAR O GRÁFICO ---
+const buscarGrafico = useCallback(() => {
+  console.log("Buscando gráfico de linha...");
+  setCarregandoGrafico(true);
+  setErroGrafico(null);
+  setGraficoLinha(''); // Limpa o gráfico anterior
+
+  // A rota deve corresponder à definida no backend
+  const url = '/api/graph/graficoLinha'; 
+
+  fetch(url)
+      .then(async (res) => {
+          if (!res.ok) {
+              const errorData = await res.json().catch(() => ({}));
+              throw new Error(errorData.error || `Erro HTTP ${res.status}`);
+          }
+          return res.json();
+      })
+      .then(data => {
+          if (data.image_base64) {
+              setGraficoLinha(data.image_base64);
+          } else {
+              throw new Error("A resposta da API não continha a imagem do gráfico.");
+          }
+      })
+      .catch(err => {
+          console.error('Erro ao buscar o gráfico de linha:', err);
+          setErroGrafico('Não foi possível carregar o gráfico.');
+      })
+      .finally(() => {
+          setCarregandoGrafico(false);
+      });
+}, []); // Sem dependências, pois a rota do gráfico não usa filtros por enquanto.
+
+
   // Envolver buscarDados com useCallback
 const buscarDados = useCallback(() => {
     console.log("buscarDados chamada com:", formData);
@@ -314,6 +353,25 @@ const buscarDados = useCallback(() => {
               <li><strong>Rentabilidade Média: </strong>{renderRentabilidade()}</li>
             </ul>
           )}
+
+          {/* --- NOVA SEÇÃO PARA EXIBIR O GRÁFICO --- */}
+          <div className="grafico-container" style={{ marginTop: '30px', padding: '20px', border: '1px solid #eee', borderRadius: '8px', backgroundColor: '#f9f9f9', textAlign: 'center' }}>
+              <h3>Evolução de Preço Histórica</h3>
+              {carregandoGrafico ? (
+                  <p>Carregando gráfico...</p>
+              ) : erroGrafico ? (
+                  <p style={{ color: 'red' }}>{erroGrafico}</p>
+              ) : graficoLinha ? (
+                  <img 
+                      src={`data:image/png;base64,${graficoLinha}`} 
+                      alt="Gráfico de evolução de preços por data" 
+                      style={{ maxWidth: '100%', height: 'auto', border: '1px solid #ccc', borderRadius: '8px' }}
+                  />
+              ) : (
+                  <p>Gráfico não disponível.</p>
+              )}
+          </div>
+
           <div class="container-central">
               <a class="ZapComentario" href="https://api.whatsapp.com/send?phone=5561998786161" target="_blank">Fale com corretor 61</a>
           </div>

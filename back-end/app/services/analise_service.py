@@ -6,6 +6,7 @@ from sqlalchemy.orm import sessionmaker
 from app.models.imovel import Imovel
 from app import engine, cache
 from sqlalchemy import text
+from datetime import datetime, timedelta, date
 
 Session = sessionmaker(bind=engine)
 
@@ -126,8 +127,10 @@ def clusterizar_dados(df, valor_coluna, oferta_tipo, n_clusters=9, metragem=None
 
 def analisar_imovel_detalhado(tipo_imovel=None, bairro=None, cidade=None, cep=None, vaga_garagem=None, quadra=None, quartos=None, metragem=None):
     # df = pd.read_csv(input_file, sep=",", thousands=".", decimal=",")
-    # df = carregar_dados_do_banco()
-    df = carregar_dados_df()
+    df = carregar_dados_do_banco()
+    # df = carregar_dados_df()
+    print(len(df))
+    print(df)
     # print(f"{len(df)} && {len(df_bd)}")
 
     # Exibir informações iniciais sobre os dados
@@ -138,7 +141,7 @@ def analisar_imovel_detalhado(tipo_imovel=None, bairro=None, cidade=None, cep=No
     if tipo_imovel:
         filtro &= (df["tipo"] == tipo_imovel)
     if bairro:
-        if bairro == "AGUAS CLARAS":
+        if bairro == "Águas Claras":
             bairro_aguas = ["NORTE", "SUL"]
             filtro &= (df['bairro'].isin(bairro_aguas))
         else:
@@ -317,9 +320,16 @@ def clusterizar_dados2(df, valor_coluna, oferta_tipo, cluster, n_clusters=9):
 
 def carregar_dados_do_banco():
     session = Session()
+    hoje = date.today()
+
+# Calcula a data de 7 dias atrás
+    uma_semana_atras = hoje - timedelta(days=90) # O resultado será um objeto 'date', ex: 2025-06-26
 
     # Consulta todos os imóveis
-    imoveis = session.query(Imovel).all()
+    imoveis = session.query(Imovel).filter(Imovel.data_coleta >= uma_semana_atras).all()
+    # print("Miron aq")
+    # # imoveis = session.query(Imovel).all()
+    # print(imoveis.data_coleta)
 
     # Converte para DataFrame
     dados = [{
@@ -328,16 +338,18 @@ def carregar_dados_do_banco():
         "anunciante": i.anunciante,
         "oferta": i.oferta,
         "tipo": i.tipo,
-        "area_util": i.area_util,
+        "area_util": float(i.area_util)if i.area_util is not None else 0.0,
         "bairro": i.bairro,
         "cidade": i.cidade,
-        "preco": i.preco,
-        "valor_m2": i.valor_m2,
-        "quartos": i.quartos,
-        "vagas": i.vagas,
-        "latitude": float(i.latitude),
-        "longitude": float(i.longitude)
+        "preco": float(i.preco)if i.preco is not None else 0.0,
+        "valor_m2": float(i.valor_m2)if i.valor_m2 is not None else 0.0,
+        "quartos": float(i.quartos)if i.quartos is not None else 0.0,
+        "vagas": float(i.vagas)if i.vagas is not None else 0.0,
+        "latitude": float(i.latitude) if i.latitude is not None else 0.0,
+        "longitude": float(i.longitude)if i.longitude is not None else 0.0,
+        "data_coleta":i.data_coleta
     } for i in imoveis]
+    # print(dados)
 
     session.close()
     return pd.DataFrame(dados)
@@ -346,7 +358,14 @@ def carregar_dados_do_banco():
 @cache.cached(timeout=600)  # cache válido por 10 minutos (600s)
 def carregar_dados_df():
     session = Session()
-    imoveis = session.query(Imovel).all()
+    hoje = date.today()
+
+# Calcula a data de 7 dias atrás
+    uma_semana_atras = hoje - timedelta(days=7)
+
+    # Consulta todos os imóveis
+    imoveis = session.query(Imovel).filter(Imovel.data_coleta >= uma_semana_atras).all()
+    # print(imoveis.data_coleta)
     
     dados = [{
         "id": i.id,
@@ -354,16 +373,18 @@ def carregar_dados_df():
         "anunciante": i.anunciante,
         "oferta": i.oferta,
         "tipo": i.tipo,
-        "area_util": i.area_util,
+        "area_util": float(i.area_util) if i.area_util is not None else 0.0,
         "bairro": i.bairro,
         "cidade": i.cidade,
-        "preco": i.preco,
-        "valor_m2": i.valor_m2,
-        "quartos": i.quartos,
-        "vagas": i.vagas,
-        "latitude": float(i.latitude),
-        "longitude": float(i.longitude)
+        "preco": float(i.preco) if i.preco is not None else 0.0,
+        "valor_m2": float(i.valor_m2) if i.valor_m2 is not None else 0.0,
+        "quartos": float(i.quartos) if i.quartos is not None else 0.0,
+        "vagas": float(i.vagas) if i.vagas is not None else 0.0,
+        "latitude": float(i.latitude) if i.latitude is not None else 0.0,
+        "longitude": float(i.longitude)if i.longitude is not None else 0.0,
+        "data_coleta":i.data_coleta
     } for i in imoveis]
+    # print(dados)
 
     session.close()
     return pd.DataFrame(dados)
