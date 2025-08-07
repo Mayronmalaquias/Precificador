@@ -365,6 +365,7 @@ def carregar_dados_df():
 
     # Consulta todos os imóveis
     imoveis = session.query(Imovel).filter(Imovel.data_coleta >= uma_semana_atras).all()
+    # imoveis = session.query(Imovel)
     # print(imoveis.data_coleta)
     
     dados = [{
