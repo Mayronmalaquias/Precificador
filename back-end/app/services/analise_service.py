@@ -326,9 +326,9 @@ def carregar_dados_do_banco():
     uma_semana_atras = hoje - timedelta(days=90) # O resultado será um objeto 'date', ex: 2025-06-26
 
     # Consulta todos os imóveis
-    imoveis = session.query(Imovel).filter(Imovel.data_coleta >= uma_semana_atras).all()
+    # imoveis = session.query(Imovel).filter(Imovel.data_coleta >= uma_semana_atras).all()
     # print("Miron aq")
-    # # imoveis = session.query(Imovel).all()
+    imoveis = session.query(Imovel).all()
     # print(imoveis.data_coleta)
 
     # Converte para DataFrame
