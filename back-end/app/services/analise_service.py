@@ -127,8 +127,8 @@ def clusterizar_dados(df, valor_coluna, oferta_tipo, n_clusters=9, metragem=None
 
 def analisar_imovel_detalhado(tipo_imovel=None, bairro=None, cidade=None, cep=None, vaga_garagem=None, quadra=None, quartos=None, metragem=None):
     # df = pd.read_csv(input_file, sep=",", thousands=".", decimal=",")
-    df = carregar_dados_do_banco()
-    # df = carregar_dados_df()
+    # df = carregar_dados_do_banco()
+    df = carregar_dados_df()
     print(len(df))
     print(df)
     # print(f"{len(df)} && {len(df_bd)}")
@@ -361,7 +361,7 @@ def carregar_dados_df():
     hoje = date.today()
 
 # Calcula a data de 7 dias atrás
-    uma_semana_atras = hoje - timedelta(days=7)
+    uma_semana_atras = hoje - timedelta(days=90)
 
     # Consulta todos os imóveis
     imoveis = session.query(Imovel).filter(Imovel.data_coleta >= uma_semana_atras).all()
