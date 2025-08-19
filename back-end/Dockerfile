@@ -4,8 +4,13 @@ FROM python:3.9-slim
 # Defina o diretório de trabalho no container
 WORKDIR /app
 
-# Copia o arquivo de requerimentos e instala as dependências
+# Copia o arquivo de requerimentos
 COPY requirements.txt requirements.txt
+
+# (NOVA LINHA) Instala as dependências de sistema necessárias para compilar o scrypt
+RUN apt-get update && apt-get install -y build-essential libssl-dev && rm -rf /var/lib/apt/lists/*
+
+# Instala as dependências do Python
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copia o restante dos arquivos do projeto para o diretório de trabalho

@@ -8,7 +8,7 @@ from app.config import Config
 import pandas as pd
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
-from app import teste_bd
+# from app import teste_bd
 engine = create_engine(Config.SQLALCHEMY_DATABASE_URI, echo=False)
 SessionLocal = sessionmaker(bind=engine)
 

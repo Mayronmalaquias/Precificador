@@ -80,7 +80,7 @@ const buscarGrafico = useCallback(() => {
   setGraficoLinha(''); // Limpa o gráfico anterior
 
   // A rota deve corresponder à definida no backend
-  const url = '/api/graph/graficoLinha'; 
+  const url = 'https://www.inteligencia61imoveis.com.br/api/graph/graficoLinha'; 
 
   fetch(url)
       .then(async (res) => {
@@ -219,6 +219,7 @@ const buscarDados = useCallback(() => {
     console.log("Componente FormularioAnalise montado. Carregando dados e mapa padrão...");
     buscarDados();
     carregarMapa();
+    buscarGrafico();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // Array VAZIO para rodar apenas na montagem inicial
 
@@ -231,6 +232,7 @@ const buscarDados = useCallback(() => {
     console.log("Botão Aplicar Filtros clicado.");
     buscarDados();
     carregarMapa(); // Mapa também é atualizado com os novos filtros
+    buscarGrafico();
   };
 
   return (
@@ -355,22 +357,28 @@ const buscarDados = useCallback(() => {
           )}
 
           {/* --- NOVA SEÇÃO PARA EXIBIR O GRÁFICO --- */}
-          <div className="grafico-container" style={{ marginTop: '30px', padding: '20px', border: '1px solid #eee', borderRadius: '8px', backgroundColor: '#f9f9f9', textAlign: 'center' }}>
-              <h3>Evolução de Preço Histórica</h3>
-              {carregandoGrafico ? (
-                  <p>Carregando gráfico...</p>
-              ) : erroGrafico ? (
-                  <p style={{ color: 'red' }}>{erroGrafico}</p>
-              ) : graficoLinha ? (
-                  <img 
-                      src={`data:image/png;base64,${graficoLinha}`} 
-                      alt="Gráfico de evolução de preços por data" 
-                      style={{ maxWidth: '100%', height: 'auto', border: '1px solid #ccc', borderRadius: '8px' }}
-                  />
-              ) : (
-                  <p>Gráfico não disponível.</p>
-              )}
-          </div>
+        <div className="grafico-container" style={{ marginTop: '30px', padding: '20px', border: '1px solid #eee', borderRadius: '8px', backgroundColor: '#f9f9f9', textAlign: 'center' }}>
+          <h3>Evolução de Preço Histórica</h3>
+          {carregandoGrafico ? (
+            <p>Carregando gráfico...</p>
+          ) : erroGrafico ? (
+            <p style={{ color: 'red' }}>{erroGrafico}</p>
+          ) : graficoLinha ? (
+            <img 
+              src={`data:image/png;base64,${graficoLinha}`} 
+              alt="Gráfico de evolução de preços por data" 
+              style={{ maxWidth: '100%', height: 'auto', border: '1px solid #ccc', borderRadius: '8px' }}
+              onError={(e) => {
+                // Substitui a fonte da imagem pela imagem de fallback
+                e.currentTarget.src = '/grafico_fallback.png';
+                // Opcional: Altera o texto alternativo para indicar o erro
+                e.currentTarget.alt = 'Erro ao carregar o gráfico. Exibindo imagem alternativa.';
+              }}
+            />
+          ) : (
+            <p>Gráfico não disponível.</p>
+          )}
+        </div>
 
           <div class="container-central">
               <a class="ZapComentario" href="https://api.whatsapp.com/send?phone=5561998786161" target="_blank">Fale com corretor 61</a>
