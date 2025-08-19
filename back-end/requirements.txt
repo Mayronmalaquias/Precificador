@@ -15,4 +15,3 @@ scikit-learn==1.4.2
 SQLAlchemy==1.4.49
 folium==0.12.1
 matplotlib
-scrypt

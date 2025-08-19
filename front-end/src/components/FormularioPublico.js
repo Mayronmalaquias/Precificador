@@ -356,7 +356,7 @@ const buscarDados = useCallback(() => {
             </ul>
           )}
 
-          {/* --- NOVA SEÇÃO PARA EXIBIR O GRÁFICO --- */}
+          {/* --- NOVA SEÇÃO PARA EXIBIR O GRÁFICO ---
         <div className="grafico-container" style={{ marginTop: '30px', padding: '20px', border: '1px solid #eee', borderRadius: '8px', backgroundColor: '#f9f9f9', textAlign: 'center' }}>
           <h3>Evolução de Preço Histórica</h3>
           {carregandoGrafico ? (
@@ -378,6 +378,35 @@ const buscarDados = useCallback(() => {
           ) : (
             <p>Gráfico não disponível.</p>
           )}
+        </div> */}
+        {/* --- NOVA SEÇÃO PARA EXIBIR O GRÁFICO --- */}
+        <div 
+          className="grafico-container" 
+          style={{ 
+            marginTop: '30px', 
+            padding: '20px', 
+            border: '1px solid #eee', 
+            borderRadius: '8px', 
+            backgroundColor: '#f9f9f9', 
+            textAlign: 'center' 
+          }}
+        >
+          <h3>Evolução de Preço Histórica</h3>
+          
+          <img 
+            src="/grafico_exemplo.png" 
+            alt="Gráfico de evolução de preços" 
+            style={{ 
+              maxWidth: '100%', 
+              height: 'auto', 
+              border: '1px solid #ccc', 
+              borderRadius: '8px' 
+            }}
+            onError={(e) => {
+              e.currentTarget.src = '../asserts/img/Captura de tela 2025-08-19 165833.png';
+              e.currentTarget.alt = 'Erro ao carregar o gráfico. Exibindo imagem alternativa.';
+            }}
+          />
         </div>
 
           <div class="container-central">
