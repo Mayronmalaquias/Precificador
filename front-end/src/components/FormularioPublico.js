@@ -4,6 +4,8 @@ import '../assets/css/footerPaginaUnica.css';
 import '../assets/css/reportPaginaUnica.css';
 import '../assets/css/stylesPaginaUnica.css';
 import '../assets/css/chat.css';
+import grafico from '../assets/img/grafico.png';
+
 
 
 function FormularioAnalise() {
@@ -219,7 +221,7 @@ const buscarDados = useCallback(() => {
     console.log("Componente FormularioAnalise montado. Carregando dados e mapa padrão...");
     buscarDados();
     carregarMapa();
-    buscarGrafico();
+    // buscarGrafico();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // Array VAZIO para rodar apenas na montagem inicial
 
@@ -232,7 +234,7 @@ const buscarDados = useCallback(() => {
     console.log("Botão Aplicar Filtros clicado.");
     buscarDados();
     carregarMapa(); // Mapa também é atualizado com os novos filtros
-    buscarGrafico();
+    // buscarGrafico();
   };
 
   return (
@@ -379,7 +381,7 @@ const buscarDados = useCallback(() => {
             <p>Gráfico não disponível.</p>
           )}
         </div> */}
-        {/* --- NOVA SEÇÃO PARA EXIBIR O GRÁFICO --- */}
+            {/* --- NOVA SEÇÃO PARA EXIBIR O GRÁFICO --- */}
         <div 
           className="grafico-container" 
           style={{ 
@@ -394,7 +396,7 @@ const buscarDados = useCallback(() => {
           <h3>Evolução de Preço Histórica</h3>
           
           <img 
-            src="/grafico_exemplo.png" 
+            src={grafico} // Use a variável importada aqui
             alt="Gráfico de evolução de preços" 
             style={{ 
               maxWidth: '100%', 
@@ -403,7 +405,7 @@ const buscarDados = useCallback(() => {
               borderRadius: '8px' 
             }}
             onError={(e) => {
-              e.currentTarget.src = '../asserts/img/Captura de tela 2025-08-19 165833.png';
+              e.currentTarget.src = graficoAlternativo; // E aqui também
               e.currentTarget.alt = 'Erro ao carregar o gráfico. Exibindo imagem alternativa.';
             }}
           />
