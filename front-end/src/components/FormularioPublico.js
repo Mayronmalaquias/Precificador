@@ -405,7 +405,7 @@ const buscarDados = useCallback(() => {
               borderRadius: '8px' 
             }}
             onError={(e) => {
-              e.currentTarget.src = graficoAlternativo; // E aqui também
+              // e.currentTarget.src = graficoAlternativo; // E aqui também
               e.currentTarget.alt = 'Erro ao carregar o gráfico. Exibindo imagem alternativa.';
             }}
           />
