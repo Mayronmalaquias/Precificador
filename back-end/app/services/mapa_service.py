@@ -310,3 +310,4 @@ def carregar_dados_df():
 
     session.close()
     return pd.DataFrame(dados)
+

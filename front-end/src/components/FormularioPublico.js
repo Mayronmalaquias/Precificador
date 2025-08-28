@@ -4,7 +4,7 @@ import '../assets/css/footerPaginaUnica.css';
 import '../assets/css/reportPaginaUnica.css';
 import '../assets/css/stylesPaginaUnica.css';
 import '../assets/css/chat.css';
-import grafico from '../assets/img/grafico.png';
+import grafico from '../assets/img/Evolução M2.png';
 
 
 
