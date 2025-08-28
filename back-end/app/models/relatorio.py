@@ -1,6 +1,5 @@
 from sqlalchemy.orm import sessionmaker
-from app import engine, cache
-Session = sessionmaker(bind=engine)
+from app import engine
 from app.models.base import Base
 from sqlalchemy import Column, Integer, String, Float
 

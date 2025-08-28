@@ -4,8 +4,6 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 from app import SessionLocal
-from sqlalchemy.orm import sessionmaker
-from app import engine, cache
 from typing import Optional
 
 from flask import Response, jsonify, current_app
@@ -18,8 +16,7 @@ try:
 except Exception:
     PIL_AVAILABLE = False
 
-# Session = sessionmaker(bind=engine)
-# db = SessionLocal()
+
 from app.models.relatorio import PerformeImoveis
 
 # -------- utils --------
