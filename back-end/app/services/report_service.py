@@ -19,7 +19,7 @@ except Exception:
     PIL_AVAILABLE = False
 
 # Session = sessionmaker(bind=engine)
-db = SessionLocal()
+# db = SessionLocal()
 from app.models.relatorio import PerformeImoveis
 
 # -------- utils --------
@@ -249,12 +249,13 @@ def gerar_pdf_relatorio(rowdict: dict) -> bytes:
 
 # -------- orchestration --------
 def get_imovel_by_codigo(codigo: str) -> Optional[dict]:
-    reg = (
-        db.query(PerformeImoveis)
-        .filter(PerformeImoveis.codigo_imovel == codigo)
-        .order_by(PerformeImoveis.id.desc())
-        .first()
-    )
+    with SessionLocal() as session:
+        reg = (
+            session.query(PerformeImoveis)
+            .filter(PerformeImoveis.codigo_imovel == codigo)
+            .order_by(PerformeImoveis.id.desc())
+            .first()
+        )
     return reg.to_rowdict() if reg else None
 
 def gerar_relatorio_imovel(codigo: str):
