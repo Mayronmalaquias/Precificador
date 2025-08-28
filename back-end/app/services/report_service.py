@@ -6,6 +6,7 @@ import matplotlib.pyplot as plt
 from app import SessionLocal
 from sqlalchemy.orm import sessionmaker
 from app import engine, cache
+from typing import Optional
 
 from flask import Response, jsonify, current_app
 from fpdf import FPDF, HTMLMixin
@@ -247,7 +248,7 @@ def gerar_pdf_relatorio(rowdict: dict) -> bytes:
         safe_remove(pie_chart_path)
 
 # -------- orchestration --------
-def get_imovel_by_codigo(codigo: str) -> dict | None:
+def get_imovel_by_codigo(codigo: str) -> Optional[dict]:
     reg = (
         db.query(PerformeImoveis)
         .filter(PerformeImoveis.codigo_imovel == codigo)
