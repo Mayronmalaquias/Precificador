@@ -1,5 +1,3 @@
-from sqlalchemy.orm import sessionmaker
-from app import engine
 from app.models.base import Base
 from sqlalchemy import Column, Integer, String, Float
 
@@ -27,10 +25,4 @@ class PerformeImoveis(Base):
             "Leads OLX/ZAP": self.leads_olx_zap or 0,
             "Leads C2S": self.leads_c2s or 0,
             "Leads C2S - Imoview": self.leads_c2s_imoview or 0,
-            # Informações gerais (aparecem na seção 'Informações do Imóvel'):
-            # "Endereço": self.endereco or "",
-            # "Bairro": self.bairro or "",
-            # "Cidade": self.cidade or "",
-            # "Preço": self.preco or "",
-            # "Tipo": self.tipo or "",
         }
