@@ -1,25 +1,26 @@
 import os
+import re
 import numpy as np
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
-from app import SessionLocal
-from typing import Optional
 
-from flask import Response, jsonify, current_app
+from typing import Optional
+from flask import jsonify, current_app, make_response
 from fpdf import FPDF, HTMLMixin
 
-# Pillow opcional p/ medir imagem
 try:
     from PIL import Image as PILImage
     PIL_AVAILABLE = True
 except Exception:
     PIL_AVAILABLE = False
 
-
+from app import SessionLocal
 from app.models.relatorio import PerformeImoveis
 
-# -------- utils --------
+
+# ===================== utils =====================
+
 def num_or_zero(x):
     try:
         v = float(x)
@@ -36,6 +37,9 @@ def safe_remove(path):
     except Exception:
         pass
 
+
+# ===================== PDF base =====================
+
 class PDF(FPDF, HTMLMixin):
     def __init__(self, orientation='P', unit='mm', format='A4', logo_file=None):
         super().__init__(orientation, unit, format)
@@ -45,15 +49,15 @@ class PDF(FPDF, HTMLMixin):
         self.set_auto_page_break(auto=True, margin=20)
 
     def header(self):
-        # Fundo cinza suave
+        # fundo cinza claro
         self.set_fill_color(242, 242, 242)  # #f2f2f2
         self.rect(0, 0, self.w, self.h, 'F')
 
-        # Logo
+        # logo
         if self.logo_file and os.path.exists(self.logo_file):
             self.image(self.logo_file, x=15, y=8, h=12)
 
-        # Título
+        # título
         self.set_font('Arial', 'B', 15)
         self.set_text_color(225, 0, 91)  # #e1005b
         self.cell(0, 10, 'Relatório de Desempenho de Imóvel', 0, 1, 'C')
@@ -70,16 +74,56 @@ class PDF(FPDF, HTMLMixin):
     def chapter_title(self, title):
         self.ln(2)
         self.set_font('Arial', 'B', 12)
-        self.set_fill_color(220, 220, 220)  # cinza p/ barra do título
-        self.set_text_color(225, 0, 91)     # #e1005b
+        self.set_fill_color(220, 220, 220)
+        self.set_text_color(225, 0, 91)
         self.cell(0, 9, title, 0, 1, 'L', 1)
         self.ln(2)
         self.set_text_color(0, 0, 0)
 
     def chapter_body(self, body):
         self.set_font('Arial', '', 10)
-        self.multi_cell(0, 6, body)
+        # usa largura útil explícita
+        w = self.w - self.l_margin - self.r_margin
+        self.set_x(self.l_margin)
+        self.multi_cell(w, 6, body)
         self.ln(1)
+
+
+# ===================== helpers para texto seguro =====================
+
+def _break_long_tokens(text: str, every: int = 60) -> str:
+    """
+    Insere um espaço a cada `every` caracteres em sequências sem espaço,
+    permitindo o FPDF quebrar linha (URLs, base64 etc.).
+    """
+    if text is None:
+        return ""
+    s = str(text)
+    return re.sub(r'(\S{' + str(every) + r'})', r'\1 ', s)
+
+def _safe_multicell(pdf: PDF, txt: str, h: float = 7, align: str = "L"):
+    """
+    Multicell protegida:
+    - reseta X na margem esquerda
+    - usa largura útil explícita
+    - cria pontos de quebra em “palavras” gigantes
+    - fallback mínima redução de fonte se largura útil estiver ridícula
+    """
+    pdf.set_x(pdf.l_margin)
+    w = pdf.w - pdf.l_margin - pdf.r_margin
+
+    txt = _break_long_tokens(txt, every=60)
+
+    if w <= pdf.get_string_width("W"):
+        size_pt = int(pdf.font_size_pt)
+        while size_pt > 6 and w <= pdf.get_string_width("W"):
+            size_pt -= 1
+            pdf.set_font(pdf.font_family, pdf.font_style, size_pt)
+
+    pdf.multi_cell(w, h, txt, border=0, align=align)
+
+
+# ===================== imagens =====================
 
 def add_image_auto(pdf: PDF, img_path: str, max_w: float = 180, max_h: float = 100, center: bool = True):
     if not (img_path and os.path.exists(img_path)):
@@ -113,21 +157,22 @@ def add_image_auto(pdf: PDF, img_path: str, max_w: float = 180, max_h: float = 1
     pdf.image(img_path, x=x, y=pdf.get_y(), w=target_w, h=target_h)
     pdf.ln(target_h + 6)
 
+
+# ===================== geração do PDF =====================
+
 def gerar_pdf_relatorio(rowdict: dict) -> bytes:
-    # Paleta para gráficos
-    cor_principal = "#e1005b"
+    # paleta
     cores_views = ["#e1005b", "#f59ab5"]
     cores_leads = ["#e1005b", "#ff7f50", "#a64ca6"]
     cores_pizza = cores_leads
 
-    # Extrai dados
+    # dados
     views_values = [
         num_or_zero(rowdict.get("Views DF", 0)),
         num_or_zero(rowdict.get("Views OLX/ZAP", 0)),
     ]
     views_labels = ["Views DF", "Views OLX/ZAP"]
 
-    # Define as listas iniciais de leads
     leads_values_inicial = [
         num_or_zero(rowdict.get("Leads DF", 0)),
         num_or_zero(rowdict.get("Leads OLX/ZAP", 0)),
@@ -135,28 +180,23 @@ def gerar_pdf_relatorio(rowdict: dict) -> bytes:
     ]
     leads_labels_inicial = ["Leads DF", "Leads OLX/ZAP", "Leads C2S - Imoview"]
 
-    # Agrupa, filtra os pares com valor 0, e depois "descompacta" em novas listas
     pares_filtrados = [
         (valor, label)
         for valor, label in zip(leads_values_inicial, leads_labels_inicial)
         if valor != 0
     ]
-
-    # Trata o caso de a lista filtrada ficar vazia
     if pares_filtrados:
-        # A função zip retorna tuplas, então convertemos de volta para listas
         leads_values, leads_labels = map(list, zip(*pares_filtrados))
     else:
         leads_values, leads_labels = [], []
 
-
-    # Gera figuras temporárias
+    # arquivos temporários
     views_chart_path = "views_chart.jpg"
     leads_chart_path = "leads_chart.jpg"
     pie_chart_path = None
 
     try:
-        # Views
+        # gráfico: views
         plt.figure(figsize=(8, 4))
         plt.bar(views_labels, views_values, color=cores_views)
         plt.ylabel("Quantidade de Views")
@@ -167,7 +207,7 @@ def gerar_pdf_relatorio(rowdict: dict) -> bytes:
         plt.savefig(views_chart_path, format="jpg", dpi=150)
         plt.close()
 
-        # Leads
+        # gráfico: leads
         plt.figure(figsize=(8, 4))
         plt.bar(leads_labels, leads_values, color=cores_leads)
         plt.ylabel("Quantidade de Leads")
@@ -178,7 +218,7 @@ def gerar_pdf_relatorio(rowdict: dict) -> bytes:
         plt.savefig(leads_chart_path, format="jpg", dpi=150)
         plt.close()
 
-        # Pizza (se houver dados)
+        # pizza (se houver dados)
         if sum(leads_values) > 0:
             pie_chart_path = "pie_chart.jpg"
             plt.figure(figsize=(7, 7))
@@ -189,23 +229,25 @@ def gerar_pdf_relatorio(rowdict: dict) -> bytes:
             plt.savefig(pie_chart_path, format="jpg", dpi=150)
             plt.close()
 
-        # Montagem do PDF
+        # PDF
         logo_file = current_app.config.get("LOGO_FILE", "../utils/asserts/img/Logo 61 Vazado (1).png")
         pdf = PDF(logo_file=logo_file)
         pdf.add_page()
 
         codigo = rowdict.get("Código do Imóvel", "")
         pdf.set_font("Arial", "B", 14)
-        pdf.cell(0, 8, f"Detalhamento do Imóvel {codigo}", 0, 1, "C")
+        # largura útil explícita p/ o título
+        pdf.set_x(pdf.l_margin)
+        pdf.cell(pdf.w - pdf.l_margin - pdf.r_margin, 8, f"Detalhamento do Imóvel {codigo}", 0, 1, "C")
         pdf.ln(2)
 
-        # Informações
+        # informações
         pdf.chapter_title("Informações do Imóvel")
         pdf.set_font("Arial", "", 10)
         pdf.set_text_color(50, 50, 50)
 
-        # escreve pares 'Coluna: valor' (excluindo as que viram gráfico)
-        excluir = {"Views DF", "Views OLX/ZAP", "Leads DF", "Leads OLX/ZAP", "Leads C2S"}
+        excluir = {"Views DF", "Views OLX/ZAP", "Leads DF", "Leads OLX/ZAP", "Leads C2S", "Leads C2S - Imoview"}
+
         for col, value in rowdict.items():
             if col in excluir:
                 continue
@@ -213,22 +255,24 @@ def gerar_pdf_relatorio(rowdict: dict) -> bytes:
                 pdf.add_page()
                 pdf.set_font("Arial", "", 10)
                 pdf.set_text_color(50, 50, 50)
-            pdf.multi_cell(0, 7, f"{col}: {value}", 0, "L")
+
+            linha = f"{col}: {'' if value is None else value}"
+            _safe_multicell(pdf, linha, h=7, align="L")
 
         pdf.set_text_color(0, 0, 0)
         pdf.ln(2)
 
-        # Seção Views
+        # views
         pdf.chapter_title("Análise de Visualizações (Views)")
         add_image_auto(pdf, views_chart_path, max_w=180, max_h=90, center=True)
         pdf.chapter_body("Comparação de visualizações nos portais disponíveis.")
 
-        # Seção Leads
+        # leads
         pdf.chapter_title("Análise de Contatos (Leads)")
         add_image_auto(pdf, leads_chart_path, max_w=180, max_h=90, center=True)
         pdf.chapter_body("Leads gerados por fonte, indicando canais com melhor desempenho.")
 
-        # Pizza
+        # pizza
         if pie_chart_path and os.path.exists(pie_chart_path):
             pdf.chapter_title("Distribuição Percentual de Leads")
             add_image_auto(pdf, pie_chart_path, max_w=160, max_h=100, center=True)
@@ -244,7 +288,9 @@ def gerar_pdf_relatorio(rowdict: dict) -> bytes:
         safe_remove(leads_chart_path)
         safe_remove(pie_chart_path)
 
-# -------- orchestration --------
+
+# ===================== orquestração =====================
+
 def get_imovel_by_codigo(codigo: str) -> Optional[dict]:
     with SessionLocal() as session:
         reg = (
@@ -254,6 +300,8 @@ def get_imovel_by_codigo(codigo: str) -> Optional[dict]:
             .first()
         )
     return reg.to_rowdict() if reg else None
+
+
 
 def gerar_relatorio_imovel(codigo: str):
     if not codigo:
@@ -265,8 +313,9 @@ def gerar_relatorio_imovel(codigo: str):
 
     pdf_bytes = gerar_pdf_relatorio(rowdict)
     filename = f"relatorio_imovel_{codigo}.pdf"
-    return Response(
-        pdf_bytes,
-        mimetype="application/pdf",
-        headers={"Content-Disposition": f"attachment; filename={filename}"}
-    )
+
+    # >>> Retorne um Response pronto (isso evita o serializer do RESTX)
+    resp = make_response(pdf_bytes)
+    resp.headers["Content-Type"] = "application/pdf"
+    resp.headers["Content-Disposition"] = f'attachment; filename="{filename}"'
+    return resp
