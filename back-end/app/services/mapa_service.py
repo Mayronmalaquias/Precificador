@@ -8,7 +8,6 @@ from app import SessionLocal
 from app import engine, cache
 
 
-Session = sessionmaker(bind=engine)
 
 def gerar_mapa_anuncio_clusterizado(cluster_selecionado):
     """
@@ -264,7 +263,7 @@ def carregar_imoveis_venda():
         session.close()
 
 def carregar_imoveis_aluguel():
-    session = Session()
+    session = SessionLocal()
     imoveis_aluguel = session.query(ImovelAluguel).all()
 
     dados = [{
@@ -287,7 +286,7 @@ def carregar_imoveis_aluguel():
 
 @cache.cached(timeout=600)  # cache válido por 10 minutos (600s)
 def carregar_dados_df():
-    session = Session()
+    session = SessionLocal()
     imoveis = session.query(Imovel).all()
     
     dados = [{
