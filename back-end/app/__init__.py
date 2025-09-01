@@ -32,12 +32,12 @@ def create_app():
     from app.routes.mapa_routes import mapa_ns
     from app.routes.auth_routes import auth_ns
     # from app.routes.graph_routes import graph_ns
-    from app.routes.report_routes import report_ns
+    # from app.routes.report_routes import report_ns
     api.add_namespace(mapa_ns, path='/')
     api.add_namespace(analise_ns, path='/')
     api.add_namespace(auth_ns, path='/' )
     # api.add_namespace(graph_ns, path='/')
-    api.add_namespace(report_ns, path='/')
+    # api.add_namespace(report_ns, path='/')
 
 
     return app
