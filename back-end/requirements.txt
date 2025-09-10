@@ -17,4 +17,7 @@ folium==0.12.1
 matplotlib
 Pillow          # necessário p/ salvar JPG com o matplotlib
 fpdf2 
-           # -> from fpdf import FPDF, HTMLMixin
+google-api-python-client
+google-auth
+google-auth-httplib2
+httplib2           # -> from fpdf import FPDF, HTMLMixin
