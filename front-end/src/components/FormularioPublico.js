@@ -243,6 +243,34 @@ const buscarDados = useCallback(() => {
         {/* <iframe width="560" height="315" src="https://www.youtube.com/embed/dQw4w9WgXcQ" title="YouTube video player" frameBorder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowFullScreen></iframe> */}
 
         <form>
+
+          <section
+            aria-labelledby="mini-tutorial-title"
+            style={{
+              border: '1px solid #e5e7eb',
+              borderRadius: 8,
+              padding: 16,
+              marginBottom: 20,
+              background: '#fafafa'
+            }}
+          >
+            <h3 id="mini-tutorial-title" style={{ margin: 0, marginBottom: 8, fontSize: 18 }}>
+              Como usar os filtros
+            </h3>
+
+            <ol style={{ margin: 0, paddingLeft: 18, lineHeight: 1.6 }}>
+              <li>
+                Selecione <strong>Tipo de Imóvel</strong>, <strong>Bairro</strong> e <strong>Quartos</strong>.
+              </li>
+              <li>
+                Escolha uma opção: <strong>ORIGINAL</strong>, <strong>SEMI-REFORMADO</strong> ou <strong>REFORMADO</strong>.
+              </li>
+              <li>
+                Clique em <strong>Aplicar Filtros e Atualizar</strong>.
+              </li>
+            </ol>
+          </section>
+
           {/* --- Seus inputs e selects --- */}
           <label>Tipo de Imóvel:</label>
           <select value={formData.tipoImovel} onChange={e => updateField('tipoImovel', e.target.value)}>
@@ -382,7 +410,7 @@ const buscarDados = useCallback(() => {
           )}
         </div> */}
             {/* --- NOVA SEÇÃO PARA EXIBIR O GRÁFICO --- */}
-        <div 
+        {/* <div 
           className="grafico-container" 
           style={{ 
             marginTop: '30px', 
@@ -409,7 +437,7 @@ const buscarDados = useCallback(() => {
               e.currentTarget.alt = 'Erro ao carregar o gráfico. Exibindo imagem alternativa.';
             }}
           />
-        </div>
+        </div> */}
 
           <div class="container-central">
               <a class="ZapComentario" href="https://api.whatsapp.com/send?phone=5561998786161" target="_blank">Fale com corretor 61</a>
