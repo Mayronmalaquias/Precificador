@@ -1,0 +1,214 @@
+{
+  "APARTAMENTO|ASA NORTE|0|5|VENDA": {
+    "valorM2Venda": 12823.39,
+    "valorVendaNominal": 1416904.76,
+    "metragemMediaVenda": 110.44,
+    "coeficienteVariacaoVenda": 0.0225,
+    "tamanhoAmostraVenda": 147
+  },
+  "APARTAMENTO|ASA NORTE|0|5|ALUGUEL": {
+    "valorM2Aluguel": 61.53,
+    "valorAluguelNominal": 4379.41,
+    "metragemMediaAluguel": 70.41,
+    "coeficienteVariacaoAluguel": 0.0308,
+    "tamanhoAmostraAluguel": 34
+  },
+  "APARTAMENTO|ASA NORTE|1|5|VENDA": {
+    "valorM2Venda": 12531.00,
+    "valorVendaNominal": 582714.29,
+    "metragemMediaVenda": 46.14,
+    "coeficienteVariacaoVenda": 0.0299,
+    "tamanhoAmostraVenda": 7
+  },
+  "APARTAMENTO|ASA NORTE|1|5|ALUGUEL": {
+    "valorM2Aluguel": 61.53,
+    "valorAluguelNominal": 4379.41,
+    "metragemMediaAluguel": 70.41,
+    "coeficienteVariacaoAluguel": 0.0308,
+    "tamanhoAmostraAluguel": 34
+  },
+  "APARTAMENTO|ASA NORTE|2|5|VENDA": {
+    "valorM2Venda": 12642.27,
+    "valorVendaNominal": 1030611.11,
+    "metragemMediaVenda": 81.50,
+    "coeficienteVariacaoVenda": 0.0265,
+    "tamanhoAmostraVenda": 18
+  },
+  "APARTAMENTO|ASA NORTE|2|5|ALUGUEL": {
+    "valorM2Aluguel": 61.97,
+    "valorAluguelNominal": 4634.48,
+    "metragemMediaAluguel": 70.41,
+    "coeficienteVariacaoAluguel": 0.0308,
+    "tamanhoAmostraAluguel": 34
+  },
+  "APARTAMENTO|ASA NORTE|3|5|VENDA": {
+    "valorM2Venda": 13682.55,
+    "valorVendaNominal": 1557409.09,
+    "metragemMediaVenda": 113.91,
+    "coeficienteVariacaoVenda": 0.0281,
+    "tamanhoAmostraVenda": 22
+  },
+  "APARTAMENTO|ASA NORTE|3|5|ALUGUEL": {
+    "valorM2Aluguel": 61.97,
+    "valorAluguelNominal": 4634.48,
+    "metragemMediaAluguel": 70.41,
+    "coeficienteVariacaoAluguel": 0.0308,
+    "tamanhoAmostraAluguel": 34
+  },
+  "APARTAMENTO|ASA NORTE|4|5|VENDA": {
+    "valorM2Venda": 14039.08,
+    "valorVendaNominal": 2759166.75,
+    "metragemMediaVenda": 196.42,
+    "coeficienteVariacaoVenda": 0.0185,
+    "tamanhoAmostraVenda": 12
+  },
+  "APARTAMENTO|ASA NORTE|4|5|ALUGUEL": {
+    "valorM2Aluguel": 61.97,
+    "valorAluguelNominal": 4634.48,
+    "metragemMediaAluguel": 70.41,
+    "coeficienteVariacaoAluguel": 0.0308,
+    "tamanhoAmostraAluguel": 34
+  },
+  "APARTAMENTO|ASA SUL|0|5|VENDA": {
+    "valorM2Venda": 13708.48,
+    "valorVendaNominal": 189566.67,
+    "metragemMediaVenda": 138.15,
+    "coeficienteVariacaoVenda": 0.0248,
+    "tamanhoAmostraVenda": 87
+  },
+  "APARTAMENTO|ASA SUL|0|5|ALUGUEL": {
+    "valorM2Aluguel": 58.21,
+    "valorAluguelNominal": 6150.00,
+    "metragemMediaAluguel": 104.79,
+    "coeficienteVariacaoAluguel": 0.0153,
+    "tamanhoAmostraAluguel": 14
+  },
+  "APARTAMENTO|ASA SUL|1|5|VENDA": {
+    "valorM2Venda": 14482.50,
+    "valorVendaNominal": 629950.00,
+    "metragemMediaVenda": 43.50,
+    "coeficienteVariacaoVenda": 0.0040,
+    "tamanhoAmostraVenda": 2
+  },
+  "APARTAMENTO|ASA SUL|1|5|ALUGUEL": {
+    "valorM2Aluguel": 58.21,
+    "valorAluguelNominal": 6150.00,
+    "metragemMediaAluguel": 104.79,
+    "coeficienteVariacaoAluguel": 0.0153,
+    "tamanhoAmostraAluguel": 14
+  },
+  "APARTAMENTO|ASA SUL|2|5|VENDA": {
+    "valorM2Venda": 12534.67,
+    "valorVendaNominal": 685333.33,
+    "metragemMediaVenda": 54.67,
+    "coeficienteVariacaoVenda": 0.0142,
+    "tamanhoAmostraVenda": 3
+  },
+  "APARTAMENTO|ASA SUL|2|5|ALUGUEL": {
+    "valorM2Aluguel": 58.21,
+    "valorAluguelNominal": 6150.00,
+    "metragemMediaAluguel": 104.79,
+    "coeficienteVariacaoAluguel": 0.0153,
+    "tamanhoAmostraAluguel": 14
+  },
+  "APARTAMENTO|ASA SUL|3|5|VENDA": {
+    "valorM2Venda": 13426.18,
+    "valorVendaNominal": 1615882.35,
+    "metragemMediaVenda": 120.41,
+    "coeficienteVariacaoVenda": 0.0159,
+    "tamanhoAmostraVenda": 17
+  },
+  "APARTAMENTO|ASA SUL|3|5|ALUGUEL": {
+    "valorM2Aluguel": 52.00,
+    "valorAluguelNominal": 4300.00,
+    "metragemMediaAluguel": 82.00,
+    "coeficienteVariacaoAluguel": 0.00,
+    "tamanhoAmostraAluguel": 2
+  },
+  "APARTAMENTO|ASA SUL|4|5|VENDA": {
+    "valorM2Venda": 15254.00,
+    "valorVendaNominal": 5259666.67,
+    "metragemMediaVenda": 344.33,
+    "coeficienteVariacaoVenda": 0.0053,
+    "tamanhoAmostraVenda": 3
+  },
+  "APARTAMENTO|ASA SUL|4|5|ALUGUEL": {
+    "valorM2Aluguel": 58.71,
+    "valorAluguelNominal": 6017.65,
+    "metragemMediaAluguel": 104.79,
+    "coeficienteVariacaoAluguel": 0.0153,
+    "tamanhoAmostraAluguel": 14
+  },
+  "APARTAMENTO|NOROESTE|0|5|VENDA": {
+    "valorM2Venda": 16536.73,
+    "valorVendaNominal": 2023534.52,
+    "metragemMediaVenda": 122.30,
+    "coeficienteVariacaoVenda": 0.0157,
+    "tamanhoAmostraVenda": 191
+  },
+  "APARTAMENTO|NOROESTE|0|5|ALUGUEL": {
+    "valorM2Aluguel": 81.24,
+    "valorAluguelNominal": 5798.82,
+    "metragemMediaAluguel": 71.24,
+    "coeficienteVariacaoAluguel": 0.0111,
+    "tamanhoAmostraAluguel": 17
+  },
+  "APARTAMENTO|NOROESTE|1|5|VENDA": {
+    "valorM2Venda": 18338.75,
+    "valorVendaNominal": 689750,
+    "metragemMediaVenda": 37.50,
+    "coeficienteVariacaoVenda": 0.0123,
+    "tamanhoAmostraVenda": 4
+  },
+  "APARTAMENTO|NOROESTE|1|5|ALUGUEL": {
+    "valorM2Aluguel": 81.24,
+    "valorAluguelNominal": 5798.82,
+    "metragemMediaAluguel": 71.24,
+    "coeficienteVariacaoAluguel": 0.0111,
+    "tamanhoAmostraAluguel": 17
+  },
+  "APARTAMENTO|NOROESTE|0|5|VENDA": {
+    "valorM2Venda": 16536.73,
+    "valorVendaNominal": 2023534.52,
+    "metragemMediaVenda": 122.30,
+    "coeficienteVariacaoVenda": 0.0157,
+    "tamanhoAmostraVenda": 191
+  },
+  "APARTAMENTO|NOROESTE|0|5|ALUGUEL": {
+    "valorM2Aluguel": 81.24,
+    "valorAluguelNominal": 5798.82,
+    "metragemMediaAluguel": 71.24,
+    "coeficienteVariacaoAluguel": 0.0111,
+    "tamanhoAmostraAluguel": 17
+  },
+  "APARTAMENTO|NOROESTE|0|5|VENDA": {
+    "valorM2Venda": 16536.73,
+    "valorVendaNominal": 2023534.52,
+    "metragemMediaVenda": 122.30,
+    "coeficienteVariacaoVenda": 0.0157,
+    "tamanhoAmostraVenda": 191
+  },
+  "APARTAMENTO|NOROESTE|0|5|ALUGUEL": {
+    "valorM2Aluguel": 81.24,
+    "valorAluguelNominal": 5798.82,
+    "metragemMediaAluguel": 71.24,
+    "coeficienteVariacaoAluguel": 0.0111,
+    "tamanhoAmostraAluguel": 17
+  },
+  "APARTAMENTO|NOROESTE|0|5|VENDA": {
+    "valorM2Venda": 16536.73,
+    "valorVendaNominal": 2023534.52,
+    "metragemMediaVenda": 122.30,
+    "coeficienteVariacaoVenda": 0.0157,
+    "tamanhoAmostraVenda": 191
+  },
+  "APARTAMENTO|NOROESTE|0|5|ALUGUEL": {
+    "valorM2Aluguel": 81.24,
+    "valorAluguelNominal": 5798.82,
+    "metragemMediaAluguel": 71.24,
+    "coeficienteVariacaoAluguel": 0.0111,
+    "tamanhoAmostraAluguel": 17
+  }
+  
+}
+
