@@ -1,0 +1,177 @@
+:root{
+  --bg: #0b1020;
+  --bg-accent: #0e1428;
+  --card: rgba(255,255,255,0.06);
+  --card-border: rgba(255,255,255,0.12);
+  --text: #f7f8fa;
+  --muted: #c7cbd6;
+  --primary: #5b8cff;         /* azul limpo e profissional */
+  --primary-contrast: #0b1020;
+  --input-bg: rgba(255,255,255,0.08);
+  --input-border: rgba(255,255,255,0.18);
+  --shadow: 0 20px 50px rgba(0,0,0,0.35);
+  --radius: 16px;
+}
+
+@media (prefers-color-scheme: light) {
+  :root{
+    --bg: #f3f5f8;
+    --bg-accent: #e9edf3;
+    --card: #ffffff;
+    --card-border: #e6e8ef;
+    --text: #0b1020;
+    --muted: #58607a;
+    --primary: #2d67ff;
+    --primary-contrast: #ffffff;
+    --input-bg: #ffffff;
+    --input-border: #d8dce6;
+    --shadow: 0 20px 40px rgba(16,24,40,0.1);
+  }
+}
+
+/* Página centralizada, com gradiente suave */
+.lr-page{
+  min-height: 100dvh;
+  background: radial-gradient(1200px 800px at 20% 0%, var(--bg-accent) 0%, var(--bg) 55%),
+              linear-gradient(180deg, var(--bg-accent), var(--bg));
+  display: grid;
+  place-items: center;
+  padding: 24px;
+}
+
+/* Cartão “glass” limpo */
+.lr-card{
+  width: min(880px, 96vw);
+  background: var(--card);
+  backdrop-filter: saturate(140%) blur(12px);
+  border: 1px solid var(--card-border);
+  box-shadow: var(--shadow);
+  border-radius: var(--radius);
+  padding: clamp(20px, 4vw, 32px);
+  color: var(--text);
+}
+
+/* Cabeçalho */
+.lr-header{ margin-bottom: 18px; }
+.lr-title{
+  margin: 0 0 6px 0;
+  font-size: clamp(22px, 2.6vw, 30px);
+  letter-spacing: 0.2px;
+  font-weight: 700;
+}
+.lr-subtitle{
+  margin: 0;
+  color: wheat;
+  font-size: clamp(14px, 1.7vw, 16px);
+}
+
+/* Formulário */
+.lr-form{ display: grid; gap: 10px; }
+.lr-label{ font-size: 14px; color: var(--muted); }
+
+.lr-fields{
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 12px;
+  align-items: center;
+}
+
+.lr-input{
+  width: 100%;
+  padding: 12px 14px;
+  background: var(--input-bg);
+  border: 1px solid var(--input-border);
+  border-radius: 12px;
+  color: var(--text);
+  outline: none;
+  transition: box-shadow .2s ease, border-color .2s ease, background-color .2s ease;
+  font-size: 16px;
+}
+.lr-input::placeholder{ color: #9ba3b5; }
+.lr-input:focus{
+  border-color: color-mix(in srgb, var(--primary) 65%, var(--input-border));
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--primary) 20%, transparent);
+}
+
+/* Ações */
+.lr-actions{
+  display: grid;
+  grid-auto-flow: column;
+  gap: 10px;
+}
+
+.lr-btn{
+  height: 44px;
+  padding: 0 14px;
+  border-radius: 12px;
+  border: 1px solid var(--input-border);
+  background: transparent;
+  color: var(--text);
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform .06s ease, box-shadow .2s ease, background-color .2s ease, border-color .2s ease;
+  white-space: nowrap;
+}
+.lr-btn.primary{
+  background: var(--primary);
+  color: var(--primary-contrast);
+  border-color: var(--primary);
+  box-shadow: 0 6px 18px color-mix(in srgb, var(--primary) 35%, transparent);
+}
+.lr-btn:hover{
+  transform: translateY(-1px);
+}
+.lr-btn:active{
+  transform: translateY(0);
+}
+.lr-btn:disabled{
+  opacity: .6;
+  cursor: not-allowed;
+  transform: none;
+}
+.lr-btn.ghost{
+  background: transparent;
+  color: var(--text);
+}
+
+/* Ajuda */
+.lr-help{
+  color: var(--muted);
+  font-size: 12.5px;
+}
+
+/* Área do link gerado */
+.lr-link-wrap{
+  display: grid;
+  gap: 6px;
+  margin-top: 18px;
+  background: color-mix(in srgb, var(--input-bg) 70%, transparent);
+  border: 1px dashed var(--input-border);
+  border-radius: 12px;
+  padding: 12px;
+}
+.lr-link-label{ color: var(--muted); font-size: 13px; }
+.lr-link{
+  color: var(--text);
+  word-break: break-all;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.lr-link.placeholder{ color: #8e96ab; }
+
+/* Responsividade */
+@media (max-width: 720px){
+  .lr-fields{
+    grid-template-columns: 1fr;
+  }
+  .lr-actions{
+    grid-auto-flow: row;
+    grid-template-columns: 1fr;
+  }
+  .lr-btn{ width: 100%; }
+}
+
+/* Acessibilidade / motion */
+@media (prefers-reduced-motion: reduce){
+  .lr-btn, .lr-input{ transition: none; }
+}

@@ -1,0 +1,314 @@
+/* Estilos gerais */
+body {
+  font-family: Arial, sans-serif;
+  margin: 0;
+  padding: 0;
+  background-color: #f5f5f5;
+  color: #333;
+}
+
+header {
+  background-color: #e1005b;
+  color: rgb(255, 255, 255);
+  text-align: center;
+  padding: 5px;
+  font-size: 24px;
+  box-shadow: 0 0 10px rgba(0, 0, 0, 0.15);
+}
+
+.main-container {
+  width: 90%;
+  max-width: 800px;
+  margin: 20px auto;
+  background-color: white;
+  padding: 20px;
+  border-radius: 10px;
+  box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+}
+
+label {
+  font-weight: bold;
+  display: block;
+  margin-top: 10px;
+}
+
+select, input[type="range"] {
+  width: 100%;
+  padding: 10px;
+  margin-top: 5px;
+  border: 1px solid #ccc;
+  border-radius: 5px;
+}
+
+button {
+  background-color: #e1005b;
+  color: white;
+  border: none;
+  padding: 10px 15px;
+  margin: 5px;
+  cursor: pointer;
+  border-radius: 5px;
+}
+
+button:hover {
+  background-color: #e1005b;
+}
+
+/* No seu arquivo CSS (ex: chat.css ou stylesPaginaUnica.css) */
+.botao-cluster {
+  /* Seus estilos normais de botão aqui */
+  padding: 8px 15px;
+  margin: 5px;
+  border: 1px solid hsl(0, 0%, 0%);
+  background-color: #000000;
+  cursor: pointer;
+  border-radius: 4px;
+}
+
+.botao-cluster-selecionado {
+  background-color: #007bff; /* Cor de fundo para o botão selecionado */
+  color: white; /* Cor do texto para o botão selecionado */
+  border-color: #0056b3; /* Cor da borda para o botão selecionado */
+  font-weight: bold;
+}
+
+ul {
+  list-style: none;
+  padding: 0;
+}
+
+li {
+  padding: 10px;
+  background: #ecf0f1;
+  margin: 5px 0;
+  border-radius: 5px;
+}
+
+footer {
+  text-align: center;
+  padding: 15px;
+  background-color: #e1005b;
+  color: white;
+  margin-top: 20px;
+}
+
+footer a {
+  color: #f1c40f;
+  text-decoration: none;
+}
+
+/* Estilo para os botões de cluster */
+#nome {
+  text-align: center;
+  margin-top: 15px;
+  display: inline;
+}
+
+/* Spinner de carregamento */
+#loading {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+#loading-spinner {
+  border: 16px solid #f3f3f3;
+  border-radius: 50%;
+  border-top: 16px solid #e1005b;
+  width: 80px;
+  height: 80px;
+  animation: spin 2s linear infinite;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+
+label {
+  font-size: 16px;
+  font-weight: bold;
+  color: #333;
+  display: flex;
+  margin-bottom: 5px;
+}
+
+input[type="number"] {
+  width: 100%;
+  max-width: 200px;
+  margin-right: 70px;
+  padding: 8px 10px;
+  font-size: 16px;
+  border: 2px solid #ccc;
+  border-radius: 8px;
+  outline: none;
+  transition: border-color 0.3s ease-in-out;
+}
+
+input[type="number"]:focus {
+  border-color: #007bff;
+  box-shadow: 0 0 5px rgba(0, 123, 255, 0.5);
+}
+
+input[type="number"]::placeholder {
+  color: #999;
+}
+
+.container {
+  position: relative;
+  display: inline-block; /* Mantém o tamanho ajustado ao conteúdo */
+}
+
+/* #nrCluster, #outCluster, label[for="nrCluster"] {
+  visibility: hidden;
+} */
+
+
+/* Estilos para o spinner de carregamento */
+#loading {
+  position: absolute; /* Altera para absolute para centralizar na div "pai" */
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 24px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  z-index: 1; /* Ajuste o z-index conforme a necessidade */
+}
+      
+#loading-spinner {
+  border: 16px solid #f3f3f3;
+  border-radius: 50%;
+  border-top: 16px solid #3498db;
+  width: 120px;
+  height: 120px;
+  animation: spin 2s linear infinite;
+}
+
+.negrito {
+  font-weight: bold;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.imagem-sobreposta {
+  position: absolute;
+  top: 25%;
+  left: 50%;
+  transform: translate(40%, -40%);
+  width: 300px;
+  height: 300px;
+  cursor: pointer;
+  z-index: 2;
+}
+.lista-com-imagem {
+  position: relative; /* Garante que o ::before fique dentro da ul */
+  padding: 20px;
+  border-radius: 10px;
+  z-index: 1; /* Garante que o conteúdo fique acima da imagem */
+}
+
+.lista-com-imagem::before {
+  content: "";
+  position: absolute;
+  top: 40px;
+  left: 0;
+  max-width: 300px;
+  max-height: 220px;
+  width: 100%;
+  height: 100%;
+  background-image: url('../img/LOGO 61 PNG (2).png');
+  background-size: cover; /* Faz a imagem cobrir toda a área */
+  background-position: center;
+  background-repeat: no-repeat;
+  opacity: 0.1; /* Define a transparência da imagem */
+  border-radius: 10px; /* Mantém as bordas arredondadas se necessário */
+  z-index: 1; /* Coloca a imagem atrás do conteúdo */
+}
+
+@media (max-width: 490px) {
+  .imagem-sobreposta {
+    transform: translate(0%, -30%);
+    width: 150px;
+    height: 150px;
+  }
+}
+
+.active-button {
+  background-color: #3cff00; /* Verde */
+  color: rgb(0, 0, 0);
+  font-weight: bold;
+}
+
+.guias {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  list-style: none;
+  padding: 0;
+  margin: 2rem auto;
+  max-width: 800px;
+  justify-content: center;
+}
+
+.guias li {
+  flex: 1 1 300px;
+  background: white;
+}
+
+.guias a {
+  display: block;
+  background: #ffffff;
+  border: 2px solid #e0e0e0;
+  border-radius: 12px;
+  padding: 1.2rem;
+  text-align: center;
+  text-decoration: none;
+  color: #333;
+  font-weight: 600;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+}
+
+.guias a:hover {
+  background: #e1005b;
+  color: #fff;
+  border-color: #e1005b;
+  box-shadow: 0 6px 18px rgba(0, 102, 255, 0.2);
+  transform: translateY(-3px);
+}
+
+.ZapComentario {
+    /* Centralização */
+    display: block; /* Essencial para 'margin: 0 auto' funcionar no texto */
+    margin: 1px auto; /* Centraliza horizontalmente e adiciona espaço acima/abaixo */
+    width: fit-content; /* Largura se adapta ao conteúdo do texto para a centralização */
+
+    /* Estilo do Texto */
+    font-family: 'Montserrat', sans-serif; /* Uma fonte moderna e limpa */
+    font-size: 0.8em; /* Tamanho da fonte um pouco maior para destaque */
+    color:#e1005b; /* Um azul vibrante para o link */
+    text-decoration: none; /* Remove o sublinhado padrão do link */
+    font-weight: 600; /* Deixa o texto mais encorpado */
+
+    /* Transição suave para o hover */
+    transition: color 0.3s ease;
+    margin-bottom: -30px;
+}
+
+.ZapComentario:hover {
+    color: #0056b3; /* Um azul um pouco mais escuro ao passar o mouse */
+    text-decoration: underline; /* Opcional: Adiciona sublinhado ao passar o mouse */
+}
+.container-central {
+    text-align: center; /* Centraliza o texto e elementos inline dentro deste div */
+}

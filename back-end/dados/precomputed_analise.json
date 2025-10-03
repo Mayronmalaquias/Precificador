@@ -1,0 +1,156 @@
+{
+    "APARTAMENTO|ASA NORTE|0|1|VENDA": {
+        "valorM2Venda": 8232.241379310344,
+        "valorVendaNominal": 575791.3793103448,
+        "metragemMediaVenda": 69.27586206896552,
+        "coeficienteVariacaoVenda": 0.0487003995446201,
+        "tamanhoAmostraVenda": 58
+    },
+    "APARTAMENTO|ASA NORTE|0|2|VENDA": {
+        "valorM2Venda": 9498.242105263158,
+        "valorVendaNominal": 889568.3157894737,
+        "metragemMediaVenda": 93.74736842105263,
+        "coeficienteVariacaoVenda": 0.037241826966163134,
+        "tamanhoAmostraVenda": 95
+    },
+    "APARTAMENTO|ASA NORTE|0|3|VENDA": {
+        "valorM2Venda": 10676.144,
+        "valorVendaNominal": 1391333.6,
+        "metragemMediaVenda": 130.28,
+        "coeficienteVariacaoVenda": 0.02875692760113108,
+        "tamanhoAmostraVenda": 125
+    },
+    "APARTAMENTO|ASA NORTE|0|4|VENDA": {
+        "valorM2Venda": 11809.537688442211,
+        "valorVendaNominal": 1437652.2512562815,
+        "metragemMediaVenda": 121.84924623115577,
+        "coeficienteVariacaoVenda": 0.024467946088781497,
+        "tamanhoAmostraVenda": 199
+    },
+    "APARTAMENTO|ASA NORTE|0|5|VENDA": {
+        "valorM2Venda": 12906.563636363637,
+        "valorVendaNominal": 1532509.0909090908,
+        "metragemMediaVenda": 118.46060606060605,
+        "coeficienteVariacaoVenda": 0.024487438699784144,
+        "tamanhoAmostraVenda": 165
+    },
+    "APARTAMENTO|ASA NORTE|0|6|VENDA": {
+        "valorM2Venda": 13928.01935483871,
+        "valorVendaNominal": 1456341.8774193549,
+        "metragemMediaVenda": 104.49032258064516,
+        "coeficienteVariacaoVenda": 0.02215308388322436,
+        "tamanhoAmostraVenda": 155
+    },
+    "APARTAMENTO|ASA NORTE|0|7|VENDA": {
+        "valorM2Venda": 15083.803418803418,
+        "valorVendaNominal": 1939681.1367521368,
+        "metragemMediaVenda": 128.24786324786325,
+        "coeficienteVariacaoVenda": 0.02524451307200164,
+        "tamanhoAmostraVenda": 117
+    },
+    "APARTAMENTO|ASA NORTE|0|8|VENDA": {
+        "valorM2Venda": 16839.823529411766,
+        "valorVendaNominal": 2310965.455882353,
+        "metragemMediaVenda": 137.23529411764707,
+        "coeficienteVariacaoVenda": 0.041130501971902045,
+        "tamanhoAmostraVenda": 68
+    },
+    "APARTAMENTO|ASA NORTE|0|0|VENDA": {
+        "valorM2Venda": 6689.466666666666,
+        "valorVendaNominal": 538683.3333333334,
+        "metragemMediaVenda": 81.4,
+        "coeficienteVariacaoVenda": 0.07794801383767662,
+        "tamanhoAmostraVenda": 30
+    },
+    "APARTAMENTO|ASA NORTE|1|1|VENDA": {
+        "valorM2Venda": 6445.666666666667,
+        "valorVendaNominal": 274166.6666666667,
+        "metragemMediaVenda": 42.666666666666664,
+        "coeficienteVariacaoVenda": 0.06240981680882103,
+        "tamanhoAmostraVenda": 6
+    },
+    "APARTAMENTO|ASA NORTE|2|1|VENDA": {
+        "valorM2Venda": 7533.166666666667,
+        "valorVendaNominal": 490833.3333333333,
+        "metragemMediaVenda": 66.16666666666667,
+        "coeficienteVariacaoVenda": 0.04947641162350305,
+        "tamanhoAmostraVenda": 6
+    },
+    "APARTAMENTO|ASA NORTE|3|1|VENDA": {
+        "valorM2Venda": 9082.1,
+        "valorVendaNominal": 851500.0,
+        "metragemMediaVenda": 93.8,
+        "coeficienteVariacaoVenda": 0.04678051607746937,
+        "tamanhoAmostraVenda": 10
+    },
+    "APARTAMENTO|ASA NORTE|4|1|VENDA": {
+        "valorM2Venda": 10212.833333333334,
+        "valorVendaNominal": 1553333.3333333333,
+        "metragemMediaVenda": 150.66666666666666,
+        "coeficienteVariacaoVenda": 0.02514421005679254,
+        "tamanhoAmostraVenda": 6
+    },
+    "APARTAMENTO|ASA SUL|0|1|VENDA": {
+        "valorM2Venda": 9245.934210526315,
+        "valorVendaNominal": 811512.8815789474,
+        "metragemMediaVenda": 87.5657894736842,
+        "coeficienteVariacaoVenda": 0.03864710412204554,
+        "tamanhoAmostraVenda": 76
+    },
+    "APARTAMENTO|ASA SUL|0|4|VENDA": {
+        "valorM2Venda": 12785.287234042553,
+        "valorVendaNominal": 1640053.1914893617,
+        "metragemMediaVenda": 128.2872340425532,
+        "coeficienteVariacaoVenda": 0.026092332748129474,
+        "tamanhoAmostraVenda": 94
+    },
+    "APARTAMENTO|ASA SUL|0|5|VENDA": {
+        "valorM2Venda": 13889.884615384615,
+        "valorVendaNominal": 1885383.3333333333,
+        "metragemMediaVenda": 136.1153846153846,
+        "coeficienteVariacaoVenda": 0.02331965182480686,
+        "tamanhoAmostraVenda": 78
+    },
+    "APARTAMENTO|ASA SUL|0|7|VENDA": {
+        "valorM2Venda": 16623.90243902439,
+        "valorVendaNominal": 1970119.487804878,
+        "metragemMediaVenda": 119.09756097560975,
+        "coeficienteVariacaoVenda": 0.024960973019879203,
+        "tamanhoAmostraVenda": 41
+    },
+    "APARTAMENTO|ASA SUL|1|1|VENDA": {
+        "valorM2Venda": 8777.0,
+        "valorVendaNominal": 809800.0,
+        "metragemMediaVenda": 90.8,
+        "coeficienteVariacaoVenda": 0.03756467714792688,
+        "tamanhoAmostraVenda": 5
+    },
+    "APARTAMENTO|ASA SUL|2|1|VENDA": {
+        "valorM2Venda": 8776.666666666666,
+        "valorVendaNominal": 436666.6666666667,
+        "metragemMediaVenda": 49.666666666666664,
+        "coeficienteVariacaoVenda": 0.025129654839217457,
+        "tamanhoAmostraVenda": 3
+    },
+    "APARTAMENTO|ASA SUL|3|1|VENDA": {
+        "valorM2Venda": 9398.066666666668,
+        "valorVendaNominal": 840666.6666666666,
+        "metragemMediaVenda": 89.53333333333333,
+        "coeficienteVariacaoVenda": 0.02289836851636099,
+        "tamanhoAmostraVenda": 15
+    },
+    "APARTAMENTO|ASA SUL|4|1|VENDA": {
+        "valorM2Venda": 12322.0,
+        "valorVendaNominal": 2150000.0,
+        "metragemMediaVenda": 174.5,
+        "coeficienteVariacaoVenda": 0.0021806571729499112,
+        "tamanhoAmostraVenda": 2
+    },
+    "APARTAMENTO|NOROESTE|0|1|VENDA": {
+        "valorM2Venda": 12821.030927835052,
+        "valorVendaNominal": 2578983.237113402,
+        "metragemMediaVenda": 201.2680412371134,
+        "coeficienteVariacaoVenda": 0.032222191567675564,
+        "tamanhoAmostraVenda": 97
+    }
+}

@@ -1,0 +1,158 @@
+/* Definição de cores para fácil manutenção */
+:root {
+  --footer-bg: #222529; /* Grafite escuro */
+  --footer-text: #adb5bd; /* Cinza claro para textos */
+  --footer-title: #ffffff; /* Branco para títulos */
+  --footer-accent: #e1005b; /* Cor de destaque (rosa da 61) */
+  --footer-border: #e1005b; /* Cor da linha divisória */
+}
+
+.site-footer {
+  background-color: var(--footer-bg);
+  color: var(--footer-text);
+  padding: 4rem 2rem 0; /* Espaçamento generoso, sem padding no fundo */
+  font-size: 0.9rem;
+  line-height: 1.6;
+}
+
+.footer-container {
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+/* Área principal com as colunas */
+.footer-main {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 2rem;
+  padding-bottom: 2rem;
+}
+
+.footer-column {
+  /* Cada coluna tenta ocupar o mesmo espaço, mas tem uma largura mínima */
+  flex: 1;
+  min-width: 220px;
+}
+
+/* Coluna da Marca (Logo e Social) */
+.footer-brand {
+  max-width: 120px;
+  margin-bottom: 1rem;
+}
+
+.footer-logo {
+    margin-top: 0px;
+    max-width: 200px;
+    margin-bottom: -90px;
+    width: 240px;
+    margin-left: 70px;
+}
+
+.footer-brand .footer-tagline {
+  margin-bottom: 1.5rem;
+}
+
+.social-icons {
+  display: flex;
+  gap: 1rem;
+}
+
+.social-icons a {
+  color: var(--footer-text);
+  display: inline-block;
+  transition: color 0.3s ease, transform 0.3s ease;
+}
+
+.social-icons a:hover {
+  color: var(--footer-accent);
+  transform: translateY(-3px); /* Efeito sutil de elevação */
+}
+
+.social-icons svg {
+  width: 24px;
+  max-width: 24px;
+  height: 24px;
+}
+.whatsapp-icon-img{
+  width: 24px;
+  max-width: 24px;
+  height: 24px;
+}
+
+/* Estilo geral para títulos e listas de links */
+.footer-column h5 {
+  color: var(--footer-title);
+  font-size: 1rem;
+  font-weight: 600;
+  margin-bottom: 1.5rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.footer-links {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.footer-links li {
+  margin-bottom: 0.75rem;
+  /* O CRECI ou endereços não são links, então precisam da cor aqui */
+  color: var(--footer-text); 
+}
+
+.footer-links a {
+  color: var(--footer-text);
+  text-decoration: none;
+  transition: color 0.3s ease;
+}
+
+.footer-links a:hover {
+  color: var(--footer-accent);
+}
+
+/* Barra inferior (Copyright) */
+.footer-bottom-bar {
+  border-top: 1px solid var(--footer-border);
+  padding: 1.5rem 0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 1rem;
+  font-size: 0.85rem;
+}
+
+.footer-bottom-bar p {
+  margin: 0;
+}
+
+.footer-bottom-bar a {
+  color: var(--footer-title);
+  text-decoration: none;
+  font-weight: 600;
+}
+.footer-bottom-bar a:hover {
+    color: var(--footer-accent);
+}
+
+
+/* --- RESPONSIVIDADE --- */
+@media (max-width: 768px) {
+  .footer-main {
+    /* No mobile, as colunas ficam uma sobre a outra */
+    flex-direction: column;
+    align-items: flex-start; /* Alinha tudo à esquerda */
+  }
+
+  .footer-column {
+    min-width: 100%; /* Ocupa toda a largura */
+  }
+
+  .footer-bottom-bar {
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+  }
+}

@@ -1,0 +1,23 @@
+version: '3.8'
+
+services:
+
+  backend:
+    build:
+      context: ./back-end
+      dockerfile: Dockerfile
+    container_name: meu-backend
+    ports:
+      - "5000:5000"  # ajuste conforme necessário
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./front-end
+      dockerfile: Dockerfile
+    container_name: meu-frontend
+    ports:
+      - "3000:3000"
+    restart: unless-stopped
+    depends_on:
+      - backend

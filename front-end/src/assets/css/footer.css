@@ -1,0 +1,27 @@
+footer {
+  background-color: #e1005b; /* já está aplicado corretamente */
+  color: #ffffff;
+  padding: 30px;
+  text-align: center;
+  font-size: 1rem;
+  border-top: 4px solid var(--primary-color);
+  box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.15);
+  transition: background-color 0.3s ease;
+}
+
+footer p {
+  margin: 5px 0;
+  font-size: 1rem;
+}
+
+footer a {
+  color: var(--accent-color);
+  text-decoration: none;
+  font-weight: bold;
+  transition: color 0.3s ease;
+}
+
+footer a:hover {
+  color: #ffffff;
+  text-decoration: underline;
+}
