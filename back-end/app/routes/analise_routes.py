@@ -73,7 +73,7 @@ class AnalisarImovelAluguel(Resource):
         nr_vagas = int(request.args.get('vagas')) if request.args.get('vagas') is not None else None
         metragem = int(request.args.get('metragem')) if request.args.get('metragem') is not None else None
         # 1) TENTA PRÉ-CALCULADO
-        pre = get_precomputed_result(tipo_imovel, bairro, nr_quartos, nr_cluster, oferta="Venda")
+        pre = get_precomputed_result(tipo_imovel, bairro, nr_quartos, nr_cluster, oferta="Aluguel")
         if pre:
             return jsonify(pre)
 
