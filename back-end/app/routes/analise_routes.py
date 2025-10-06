@@ -64,7 +64,7 @@ class AnalisarImovelAluguel(Resource):
         'vagas': {'description': 'Número de vagas de garagem', 'required': True, 'type': 'integer'},
         'metragem': {'description': 'Área do imóvel em m²', 'required': True, 'type': 'integer'}
     })
-    @cache.cached(timeout=3600, key_prefix=_make_cache_key)
+    # @cache.cached(timeout=3600, key_prefix=_make_cache_key)
     def get(self):
         tipo_imovel = request.args.get('tipoImovel')
         bairro = request.args.get('bairro')

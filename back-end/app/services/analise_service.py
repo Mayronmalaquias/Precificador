@@ -19,14 +19,11 @@ _PRECOMPUTED_MTIME = 0.0
 def _load_precomputed_if_needed():
     """Carrega o JSON de valores pré-definidos em memória (com hot-reload leve por mtime)."""
     global _PRECOMPUTED, _PRECOMPUTED_MTIME
-    print("passou aq")
     try:
         st = os.stat(PRECOMPUTED_PATH)
         if st.st_mtime != _PRECOMPUTED_MTIME:
-            print("chegou aqui")
             with open(PRECOMPUTED_PATH, "r", encoding="utf-8") as f:
                 _PRECOMPUTED = json.load(f) or {}
-                print(_PRECOMPUTED)
             _PRECOMPUTED_MTIME = st.st_mtime
     except FileNotFoundError:
         print("erro")
