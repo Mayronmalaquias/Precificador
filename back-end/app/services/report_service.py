@@ -496,15 +496,16 @@ def _rows_avaliacao_para_visitas(visita_ids: Set[str]) -> List[Dict[str, str]]:
             out.append(r)
     return out
 
-def _per_registro_medias_e_cols_via_visitas(codigo: str) -> Tuple[List[float], List[str], int]:
-    """Médias por registro de avaliação (linhas) associadas ao código via Id_Visita."""
+def _per_registro_medias_e_cols_via_visitas(codigo: str) -> Tuple[List[float], List[str], int, List[str]]:
+    """Médias por registro de avaliação (linhas) associadas ao código via Id_Visita,
+    retornando também o Id_Visita correspondente a cada média (na mesma ordem)."""
     log = _get_logger()
     load_bases()
 
     rows_aval = _AVAL_CACHE["rows"] or []
     headers_aval = _AVAL_CACHE["headers"] or []
     if not rows_aval or not headers_aval:
-        return [], [], 0
+        return [], [], 0, []
 
     visita_ids = _get_visita_ids_por_codigo(codigo)
     match_rows = _rows_avaliacao_para_visitas(visita_ids)
@@ -515,7 +516,11 @@ def _per_registro_medias_e_cols_via_visitas(codigo: str) -> Tuple[List[float], L
     if not cand_cols:
         cand_cols = _candidate_avaliacao_columns(headers_aval)
 
-    lista = []
+    # detectar coluna Id_Visita em Fato_Avaliacao
+    col_id_visita = _guess_column(headers_aval, ["Id_Visita", "id visita"], tokens_any=["visita"])
+
+    lista_medias: List[float] = []
+    ids_visita_por_registro: List[str] = []
     for r in match_rows:
         notas = []
         for c in cand_cols:
@@ -523,10 +528,15 @@ def _per_registro_medias_e_cols_via_visitas(codigo: str) -> Tuple[List[float], L
             if v not in (None, "") and _is_number(v):
                 notas.append(_to_float(v))
         if notas:
-            lista.append(float(np.nanmean(notas)))
+            lista_medias.append(float(np.nanmean(notas)))
+            # guarda o Id_Visita da mesma linha
+            if col_id_visita:
+                ids_visita_por_registro.append(_normalize_codigo(r.get(col_id_visita, "")))
+            else:
+                ids_visita_por_registro.append("")
 
-    log.info(f"[_per_registro_medias_e_cols_via_visitas] codigo={codigo} | match={match} | cols={cand_cols} | regs_com_nota={len(lista)}")
-    return lista, list(cand_cols), match
+    log.info(f"[_per_registro_medias_e_cols_via_visitas] codigo={codigo} | match={match} | cols={cand_cols} | regs_com_nota={len(lista_medias)}")
+    return lista_medias, list(cand_cols), match, ids_visita_por_registro
 
 def get_media_avaliacao_por_codigo(codigo: str) -> Optional[Tuple[float, int, List[float]]]:
     lista, _, _ = _per_registro_medias_e_cols_via_visitas(codigo)
@@ -713,20 +723,28 @@ def gerar_pdf_relatorio(rowdict: dict) -> bytes:
 
     # ===================== AVALIAÇÕES =====================
     try:
-        media_qtd_lista = get_media_avaliacao_por_codigo(str(codigo))
-        log.info(f"[PDF] codigo={codigo} | media_qtd_lista={media_qtd_lista}")
-        if media_qtd_lista:
-            media_geral, qtd, lista_medias = media_qtd_lista
-            if np.isfinite(media_geral) and qtd > 0:
+        # pega as médias e os Id_Visita na mesma ordem
+        lista_medias, _, qtd_match, ids_visita = _per_registro_medias_e_cols_via_visitas(str(codigo))
+        log.info(f"[PDF] codigo={codigo} | regs_com_nota={len(lista_medias)} | qtd_match={qtd_match}")
+
+        if lista_medias and len(lista_medias) > 0:
+            media_geral = float(np.nanmean(lista_medias))
+            if np.isfinite(media_geral):
                 pdf.chapter_title("Avaliações do imóvel")
                 pdf.set_font("Arial", "", 10)
                 pdf.set_text_color(50, 50, 50)
-                _safe_multicell(pdf, f"Base: {qtd} avaliação(ões) registrada(s) para as visitas deste imóvel.")
+                _safe_multicell(pdf, f"Base: {len(lista_medias)} avaliação(ões) registrada(s) para as visitas deste imóvel.")
                 pdf.set_text_color(0, 0, 0)
 
                 _safe_multicell(pdf, "Médias por avaliação (cada registro):", h=6, align="L")
-                rows = [("Avaliação #{}".format(i), m, 1) for i, m in enumerate(lista_medias, start=1)]
-                desenhar_tabela(pdf, rows, header=("Avaliação", "Média", "Qtd."), widths=(60, 30, 25))
+
+                # monta as linhas usando o Id_Visita
+                rows = []
+                for m, vid in zip(lista_medias, ids_visita):
+                    rotulo = f"Id_Visita {vid}" if vid else "Id_Visita (desconhecido)"
+                    rows.append((rotulo, m, 1))
+
+                desenhar_tabela(pdf, rows, header=("Avaliação (Id_Visita)", "Média", "Qtd."), widths=(60, 30, 25))
                 pdf.ln(2)
     except Exception as e:
         log.exception(f"[PDF] Erro na seção de avaliações: {e}")
