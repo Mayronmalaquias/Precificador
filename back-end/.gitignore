@@ -3,7 +3,9 @@
 
 # Arquivos de credenciais em qualquer pasta do projeto
 **/credenciais.json
-
+# Cache e arquivos compilados do Python
+__pycache__/
+*.pyc
 # Arquivos de dados pré-computados ou muito grandes
 **/precomputed_analise1.json
 **/precomputed_analise.json
