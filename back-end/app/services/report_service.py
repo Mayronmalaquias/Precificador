@@ -699,8 +699,9 @@ def desenhar_tabela(pdf: PDF, rows: List[Tuple[str, Optional[float], int]],
 
 def gerar_pdf_relatorio(rowdict: dict) -> bytes:
     log = _get_logger()
-    logo_file = current_app.config.get("LOGO_FILE", "../utils/asserts/img/Logo 61 Vazado (1).png")
+    logo_file = current_app.config.get("LOGO_FILE", "./app/utils/asserts/img/Logo 61 Vazado (1).png")
     pdf = PDF(logo_file=logo_file)
+    print(pdf)
     pdf.add_page()
 
     codigo = rowdict.get("Código do Imóvel", "") or rowdict.get("Codigo do Imovel", "") or rowdict.get("codigo_imovel", "")

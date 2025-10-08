@@ -1,0 +1,9 @@
+# Arquivos de ambiente - Contém senhas e chaves de API
+.env
+
+# Arquivos de credenciais em qualquer pasta do projeto
+**/credenciais.json
+
+# Arquivos de dados pré-computados ou muito grandes
+**/precomputed_analise1.json
+**/precomputed_analise.json
