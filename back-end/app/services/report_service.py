@@ -5,6 +5,7 @@ import time
 import logging
 import unicodedata
 import numpy as np
+import requests
 
 try:
     from googleapiclient.discovery import build
@@ -60,6 +61,239 @@ def _get_logger():
 
 
 # ===================== utils =====================
+# Valores padrão (podem ser sobrescritos via current_app.config)
+_DEFAULT_IMOVIEW_URL = "https://api.imoview.com.br/Imovel/RetornarDetalhesImovelDisponivel"
+_DEFAULT_IMOVIEW_CHAVE = "XPXUB/dZNtmGN9rFqDCM5tiyqibsGmT2JyynlWV0E7s="
+_DEFAULT_IMOVIEW_CODIGO_ACESSO = "6102"
+# Alguns endpoints usam nomes diferentes para o parâmetro do código; deixe configurável:
+_DEFAULT_IMOVIEW_PARAM_NAME = "codigo"   # tente "codigo", "codigoImovel", "codigo_imovel" conforme a sua API
+
+def _str_ok(x) -> str:
+    s = (x or "").strip()
+    return s
+
+def extrair_campos_chave_imoview(payload: dict) -> dict:
+    """
+    Do JSON do Imoview, retorna:
+      - Endereço completo
+      - Valor
+      - Bairro
+      - Metragem (área principal ou interna) com unidade
+    """
+    imv = (payload or {}).get("imovel") or payload or {}
+
+    # Partes do endereço
+    endereco     = _str_ok(imv.get("endereco"))
+    numero       = _str_ok(imv.get("numero"))
+    bloco        = _str_ok(imv.get("bloco"))
+    complemento  = _str_ok(imv.get("complemento"))
+    bairro       = _str_ok(imv.get("bairro"))
+    cidade       = _str_ok(imv.get("cidade"))
+    estado       = _str_ok(imv.get("estado"))
+    cep          = _str_ok(imv.get("cep"))
+
+    # Monta endereço completo de forma resiliente
+    partes1 = []
+    if endereco:
+        partes1.append(endereco)
+    if numero:
+        partes1.append(numero)  # mantém "S/N" se vier assim
+    if bloco:
+        partes1.append(f"Bloco {bloco}")
+    if complemento:
+        partes1.append(complemento)
+
+    linha1 = ", ".join(partes1)
+
+    partes2 = []
+    if bairro:
+        partes2.append(bairro)
+    if cidade or estado:
+        if cidade and estado:
+            partes2.append(f"{cidade}/{estado}")
+        elif cidade:
+            partes2.append(cidade)
+        else:
+            partes2.append(estado)
+    if cep:
+        partes2.append(f"CEP {cep}")
+
+    linha2 = " - ".join(partes2) if partes2 else ""
+
+    endereco_completo = linha1 if linha1 and not linha2 else (f"{linha1} - {linha2}" if linha1 else linha2)
+
+    # Valor
+    valor = _str_ok(imv.get("valor"))  # já vem formatado, ex.: "R$ 1.450.000,00"
+
+    # Metragem
+    area = _str_ok(imv.get("areaprincipal")) or _str_ok(imv.get("areainterna"))
+    unidade = _str_ok(imv.get("tipomedida")) or "m²"
+    metragem = f"{area} {unidade}".strip() if area else ""
+
+    return {
+        "Endereço completo": endereco_completo,
+        "Valor": valor,
+        "Bairro": bairro,
+        "Metragem": metragem,
+    }
+
+def render_campos_chave_imoview(pdf: FPDF, campos: dict, titulo: str = "Resumo (Imoview)"):
+    """Renderiza as 4 linhas no PDF."""
+    if not campos:
+        return
+    pdf.chapter_title(titulo)
+    pdf.set_font("Arial", "", 10)
+    pdf.set_text_color(50, 50, 50)
+    ordem = ["Endereço completo", "Valor", "Bairro", "Metragem"]
+    for k in ordem:
+        v = campos.get(k, "")
+        if not (k and v):
+            continue
+        if pdf.get_y() + 6 > pdf.page_break_trigger:
+            pdf.add_page()
+            pdf.set_font("Arial", "", 10)
+            pdf.set_text_color(50, 50, 50)
+        _safe_multicell(pdf, f"{latin1_safe(k)}: {latin1_safe(v)}", h=6, align="L")
+    pdf.set_text_color(0, 0, 0)
+    pdf.ln(2)
+
+
+
+def _imoview_get_config():
+    """Obtém configuração (URL, headers e nome do parâmetro) a partir do app.config com defaults."""
+    try:
+        url = current_app.config.get("IMOVIEW_URL", _DEFAULT_IMOVIEW_URL)
+        chave = current_app.config.get("IMOVIEW_CHAVE", _DEFAULT_IMOVIEW_CHAVE)
+        codigo_acesso = current_app.config.get("IMOVIEW_CODIGO_ACESSO", _DEFAULT_IMOVIEW_CODIGO_ACESSO)
+        param_name = current_app.config.get("IMOVIEW_PARAM_NAME", _DEFAULT_IMOVIEW_PARAM_NAME)
+    except Exception:
+        url = _DEFAULT_IMOVIEW_URL
+        chave = _DEFAULT_IMOVIEW_CHAVE
+        codigo_acesso = _DEFAULT_IMOVIEW_CODIGO_ACESSO
+        param_name = _DEFAULT_IMOVIEW_PARAM_NAME
+
+    headers = {
+        "chave": chave,
+        "codigoacesso": codigo_acesso
+    }
+    return url, headers, param_name
+
+
+def fetch_caracteristicas_imoview(codigo_imovel: str, timeout: float = 10.0) -> dict:
+    """
+    Chama a API Imoview para retornar detalhes/características do imóvel.
+    Tenta primeiro com o nome de parâmetro configurado; se falhar, tenta alguns nomes comuns.
+    Retorna um dicionário (já em JSON) ou {} se não houver dados.
+    """
+    log = _get_logger()
+    if not codigo_imovel:
+        return {}
+
+    url, headers, param_name = _imoview_get_config()
+
+    # Ordem de tentativas para o nome do parâmetro do código
+    candidate_params = [param_name]
+    for alt in ("codigo", "codigoImovel", "codigo_imovel", "Codigo", "CodigoImovel"):
+        if alt not in candidate_params:
+            candidate_params.append(alt)
+
+    last_err = None
+    for p in candidate_params:
+        try:
+            resp = requests.get(url, headers=headers, params={p: codigo_imovel}, timeout=timeout)
+            if resp.status_code == 200:
+                try:
+                    data = resp.json()
+                except Exception:
+                    # Se não vier JSON, tente texto simples
+                    data = {"raw": resp.text}
+                # Heurística simples: se vier uma estrutura com dados, retornamos
+                if isinstance(data, dict) and data:
+                    return data
+                if isinstance(data, list) and data:
+                    return {"items": data}
+                # Se 200 mas vazio, seguimos tentando outros param names
+            else:
+                # 4xx/5xx — salva log e tenta próxima variação de param
+                last_err = f"HTTP {resp.status_code} - {resp.text[:200]}"
+                log.warning(f"[Imoview] Falha com param '{p}': {last_err}")
+        except Exception as e:
+            last_err = str(e)
+            log.warning(f"[Imoview] Erro com param '{p}': {last_err}")
+
+    if last_err:
+        log.warning(f"[Imoview] Não foi possível obter dados do Imoview: {last_err}")
+    return {}
+
+
+def _flatten_for_lines(data, prefix: str = "") -> List[Tuple[str, str]]:
+    """
+    Achata dict/list para pares (chave, valor) planos, próprios para exibir no PDF.
+    - Normaliza chaves para títulos legíveis.
+    - Concatena listas simples numa linha só; listas/dicts aninhados viram múltiplas linhas.
+    """
+    out: List[Tuple[str, str]] = []
+
+    def nice_key(k):
+        k = str(k)
+        k = re.sub(r"[_\-]+", " ", k)
+        k = re.sub(r"\s+", " ", k).strip()
+        return k[:1].upper() + k[1:]
+
+    if isinstance(data, dict):
+        for k, v in data.items():
+            k2 = f"{prefix}{nice_key(k)}"
+            if isinstance(v, (dict, list)):
+                out.extend(_flatten_for_lines(v, prefix=f"{k2} / "))
+            else:
+                out.append((k2, "" if v is None else str(v)))
+    elif isinstance(data, list):
+        # Se for lista simples de textos/números, junte numa linha
+        if all(not isinstance(x, (dict, list)) for x in data):
+            joined = ", ".join("" if x is None else str(x) for x in data)
+            out.append((prefix[:-3] if prefix.endswith(" / ") else prefix, joined))
+        else:
+            # Lista mista/complexa: numere itens
+            for i, v in enumerate(data, start=1):
+                if isinstance(v, (dict, list)):
+                    out.extend(_flatten_for_lines(v, prefix=f"{prefix}{i}. "))
+                else:
+                    out.append((f"{prefix}{i}", "" if v is None else str(v)))
+    else:
+        out.append((prefix or "Valor", "" if data is None else str(data)))
+
+    return out
+
+
+def render_caracteristicas_imoview(pdf: FPDF, data: dict, titulo: str = "Características específicas (Imoview)"):
+    """
+    Escreve a seção de características no PDF em formato de lista 'Campo: Valor'.
+    Aplica latin1_safe e respeita quebras de página.
+    """
+    if not data:
+        return
+
+    pdf.chapter_title(titulo)
+    pdf.set_font("Arial", "", 10)
+    pdf.set_text_color(50, 50, 50)
+
+    linhas = _flatten_for_lines(data)
+    # Opcional: filtrar chaves muito genéricas ou técnicas
+    ignorar_prefixos = ("Raw",)  # ajuste conforme o payload real
+
+    for k, v in linhas:
+        if any(k.startswith(pref) for pref in ignorar_prefixos):
+            continue
+        item = f"{k}: {v}"
+        if pdf.get_y() + 6 > pdf.page_break_trigger:
+            pdf.add_page()
+            pdf.set_font("Arial", "", 10)
+            pdf.set_text_color(50, 50, 50)
+        _safe_multicell(pdf, item, h=6, align="L")
+
+    pdf.set_text_color(0, 0, 0)
+    pdf.ln(2)
+
 
 def num_or_zero(x):
     try:
@@ -452,6 +686,67 @@ def _detect_preco_n10_column(headers: List[str]) -> Optional[str]:
             return h
     return None
 
+# === NEW: mapas de Nota_Geral por Id_Visita ===
+def _detect_nota_geral_column(headers: List[str]) -> Optional[str]:
+    """
+    Tenta achar a coluna 'Nota_Geral' mesmo com variações como 'nota geral', 'nota-geral', etc.
+    """
+    norm = {h: _normalize_header_key(h) for h in headers}
+    # match exato normalizado
+    for h, n in norm.items():
+        if n == "nota_geral" or n == "nota geral":
+            return h
+    # tokens
+    for h, n in norm.items():
+        if "nota" in n and "geral" in n:
+            return h
+    # reforço caso haja cedilhas/acentos estranhos no header original
+    for h in headers:
+        n = _normalize_header_key(h.replace("ç","c").replace("Ç","C"))
+        if "nota" in n and "geral" in n:
+            return h
+    return None
+
+
+def _map_nota_geral_por_id_visita() -> Tuple[Dict[str, float], Optional[str]]:
+    """
+    Varre Fato_Avaliacao e devolve:
+      - dict { Id_Visita_normalizado -> Nota_Geral (float) } (primeira ocorrência)
+      - nome real da coluna Nota_Geral encontrada (ou None)
+    """
+    load_bases()
+    rows = _AVAL_CACHE["rows"] or []
+    headers = _AVAL_CACHE["headers"] or []
+    if not rows or not headers:
+        return {}, None
+
+    col_id_visita = _guess_column(headers, ["Id_Visita", "id visita"], tokens_any=["visita"])
+    col_nota = _detect_nota_geral_column(headers)
+    if not col_id_visita or not col_nota:
+        return {}, col_nota
+
+    out: Dict[str, float] = {}
+    for r in rows:
+        vid = _normalize_codigo(r.get(col_id_visita, ""))
+        v = r.get(col_nota, "")
+        if vid and v not in (None, "") and _is_number(v):
+            out.setdefault(vid, _to_float(v))  # mantém a primeira ocorrência
+    return out, col_nota
+
+
+def _nota_geral_para_ids(ids_visita: List[str]) -> List[Optional[float]]:
+    """
+    Retorna a Nota_Geral correspondente a cada Id_Visita (ou None se ausente),
+    preservando a ordem dos ids.
+    """
+    mapa, _ = _map_nota_geral_por_id_visita()
+    vals: List[Optional[float]] = []
+    for vid in ids_visita:
+        vals.append(mapa.get(_normalize_codigo(vid)) if vid else None)
+    return vals
+
+
+
 
 # ===================== AGREGADORES (agora via Id_Visita) =====================
 
@@ -642,6 +937,47 @@ class PDF(FPDF, HTMLMixin):
         self.cell(0, 10, txt, 0, 0, 'C')
         self.set_text_color(0, 0, 0)
 
+    def draw_observations_box(self, title="Observações", min_height=70, lines=8):
+        """
+        Desenha uma seção com título e uma caixa com linhas para preenchimento manual.
+        min_height: altura mínima da caixa (mm).
+        lines: quantidade de linhas internas de apoio (marcas horizontais claras).
+        """
+        # Garante espaço na página (quebra se necessário)
+        if self.get_y() + min_height + 14 > self.page_break_trigger:
+            self.add_page()
+
+        # Título da seção (reaproveita o estilo dos capítulos)
+        self.chapter_title(title)
+
+        x = self.l_margin
+        y = self.get_y()
+        w = self.w - self.l_margin - self.r_margin
+        h = min_height
+
+        # Ajuste final de quebra se a caixa ultrapassar
+        if y + h > self.page_break_trigger:
+            self.add_page()
+            y = self.get_y()
+
+        # Moldura da caixa
+        self.set_draw_color(0, 0, 0)
+        self.set_line_width(0.2)
+        self.rect(x, y, w, h)
+
+        # Linhas internas (cinza claro)
+        self.set_draw_color(200, 200, 200)
+        if lines and lines > 1:
+            gap = h / lines
+            for i in range(1, lines):
+                yy = y + i * gap
+                # pequena margem interna para a linha não encostar na borda
+                self.line(x + 2, yy, x + w - 2, yy)
+
+        # Restaura cor padrão e “avança” o cursor após a caixa
+        self.set_draw_color(0, 0, 0)
+        self.set_y(y + h + 2)
+
     def chapter_title(self, title):
         self.ln(2)
         self.set_font('Arial', 'B', 12)
@@ -711,7 +1047,6 @@ def gerar_pdf_relatorio(rowdict: dict) -> bytes:
     log = _get_logger()
     logo_file = current_app.config.get("LOGO_FILE", "./app/utils/asserts/img/Logo 61 Vazado (1).png")
     pdf = PDF(logo_file=logo_file)
-    print(pdf)
     pdf.add_page()
 
     codigo = rowdict.get("Código do Imóvel", "") or rowdict.get("Codigo do Imovel", "") or rowdict.get("codigo_imovel", "")
@@ -720,6 +1055,21 @@ def gerar_pdf_relatorio(rowdict: dict) -> bytes:
     pdf.set_x(pdf.l_margin)
     pdf.cell(pdf.w - pdf.l_margin - pdf.r_margin, 8, titulo, 0, 1, "C")
     pdf.ln(2)
+
+    # ===================== CARACTERÍSTICAS ESPECÍFICAS (IMOVIEW) =====================
+    try:
+        carac = fetch_caracteristicas_imoview(str(codigo))
+        if carac:
+            # Seção resumida com os 4 campos pedidos
+            campos = extrair_campos_chave_imoview(carac)
+            render_campos_chave_imoview(pdf, campos, titulo="Características principais (Imoview)")
+
+            # (Opcional) Se quiser manter a seção detalhada, deixe a linha abaixo:
+            # render_caracteristicas_imoview(pdf, carac, titulo="Características específicas (Imoview)")
+        else:
+            pass
+    except Exception as e:
+        log.exception(f"[PDF] Erro ao obter/renderizar características do Imoview: {e}")
 
     # ===================== AVALIAÇÕES =====================
     try:
@@ -739,12 +1089,19 @@ def gerar_pdf_relatorio(rowdict: dict) -> bytes:
                 _safe_multicell(pdf, "Médias por avaliação (cada registro):", h=6, align="L")
 
                 # monta as linhas usando o Id_Visita
-                rows = []
-                for m, vid in zip(lista_medias, ids_visita):
-                    rotulo = f"Id_Visita {vid}" if vid else "Id_Visita (desconhecido)"
-                    rows.append((rotulo, m, 1))
+                # NEW: usar Nota_Geral do respectivo Id_Visita e renomear coluna para "Nota Final"
+                notas_gerais = _nota_geral_para_ids(ids_visita)
 
-                desenhar_tabela(pdf, rows, header=("Avaliação (Id_Visita)", "Média", "Qtd."), widths=(60, 30, 25))
+                rows = []
+                for vid, nota in zip(ids_visita, notas_gerais):
+                    rotulo = f"Id_Visita {vid}" if vid else "Id_Visita (desconhecido)"
+                    # desenhar_tabela já formata float e mostra "N/A" se None/NaN
+                    rows.append((rotulo, nota, 1))
+
+                desenhar_tabela(pdf, rows, header=("Avaliação (Id_Visita)", "Nota Final", "Qtd."), widths=(60, 30, 25))
+
+
+
                 pdf.ln(2)
     except Exception as e:
         log.exception(f"[PDF] Erro na seção de avaliações: {e}")
@@ -776,6 +1133,7 @@ def gerar_pdf_relatorio(rowdict: dict) -> bytes:
 
     pdf.set_text_color(0, 0, 0)
     pdf.ln(2)
+    pdf.draw_observations_box(title="Observações", min_height=70, lines=8)
 
     out = pdf.output(dest="S")
     if isinstance(out, str):
