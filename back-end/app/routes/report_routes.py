@@ -1,7 +1,7 @@
 # app/routes/report_routes.py
 from flask import request
 from flask_restx import Resource, Namespace
-from app.services.report_service import gerar_relatorio_imovel
+# from app.services.report_service import gerar_relatorio_imovel
 
 report_ns = Namespace(
     "relatorio_imovel",
