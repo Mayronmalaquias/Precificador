@@ -3,6 +3,7 @@
 
 # Arquivos de credenciais em qualquer pasta do projeto
 **/credenciais.json
+**/~$estudo.xlsx
 # Cache e arquivos compilados do Python
 __pycache__/
 *.pyc
