@@ -8,12 +8,14 @@ import Login from './components/Login';
 import ReporteImovel from './components/ReporteImovelWidget'
 import PrivateRoute from './auth/PrivateRoute';
 import PaginaPublica from './components/FormularioPublico';
+import FormVisita from './components/FormVisita';
 // em App.js ou Tabs.js
 import './assets/css/styles.css';
 import './assets/css/report.css';
 import './assets/css/map.css';
 import './assets/css/footer.css';
 import './assets/css/chat.css';
+import './assets/css/FormVisita.css'
 
 function App() {
   return (
@@ -36,6 +38,7 @@ function App() {
             />
             <Route path="/login" element={<Login />} />
             <Route path="/verificarImovel" element={<ReporteImovel />} />
+            <Route path="/enviarVisita" element={<FormVisita />} />
           </Routes>
         </main>
         <Footer />
