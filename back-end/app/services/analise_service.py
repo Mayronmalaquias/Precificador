@@ -62,6 +62,12 @@ def get_precomputed_result(tipo_imovel, bairro, quartos, nr_cluster, oferta):
             metragem=None  # Ajuste conforme necessário
         )
         
+        # Verifique se o índice existe
+        # if nr_cluster < len(resultado['venda']):
+        #     val = resultado['venda'][nr_cluster]
+        # else:
+        #     print(f"Erro: nr_cluster ({nr_cluster}) fora do alcance para 'venda'. Tamanho da lista: {len(resultado['venda'])}")
+  
         # Exemplo de estrutura de retorno
         if oferta == "Venda":
             val = resultado['venda'][nr_cluster]
@@ -186,6 +192,8 @@ def clusterizar_dados(df, valor_coluna, oferta_tipo, n_clusters=9, metragem=None
 @cache.memoize(timeout=3600)
 def _analisar_imovel_detalhado_cached(cache_token, tipo_imovel=None, bairro=None, cidade=None, cep=None, vaga_garagem=None, quadra=None, quartos=None, metragem=None):
     df = carregar_dados_df()
+    # print(len(df))
+    # print(df.head())
 
     # (… toda a sua lógica de filtros e de expansão de janela de metragem …)
     # Mantida exatamente como você já tinha:
@@ -193,22 +201,34 @@ def _analisar_imovel_detalhado_cached(cache_token, tipo_imovel=None, bairro=None
     filtro = pd.Series(True, index=df.index)
     if tipo_imovel:
         filtro &= (df["tipo"] == tipo_imovel)
+    # print(len(filtro))
+
     if bairro:
         if bairro == "Águas Claras":
             bairro_aguas = ["NORTE", "SUL"]
             filtro &= (df['bairro'].isin(bairro_aguas))
         else:
             filtro &= (df["bairro"] == bairro)
+    # print(len(filtro))
     if cidade:
         filtro &= (df["cidade"] == cidade)
+    # print(len(filtro))
+
     if cep:
         filtro &= (df["cep"] == cep)
+    # print(len(filtro))
+
     if vaga_garagem is not None:
         filtro &= (df["vagas"].notnull() if vaga_garagem else df["vagas"].isnull())
+    # print(len(filtro))
+
     if quadra:
         filtro &= (df["quadra"] == quadra)
+    # print(len(filtro))
+
     if quartos:
         filtro &= (df["quartos"] == quartos if (quartos < 4) else df["quartos"] >= quartos)
+    # print(len(filtro))
 
     if metragem:
         micro_filtro = filtro.copy()
@@ -343,7 +363,7 @@ def carregar_dados_do_banco():
     Session = sessionmaker(bind=engine)
     session = Session()
     hoje = date.today()
-    uma_semana_atras = hoje - timedelta(days=90)
+    uma_semana_atras = hoje - timedelta(days=150)
     imoveis = session.query(Imovel).all()
     dados = [{
         "id":i.id,
@@ -370,7 +390,7 @@ def carregar_dados_df():
     Session = sessionmaker(bind=engine)
     session = Session()
     hoje = date.today()
-    uma_semana_atras = hoje - timedelta(days=90)
+    uma_semana_atras = hoje - timedelta(days=150)
     imoveis = session.query(Imovel).filter(Imovel.data_coleta >= uma_semana_atras).all()
     dados = [{
         "id": i.id,

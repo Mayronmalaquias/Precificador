@@ -9,6 +9,7 @@ import ReporteImovel from './components/ReporteImovelWidget'
 import PrivateRoute from './auth/PrivateRoute';
 import PaginaPublica from './components/FormularioPublico';
 import FormVisita from './components/FormVisita';
+import AppVisita from './components/FormVisitaApp';
 // em App.js ou Tabs.js
 import './assets/css/styles.css';
 import './assets/css/report.css';
@@ -39,6 +40,7 @@ function App() {
             <Route path="/login" element={<Login />} />
             <Route path="/verificarImovel" element={<ReporteImovel />} />
             <Route path="/enviarVisita" element={<FormVisita />} />
+            <Route path="/AppVisita" element={<AppVisita />} />
           </Routes>
         </main>
         <Footer />

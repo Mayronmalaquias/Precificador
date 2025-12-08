@@ -61,8 +61,9 @@ class LoginUsuario(Resource):
         usuario = login(username, password)
 
         if usuario:
-            # monta o objeto "usuario" que o front vai guardar
-            usuario_json = {
+            # objeto que o front vai guardar
+            user_json = {
+                "id": usuario.id,
                 "username": usuario.username,
                 "team": usuario.team,
                 "nome": usuario.nome,
@@ -72,10 +73,12 @@ class LoginUsuario(Resource):
                 "descricao": usuario.descricao,
             }
 
-            return jsonify({
-                'login': True,
-                'message': 'Login realizado com sucesso',
-                'usuario': usuario_json
-            })
+            # ATENÇÃO: SEM jsonify AQUI
+            return {
+                "login": True,
+                "message": "Login realizado com sucesso",
+                "user": user_json
+            }, 200
         else:
-            return {'error': 'Usuário ou senha incorretos'}, 401
+            return {"error": "Usuário ou senha incorretos"}, 401
+

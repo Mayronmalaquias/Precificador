@@ -1,5 +1,7 @@
 // Header.js
 import { NavLink, useNavigate } from 'react-router-dom'; // Alterado Link para NavLink
+import '../assets/css/Header.css';
+
 
 function Header() {
   const navigate = useNavigate();

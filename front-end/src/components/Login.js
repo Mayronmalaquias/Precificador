@@ -12,7 +12,7 @@ function Login() {
     e.preventDefault();
 
     try {
-      const response = await fetch('/api/auth/login', {
+      const response = await fetch('http://localhost:5000/auth/login', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -28,6 +28,12 @@ function Login() {
 
       if (response.ok && data.login === true) {
         localStorage.setItem('auth', 'true');
+        
+        if (data.user) {
+            // Assumimos que 'data.user' contém nome, telefone, instagram, descricao, etc.
+            localStorage.setItem('userData', JSON.stringify(data.user));
+        }
+
         navigate('/interno');
       } else {
         alert(data.error || 'Credenciais inválidas');
