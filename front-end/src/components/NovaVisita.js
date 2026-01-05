@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from "react";
 import "../assets/css/VisitaForm.css";
 
-const API_BASE = "/api/visitas";
+const API_BASE = "http://172.19.50.26/visitas";
 
 export default function VisitaForm() {
   const [corretorInfo, setCorretorInfo] = useState({
@@ -11,6 +11,7 @@ export default function VisitaForm() {
     telefone: "",
     instagram: "",
     descricao: "",
+    email: "",
   });
 
   const [form, setForm] = useState({
@@ -48,6 +49,7 @@ export default function VisitaForm() {
           telefone: userData.telefone || "",
           instagram: userData.instagram || "",
           descricao: userData.descricao || "",
+          email: userData.email || "",
         });
       } catch (e) {
         console.error("Erro ao ler userData do localStorage", e);
@@ -87,6 +89,7 @@ export default function VisitaForm() {
         ...form,
         // dados do corretor
         corretor: corretorInfo.nome || corretorInfo.username,
+        corretorEmail: corretorInfo.email || "",
         telefoneCorretor: corretorInfo.telefone,
         instagramCorretor: corretorInfo.instagram,
         descricaoCorretor: corretorInfo.descricao,

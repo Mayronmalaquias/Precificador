@@ -12,7 +12,7 @@ function Login() {
     e.preventDefault();
 
     try {
-      const response = await fetch('/api/auth/login', {
+      const response = await fetch('http://172.19.50.25/auth/login', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'

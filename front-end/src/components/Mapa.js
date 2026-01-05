@@ -29,7 +29,7 @@ function Mapa() {
 
     console.log("Mapa.js: carregarMapa chamada com:", { tipo, tamanho, cluster }); // Log para debug
     setCarregandoMapa(true);
-    const mapurl = `/api/mapa/carregar?tipo=${tipo}&cluster=${cluster}&tamanho=${tamanho}`;
+    const mapurl = `http://172.19.50.26/mapa/carregar?tipo=${tipo}&cluster=${cluster}&tamanho=${tamanho}`;
     fetch(mapurl)
       .then((res) => res.text())
       .then(setMapaHtml)
@@ -49,8 +49,8 @@ function Mapa() {
     // Adicionar setCarregandoDados(true/false) se esta função realmente fizer algo demorado.
 
     const { tipoImovel, bairro, quartos, vagas, metragem, nrCluster } = formData;
-    const url = `/api/imovel/venda?tipoImovel=${tipoImovel}&bairro=${bairro}&quartos=${quartos}&vagas=${vagas}&metragem=${metragem}&nrCluster=${nrCluster}`;
-    const url2 = `/api/imovel/aluguel?tipoImovel=${tipoImovel}&bairro=${bairro}&quartos=${quartos}&vagas=${vagas}&metragem=${metragem}&nrCluster=${nrCluster}`;
+    const url = `http://172.19.50.26/imovel/venda?tipoImovel=${tipoImovel}&bairro=${bairro}&quartos=${quartos}&vagas=${vagas}&metragem=${metragem}&nrCluster=${nrCluster}`;
+    const url2 = `http://172.19.50.26/imovel/aluguel?tipoImovel=${tipoImovel}&bairro=${bairro}&quartos=${quartos}&vagas=${vagas}&metragem=${metragem}&nrCluster=${nrCluster}`;
 
     // Exemplo de como as chamadas fetch poderiam ser (ajuste conforme sua necessidade)
     fetch(url)

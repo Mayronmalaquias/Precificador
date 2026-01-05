@@ -28,12 +28,12 @@ def create_app():
     api = Api(app, version='1.0', title='API Imobiliária', description='API para análise e mapeamento de imóveis', doc='/docs')
 
     from app.routes.analise_routes import analise_ns
-    from app.routes.mapa_routes import mapa_ns
+    # from app.routes.mapa_routes import mapa_ns
     from app.routes.auth_routes import auth_ns
     from app.routes.graph_routes import graph_ns
     from app.routes.report_routes import report_ns
     from app.routes.visita_routes import visita_ns
-    api.add_namespace(mapa_ns, path='/')
+    # api.add_namespace(mapa_ns, path='/')
     api.add_namespace(analise_ns, path='/')
     api.add_namespace(auth_ns, path='/' )
     api.add_namespace(graph_ns, path='/')
