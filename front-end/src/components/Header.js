@@ -30,6 +30,12 @@ function Header() {
             <NavLink to="/interno" className={getNavLinkClass}>
               Acessar Página
             </NavLink>
+            <NavLink to="/NovaVisita" className={getNavLinkClass}>
+              Criar Visita
+            </NavLink>
+            <NavLink to="/AppVisita" className={getNavLinkClass}>
+              Relatorio de Visita
+            </NavLink>
             {' | '}
             <button onClick={handleLogout} className="logout-button">Sair</button> {/* Adicionada classe para estilização específica se necessário */}
           </>

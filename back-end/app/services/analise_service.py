@@ -390,7 +390,7 @@ def carregar_dados_df():
     Session = sessionmaker(bind=engine)
     session = Session()
     hoje = date.today()
-    uma_semana_atras = hoje - timedelta(days=150)
+    uma_semana_atras = hoje - timedelta(days=360)
     imoveis = session.query(Imovel).filter(Imovel.data_coleta >= uma_semana_atras).all()
     dados = [{
         "id": i.id,
