@@ -3,7 +3,7 @@ import React, { useMemo, useState } from "react";
 import "../assets/css/ReporteImovelWidget.css"; // importe o CSS abaixo
 
 export default function LinkReporteImovel({
-  baseUrl = "http://52.67.252.192:5000/reporteImovel",
+  baseUrl = "http://52.67.252.192/reporteImovel",
   paramName = "codigo",
   autoFocus = true,
 }) {

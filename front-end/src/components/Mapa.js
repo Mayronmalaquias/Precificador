@@ -49,8 +49,8 @@ function Mapa() {
     // Adicionar setCarregandoDados(true/false) se esta função realmente fizer algo demorado.
 
     const { tipoImovel, bairro, quartos, vagas, metragem, nrCluster } = formData;
-    const url = `http://52.67.252.192:5000/imovel/venda?tipoImovel=${tipoImovel}&bairro=${bairro}&quartos=${quartos}&vagas=${vagas}&metragem=${metragem}&nrCluster=${nrCluster}`;
-    const url2 = `http://52.67.252.192:5000/imovel/aluguel?tipoImovel=${tipoImovel}&bairro=${bairro}&quartos=${quartos}&vagas=${vagas}&metragem=${metragem}&nrCluster=${nrCluster}`;
+    const url = `http://52.67.252.192/imovel/venda?tipoImovel=${tipoImovel}&bairro=${bairro}&quartos=${quartos}&vagas=${vagas}&metragem=${metragem}&nrCluster=${nrCluster}`;
+    const url2 = `http://52.67.252.192/imovel/aluguel?tipoImovel=${tipoImovel}&bairro=${bairro}&quartos=${quartos}&vagas=${vagas}&metragem=${metragem}&nrCluster=${nrCluster}`;
 
     // Exemplo de como as chamadas fetch poderiam ser (ajuste conforme sua necessidade)
     fetch(url)
