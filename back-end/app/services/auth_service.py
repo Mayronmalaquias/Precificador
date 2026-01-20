@@ -4,7 +4,8 @@ from app.models.usuarios import Usuarios
 
 def cadastrar_usuario(username, password, team,
                       nome=None, email=None, telefone=None,
-                      instagram=None, descricao=None):
+                      instagram=None, descricao=None, 
+                      id_usuarios=None, permissao=None): # Corrigido aqui: id_usuarios
     session = SessionLocal()
     hashed_pw = generate_password_hash(password)
 
@@ -16,7 +17,9 @@ def cadastrar_usuario(username, password, team,
         email=email,
         telefone=telefone,
         instagram=instagram,
-        descricao=descricao
+        descricao=descricao,
+        id_usuarios = id_usuarios, # Corrigido aqui: id_usuarios
+        permissao = permissao
     )
 
     session.add(usuario)

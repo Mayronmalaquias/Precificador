@@ -14,5 +14,7 @@ class Usuarios(Base):
     telefone  = Column(String(20), nullable=True)
     instagram = Column(String(100), nullable=True)
     descricao = Column(Text, nullable=True)
+    permissao = Column(String(20))
+    id_usuarios = Column(String(50))
 
 

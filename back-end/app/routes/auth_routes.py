@@ -22,6 +22,9 @@ class CadastroUsuario(Resource):
         telefone  = data.get('telefone')
         instagram = data.get('instagram')
         descricao = data.get('descricao')
+        id_usuarios = data.get('id_usuarios')
+        permissao = data.get('permissao')
+
 
         # validações básicas
         if not all([username, password, team]):
@@ -40,7 +43,9 @@ class CadastroUsuario(Resource):
             email=email,
             telefone=telefone,
             instagram=instagram,
-            descricao=descricao
+            descricao=descricao,
+            id_usuarios = id_usuarios,
+            permissao = permissao
         )
         return {'message': 'Usuário cadastrado com sucesso'}, 201
 
@@ -71,6 +76,8 @@ class LoginUsuario(Resource):
                 "telefone": usuario.telefone,
                 "instagram": usuario.instagram,
                 "descricao": usuario.descricao,
+                "permissao": usuario.permissao,
+                "id_usuarios": usuario.id_usuarios
             }
 
             # ATENÇÃO: SEM jsonify AQUI

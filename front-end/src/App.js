@@ -5,6 +5,7 @@ import Header from './components/Header';
 import Footer from './components/Footer';
 import Tabs from './components/Tabs';
 import Login from './components/Login';
+import Register from './components/Register';
 import ReporteImovel from './components/ReporteImovelWidget'
 import PrivateRoute from './auth/PrivateRoute';
 import PaginaPublica from './components/FormularioPublico';
@@ -39,6 +40,7 @@ function App() {
               }
             />
             <Route path="/login" element={<Login />} />
+            <Route path="/register" element={<Register />} />
             <Route path="/verificarImovel" element={<ReporteImovel />} />
             <Route path="/enviarVisita" element={<FormVisita />} />
             <Route path="/AppVisita" element={<AppVisita />} />
