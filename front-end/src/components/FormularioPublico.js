@@ -186,28 +186,28 @@ const buscarDados = useCallback(() => {
       });
 }, [formData]);
 
-  // Envolver carregarMapa com useCallback
-  const carregarMapa = useCallback(() => {
-    // Se mapSelectorRef ou mapOptionRef não estiverem no JSX ainda, você pode
-    // definir valores padrão ou buscar de formData se for o caso.
-    const tipo = mapSelectorRef.current?.value || 'mapaAnuncio';
-    const cluster = formData.nrCluster || '5'; // Usar formData para nrCluster
-    const tamanho = mapOptionRef.current?.value || 'mapaCluster';
+  // // Envolver carregarMapa com useCallback
+  // const carregarMapa = useCallback(() => {
+  //   // Se mapSelectorRef ou mapOptionRef não estiverem no JSX ainda, você pode
+  //   // definir valores padrão ou buscar de formData se for o caso.
+  //   const tipo = mapSelectorRef.current?.value || 'mapaAnuncio';
+  //   const cluster = formData.nrCluster || '5'; // Usar formData para nrCluster
+  //   const tamanho = mapOptionRef.current?.value || 'mapaCluster';
 
-    console.log("carregarMapa chamada com tipo:", tipo, "cluster:", cluster, "tamanho:", tamanho);
-    setCarregandoMapa(true);
+  //   console.log("carregarMapa chamada com tipo:", tipo, "cluster:", cluster, "tamanho:", tamanho);
+  //   setCarregandoMapa(true);
 
-    // Ajuste a URL conforme necessário, por exemplo, para localhost ou prefixo http://52.67.252.192
-    fetch(`http://52.67.252.192/carregar_mapa?tipo=${tipo}&cluster=${cluster}&tamanho=${tamanho}`)
-      .then(res => res.text())
-      .then(html => setMapaHtml(html))
-      .catch(err => {
-        console.error('Erro ao carregar o mapa:', err);
-        // Removido o alert para melhor UX, erro já é logado.
-        // Considere mostrar o erro na UI se for crítico.
-      })
-      .finally(() => setCarregandoMapa(false));
-  }, [formData.nrCluster]); // Depende de nrCluster do formData e dos refs (que não causam re-run do useCallback)
+  //   // Ajuste a URL conforme necessário, por exemplo, para localhost ou prefixo http://52.67.252.192
+  //   fetch(`http://52.67.252.192/carregar_mapa?tipo=${tipo}&cluster=${cluster}&tamanho=${tamanho}`)
+  //     .then(res => res.text())
+  //     .then(html => setMapaHtml(html))
+  //     .catch(err => {
+  //       console.error('Erro ao carregar o mapa:', err);
+  //       // Removido o alert para melhor UX, erro já é logado.
+  //       // Considere mostrar o erro na UI se for crítico.
+  //     })
+  //     .finally(() => setCarregandoMapa(false));
+  // }, [formData.nrCluster]); // Depende de nrCluster do formData e dos refs (que não causam re-run do useCallback)
 
   // REMOVER o useEffect que dispara com formData
   // useEffect(() => {
