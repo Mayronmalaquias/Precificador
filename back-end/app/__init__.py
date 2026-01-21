@@ -25,10 +25,10 @@ def create_app():
     CORS(
         app,
         resources={r"/*": {"origins": [
+            "http://15.228.241.137",
+            "http://15.228.241.137:3000",
             "http://localhost:3000",
             "http://127.0.0.1:3000",
-            "http://15.228.241.137:3000",
-            "https://inteligencia61imoveis.com.br"
         ]}},
     )
     
