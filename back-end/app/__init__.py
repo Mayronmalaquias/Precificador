@@ -22,7 +22,15 @@ def create_app():
 
     app.config.from_object(Config)
     cache.init_app(app)
-    CORS(app)
+    CORS(
+        app,
+        resources={r"/*": {"origins": [
+            "http://localhost:3000",
+            "http://127.0.0.1:3000",
+            "http://15.228.241.137:3000",
+            "https://inteligencia61imoveis.com.br"
+        ]}},
+    )
     
 
     api = Api(app, version='1.0', title='API Imobiliária', description='API para análise e mapeamento de imóveis', doc='/docs')
