@@ -220,7 +220,7 @@ const buscarDados = useCallback(() => {
   useEffect(() => {
     console.log("Componente FormularioAnalise montado. Carregando dados e mapa padrão...");
     buscarDados();
-    carregarMapa();
+    // carregarMapa();
     // buscarGrafico();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // Array VAZIO para rodar apenas na montagem inicial
@@ -233,7 +233,7 @@ const buscarDados = useCallback(() => {
   const handleAplicarFiltros = () => {
     console.log("Botão Aplicar Filtros clicado.");
     buscarDados();
-    carregarMapa(); // Mapa também é atualizado com os novos filtros
+    // carregarMapa(); // Mapa também é atualizado com os novos filtros
     // buscarGrafico();
   };
 
