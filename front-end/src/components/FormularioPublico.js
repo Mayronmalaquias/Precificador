@@ -82,7 +82,7 @@ const buscarGrafico = useCallback(() => {
   setGraficoLinha(''); // Limpa o gráfico anterior
 
   // A rota deve corresponder à definida no backend
-  const url = 'http://52.67.252.192/graph/graficoLinha'; 
+  const url = '/api/graph/graficoLinha'; 
 
   fetch(url)
       .then(async (res) => {
@@ -119,8 +119,8 @@ const buscarDados = useCallback(() => {
     setDadosAPI2(null);
 
     const { tipoImovel, bairro, quartos, vagas, metragem, nrCluster } = formData;
-    const url = `http://52.67.252.192/imovel/venda?tipoImovel=${tipoImovel}&bairro=${bairro}&quartos=${quartos}&vagas=${vagas}&metragem=${metragem}&nrCluster=${nrCluster}`;
-    const urlAluguelOriginal = `http://52.67.252.192/imovel/aluguel?tipoImovel=${tipoImovel}&bairro=${bairro}&quartos=${quartos}&vagas=${vagas}&metragem=${metragem}&nrCluster=${nrCluster}`;
+    const url = `/api/imovel/venda?tipoImovel=${tipoImovel}&bairro=${bairro}&quartos=${quartos}&vagas=${vagas}&metragem=${metragem}&nrCluster=${nrCluster}`;
+    const urlAluguelOriginal = `/api/imovel/aluguel?tipoImovel=${tipoImovel}&bairro=${bairro}&quartos=${quartos}&vagas=${vagas}&metragem=${metragem}&nrCluster=${nrCluster}`;
 
     // A requisição de Venda permanece a mesma
     const fetchVenda = fetch(url)
@@ -156,7 +156,7 @@ const buscarDados = useCallback(() => {
         console.warn('1ª tentativa de aluguel falhou. Tentando novamente com 0 quartos...', err.message);
 
         // Cria a nova URL com quartos=0
-        const urlAluguelRetry = `http://52.67.252.192/imovel/aluguel?tipoImovel=${tipoImovel}&bairro=${bairro}&quartos=0&vagas=${vagas}&metragem=${metragem}&nrCluster=${nrCluster}`;
+        const urlAluguelRetry = `/api/imovel/aluguel?tipoImovel=${tipoImovel}&bairro=${bairro}&quartos=0&vagas=${vagas}&metragem=${metragem}&nrCluster=${nrCluster}`;
         
         // Retorna a nova promessa de fetch para que o Promise.allSettled espere por ela
         return fetch(urlAluguelRetry)
