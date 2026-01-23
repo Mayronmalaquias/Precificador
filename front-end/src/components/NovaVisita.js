@@ -2,10 +2,13 @@
 import React, { useState, useEffect } from "react";
 import "../assets/css/VisitaForm.css";
 
-const API_BASE = "http://52.67.252.192/visitas";
+// const API_BASE = "/api/visitas";
+const API_BASE = "http://localhost:5000/visitas";
+
 
 export default function VisitaForm() {
   const [corretorInfo, setCorretorInfo] = useState({
+    id: "", // <- C61010 etc (vem do login)
     username: "",
     nome: "",
     telefone: "",
@@ -23,6 +26,14 @@ export default function VisitaForm() {
     proposta: "Talvez", // Sim / Não / Talvez
     papelVisita: "Interessado", // Comprador | Interessado
 
+    // campos extras (Sheets)
+    enderecoExterno: "",
+    idParceiro: "",
+    idClienteAssinante: "",
+    assinatura: "",
+    audioDescricaoClienteVisita: "",
+    linkAudio: "",
+
     // notas 1–10
     localizacao: 10,
     tamanho: 10,
@@ -35,6 +46,7 @@ export default function VisitaForm() {
     precoNota10: "", // número (R$)
   });
 
+  const [pdfFile, setPdfFile] = useState(null);
   const [loading, setLoading] = useState(false);
 
   // Carrega dados do usuário logado
@@ -43,7 +55,17 @@ export default function VisitaForm() {
     if (userDataString) {
       try {
         const userData = JSON.parse(userDataString);
+
+        const corretorId =
+          userData.idCorretor ||
+          userData.id_corretor ||
+          userData.codigoCorretor ||
+          userData.codigo ||
+          userData.id_usuarios ||
+          "";
+
         setCorretorInfo({
+          id: corretorId,
           username: userData.username || "",
           nome: userData.nome || "",
           telefone: userData.telefone || "",
@@ -75,24 +97,65 @@ export default function VisitaForm() {
     };
   }
 
+  async function uploadPdfIfAny({ idCorretor, imovelId, dataVisita }) {
+    if (!pdfFile) return { drivePath: "", driveLink: "" };
+
+    const fd = new FormData();
+    fd.append("file", pdfFile);
+    fd.append("idCorretor", idCorretor || "");
+    fd.append("imovelId", imovelId || "");
+    fd.append("dataVisita", dataVisita || "");
+
+    const resp = await fetch(`${API_BASE}/upload_pdf`, {
+      method: "POST",
+      body: fd,
+    });
+
+    const data = await resp.json().catch(() => ({}));
+    if (!resp.ok || !data.ok) {
+      throw new Error(data.error || "Erro ao enviar PDF");
+    }
+
+    return {
+      drivePath: data.drivePath || "",
+      driveLink: data.driveLink || "",
+    };
+  }
+
   async function handleSubmit(e) {
     e.preventDefault();
 
-    if (!corretorInfo.telefone) {
-      alert("Erro: telefone do corretor não carregado. Faça login novamente.");
+    if (!corretorInfo.id) {
+      alert("Erro: ID/Código do corretor não carregado. Faça login novamente.");
       return;
     }
 
     setLoading(true);
     try {
+      // 1) Upload do PDF (se houver)
+      const { drivePath, driveLink } = await uploadPdfIfAny({
+        idCorretor: corretorInfo.id,
+        imovelId: form.imovelId,
+        dataVisita: form.dataVisita,
+      });
+
+      // 2) Payload final (grava caminho + link no Sheets)
       const payload = {
         ...form,
+
+        idCorretor: corretorInfo.id,
+
+        // Campos do Sheets (E e H no seu modelo)
+        anexoFichaVisita: drivePath, // caminho estilo AppSheet (ex: Fato_Visitas_PDF/arquivo.pdf)
+        linkImagem: driveLink, // link webViewLink do Drive
+
         // dados do corretor
         corretor: corretorInfo.nome || corretorInfo.username,
         corretorEmail: corretorInfo.email || "",
         telefoneCorretor: corretorInfo.telefone,
         instagramCorretor: corretorInfo.instagram,
         descricaoCorretor: corretorInfo.descricao,
+
         avaliacoes: {
           localizacao: Number(form.localizacao),
           tamanho: Number(form.tamanho),
@@ -110,7 +173,7 @@ export default function VisitaForm() {
         body: JSON.stringify(payload),
       });
 
-      const data = await resp.json();
+      const data = await resp.json().catch(() => ({}));
 
       if (!resp.ok || !data.ok) {
         throw new Error(data.error || "Erro ao registrar visita");
@@ -125,16 +188,23 @@ export default function VisitaForm() {
         clienteNome: "",
         proposta: "Talvez",
         papelVisita: "Interessado",
+        enderecoExterno: "",
+        idParceiro: "",
+        idClienteAssinante: "",
+        assinatura: "",
+        audioDescricaoClienteVisita: "",
+        linkAudio: "",
+        precoNota10: "",
       }));
+      setPdfFile(null);
     } catch (err) {
       console.error(err);
-      alert(err.message);
+      alert(err.message || "Erro inesperado");
     } finally {
       setLoading(false);
     }
   }
 
-  // helper para renderizar os botões 1–10
   function renderNotaButtons(field) {
     const value = Number(form[field]);
     return (
@@ -167,7 +237,8 @@ export default function VisitaForm() {
         <div className="vf-group">
           <label>Corretor</label>
           <div className="vf-readonly">
-            {corretorInfo.nome || corretorInfo.username || "Não identificado"}
+            {(corretorInfo.id ? `${corretorInfo.id} - ` : "") +
+              (corretorInfo.nome || corretorInfo.username || "Não identificado")}
           </div>
         </div>
 
@@ -203,9 +274,7 @@ export default function VisitaForm() {
             <button
               type="button"
               className={`vf-toggle ${
-                form.situacaoImovel === "CAPTACAO_PROPRIA"
-                  ? "vf-toggle-active"
-                  : ""
+                form.situacaoImovel === "CAPTACAO_PROPRIA" ? "vf-toggle-active" : ""
               }`}
               onClick={setRadio("situacaoImovel", "CAPTACAO_PROPRIA")}
             >
@@ -214,9 +283,7 @@ export default function VisitaForm() {
             <button
               type="button"
               className={`vf-toggle ${
-                form.situacaoImovel === "CAPTACAO_PARCEIRO"
-                  ? "vf-toggle-active"
-                  : ""
+                form.situacaoImovel === "CAPTACAO_PARCEIRO" ? "vf-toggle-active" : ""
               }`}
               onClick={setRadio("situacaoImovel", "CAPTACAO_PARCEIRO")}
             >
@@ -225,9 +292,7 @@ export default function VisitaForm() {
             <button
               type="button"
               className={`vf-toggle ${
-                form.situacaoImovel === "IMOVEL_NAO_CAPTADO"
-                  ? "vf-toggle-active"
-                  : ""
+                form.situacaoImovel === "IMOVEL_NAO_CAPTADO" ? "vf-toggle-active" : ""
               }`}
               onClick={setRadio("situacaoImovel", "IMOVEL_NAO_CAPTADO")}
             >
@@ -250,15 +315,10 @@ export default function VisitaForm() {
 
         <div className="vf-group">
           <label>Data da Visita</label>
-          <input
-            type="date"
-            value={form.dataVisita}
-            onChange={updateField("dataVisita")}
-            required
-          />
+          <input type="date" value={form.dataVisita} onChange={updateField("dataVisita")} required />
         </div>
 
-        {/* Cliente na Visita */}
+        {/* Cliente */}
         <div className="vf-group">
           <label>Cliente na Visita</label>
           <input
@@ -278,9 +338,7 @@ export default function VisitaForm() {
               <button
                 key={opt}
                 type="button"
-                className={`vf-toggle ${
-                  form.proposta === opt ? "vf-toggle-active" : ""
-                }`}
+                className={`vf-toggle ${form.proposta === opt ? "vf-toggle-active" : ""}`}
                 onClick={setRadio("proposta", opt)}
               >
                 {opt}
@@ -289,7 +347,7 @@ export default function VisitaForm() {
           </div>
         </div>
 
-        {/* Notas 1–10 */}
+        {/* Avaliações */}
         <div className="vf-section-title">Avaliações (1 a 10)</div>
 
         <div className="vf-group">
@@ -327,7 +385,6 @@ export default function VisitaForm() {
           {renderNotaButtons("notaGeral")}
         </div>
 
-        {/* Preço Nota 10 */}
         <div className="vf-group">
           <label>Preço NOTA 10 (R$)</label>
           <input
@@ -346,23 +403,74 @@ export default function VisitaForm() {
           <div className="vf-toggle-row">
             <button
               type="button"
-              className={`vf-toggle ${
-                form.papelVisita === "Comprador" ? "vf-toggle-active" : ""
-              }`}
+              className={`vf-toggle ${form.papelVisita === "Comprador" ? "vf-toggle-active" : ""}`}
               onClick={setRadio("papelVisita", "Comprador")}
             >
               Comprador
             </button>
             <button
               type="button"
-              className={`vf-toggle ${
-                form.papelVisita === "Interessado" ? "vf-toggle-active" : ""
-              }`}
+              className={`vf-toggle ${form.papelVisita === "Interessado" ? "vf-toggle-active" : ""}`}
               onClick={setRadio("papelVisita", "Interessado")}
             >
               Interessado
             </button>
           </div>
+        </div>
+
+        {/* Campos adicionais */}
+        <div className="vf-section-title">Campos adicionais</div>
+
+        <div className="vf-group">
+          <label>Endereço Externo</label>
+          <input
+            type="text"
+            value={form.enderecoExterno}
+            onChange={updateField("enderecoExterno")}
+            placeholder="Ex: SHJB III Qd 07..."
+          />
+        </div>
+
+        <div className="vf-group">
+          <label>Id Parceiro</label>
+          <input
+            type="text"
+            value={form.idParceiro}
+            onChange={updateField("idParceiro")}
+            placeholder="Ex: P61001"
+          />
+        </div>
+
+        <div className="vf-group">
+          <label>Id Cliente Assinante</label>
+          <input
+            type="text"
+            value={form.idClienteAssinante}
+            onChange={updateField("idClienteAssinante")}
+            placeholder="Ex: CL001"
+          />
+        </div>
+
+        <div className="vf-group">
+          <label>Assinatura (texto / hash / base64)</label>
+          <input type="text" value={form.assinatura} onChange={updateField("assinatura")} />
+        </div>
+
+        <div className="vf-group">
+          <label>Áudio descrição (texto)</label>
+          <textarea value={form.audioDescricaoClienteVisita} onChange={updateField("audioDescricaoClienteVisita")} />
+        </div>
+
+        <div className="vf-group">
+          <label>Link Áudio</label>
+          <input type="text" value={form.linkAudio} onChange={updateField("linkAudio")} placeholder="https://..." />
+        </div>
+
+        {/* PDF */}
+        <div className="vf-section-title">Anexo (PDF)</div>
+        <div className="vf-group">
+          <label>Anexar ficha da visita (PDF)</label>
+          <input type="file" accept="application/pdf" onChange={(e) => setPdfFile(e.target.files?.[0] || null)} />
         </div>
 
         <button className="vf-submit" type="submit" disabled={loading}>
