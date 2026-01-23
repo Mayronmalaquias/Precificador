@@ -2,8 +2,8 @@
 import React, { useState, useEffect } from "react";
 import "../assets/css/VisitaForm.css";
 
-// const API_BASE = "/api/visitas";
-const API_BASE = "http://localhost:5000/visitas";
+const API_BASE = "/api/visitas";
+// const API_BASE = "http://localhost:5000/visitas";
 
 
 export default function VisitaForm() {
