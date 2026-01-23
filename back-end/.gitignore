@@ -11,3 +11,11 @@ __pycache__/
 # Arquivos de dados pré-computados ou muito grandes
 **/precomputed_analise1.json
 **/precomputed_analise.json
+# .gitignore
+**/__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.env
+venv/
+.vscode/
