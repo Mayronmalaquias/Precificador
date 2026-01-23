@@ -7,7 +7,7 @@ from app.services.visita_service import registrar_visita, upload_pdf_to_drive
 visita_ns = Namespace("visitas", description="Lançamento de visitas")
 
 
-@visita_ns.route("")
+@visita_ns.route("visitas")
 class LancaVisita(Resource):
     def post(self):
         payload = request.get_json() or {}
@@ -19,7 +19,7 @@ class LancaVisita(Resource):
             return {"ok": False, "error": str(e)}, 500
 
 
-@visita_ns.route("/upload_pdf")
+@visita_ns.route("/visitas/upload_pdf")
 class UploadPdf(Resource):
     def post(self):
         try:
