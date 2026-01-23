@@ -15,6 +15,7 @@ SessionLocal = sessionmaker(bind=engine)
 # Engine e Session global
 
 app = Flask(__name__)
+app.url_map.strict_slashes = False
 cache = Cache(app, config={'CACHE_TYPE': 'simple'})
 
 def create_app():
@@ -48,7 +49,7 @@ def create_app():
     api.add_namespace(auth_ns, path='/' )
     api.add_namespace(graph_ns, path='/')
     api.add_namespace(report_ns, path='/')
-    api.add_namespace(visita_ns, path='/visitas')
+    api.add_namespace(visita_ns, path='/')
 
 
     return app
