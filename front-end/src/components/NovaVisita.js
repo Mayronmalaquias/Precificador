@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from "react";
 import "../assets/css/VisitaForm.css";
 
-const API_BASE = "/api/visitas";
+const API_BASE = "http://56.124.51.158/visitas";
 // const API_BASE = "http://localhost:5000/visitas";
 
 
