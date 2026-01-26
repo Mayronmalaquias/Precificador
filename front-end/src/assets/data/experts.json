@@ -1,0 +1,316 @@
+{
+  "citiesOrder": ["Asa Sul", "Asa Norte", "Noroeste", "Sudoeste", "Lago Norte", "Lago Sul"],
+  "experts": [
+    {
+      "slug": "nay-andrade",
+      "name": "Nay Andrade",
+      "photo": "https://media.canva.com/v2/image-resize/format:PNG/height:800/quality:100/uri:ifs%3A%2F%2FM%2F9cff4b3c-101f-467b-87ce-4d5597f6e18e/watermark:F/width:800?csig=AAAAAAAAAAAAAAAAAAAAAMy5w_aT-yan91XzGTImAtNSooMTTNQUOb_-w8T2CNBu&exp=1769021521&osig=AAAAAAAAAAAAAAAAAAAAAKi_phCO1EvheCiIntfjxuuxFk9O2HVL3OlJ4v2QBPLZ&signer=media-rpc&x-canva-quality=screen",
+      "cities": ["Asa Sul"],
+      "roleTag": "Expert Asa Sul",
+      "bioShort": "Atuação focada em imóveis residenciais de alto padrão.",
+      "bioFull": "Texto completo da biografia.",
+      "contacts": {
+        "whatsapp": "5561999999999",
+        "instagram": "https://www.instagram.com/61imoveis/",
+        "email": "nay@61imoveis.com.br"
+      },
+      "properties": [
+        {
+          "title": "Apartamento 3 quartos - Asa Sul",
+          "url": "https://www.61imoveis.com/imovel/sqs-109-apartamento-reformado-e-nascente-em-andar-alto/11215",
+          "thumb": "https://cdn.imoview.com.br/61imoveis/Imoveis/11215/qb4t4-img-20251023-wa0022-1761230154.jpg?1761230406"
+        },
+        {
+          "title": "Apartamento 3 quartos - Asa Sul",
+          "url": "https://www.61imoveis.com/imovel/imobiliaria-asa-sul-apartamento-asa-sul-a-venda/10856",
+          "thumb": "https://cdn.imoview.com.br/61imoveis/Imoveis/10856/m5amv-whatsapp-image-2026-01-05-at-134906-13-1767631971.jpeg?1767635627"
+        },
+        {
+          "title": "Casa - Lago Norte",
+          "url": "https://inteligencia61imoveis.com.br/imovel/exemplo-3",
+          "thumb": "https://via.placeholder.com/640x420.png?text=Imovel+3"
+        },
+        {
+          "title": "Apartamento - Asa Sul",
+          "url": "https://inteligencia61imoveis.com.br/imovel/exemplo-4",
+          "thumb": "https://via.placeholder.com/640x420.png?text=Imovel+4"
+        },
+        {
+          "title": "Apartamento - Sudoeste",
+          "url": "https://inteligencia61imoveis.com.br/imovel/exemplo-5",
+          "thumb": "https://via.placeholder.com/640x420.png?text=Imovel+5"
+        },
+        {
+          "title": "Apartamento - Noroeste",
+          "url": "https://inteligencia61imoveis.com.br/imovel/exemplo-6",
+          "thumb": "https://via.placeholder.com/640x420.png?text=Imovel+6"
+        }
+      ]      
+    },
+    {
+      "slug": "bianca-pinhal",
+      "name": "Bianca Pinhal",
+      "photo": "https://media.canva.com/v2/image-resize/format:JPG/height:614/quality:92/uri:ifs%3A%2F%2FM%2Fc262d3c5-f2e1-4171-9dfe-f0346a4db1c9/watermark:F/width:644?csig=AAAAAAAAAAAAAAAAAAAAADh5cAw1XclQSsfpmLDDj-_XZGCJlPOdYivZoow7ZzPq&exp=1768947158&osig=AAAAAAAAAAAAAAAAAAAAAHW06L_VA0gPV7KPP62im6D8mNVySfX2UfORPzQEYzGz&signer=media-rpc&x-canva-quality=screen",
+      "cities": ["Asa Sul"],
+      "roleTag": "Expert Asa Sul",
+      "bioShort": "Especialista em imóveis da Asa Sul.",
+      "bioFull": "Texto completo da biografia.",
+      "contacts": {
+        "whatsapp": "5561999999999",
+        "instagram": "https://www.instagram.com/61imoveis/",
+        "email": "bianca@61imoveis.com.br"
+      },
+      "properties": []
+    },
+    {
+      "slug": "rafael-bastos",
+      "name": "Rafael Bastos",
+      "photo": "https://media.canva.com/v2/image-resize/format:PNG/height:800/quality:100/uri:ifs%3A%2F%2FM%2F1ba15e7e-2955-4fb7-b434-259147b8cd20/watermark:F/width:800?csig=AAAAAAAAAAAAAAAAAAAAAPnifag3WSNXYmOnjvXxCSjfeMRqBci48HK-873LjCv5&exp=1768947114&osig=AAAAAAAAAAAAAAAAAAAAAGrMkHa5Mxi-PipLmaTQR2BQY8yJD9ISnqv6G3R5gq00&signer=media-rpc&x-canva-quality=screen",
+      "cities": ["Asa Sul"],
+      "roleTag": "Expert Asa Sul",
+      "bioShort": "Consultoria completa em imóveis residenciais.",
+      "bioFull": "Texto completo da biografia.",
+      "contacts": {
+        "whatsapp": "5561999999999",
+        "instagram": "https://www.instagram.com/61imoveis/",
+        "email": "rafael@61imoveis.com.br"
+      },
+      "properties": []
+    },
+
+  
+    {
+      "slug": "ana-asa-norte",
+      "name": "Ana Martins",
+      "photo": "https://via.placeholder.com/800x533.png?text=Ana+Martins",
+      "cities": ["Asa Norte"],
+      "roleTag": "Expert Asa Norte",
+      "bioShort": "Especialista em imóveis da Asa Norte.",
+      "bioFull": "Texto completo da biografia.",
+      "contacts": {
+        "whatsapp": "5561999999999",
+        "instagram": "",
+        "email": "ana@61imoveis.com.br"
+      },
+      "properties": []
+    },
+    {
+      "slug": "bruno-asa-norte",
+      "name": "Bruno Silva",
+      "photo": "https://via.placeholder.com/800x533.png?text=Bruno+Silva",
+      "cities": ["Asa Norte"],
+      "roleTag": "Expert Asa Norte",
+      "bioShort": "Atuação focada na Asa Norte.",
+      "bioFull": "Texto completo da biografia.",
+      "contacts": {
+        "whatsapp": "5561999999999",
+        "instagram": "",
+        "email": "bruno@61imoveis.com.br"
+      },
+      "properties": []
+    },
+    {
+      "slug": "carla-asa-norte",
+      "name": "Carla Souza",
+      "photo": "https://via.placeholder.com/800x533.png?text=Carla+Souza",
+      "cities": ["Asa Norte"],
+      "roleTag": "Expert Asa Norte",
+      "bioShort": "Consultoria imobiliária personalizada.",
+      "bioFull": "Texto completo da biografia.",
+      "contacts": {
+        "whatsapp": "5561999999999",
+        "instagram": "",
+        "email": "carla@61imoveis.com.br"
+      },
+      "properties": []
+    },
+
+ 
+    {
+      "slug": "daniel-noroeste",
+      "name": "Daniel Rocha",
+      "photo": "https://via.placeholder.com/800x533.png?text=Daniel+Rocha",
+      "cities": ["Noroeste"],
+      "roleTag": "Expert Noroeste",
+      "bioShort": "Especialista em imóveis novos no Noroeste.",
+      "bioFull": "Texto completo da biografia.",
+      "contacts": {
+        "whatsapp": "5561999999999",
+        "instagram": "",
+        "email": "daniel@61imoveis.com.br"
+      },
+      "properties": []
+    },
+    {
+      "slug": "eduarda-noroeste",
+      "name": "Eduarda Lima",
+      "photo": "https://via.placeholder.com/800x533.png?text=Eduarda+Lima",
+      "cities": ["Noroeste"],
+      "roleTag": "Expert Noroeste",
+      "bioShort": "Atuação focada no bairro Noroeste.",
+      "bioFull": "Texto completo da biografia.",
+      "contacts": {
+        "whatsapp": "5561999999999",
+        "instagram": "",
+        "email": "eduarda@61imoveis.com.br"
+      },
+      "properties": []
+    },
+    {
+      "slug": "felipe-noroeste",
+      "name": "Felipe Costa",
+      "photo": "https://via.placeholder.com/800x533.png?text=Felipe+Costa",
+      "cities": ["Noroeste"],
+      "roleTag": "Expert Noroeste",
+      "bioShort": "Consultoria imobiliária completa.",
+      "bioFull": "Texto completo da biografia.",
+      "contacts": {
+        "whatsapp": "5561999999999",
+        "instagram": "",
+        "email": "felipe@61imoveis.com.br"
+      },
+      "properties": []
+    },
+
+ 
+    {
+      "slug": "gabriela-sudoeste",
+      "name": "Gabriela Pires",
+      "photo": "https://via.placeholder.com/800x533.png?text=Gabriela+Pires",
+      "cities": ["Sudoeste"],
+      "roleTag": "Expert Sudoeste",
+      "bioShort": "Especialista em imóveis do Sudoeste.",
+      "bioFull": "Texto completo da biografia.",
+      "contacts": {
+        "whatsapp": "5561999999999",
+        "instagram": "",
+        "email": "gabriela@61imoveis.com.br"
+      },
+      "properties": []
+    },
+    {
+      "slug": "henrique-sudoeste",
+      "name": "Henrique Alves",
+      "photo": "https://via.placeholder.com/800x533.png?text=Henrique+Alves",
+      "cities": ["Sudoeste"],
+      "roleTag": "Expert Sudoeste",
+      "bioShort": "Atuação focada no Sudoeste.",
+      "bioFull": "Texto completo da biografia.",
+      "contacts": {
+        "whatsapp": "5561999999999",
+        "instagram": "",
+        "email": "henrique@61imoveis.com.br"
+      },
+      "properties": []
+    },
+    {
+      "slug": "isabela-sudoeste",
+      "name": "Isabela Torres",
+      "photo": "https://via.placeholder.com/800x533.png?text=Isabela+Torres",
+      "cities": ["Sudoeste"],
+      "roleTag": "Expert Sudoeste",
+      "bioShort": "Consultoria personalizada.",
+      "bioFull": "Texto completo da biografia.",
+      "contacts": {
+        "whatsapp": "5561999999999",
+        "instagram": "",
+        "email": "isabela@61imoveis.com.br"
+      },
+      "properties": []
+    },
+
+
+    {
+      "slug": "joao-lago-norte",
+      "name": "João Ribeiro",
+      "photo": "https://via.placeholder.com/800x533.png?text=Joao+Ribeiro",
+      "cities": ["Lago Norte"],
+      "roleTag": "Expert Lago Norte",
+      "bioShort": "Especialista em casas no Lago Norte.",
+      "bioFull": "Texto completo da biografia.",
+      "contacts": {
+        "whatsapp": "5561999999999",
+        "instagram": "",
+        "email": "joao@61imoveis.com.br"
+      },
+      "properties": []
+    },
+    {
+      "slug": "karina-lago-norte",
+      "name": "Karina Mendes",
+      "photo": "https://via.placeholder.com/800x533.png?text=Karina+Mendes",
+      "cities": ["Lago Norte"],
+      "roleTag": "Expert Lago Norte",
+      "bioShort": "Atuação focada em alto padrão.",
+      "bioFull": "Texto completo da biografia.",
+      "contacts": {
+        "whatsapp": "5561999999999",
+        "instagram": "",
+        "email": "karina@61imoveis.com.br"
+      },
+      "properties": []
+    },
+    {
+      "slug": "lucas-lago-norte",
+      "name": "Lucas Ferreira",
+      "photo": "https://via.placeholder.com/800x533.png?text=Lucas+Ferreira",
+      "cities": ["Lago Norte"],
+      "roleTag": "Expert Lago Norte",
+      "bioShort": "Consultoria imobiliária no Lago Norte.",
+      "bioFull": "Texto completo da biografia.",
+      "contacts": {
+        "whatsapp": "5561999999999",
+        "instagram": "",
+        "email": "lucas@61imoveis.com.br"
+      },
+      "properties": []
+    },
+
+ 
+    {
+      "slug": "marina-lago-sul",
+      "name": "Marina Azevedo",
+      "photo": "https://via.placeholder.com/800x533.png?text=Marina+Azevedo",
+      "cities": ["Lago Sul"],
+      "roleTag": "Expert Lago Sul",
+      "bioShort": "Especialista em imóveis de alto padrão.",
+      "bioFull": "Texto completo da biografia.",
+      "contacts": {
+        "whatsapp": "5561999999999",
+        "instagram": "",
+        "email": "marina@61imoveis.com.br"
+      },
+      "properties": []
+    },
+    {
+      "slug": "nicolas-lago-sul",
+      "name": "Nicolas Barros",
+      "photo": "https://via.placeholder.com/800x533.png?text=Nicolas+Barros",
+      "cities": ["Lago Sul"],
+      "roleTag": "Expert Lago Sul",
+      "bioShort": "Atuação focada no Lago Sul.",
+      "bioFull": "Texto completo da biografia.",
+      "contacts": {
+        "whatsapp": "5561999999999",
+        "instagram": "",
+        "email": "nicolas@61imoveis.com.br"
+      },
+      "properties": []
+    },
+    {
+      "slug": "olivia-lago-sul",
+      "name": "Olívia Nogueira",
+      "photo": "https://via.placeholder.com/800x533.png?text=Olivia+Nogueira",
+      "cities": ["Lago Sul"],
+      "roleTag": "Expert Lago Sul",
+      "bioShort": "Consultoria imobiliária premium.",
+      "bioFull": "Texto completo da biografia.",
+      "contacts": {
+        "whatsapp": "5561999999999",
+        "instagram": "",
+        "email": "olivia@61imoveis.com.br"
+      },
+      "properties": []
+    }
+  ]
+}

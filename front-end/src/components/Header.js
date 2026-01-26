@@ -33,8 +33,8 @@ function Header() {
         {isLogado ? (
           <>
             {' | '}
-            <NavLink to="/interno" className={getNavLinkClass}>
-              Acessar Página
+            <NavLink to="/Experts" className={getNavLinkClass}>
+              Experts
             </NavLink>
             <NavLink to="/NovaVisita" className={getNavLinkClass}>
               Criar Visita

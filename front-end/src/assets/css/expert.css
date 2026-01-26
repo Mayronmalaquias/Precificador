@@ -1,0 +1,308 @@
+:root{
+  --brand-pink-rgb: 230, 0, 126;
+  --brand-pink-25: rgba(var(--brand-pink-rgb), 0.25);
+  --brand-pink-18: rgba(var(--brand-pink-rgb), 0.18);
+
+  --glass-bg: rgba(255,255,255,0.86);
+  --glass-border: rgba(255,255,255,0.55);
+  --shadow-soft: 0 10px 22px rgba(0,0,0,0.10);
+  --shadow-hover: 0 16px 34px rgba(0,0,0,0.16);
+}
+
+body.expert-bg{
+  position: relative;
+  min-height: 100vh;
+}
+
+body.expert-bg::before{
+  content:"";
+  position: fixed;
+  inset: 0;
+  background-image: url("https://www.61imoveis.com/assets/img/home/5d7atnzg.png?v=1712237232");
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  z-index: -2;
+}
+
+body.expert-bg::after{
+  content:"";
+  position: fixed;
+  inset: 0;
+  background: rgba(255,255,255,0.72);
+  z-index: -1;
+}
+
+.expert-page{
+  padding-top: 22px;
+  padding-bottom: 28px;
+}
+
+.expert-title{
+  text-align: center;
+  font-weight: 850;
+  margin: 0 0 6px 0;
+}
+
+.expert-subtitle{
+  text-align: center;
+  opacity: 0.85;
+  margin: 0 0 22px 0;
+}
+
+.city-block{
+  width: 100%;
+  margin-bottom: 18px;
+}
+
+.city-block-inner{
+  background: var(--brand-pink-25);
+  border: 1px solid var(--brand-pink-18);
+  border-radius: 16px;
+  padding: 18px 18px 14px 18px;
+  box-shadow: var(--shadow-soft);
+}
+
+.city-block-header{
+  margin-bottom: 12px;
+}
+
+/* ✅ pedido: centralizar e aumentar nome do bairro */
+.city-title{
+  margin: 0;
+  text-align: center;
+  font-size: 1.55rem;     /* maior */
+  font-weight: 900;
+  letter-spacing: 0.2px;
+}
+
+.city-cards{
+  display: grid;
+  grid-template-columns: repeat(12, 1fr);
+  gap: 14px;
+}
+
+/* ✅ pedido: “tamanho antigo”, porém 25% menor
+   - Card “antigo” era grande com foto 1:1 em cima.
+   - Aqui reduzimos padding e altura da thumb.
+*/
+.expert-card{
+  grid-column: span 12;
+  background: #fff;
+  border-radius: 14px;
+  padding: 10px; /* menor */
+  text-decoration: none;
+  color: inherit;
+  border: 1px solid rgba(0,0,0,0.06);
+  transition: transform .15s ease, box-shadow .15s ease;
+}
+
+.expert-card:hover{
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-hover);
+}
+
+/* Foto em cima: 25% menor -> antes era 1/1 grande, agora reduzimos a altura visual */
+.expert-card-photo{
+  width: 100%;
+  border-radius: 12px;
+  overflow: hidden;
+  background: #f1f1f1;
+  aspect-ratio: 1 / 1; /* mantém formato */
+}
+
+/* reduz “peso visual” da imagem (fica menor por conta do card menor e grid) */
+.expert-card-photo img{
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* Corpo mais compacto */
+.expert-card-body{
+  padding-top: 8px;
+}
+
+.expert-card-name{
+  margin: 0;
+  font-weight: 900;
+  font-size: 1.05rem; /* um pouco maior no card */
+  line-height: 1.15;
+}
+
+.expert-card-tag{
+  margin: 6px 0 0 0;
+  font-size: 0.9rem;
+  opacity: 0.75;
+}
+
+/* responsivo (mantém padrão) */
+@media (min-width: 576px){
+  .expert-card{ grid-column: span 6; }
+}
+@media (min-width: 992px){
+  .expert-card{ grid-column: span 4; }
+}
+
+/* ---------------------------
+   Página do expert (mantida)
+---------------------------- */
+.expert-profile-wrap{
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  border-radius: 18px;
+  padding: 18px;
+  box-shadow: var(--shadow-soft);
+  backdrop-filter: blur(8px);
+}
+
+.expert-profile-grid{
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 16px;
+}
+
+@media (min-width: 992px){
+  .expert-profile-grid{
+    grid-template-columns: 320px 1fr;
+    gap: 18px;
+    align-items: start;
+  }
+}
+
+.expert-hero-photo{
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  border-radius: 16px;
+  overflow: hidden;
+  background: #f1f1f1;
+  box-shadow: 0 10px 22px rgba(0,0,0,0.10);
+}
+
+.expert-hero-photo img{
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.expert-name{
+  font-size: 1.85rem;
+  font-weight: 900;
+  margin: 0 0 6px 0;
+}
+
+.expert-cities{
+  font-weight: 700;
+  opacity: 0.85;
+  margin-bottom: 10px;
+}
+
+.expert-bio-short{
+  margin: 10px 0 0 0;
+  opacity: 0.92;
+}
+
+.expert-bio-full{
+  margin: 14px 0 0 0;
+  line-height: 1.65;
+  opacity: 0.92;
+}
+
+.expert-cta-box{
+  margin-top: 14px;
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 10px;
+}
+
+@media (min-width: 576px){
+  .expert-cta-box{
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+.btn-soft{
+  border-radius: 12px !important;
+  padding: 10px 12px !important;
+  font-weight: 800 !important;
+  border: 1px solid rgba(0,0,0,0.08) !important;
+  background: rgba(255,255,255,0.88) !important;
+  transition: transform .12s ease, box-shadow .12s ease;
+}
+
+.btn-soft:hover{
+  transform: translateY(-1px);
+  box-shadow: 0 10px 20px rgba(0,0,0,0.10);
+}
+
+.btn-soft-primary{
+  border-radius: 12px !important;
+  padding: 10px 12px !important;
+  font-weight: 900 !important;
+  border: 1px solid rgba(var(--brand-pink-rgb), 0.25) !important;
+  background: rgba(var(--brand-pink-rgb), 0.12) !important;
+  color: #111 !important;
+}
+
+.btn-soft-primary:hover{
+  background: rgba(var(--brand-pink-rgb), 0.18) !important;
+  box-shadow: 0 10px 20px rgba(0,0,0,0.10);
+}
+
+.expert-section-title{
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 900;
+}
+
+.property-card{
+  display: block;
+  height: 100%;
+  background: rgba(255,255,255,0.92);
+  border: 1px solid rgba(0,0,0,0.06);
+  border-radius: 16px;
+  overflow: hidden;
+  text-decoration: none;
+  color: inherit;
+  box-shadow: 0 10px 22px rgba(0,0,0,0.10);
+  transition: transform .15s ease, box-shadow .15s ease;
+}
+
+.property-card:hover{
+  transform: translateY(-2px);
+  box-shadow: 0 16px 34px rgba(0,0,0,0.16);
+}
+
+.property-thumb{
+  width: 100%;
+  aspect-ratio: 16 / 10;
+  background: #eee;
+}
+
+.property-thumb img{
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.property-body{
+  padding: 12px 12px 14px 12px;
+}
+
+.property-title{
+  font-weight: 850;
+  font-size: 1rem;
+  margin: 0;
+}
+
+.property-cta{
+  margin-top: 6px;
+  font-size: 0.93rem;
+  opacity: 0.78;
+}
+
+.empty-city{
+  padding: 12px;
+  font-style: italic;
+  opacity: 0.7;
+}

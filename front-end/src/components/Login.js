@@ -36,7 +36,7 @@ function Login() {
             localStorage.setItem('userData', JSON.stringify(data.user));
         }
 
-        navigate('/interno');
+        navigate('/');
       } else {
         alert(data.error || 'Credenciais inválidas');
       }
