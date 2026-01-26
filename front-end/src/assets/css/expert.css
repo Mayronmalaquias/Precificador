@@ -13,6 +13,12 @@ body.expert-bg{
   position: relative;
   min-height: 100vh;
 }
+.expert-container {
+  max-width: 1200px;   /* controla a largura */
+  margin: 0 auto;      /* centraliza */
+  padding-left: 16px;
+  padding-right: 16px;
+}
 
 body.expert-bg::before{
   content:"";

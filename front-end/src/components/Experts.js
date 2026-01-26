@@ -78,8 +78,8 @@ function HubView({ dataset, expertPageBasePath }) {
   }, [citiesOrder, experts]);
 
   return (
-    <main className="container-fluid expert-page">
-      <div className="container my-4">
+    <main className="expert-page">
+      <div className="expert-container my-4">
         <div className="row mb-3">
           <div className="col-12">
             <h1 className="expert-title">Experts por Região</h1>
