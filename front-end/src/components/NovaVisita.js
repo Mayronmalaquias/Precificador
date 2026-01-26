@@ -2,9 +2,8 @@
 import React, { useState, useEffect } from "react";
 import "../assets/css/VisitaForm.css";
 
-const API_BASE = "http://56.124.51.158/visitas";
-// const API_BASE = "http://localhost:5000/visitas";
-
+// const API_BASE = "http://56.124.51.158/visitas";
+const API_BASE = "http://localhost:5000/visitas";
 
 export default function VisitaForm() {
   const [corretorInfo, setCorretorInfo] = useState({
@@ -28,8 +27,15 @@ export default function VisitaForm() {
 
     // campos extras (Sheets)
     enderecoExterno: "",
-    idParceiro: "",
-    idClienteAssinante: "",
+
+    // ✅ agora SEM IDs: só nomes
+    parceiroNome: "",
+    parceiroImobiliaria: "",
+
+    clienteAssinanteNome: "",
+    clienteAssinanteTelefone: "",
+    clienteAssinanteEmail: "",
+
     assinatura: "",
     audioDescricaoClienteVisita: "",
     linkAudio: "",
@@ -146,8 +152,8 @@ export default function VisitaForm() {
         idCorretor: corretorInfo.id,
 
         // Campos do Sheets (E e H no seu modelo)
-        anexoFichaVisita: drivePath, // caminho estilo AppSheet (ex: Fato_Visitas_PDF/arquivo.pdf)
-        linkImagem: driveLink, // link webViewLink do Drive
+        anexoFichaVisita: drivePath, // ex: Fato_Visitas_PDF/arquivo.pdf
+        linkImagem: driveLink, // webViewLink do Drive
 
         // dados do corretor
         corretor: corretorInfo.nome || corretorInfo.username,
@@ -189,11 +195,18 @@ export default function VisitaForm() {
         proposta: "Talvez",
         papelVisita: "Interessado",
         enderecoExterno: "",
-        idParceiro: "",
-        idClienteAssinante: "",
+
+        parceiroNome: "",
+        parceiroImobiliaria: "",
+
+        clienteAssinanteNome: "",
+        clienteAssinanteTelefone: "",
+        clienteAssinanteEmail: "",
+
         assinatura: "",
         audioDescricaoClienteVisita: "",
         linkAudio: "",
+
         precoNota10: "",
       }));
       setPdfFile(null);
@@ -431,23 +444,55 @@ export default function VisitaForm() {
           />
         </div>
 
+        {/* ✅ Parceiro SEM ID */}
         <div className="vf-group">
-          <label>Id Parceiro</label>
+          <label>Nome do Parceiro</label>
           <input
             type="text"
-            value={form.idParceiro}
-            onChange={updateField("idParceiro")}
-            placeholder="Ex: P61001"
+            value={form.parceiroNome}
+            onChange={updateField("parceiroNome")}
+            placeholder="Ex: Fulano / Beltrano"
           />
         </div>
 
         <div className="vf-group">
-          <label>Id Cliente Assinante</label>
+          <label>Imobiliária (opcional)</label>
           <input
             type="text"
-            value={form.idClienteAssinante}
-            onChange={updateField("idClienteAssinante")}
-            placeholder="Ex: CL001"
+            value={form.parceiroImobiliaria}
+            onChange={updateField("parceiroImobiliaria")}
+            placeholder="Ex: XPTO Imóveis"
+          />
+        </div>
+
+        {/* ✅ Cliente assinante SEM ID */}
+        <div className="vf-group">
+          <label>Cliente assinante (nome)</label>
+          <input
+            type="text"
+            value={form.clienteAssinanteNome}
+            onChange={updateField("clienteAssinanteNome")}
+            placeholder="Nome de quem assinou"
+          />
+        </div>
+
+        <div className="vf-group">
+          <label>Cliente assinante (telefone - opcional)</label>
+          <input
+            type="text"
+            value={form.clienteAssinanteTelefone}
+            onChange={updateField("clienteAssinanteTelefone")}
+            placeholder="(61) 9xxxx-xxxx"
+          />
+        </div>
+
+        <div className="vf-group">
+          <label>Cliente assinante (e-mail - opcional)</label>
+          <input
+            type="text"
+            value={form.clienteAssinanteEmail}
+            onChange={updateField("clienteAssinanteEmail")}
+            placeholder="email@exemplo.com"
           />
         </div>
 
@@ -458,7 +503,10 @@ export default function VisitaForm() {
 
         <div className="vf-group">
           <label>Áudio descrição (texto)</label>
-          <textarea value={form.audioDescricaoClienteVisita} onChange={updateField("audioDescricaoClienteVisita")} />
+          <textarea
+            value={form.audioDescricaoClienteVisita}
+            onChange={updateField("audioDescricaoClienteVisita")}
+          />
         </div>
 
         <div className="vf-group">

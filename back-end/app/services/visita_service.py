@@ -2,19 +2,22 @@
 # OAuth (usuário real) para gravar no "Meu Drive" + gravar no Google Sheets
 #
 # 1) Crie credenciais OAuth (Desktop app) no Google Cloud Console e baixe o JSON.
-# 2) Salve como: ./app/utils/asserts/oauth_client.json
-# 3) Rode UMA VEZ localmente: python -c "from app.services.visita_service import ensure_oauth_token; ensure_oauth_token()"
+# 2) Salve como: ./app/utils/asserts/oauth.json
+# 3) Rode UMA VEZ localmente:
+#    python -c "from app.services.visita_service import ensure_oauth_token; ensure_oauth_token()"
 #    -> vai abrir o navegador para autorizar e gerar ./app/utils/asserts/token.json
 # 4) Em produção: leve o token.json junto (ou rode o passo 3 na máquina que vai rodar o backend).
 #
 # Requisitos:
 #   pip install google-api-python-client google-auth google-auth-oauthlib google-auth-httplib2
 
+from __future__ import annotations
+
 import os
 import uuid
 import re
 import datetime as dt
-from typing import Any, Dict
+from typing import Any, Dict, List, Optional, Tuple
 
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseUpload
@@ -23,7 +26,6 @@ from google.oauth2.credentials import Credentials
 from google.auth.transport.requests import Request
 from google_auth_oauthlib.flow import InstalledAppFlow
 
-
 SPREADSHEET_ID = "1we1qAVRBqAWaXmOfnLnFJzCi8WPt-ZEhxKb0Ab9DiQU"
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  # app/
@@ -31,7 +33,6 @@ OAUTH_CLIENT_FILE = os.path.join(BASE_DIR, "utils", "asserts", "oauth.json")
 TOKEN_FILE = os.path.join(BASE_DIR, "utils", "asserts", "token.json")
 
 # Onde salvar PDFs no seu Drive:
-# - Se for "Meu Drive", pode deixar só o nome da pasta e o sistema cria/usa.
 DRIVE_PARENT_FOLDER_NAME = "61_Visitas"       # pasta raiz no seu Drive
 DRIVE_SUBFOLDER_NAME = "Fato_Visitas_PDF"     # subpasta para os PDFs
 
@@ -45,6 +46,9 @@ _drive_files = None
 _drive = None
 
 
+# =========================
+# Utils
+# =========================
 def _to_ddmmyyyy(date_str: str) -> str:
     if not date_str:
         return dt.date.today().strftime("%d/%m/%Y")
@@ -72,6 +76,13 @@ def _sanitize_filename(s: str) -> str:
     return s[:120] if len(s) > 120 else s
 
 
+def _norm_key(s: str) -> str:
+    return re.sub(r"\s+", " ", (s or "").strip().lower())
+
+
+# =========================
+# OAuth
+# =========================
 def _get_oauth_creds() -> Credentials:
     """
     Carrega token.json (OAuth do usuário).
@@ -129,6 +140,9 @@ def _get_services():
     return _sheets, _drive_files, _drive
 
 
+# =========================
+# Drive helpers
+# =========================
 def _find_or_create_folder(folder_name: str, parent_id: str | None = None) -> str:
     """
     Procura uma pasta por nome (no parent, se informado). Se não achar, cria.
@@ -136,7 +150,6 @@ def _find_or_create_folder(folder_name: str, parent_id: str | None = None) -> st
     """
     _, drive_files, _ = _get_services()
 
-    # query de pasta
     q_parts = [
         "mimeType='application/vnd.google-apps.folder'",
         f"name='{folder_name}'",
@@ -172,7 +185,7 @@ def _find_or_create_folder(folder_name: str, parent_id: str | None = None) -> st
 def upload_pdf_to_drive(file_storage, id_corretor: str, imovel_id: str, data_visita: str) -> Dict[str, str]:
     """
     Envia o PDF para o MEU DRIVE (OAuth do usuário) e retorna:
-      - drivePath: "Fato_Visitas_PDF/<nome>.pdf" (padrão que você quer gravar)
+      - drivePath: "Fato_Visitas_PDF/<nome>.pdf"
       - driveLink: webViewLink do Drive
     """
     if not file_storage:
@@ -187,7 +200,6 @@ def upload_pdf_to_drive(file_storage, id_corretor: str, imovel_id: str, data_vis
     base = "_".join([p for p in [safe_id, safe_imovel, safe_data, "ficha"] if p]) or "ficha_visita"
     filename = f"{base}.pdf"
 
-    # garante pastas: Meu Drive / 61_Visitas / Fato_Visitas_PDF
     root_folder_id = _find_or_create_folder(DRIVE_PARENT_FOLDER_NAME, parent_id=None)
     sub_folder_id = _find_or_create_folder(DRIVE_SUBFOLDER_NAME, parent_id=root_folder_id)
 
@@ -211,6 +223,105 @@ def upload_pdf_to_drive(file_storage, id_corretor: str, imovel_id: str, data_vis
     return {"drivePath": drive_path, "driveLink": drive_link}
 
 
+# =========================
+# Sheets helpers (Dim lookup/create)
+# =========================
+def _get_column_values(sheet_name: str, col_letter: str, start_row: int = 2) -> List[str]:
+    sheets, _, _ = _get_services()
+    res = sheets.values().get(
+        spreadsheetId=SPREADSHEET_ID,
+        range=f"{sheet_name}!{col_letter}{start_row}:{col_letter}",
+    ).execute()
+    return [r[0] for r in res.get("values", []) if r and r[0] is not None]
+
+
+def _append_row(sheet_name: str, values: List[Any]) -> None:
+    sheets, _, _ = _get_services()
+    sheets.values().append(
+        spreadsheetId=SPREADSHEET_ID,
+        range=f"{sheet_name}!A:Z",
+        valueInputOption="USER_ENTERED",
+        insertDataOption="INSERT_ROWS",
+        body={"values": [values]},
+    ).execute()
+
+
+def _find_id_by_name_in_dim(dim_sheet: str, id_col_letter: str, name_col_letter: str, name: str) -> str:
+    """
+    Procura (case-insensitive) pelo nome na coluna de nome e retorna o ID da coluna de ID.
+    Ex: Dim_Parceiro_Visita: ID=A, Nome=B
+    """
+    if not name:
+        return ""
+
+    names = _get_column_values(dim_sheet, name_col_letter, start_row=2)
+    key = _norm_key(name)
+
+    for i, n in enumerate(names):
+        if _norm_key(str(n)) == key:
+            row_number = 2 + i
+            sheets, _, _ = _get_services()
+            got = sheets.values().get(
+                spreadsheetId=SPREADSHEET_ID,
+                range=f"{dim_sheet}!{id_col_letter}{row_number}:{id_col_letter}{row_number}",
+            ).execute().get("values", [])
+            return (got[0][0] if got and got[0] else "") or ""
+
+    return ""
+
+
+def ensure_parceiro_id(nome_parceiro: str, imobiliaria: str, id_corretor: str) -> str:
+    """
+    Dim_Parceiro_Visita (modelo):
+      A Id_Parceiro
+      B Nome_Parceiro
+      C Imobiliaria
+      D Id_Corretor
+    """
+    nome_parceiro = (nome_parceiro or "").strip()
+    imobiliaria = (imobiliaria or "").strip()
+
+    if not nome_parceiro:
+        return ""
+
+    found = _find_id_by_name_in_dim("Dim_Parceiro_Visita", "A", "B", nome_parceiro)
+    if found:
+        return found
+
+    new_id = f"P{uuid.uuid4().hex[:7].upper()}"
+    _append_row("Dim_Parceiro_Visita", [new_id, nome_parceiro, imobiliaria, id_corretor or ""])
+    return new_id
+
+
+def ensure_cliente_id(nome_cliente: str, telefone: str, email: str, created_by: str, id_corretor: str) -> str:
+    """
+    Dim_Cliente_Visita (modelo):
+      A Id_Cliente
+      B Nome_Cliente
+      C Telefone_Cliente
+      D Email_Cliente
+      E CreatedBy
+      F Id_Corretor
+    """
+    nome_cliente = (nome_cliente or "").strip()
+    telefone = (telefone or "").strip()
+    email = (email or "").strip()
+
+    if not nome_cliente:
+        return ""
+
+    found = _find_id_by_name_in_dim("Dim_Cliente_Visita", "A", "B", nome_cliente)
+    if found:
+        return found
+
+    new_id = f"CL{uuid.uuid4().hex[:6].upper()}"
+    _append_row("Dim_Cliente_Visita", [new_id, nome_cliente, telefone, email, created_by or "", id_corretor or ""])
+    return new_id
+
+
+# =========================
+# Main: registrar_visita
+# =========================
 def registrar_visita(payload: Dict[str, Any]) -> str:
     """
     Grava em:
@@ -227,7 +338,7 @@ def registrar_visita(payload: Dict[str, Any]) -> str:
     data_visita = _to_ddmmyyyy(payload.get("dataVisita"))
     imovel_id = payload.get("imovelId", "")
 
-    # CORRETO: id do corretor vem do login
+    # id do corretor vem do login
     id_corretor = payload.get("idCorretor") or payload.get("corretorId") or ""
 
     parceiro_externo = payload.get("parceiroExterno", "NAO")
@@ -261,8 +372,24 @@ def registrar_visita(payload: Dict[str, Any]) -> str:
     link_imagem = payload.get("linkImagem", "")                      # H (link do PDF no Drive)
     endereco_externo = payload.get("enderecoExterno", "")            # K
     assinatura = payload.get("assinatura", "")                       # O
-    id_cliente_assinante = payload.get("idClienteAssinante", "")     # P
-    id_parceiro = payload.get("idParceiro", "")                      # Q
+
+    # ✅ Agora o front manda só NOMES (sem IDs)
+    parceiro_nome = (payload.get("parceiroNome") or "").strip()
+    parceiro_imobiliaria = (payload.get("parceiroImobiliaria") or "").strip()
+
+    cliente_assinante_nome = (payload.get("clienteAssinanteNome") or "").strip()
+    cliente_assinante_tel = (payload.get("clienteAssinanteTelefone") or "").strip()
+    cliente_assinante_email = (payload.get("clienteAssinanteEmail") or "").strip()
+
+    # ✅ IDs gerados/obtidos via Dim
+    id_parceiro = ensure_parceiro_id(parceiro_nome, parceiro_imobiliaria, id_corretor)
+    id_cliente_assinante = ensure_cliente_id(
+        cliente_assinante_nome,
+        cliente_assinante_tel,
+        cliente_assinante_email,
+        created_by,
+        id_corretor,
+    )
 
     visita_row = [
         id_visita,            # A Id_Visita
@@ -305,7 +432,7 @@ def registrar_visita(payload: Dict[str, Any]) -> str:
     avaliacao_row = [
         id_avaliacao,                 # A
         id_visita,                    # B
-        cliente_nome,                 # C (ideal: Id_Cliente real)
+        cliente_nome,                 # C (mantido como estava)
         aval.get("localizacao", ""),  # D
         aval.get("tamanho", ""),      # E
         aval.get("planta", ""),       # F
