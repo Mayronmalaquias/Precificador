@@ -29,13 +29,13 @@ function Header() {
         <NavLink to="/" end className={getNavLinkClass}>
           Início
         </NavLink>
+        <NavLink to="/Experts" className={getNavLinkClass}>
+          Experts
+        </NavLink>
         
         {isLogado ? (
           <>
             {' | '}
-            <NavLink to="/Experts" className={getNavLinkClass}>
-              Experts
-            </NavLink>
             <NavLink to="/NovaVisita" className={getNavLinkClass}>
               Criar Visita
             </NavLink>
