@@ -283,7 +283,7 @@ const buscarDados = useCallback(() => {
             <option value="ASA SUL">ASA SUL</option>
             <option value="NOROESTE">NOROESTE</option>
             <option value="SUDOESTE">SUDOESTE</option>
-            <option value="AGUAS CLARAS">AGUAS CLARAS</option>
+            <option value="Águas Claras">Águas Claras</option>
           </select>
 
           <label>Quartos:</label>
