@@ -172,7 +172,6 @@ function ExpertView({ slug, dataset }) {
 
   if (!expert) {
     return (
-
       <div className="container my-4">
         Expert não encontrado. (slug: <b>{String(slug || "")}</b>)
       </div>
@@ -185,8 +184,16 @@ function ExpertView({ slug, dataset }) {
   )}`;
 
   return (
-    <main className="container-fluid expert-page expert-slug"> 
+    <main className="container-fluid expert-page expert-slug">
       <div className="container my-4">
+        {/* Botão de Voltar */}
+        <button
+          className="btn btn-secondary mb-3"
+          onClick={() => window.history.back()}
+        >
+          Voltar
+        </button>
+
         <section className="expert-profile-wrap">
           <div className="expert-profile-grid">
             <div className="expert-hero-photo">
@@ -278,3 +285,4 @@ function ExpertView({ slug, dataset }) {
     </main>
   );
 }
+

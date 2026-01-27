@@ -3,11 +3,17 @@ body {
   font-family: Arial, sans-serif;
   margin: 0;
   padding: 0;
-  background-color: #f5f5f5;
+  background-image: url("https://www.61imoveis.com/assets/img/home/5d7atnzg.png?v=1712237232");
+  background-size: cover;  /* Garante que a imagem cubra toda a tela */
+  /* background-position: center center;   */
+  background-attachment: fixed;  /* Faz o fundo ficar fixo enquanto o usuário rola a página */
+  background-repeat: no-repeat;  /* Evita que a imagem se repita */
+  background-position-x: 80%;  /* Move o fundo 60% da largura para a direita */
   color: #333;
   display: flex;
   flex-direction: column;
 }
+
 
 /* Área principal expande para empurrar o footer para baixo */
 main {
@@ -66,7 +72,7 @@ box-shadow: 0 0 10px rgba(0, 0, 0, 0.15);
 width: 90%;
 max-width: 800px;
 margin: 20px auto;
-background-color: white;
+background-image: white;
 padding: 20px;
 border-radius: 10px;
 box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
