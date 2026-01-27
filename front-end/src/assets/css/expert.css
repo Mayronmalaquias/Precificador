@@ -321,8 +321,10 @@ body.expert-bg::after{
 ========================================================= */
 
 /* Fundo mais “leve” e sofisticado só no slug */
-body.expert-bg .expert-slug{
+body.expert-bg .expert-slug {
   position: relative;
+  margin: 0 auto; /* Centraliza o container da página */
+  max-width: 1120px; /* Limita a largura máxima */
 }
 
 /* Desliga o background global na área do slug (para não “brigar” com o premium) */
@@ -356,19 +358,21 @@ body.expert-bg .expert-slug::after{
 }
 
 /* Container mais “respirado” no slug */
-body.expert-bg .expert-slug .container.my-4{
-  max-width: 1120px;
+body.expert-bg .expert-slug .container.my-4 {
+  max-width: 100%; /* Garantir que a largura não ultrapasse a página */
+  margin: 0 auto; /* Centraliza o container */
 }
 
 /* Card principal: mais premium */
-body.expert-bg .expert-slug .expert-profile-wrap{
+body.expert-bg .expert-slug .expert-profile-wrap {
   border-radius: 22px;
   padding: 22px;
   border: 1px solid rgba(0,0,0,0.06);
-  box-shadow:
-    0 18px 40px rgba(0,0,0,0.10),
-    0 2px 0 rgba(255,255,255,0.75) inset;
+  box-shadow: 0 18px 40px rgba(0,0,0,0.10), 0 2px 0 rgba(255,255,255,0.75) inset;
   backdrop-filter: blur(10px);
+  margin: 0 auto; /* Garante que o card do expert também fique centralizado */
+  width: 100%;
+  max-width: 900px; /* Define um máximo para o card */
 }
 
 /* Grid com alinhamento melhor */
