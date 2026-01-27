@@ -32,6 +32,8 @@ def create_app():
             "http://127.0.0.1:3000",
             "http://26.126.132.200",
             "http://127.0.0.1",
+            "https://inteligencia61imoveis.com.br/"
+            "http://inteligencia61imoveis.com.br/"
         ]}},
     )
     
