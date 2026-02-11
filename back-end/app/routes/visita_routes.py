@@ -8,7 +8,7 @@ from app.services.imoview_service import buscar_imoveis_por_endereco
 visita_ns = Namespace("visitas", description="Lançamento de visitas")
 
 
-@visita_ns.route("")
+@visita_ns.route("visitas")
 class LancaVisita(Resource):
     def post(self):
         payload = request.get_json() or {}
