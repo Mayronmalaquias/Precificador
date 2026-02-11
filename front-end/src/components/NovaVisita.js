@@ -222,7 +222,7 @@ export default function VisitaForm() {
         },
       };
 
-      const resp = await fetch(API_BASE, {
+      const resp = await fetch(`${API_BASE}/visitas`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
