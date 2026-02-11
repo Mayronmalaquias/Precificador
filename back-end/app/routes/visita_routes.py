@@ -3,11 +3,12 @@ from flask import request, current_app
 from flask_restx import Namespace, Resource
 
 from app.services.visita_service import registrar_visita, upload_pdf_to_drive
+from app.services.imoview_service import buscar_imoveis_por_endereco
 
 visita_ns = Namespace("visitas", description="Lançamento de visitas")
 
 
-@visita_ns.route("visitas")
+@visita_ns.route("")
 class LancaVisita(Resource):
     def post(self):
         payload = request.get_json() or {}
@@ -19,7 +20,7 @@ class LancaVisita(Resource):
             return {"ok": False, "error": str(e)}, 500
 
 
-@visita_ns.route("/visitas/upload_pdf")
+@visita_ns.route("/upload_pdf")
 class UploadPdf(Resource):
     def post(self):
         try:
@@ -46,4 +47,30 @@ class UploadPdf(Resource):
 
         except Exception as e:
             current_app.logger.exception("Erro no upload_pdf")
+            return {"ok": False, "error": str(e)}, 500
+
+
+@visita_ns.route("/imoveis_busca")
+class ImoveisBusca(Resource):
+    def get(self):
+        try:
+            endereco = (request.args.get("endereco") or "").strip()
+            if len(endereco) < 3:
+                return {"ok": True, "lista": []}, 200
+
+            codigocidade = request.args.get("codigocidade")
+            codigosbairros = request.args.get("codigosbairros")
+
+            lista = buscar_imoveis_por_endereco(
+                endereco=endereco,
+                codigocidade=codigocidade,
+                codigosbairros=codigosbairros,
+                page=1,
+                page_size=20,
+            )
+
+            return {"ok": True, "lista": lista}, 200
+
+        except Exception as e:
+            current_app.logger.exception("Erro ao buscar imóveis por endereço (Imoview)")
             return {"ok": False, "error": str(e)}, 500

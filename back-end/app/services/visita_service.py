@@ -429,22 +429,40 @@ def registrar_visita(payload: Dict[str, Any]) -> str:
 
     created_by_avaliacao = created_by or (payload.get("corretor") or "")
 
+    # CSV padrão (Fato_Avaliacao):
+    # A id_Avaliacao
+    # B Id_Visita
+    # C Id_Cliente
+    # D Localizacao
+    # E Tamanho
+    # F Planta_Imovel
+    # G Qualidade_Acabamento
+    # H Estado_Conservacao
+    # I Condominio_AreaComun
+    # J Preco (NOTA 1-10)
+    # K Nota_Geral
+    # L Preco_N10
+    # M CreatedBy
+    # N Id_Parceiro
+
     avaliacao_row = [
         id_avaliacao,                 # A
         id_visita,                    # B
-        cliente_nome,                 # C (mantido como estava)
+        cliente_nome,                 # C (mantido igual ao seu modelo atual)
         aval.get("localizacao", ""),  # D
         aval.get("tamanho", ""),      # E
         aval.get("planta", ""),       # F
         aval.get("acabamento", ""),   # G
         aval.get("conservacao", ""),  # H
         aval.get("condominio", ""),   # I
-        "",                           # J Preco_Pedido
-        aval.get("notaGeral", ""),    # K Nota_Imovel
-        preco_nota10,                 # L Preco_Nota10
-        created_by_avaliacao,         # M CreatedBy
-        id_parceiro,                  # N Id_Parceiro
+        aval.get("preco", ""),        # J ✅ agora vem do front
+        aval.get("notaGeral", ""),    # K
+        preco_nota10,                 # L
+        created_by_avaliacao,         # M
+        id_parceiro,                  # N
     ]
+
+
 
     sheets.values().append(
         spreadsheetId=SPREADSHEET_ID,

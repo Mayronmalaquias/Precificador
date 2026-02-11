@@ -5,6 +5,11 @@
 **/credenciais.json
 **/oauth.json
 **/~$estudo.xlsx
+**/sss.json
+**/service_account.json
+**/token.json
+
+
 # Cache e arquivos compilados do Python
 __pycache__/
 *.pyc
