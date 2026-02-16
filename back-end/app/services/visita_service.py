@@ -18,6 +18,7 @@ import uuid
 import re
 import datetime as dt
 from typing import Any, Dict, List, Optional, Tuple
+import mimetypes # Adicione este import no topo
 
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseUpload
@@ -183,29 +184,29 @@ def _find_or_create_folder(folder_name: str, parent_id: str | None = None) -> st
 
 
 def upload_pdf_to_drive(file_storage, id_corretor: str, imovel_id: str, data_visita: str) -> Dict[str, str]:
-    """
-    Envia o PDF para o MEU DRIVE (OAuth do usuário) e retorna:
-      - drivePath: "Fato_Visitas_PDF/<nome>.pdf"
-      - driveLink: webViewLink do Drive
-    """
     if not file_storage:
         return {"drivePath": "", "driveLink": ""}
 
     _, drive_files, _ = _get_services()
 
+    # ✅ Detecta o mimetype e extensão automaticamente
+    filename_original = (file_storage.filename or "").lower()
+    ext = os.path.splitext(filename_original)[1]
+    mime = mimetypes.guess_type(filename_original)[0] or 'application/octet-stream'
+
     safe_id = _sanitize_filename(id_corretor)
     safe_imovel = _sanitize_filename(imovel_id)
     safe_data = _sanitize_filename(data_visita)
 
-    base = "_".join([p for p in [safe_id, safe_imovel, safe_data, "ficha"] if p]) or "ficha_visita"
-    filename = f"{base}.pdf"
+    base = "_".join([p for p in [safe_id, safe_imovel, safe_data, "anexo"] if p])
+    filename = f"{base}{ext}" # ✅ Mantém a extensão original (.jpg, .pdf, etc)
 
     root_folder_id = _find_or_create_folder(DRIVE_PARENT_FOLDER_NAME, parent_id=None)
     sub_folder_id = _find_or_create_folder(DRIVE_SUBFOLDER_NAME, parent_id=root_folder_id)
 
     media = MediaIoBaseUpload(
         file_storage.stream,
-        mimetype="application/pdf",
+        mimetype=mime, # ✅ Usa o mime detectado
         resumable=True,
     )
 

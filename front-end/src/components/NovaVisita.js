@@ -549,16 +549,23 @@ export default function VisitaForm() {
         </div> */}
 
         {/* PDF */}
-        <div className="vf-section-title">Anexo (PDF)</div>
+        {/* Seção de Anexo (Foto ou PDF) */}
+        <div className="vf-section-title">Anexo (Foto da Câmera ou PDF)</div>
         <div className="vf-group">
-          <label>Anexar ficha da visita (PDF)</label>
+          <label>Tirar foto ou anexar PDF</label>
           <input
             type="file"
-            accept="application/pdf"
+            accept="image/*,application/pdf" // ✅ Aceita imagens e PDFs
+            capture="environment"            // ✅ Abre a câmera traseira em dispositivos móveis
             onChange={(e) =>
               setPdfFile(e.target.files?.[0] || null)
             }
           />
+          {pdfFile && (
+            <div className="vf-hint">
+              Arquivo selecionado: <strong>{pdfFile.name}</strong>
+            </div>
+          )}
         </div>
 
         {/* Proposta */}

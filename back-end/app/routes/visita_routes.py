@@ -26,11 +26,13 @@ class UploadPdf(Resource):
         try:
             f = request.files.get("file")
             if not f:
-                return {"ok": False, "error": "Nenhum arquivo enviado (campo 'file')."}, 400
+                return {"ok": False, "error": "Nenhum arquivo enviado."}, 400
 
             filename = (f.filename or "").lower()
-            if not filename.endswith(".pdf"):
-                return {"ok": False, "error": "Envie um PDF (.pdf)."}, 400
+            # ✅ Permitir PDF e Imagens
+            allowed_extensions = ('.pdf', '.jpg', '.jpeg', '.png')
+            if not filename.endswith(allowed_extensions):
+                return {"ok": False, "error": "Formato inválido. Envie PDF ou Imagem (JPG/PNG)."}, 400
 
             id_corretor = request.form.get("idCorretor", "") or ""
             imovel_id = request.form.get("imovelId", "") or ""
