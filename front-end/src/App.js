@@ -13,6 +13,8 @@ import FormVisita from './components/FormVisita';
 import AppVisita from './components/FormVisitaApp';
 import NovaVisita from './components/NovaVisita';
 import Experts from './components/Experts';
+import Ranking from './components/Ranking';
+import FormComissao from './components/FormComissao';
 // em App.js ou Tabs.js
 import './assets/css/styles.css';
 import './assets/css/report.css';
@@ -47,6 +49,9 @@ function App() {
             <Route path="/AppVisita" element={<AppVisita />} />
             <Route path="/NovaVisita" element={<NovaVisita />} />
             <Route path="/Experts" element={<Experts />} />
+            <Route path="/Ranking" element={<Ranking />} />
+            <Route path="/FormComissao" element={<FormComissao />} />
+
           </Routes>
         </main>
         <Footer />

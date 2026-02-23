@@ -46,12 +46,16 @@ def create_app():
     from app.routes.graph_routes import graph_ns
     from app.routes.report_routes import report_ns
     from app.routes.visita_routes import visita_ns
+    from app.routes.ranking_routes import ranking_ns
+    from app.routes.divisao_comissao_routes import divisao_ns
+    api.add_namespace(divisao_ns, path='/')
     # api.add_namespace(mapa_ns, path='/')
     api.add_namespace(analise_ns, path='/')
     api.add_namespace(auth_ns, path='/' )
     api.add_namespace(graph_ns, path='/')
     api.add_namespace(report_ns, path='/')
     api.add_namespace(visita_ns, path='/')
+    api.add_namespace(ranking_ns, path='/')
 
 
     return app
