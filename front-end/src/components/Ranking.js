@@ -3,13 +3,13 @@ import '../assets/css/ranking.css';
 
 function Ranking() {
   const API_BASE = useMemo(() => {
-    // ajuste se você usa env (recomendado): import.meta.env.VITE_API_BASE
     return '/api';
-    // return 'http://localhost:5000';
   }, []);
 
+  const DEFAULT_START = '2026-01-01';
+
   const [formData, setFormData] = useState({
-    start: '',
+    start: DEFAULT_START,   // <- padrão: início de 2026
     end: '',
     limit: 50,
     include_pending: false
@@ -37,7 +37,10 @@ function Ranking() {
   const buildUrl = () => {
     const params = new URLSearchParams();
 
-    if (formData.start) params.set('start', formData.start);
+    // fallback: se estiver vazio por algum motivo, usa 2026-01-01
+    const startValue = formData.start || DEFAULT_START;
+
+    if (startValue) params.set('start', startValue);
     if (formData.end) params.set('end', formData.end);
 
     const limitNum = Number(formData.limit);
@@ -80,7 +83,6 @@ function Ranking() {
   };
 
   useEffect(() => {
-    // carrega na primeira vez
     fetchRankings();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -132,17 +134,37 @@ function Ranking() {
         <div className="ranking__grid">
           <div className="ranking__field">
             <label className="ranking__label">Data Início</label>
-            <input className="ranking__input" name="start" type="date" value={formData.start} onChange={handleChange} />
+            <input
+              className="ranking__input"
+              name="start"
+              type="date"
+              value={formData.start}
+              onChange={handleChange}
+            />
           </div>
 
           <div className="ranking__field">
             <label className="ranking__label">Data Fim</label>
-            <input className="ranking__input" name="end" type="date" value={formData.end} onChange={handleChange} />
+            <input
+              className="ranking__input"
+              name="end"
+              type="date"
+              value={formData.end}
+              onChange={handleChange}
+            />
           </div>
 
           <div className="ranking__field">
             <label className="ranking__label">Limite</label>
-            <input className="ranking__input" name="limit" type="number" min="1" max="500" value={formData.limit} onChange={handleChange} />
+            <input
+              className="ranking__input"
+              name="limit"
+              type="number"
+              min="1"
+              max="500"
+              value={formData.limit}
+              onChange={handleChange}
+            />
           </div>
         </div>
 
@@ -230,19 +252,5 @@ function Ranking() {
     </div>
   );
 }
-
-const thStyle = {
-  border: '1px solid #ddd',
-  padding: '10px',
-  textAlign: 'left',
-  background: '#f2f2f2',
-  whiteSpace: 'nowrap'
-};
-
-const tdStyle = {
-  border: '1px solid #ddd',
-  padding: '10px',
-  whiteSpace: 'nowrap'
-};
 
 export default Ranking;
