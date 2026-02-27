@@ -4,13 +4,13 @@ import '../assets/css/ranking.css';
 function Ranking() {
   const API_BASE = useMemo(() => {
     // ajuste se você usa env (recomendado): import.meta.env.VITE_API_BASE
-    // return '/api';
-    return 'http://localhost:5000';
+    return '/api';
+    // return 'http://localhost:5000';
   }, []);
 
   const [formData, setFormData] = useState({
-    start: '',
-    end: '',
+    start: '2026-01-01', // Define o início do ano
+    end: '2026-12-31',   // Define o fim do ano
     limit: 50,
     include_pending: false
   });
