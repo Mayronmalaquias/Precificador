@@ -21,6 +21,8 @@ __pycache__/
 *.pyc
 *.pyo
 *.pyd
+*.json
+*.csv
 .env
 venv/
 .vscode/
