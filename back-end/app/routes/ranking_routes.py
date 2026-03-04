@@ -15,6 +15,10 @@ ranking_item = ranking_ns.model("RankingItem", {
 ranking_response = ranking_ns.model("RankingResponse", {
     "vgv": fields.List(fields.Nested(ranking_item)),
     "vgc": fields.List(fields.Nested(ranking_item)),
+
+    "vgv_geral": fields.List(fields.Nested(ranking_item)),
+    "vgc_geral": fields.List(fields.Nested(ranking_item)),
+
     "captacao": fields.List(fields.Nested(ranking_item)),
     "visitas": fields.List(fields.Nested(ranking_item)),
     "meta": fields.Raw,
@@ -56,8 +60,8 @@ class RankingsByKind(Resource):
     @ranking_ns.marshal_with(fields.List(fields.Nested(ranking_item)))
     def get(self, kind: str):
         kind = (kind or "").lower().strip()
-        if kind not in {"vgv", "vgc", "captacao", "visitas"}:
-            ranking_ns.abort(400, "kind inválido. Use: vgv, vgc, captacao, visitas")
+        if kind not in {"vgv_geral", "vgc_geral", "captacao", "visitas"}:
+            ranking_ns.abort(400, "kind inválido. Use: vgv_geral, vgc_geral, captacao, visitas")
 
         start = request.args.get("start")
         end = request.args.get("end")

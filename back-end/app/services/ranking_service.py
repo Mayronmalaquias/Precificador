@@ -423,163 +423,155 @@ class RankingService:
         return df
 
     # =========================================================
-    # Calculations
+    # Calculations (NOVO - VGV/VGC iguais ao seu algoritmo)
     # =========================================================
-    def _calc_vgc(self, divs: pd.DataFrame) -> pd.DataFrame:
-        if divs.empty:
-            return pd.DataFrame(columns=["Id_Corretor", "Nome_Corretor", "total"])
+    def _limpar_nome(self, n: Any) -> str:
+        if pd.isna(n) or str(n).strip() in ["", "-", "nan", "NAN", "None"]:
+            return ""
+        return str(n).strip().upper()
 
-        df = divs.copy()
-        df["Comissao_Valor"] = pd.to_numeric(df["Comissao_Valor"], errors="coerce").fillna(0.0)
-        df["VGC"] = df["Comissao_Valor"] / float(self.VGC_RATE)
-
-        out = (
-            df.groupby(["Id_Corretor", "Nome_Corretor"], as_index=False)["VGC"]
-            .sum()
-            .rename(columns={"VGC": "total"})
-        )
-        return out
-
-    def _calc_vgv(self, vendas: pd.DataFrame, divs: pd.DataFrame, include_pending: bool) -> pd.DataFrame:
+    def _calc_vgv_geral_algoritmo(self, vendas: pd.DataFrame) -> pd.DataFrame:
+        """
+        VGV geral igual ao algoritmo:
+        - por contrato: junta venda + captação (nomes únicos)
+        - cada pessoa conta 1 vez no contrato com Valor_Negocio
+        """
         if vendas.empty:
             return pd.DataFrame(columns=["Id_Corretor", "Nome_Corretor", "total"])
 
         df = vendas.copy()
 
-        cols_corretor = [
+        # garante colunas
+        cols = [
             "Corretor_Venda_1_Nome",
             "Corretor_Venda_2_Nome",
             "Corretor_Captador_1_Nome",
             "Corretor_Captador_2_Nome",
         ]
-        for c in cols_corretor:
+        for c in cols:
             if c not in df.columns:
                 df[c] = ""
-            df[c] = df[c].astype(str).str.strip()
 
-        if "Id_Contrato" not in df.columns or "Valor_Negocio" not in df.columns:
+        if "Valor_Negocio" not in df.columns:
             return pd.DataFrame(columns=["Id_Corretor", "Nome_Corretor", "total"])
 
-        df["Id_Contrato"] = df["Id_Contrato"].astype(str).str.strip()
         df["Valor_Negocio"] = pd.to_numeric(df["Valor_Negocio"], errors="coerce").fillna(0.0)
 
-        rows = []
+        acc: Dict[str, float] = {}
+
         for _, r in df.iterrows():
-            id_contrato = str(r["Id_Contrato"]).strip()
-            if not id_contrato:
+            v_imovel = float(r.get("Valor_Negocio", 0.0) or 0.0)
+            if v_imovel <= 0:
                 continue
 
-            vgv = float(r["Valor_Negocio"] or 0.0)
-            if vgv <= 0:
-                continue
-
-            corretores = set()
-            for c in cols_corretor:
-                nome = str(r.get(c, "")).strip()
-                if not nome or nome.lower() == "nan":
-                    continue
-                corretores.add(nome)
-
-            for nome in corretores:
-                rows.append([id_contrato, nome, vgv])
-
-        if not rows:
-            return pd.DataFrame(columns=["Id_Corretor", "Nome_Corretor", "total"])
-
-        exploded = pd.DataFrame(rows, columns=["Id_Contrato", "Nome_Corretor", "Valor_Negocio"])
-        out = (
-            exploded.groupby("Nome_Corretor", as_index=False)["Valor_Negocio"]
-            .sum()
-            .rename(columns={"Valor_Negocio": "total"})
-        )
-        out["Id_Corretor"] = ""
-        return out[["Id_Corretor", "Nome_Corretor", "total"]]
-
-    def _calc_captacao(
-        self,
-        capt: pd.DataFrame,
-        id_to_name: Optional[Dict[str, str]] = None,
-        name_to_id: Optional[Dict[str, str]] = None,
-    ) -> pd.DataFrame:
-        if capt.empty:
-            return pd.DataFrame(columns=["Id_Corretor", "Nome_Corretor", "total"])
-
-        id_to_name = id_to_name or {}
-        name_to_id = name_to_id or {}
-
-        rows = []
-        for _, r in capt.iterrows():
-            for c in ["Captador1", "Captador2", "Captador3"]:
-                raw = str(r.get(c, "")).strip()
-                if not raw or raw.lower() == "nan":
-                    continue
-
-                raw_norm = raw.strip().upper()
-
-                if raw_norm in id_to_name:
-                    _id = raw_norm
-                    _nome = id_to_name[raw_norm]
-                else:
-                    _nome = raw
-                    _id = name_to_id.get(raw, "")
-
-                rows.append((_id, _nome))
-
-        if not rows:
-            return pd.DataFrame(columns=["Id_Corretor", "Nome_Corretor", "total"])
-
-        df = pd.DataFrame(rows, columns=["Id_Corretor", "Nome_Corretor"])
-
-        out = (
-            df.groupby(["Id_Corretor", "Nome_Corretor"], as_index=False)
-            .size()
-            .rename(columns={"size": "total"})
-        )
-
-        out["Id_Corretor"] = out["Id_Corretor"].astype(str).fillna("").str.strip()
-        out["Nome_Corretor"] = out["Nome_Corretor"].astype(str).fillna("").str.strip()
-
-        return out[["Id_Corretor", "Nome_Corretor", "total"]]
-
-    def _calc_visitas(self, visitas: pd.DataFrame) -> pd.DataFrame:
-        if visitas.empty:
-            return pd.DataFrame(columns=["Id_Corretor", "Nome_Corretor", "total"])
-
-        df = visitas.copy()
-
-        if "Id_Corretor" not in df.columns:
-            df["Id_Corretor"] = ""
-        if "Nome_Corretor" not in df.columns:
-            df["Nome_Corretor"] = ""
-
-        # padroniza (evita chave duplicada por espaço/caixa)
-        df["Id_Corretor"] = df["Id_Corretor"].astype(str).str.strip().str.upper()
-        df["Nome_Corretor"] = df["Nome_Corretor"].astype(str).str.strip()
-
-        # se ainda tiver nome vazio, tenta resolver pelo ID (de novo, como segurança)
-        if (df["Nome_Corretor"].eq("") | df["Nome_Corretor"].str.lower().eq("nan")).any():
-            corretores = self.get_corretores()
-            id_to_name = {
-                str(c.get("id_corretor", "")).strip().upper(): str(c.get("nome_corretor", "")).strip()
-                for c in corretores
-                if str(c.get("id_corretor", "")).strip() and str(c.get("nome_corretor", "")).strip()
+            v_nomes = {
+                self._limpar_nome(r.get("Corretor_Venda_1_Nome")),
+                self._limpar_nome(r.get("Corretor_Venda_2_Nome")),
             }
-            def _fix_name(row):
-                n = str(row.get("Nome_Corretor", "")).strip()
-                if n and n.lower() != "nan":
-                    return n
-                return id_to_name.get(str(row.get("Id_Corretor", "")).strip().upper(), "")
-            df["Nome_Corretor"] = df.apply(_fix_name, axis=1)
+            c_nomes = {
+                self._limpar_nome(r.get("Corretor_Captador_1_Nome")),
+                self._limpar_nome(r.get("Corretor_Captador_2_Nome")),
+            }
 
-        out = (
-            df.groupby(["Id_Corretor", "Nome_Corretor"], as_index=False)
-            .size()
-            .rename(columns={"size": "total"})
+            v_nomes = {n for n in v_nomes if n}
+            c_nomes = {n for n in c_nomes if n}
+            todos = v_nomes | c_nomes
+
+            for n in todos:
+                acc[n] = acc.get(n, 0.0) + v_imovel
+
+        if not acc:
+            return pd.DataFrame(columns=["Id_Corretor", "Nome_Corretor", "total"])
+
+        out = pd.DataFrame(
+            [{"Id_Corretor": "", "Nome_Corretor": k, "total": float(v)} for k, v in acc.items()]
+        )
+        return out
+
+    def _calc_vgc_geral_algoritmo(self, vendas: pd.DataFrame) -> pd.DataFrame:
+        """
+        VGC geral igual ao algoritmo:
+        - usa Valor_Total_61
+        - divide 50/50 entre venda/captação se ambos existirem
+        - se só um lado existir, 100% para aquele lado
+        - divide igualmente entre pessoas de cada lado
+        - geral soma o que cada um recebeu
+        """
+        if vendas.empty:
+            return pd.DataFrame(columns=["Id_Corretor", "Nome_Corretor", "total"])
+
+        df = vendas.copy()
+
+        # garante colunas
+        cols = [
+            "Corretor_Venda_1_Nome",
+            "Corretor_Venda_2_Nome",
+            "Corretor_Captador_1_Nome",
+            "Corretor_Captador_2_Nome",
+            "Valor_Total_61",
+        ]
+        for c in cols:
+            if c not in df.columns:
+                df[c] = 0.0 if c == "Valor_Total_61" else ""
+
+        df["Valor_Total_61"] = pd.to_numeric(df["Valor_Total_61"], errors="coerce").fillna(0.0)
+
+        acc: Dict[str, float] = {}
+
+        for _, r in df.iterrows():
+            v_comissao_total = float(r.get("Valor_Total_61", 0.0) or 0.0)
+            v_comissao_total = v_comissao_total / 0.06
+            if v_comissao_total <= 0:
+                continue
+
+            v_nomes = {
+                self._limpar_nome(r.get("Corretor_Venda_1_Nome")),
+                self._limpar_nome(r.get("Corretor_Venda_2_Nome")),
+            }
+            c_nomes = {
+                self._limpar_nome(r.get("Corretor_Captador_1_Nome")),
+                self._limpar_nome(r.get("Corretor_Captador_2_Nome")),
+            }
+
+            v_nomes = {n for n in v_nomes if n}
+            c_nomes = {n for n in c_nomes if n}
+
+            tem_venda = len(v_nomes) > 0
+            tem_capt = len(c_nomes) > 0
+
+            if tem_venda and tem_capt:
+                parcela_venda = v_comissao_total * 0.5
+                parcela_capt = v_comissao_total * 0.5
+            elif tem_venda and not tem_capt:
+                parcela_venda = v_comissao_total
+                parcela_capt = 0.0
+            elif tem_capt and not tem_venda:
+                parcela_venda = 0.0
+                parcela_capt = v_comissao_total
+            else:
+                parcela_venda = 0.0
+                parcela_capt = 0.0
+
+            if tem_venda and parcela_venda:
+                por_vendedor = parcela_venda / len(v_nomes)
+                for n in v_nomes:
+                    acc[n] = acc.get(n, 0.0) + por_vendedor
+
+            if tem_capt and parcela_capt:
+                por_captador = parcela_capt / len(c_nomes)
+                for n in c_nomes:
+                    acc[n] = acc.get(n, 0.0) + por_captador
+
+        if not acc:
+            return pd.DataFrame(columns=["Id_Corretor", "Nome_Corretor", "total"])
+
+        out = pd.DataFrame(
+            [{"Id_Corretor": "", "Nome_Corretor": k, "total": float(v)} for k, v in acc.items()]
         )
         return out
 
     # =========================================================
-    # Public: Rankings
+    # Public: Rankings (NOVO - só o principal geral VGV/VGC)
     # =========================================================
     def get_all_rankings(
         self,
@@ -588,55 +580,52 @@ class RankingService:
         limit: int = 100,
         include_pending: bool = False
     ) -> Dict[str, Any]:
+        """
+        Retorna apenas rankings principais (geral AC+PP juntos):
+        - vgv / vgv_geral
+        - vgc / vgc_geral
+
+        Mantém captacao/visitas como listas vazias para não quebrar o front.
+        """
         vendas = self.load_vendas(start, end)
-        divs = self.load_divisoes(start, end)
-        capt = self.load_captacao(start, end)
-        visitas = self.load_visitas(start, end)
 
-        # Se tiver Percentual e a Comissao_Valor estiver vazia, calcula usando Valor_Total_61 da venda (quando existir)
-        if not divs.empty and not vendas.empty:
-            vendas_map = vendas.set_index("Id_Contrato")["Valor_Total_61"].to_dict()
+        # SEMPRE inicializa (evita UnboundLocalError)
+        df_vgv = pd.DataFrame(columns=["Id_Corretor", "Nome_Corretor", "total"])
+        df_vgc = pd.DataFrame(columns=["Id_Corretor", "Nome_Corretor", "total"])
 
-            mask = (pd.to_numeric(divs["Comissao_Valor"], errors="coerce").fillna(0.0) <= 0) & (
-                pd.to_numeric(divs["Percentual"], errors="coerce").fillna(0.0) > 0
-            )
+        warnings: List[str] = []
 
-            if mask.any():
-                def _calc_row(r):
-                    total = float(vendas_map.get(str(r["Id_Contrato"]).strip(), 0.0) or 0.0)
-                    perc = float(r["Percentual"] or 0.0)
-                    return total * (perc / 100.0)
+        if vendas.empty:
+            warnings.append("Base de vendas vazia para o período.")
+        else:
+            # calcula com a lógica do seu algoritmo
+            df_vgv = self._calc_vgv_geral_algoritmo(vendas)
+            df_vgc = self._calc_vgc_geral_algoritmo(vendas)
 
-                divs = divs.copy()
-                divs.loc[mask, "Comissao_Valor"] = divs.loc[mask].apply(_calc_row, axis=1)
+            # normaliza
+            for df in (df_vgv, df_vgc):
+                if not df.empty:
+                    df["Id_Corretor"] = df["Id_Corretor"].astype(str).fillna("").str.strip().str.upper()
+                    df["Nome_Corretor"] = df["Nome_Corretor"].astype(str).fillna("").str.strip()
+                    df["total"] = pd.to_numeric(df["total"], errors="coerce").fillna(0.0)
 
-        df_vgc = self._calc_vgc(divs)
-        df_vgv = self._calc_vgv(vendas, divs, include_pending=include_pending)
+        # monta ranking
+        vgv_list = self._rank_list(df_vgv, "total", "Id_Corretor", "Nome_Corretor", limit)
+        vgc_list = self._rank_list(df_vgc, "total", "Id_Corretor", "Nome_Corretor", limit)
 
-        corretores = self.get_corretores()
-        id_to_name: Dict[str, str] = {}
-        name_to_id: Dict[str, str] = {}
-        for c in corretores:
-            _id = str(c.get("id_corretor", "")).strip().upper()
-            _nome = str(c.get("nome_corretor", "")).strip()
-            if _id and _nome:
-                id_to_name[_id] = _nome
-                name_to_id[_nome] = _id
+        return {
+            # compatível com o front atual (ele lê json.vgv/json.vgc)
+            "vgv": vgv_list,
+            "vgc": vgc_list,
 
-        df_cap = self._calc_captacao(capt, id_to_name=id_to_name, name_to_id=name_to_id)
-        df_vis = self._calc_visitas(visitas)
+            # compatível com o seu model/abas novas se quiser usar depois
+            "vgv_geral": vgv_list,
+            "vgc_geral": vgc_list,
 
-        for df in [df_vgc, df_vgv, df_cap, df_vis]:
-            if not df.empty:
-                df["Id_Corretor"] = df["Id_Corretor"].astype(str).fillna("").str.strip().str.upper()
-                df["Nome_Corretor"] = df["Nome_Corretor"].astype(str).fillna("").str.strip()
-                df["total"] = pd.to_numeric(df["total"], errors="coerce").fillna(0.0)
+            # para não quebrar as abas do front
+            "captacao": [],
+            "visitas": [],
 
-        result = {
-            "vgv": self._rank_list(df_vgv, "total", "Id_Corretor", "Nome_Corretor", limit),
-            "vgc": self._rank_list(df_vgc, "total", "Id_Corretor", "Nome_Corretor", limit),
-            "captacao": self._rank_list(df_cap, "total", "Id_Corretor", "Nome_Corretor", limit),
-            "visitas": self._rank_list(df_vis, "total", "Id_Corretor", "Nome_Corretor", limit),
             "meta": {
                 "start": start,
                 "end": end,
@@ -644,20 +633,13 @@ class RankingService:
                 "include_pending": include_pending,
                 "base_counts": {
                     "vendas": int(len(vendas)) if isinstance(vendas, pd.DataFrame) else 0,
-                    "divisoes": int(len(divs)) if isinstance(divs, pd.DataFrame) else 0,
-                    "captacao": int(len(capt)) if isinstance(capt, pd.DataFrame) else 0,
-                    "visitas": int(len(visitas)) if isinstance(visitas, pd.DataFrame) else 0,
+                    "divisoes": 0,
+                    "captacao": 0,
+                    "visitas": 0,
                 },
-                "warnings": []
+                "warnings": warnings,
             }
         }
-
-        if divs.empty:
-            result["meta"]["warnings"].append(
-                f"Aba '{self.cfg.ABA_DIVISAO_COMISSAO}' não encontrada ou vazia. Ranking VGC ficará vazio até existir divisão."
-            )
-
-        return result
 
     # =========================================================
     # Public: Dropdown contratos 2026

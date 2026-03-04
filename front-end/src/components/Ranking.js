@@ -4,8 +4,8 @@ import '../assets/css/ranking.css';
 function Ranking() {
   const API_BASE = useMemo(() => {
     // ajuste se você usa env (recomendado): import.meta.env.VITE_API_BASE
-    return '/api';
-    // return 'http://localhost:5000';
+    //return '/api';
+    return 'http://localhost:5000';
   }, []);
 
   const [formData, setFormData] = useState({
@@ -15,10 +15,10 @@ function Ranking() {
     include_pending: false
   });
 
-  const [tab, setTab] = useState('vgc'); // vgv | vgc | captacao | visitas
+  const [tab, setTab] = useState('vgc_geral'); // vgv | vgc | captacao | visitas
   const [data, setData] = useState({
-    vgv: [],
-    vgc: [],
+    vgv_geral: [],
+    vgc_geral: [],
     captacao: [],
     visitas: [],
     meta: null
@@ -65,8 +65,8 @@ function Ranking() {
       }
 
       setData({
-        vgv: Array.isArray(json.vgv) ? json.vgv : [],
-        vgc: Array.isArray(json.vgc) ? json.vgc : [],
+        vgv_geral: Array.isArray(json.vgv) ? json.vgv : [],
+        vgc_geral: Array.isArray(json.vgc) ? json.vgc : [],
         captacao: Array.isArray(json.captacao) ? json.captacao : [],
         visitas: Array.isArray(json.visitas) ? json.visitas : [],
         meta: json.meta || null
@@ -88,8 +88,8 @@ function Ranking() {
   const currentRows = data[tab] || [];
 
   const titleByTab = {
-    vgv: 'Ranking VGV',
-    vgc: 'Ranking VGC',
+    vgv_geral: 'Ranking VGV',
+    vgc_geral: 'Ranking VGC',
     captacao: 'Ranking Captação',
     visitas: 'Ranking Visitas'
   };
@@ -165,10 +165,10 @@ function Ranking() {
       </form>
 
       <div className="ranking__tabs" role="tablist" aria-label="Abas de ranking">
-        <button type="button" className={`ranking__tab ${tab === 'vgc' ? 'is-active' : ''}`} onClick={() => setTab('vgc')}>
+        <button type="button" className={`ranking__tab ${tab === 'vgc_geral' ? 'is-active' : ''}`} onClick={() => setTab('vgc_geral')}>
           VGC
         </button>
-        <button type="button" className={`ranking__tab ${tab === 'vgv' ? 'is-active' : ''}`} onClick={() => setTab('vgv')}>
+        <button type="button" className={`ranking__tab ${tab === 'vgv_geral' ? 'is-active' : ''}`} onClick={() => setTab('vgv_geral')}>
           VGV
         </button>
         <button type="button" className={`ranking__tab ${tab === 'captacao' ? 'is-active' : ''}`} onClick={() => setTab('captacao')}>
