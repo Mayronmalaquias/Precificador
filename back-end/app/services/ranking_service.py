@@ -403,7 +403,7 @@ class RankingService:
         else:
             df["Nome_Corretor"] = ""
 
-        # 4) resolve nome pelo ID via Dim_Corretor (mesmo esquema da captação)
+        # 4) resolve nome pelo ID via Dim_Corretor
         corretores = self.get_corretores()  # [{id_corretor, nome_corretor, ...}]
         id_to_name = {
             str(c.get("id_corretor", "")).strip().upper(): str(c.get("nome_corretor", "")).strip()
@@ -423,7 +423,7 @@ class RankingService:
         return df
 
     # =========================================================
-    # Calculations (NOVO - VGV/VGC iguais ao seu algoritmo)
+    # Calculations (VGV/VGC algoritmo + Captacao/Visitas)
     # =========================================================
     def _limpar_nome(self, n: Any) -> str:
         if pd.isna(n) or str(n).strip() in ["", "-", "nan", "NAN", "None"]:
@@ -432,7 +432,7 @@ class RankingService:
 
     def _calc_vgv_geral_algoritmo(self, vendas: pd.DataFrame) -> pd.DataFrame:
         """
-        VGV geral igual ao algoritmo:
+        VGV geral:
         - por contrato: junta venda + captação (nomes únicos)
         - cada pessoa conta 1 vez no contrato com Valor_Negocio
         """
@@ -441,7 +441,6 @@ class RankingService:
 
         df = vendas.copy()
 
-        # garante colunas
         cols = [
             "Corretor_Venda_1_Nome",
             "Corretor_Venda_2_Nome",
@@ -490,19 +489,18 @@ class RankingService:
 
     def _calc_vgc_geral_algoritmo(self, vendas: pd.DataFrame) -> pd.DataFrame:
         """
-        VGC geral igual ao algoritmo:
+        VGC geral:
         - usa Valor_Total_61
+        - converte para VGC (divide por 0.06)
         - divide 50/50 entre venda/captação se ambos existirem
         - se só um lado existir, 100% para aquele lado
         - divide igualmente entre pessoas de cada lado
-        - geral soma o que cada um recebeu
         """
         if vendas.empty:
             return pd.DataFrame(columns=["Id_Corretor", "Nome_Corretor", "total"])
 
         df = vendas.copy()
 
-        # garante colunas
         cols = [
             "Corretor_Venda_1_Nome",
             "Corretor_Venda_2_Nome",
@@ -520,7 +518,10 @@ class RankingService:
 
         for _, r in df.iterrows():
             v_comissao_total = float(r.get("Valor_Total_61", 0.0) or 0.0)
+
+            # converte para "VGC" (mesma regra que você pediu)
             v_comissao_total = v_comissao_total / 0.06
+
             if v_comissao_total <= 0:
                 continue
 
@@ -570,8 +571,80 @@ class RankingService:
         )
         return out
 
+    def _calc_captacao_rank(self, start: Optional[str], end: Optional[str]) -> pd.DataFrame:
+        """
+        Ranking de captação:
+          - lê Fato_Captacao
+          - explode Captador1/2/3
+          - conta 1 por linha (captação) por captador
+        Saída: DataFrame com colunas [Id_Corretor, Nome_Corretor, total]
+        """
+        df = self.load_captacao(start, end)
+        if df.empty:
+            return pd.DataFrame(columns=["Id_Corretor", "Nome_Corretor", "total"])
+
+        corretores = self.get_corretores()
+        name_to_id = {
+            str(c.get("nome_corretor", "")).strip().upper(): str(c.get("id_corretor", "")).strip().upper()
+            for c in corretores
+            if str(c.get("nome_corretor", "")).strip() and str(c.get("id_corretor", "")).strip()
+        }
+
+        rows = []
+        for c in ["Captador1", "Captador2", "Captador3"]:
+            if c in df.columns:
+                tmp = df[[c]].copy()
+                tmp["Nome_Corretor"] = tmp[c].astype(str).str.strip()
+                tmp = tmp[tmp["Nome_Corretor"].ne("") & tmp["Nome_Corretor"].str.lower().ne("nan")]
+                if not tmp.empty:
+                    rows.append(tmp[["Nome_Corretor"]])
+
+        if not rows:
+            return pd.DataFrame(columns=["Id_Corretor", "Nome_Corretor", "total"])
+
+        x = pd.concat(rows, ignore_index=True)
+        x["Nome_Corretor"] = x["Nome_Corretor"].astype(str).str.strip()
+        x["Nome_Corretor_UP"] = x["Nome_Corretor"].str.upper()
+
+        agg = x.groupby("Nome_Corretor_UP", as_index=False).size()
+        agg = agg.rename(columns={"Nome_Corretor_UP": "Nome_Corretor", "size": "total"})
+        agg["Id_Corretor"] = agg["Nome_Corretor"].map(lambda n: name_to_id.get(str(n).strip().upper(), ""))
+
+        agg["Nome_Corretor"] = agg["Nome_Corretor"].astype(str).str.strip()
+        agg["total"] = pd.to_numeric(agg["total"], errors="coerce").fillna(0).astype(float)
+        return agg[["Id_Corretor", "Nome_Corretor", "total"]]
+
+    def _calc_visitas_rank(self, start: Optional[str], end: Optional[str]) -> pd.DataFrame:
+        """
+        Ranking de visitas:
+          - lê Fato_Visitas
+          - usa Id_Corretor quando existir, senão agrupa por Nome_Corretor
+        Saída: DataFrame com colunas [Id_Corretor, Nome_Corretor, total]
+        """
+        df = self.load_visitas(start, end)
+        if df.empty:
+            return pd.DataFrame(columns=["Id_Corretor", "Nome_Corretor", "total"])
+
+        df = df.copy()
+        df["Id_Corretor"] = df.get("Id_Corretor", "").astype(str).fillna("").str.strip().str.upper()
+        df["Nome_Corretor"] = df.get("Nome_Corretor", "").astype(str).fillna("").str.strip()
+
+        if (df["Id_Corretor"].ne("")).any():
+            agg = df.groupby(["Id_Corretor", "Nome_Corretor"], as_index=False).size()
+            agg = agg.rename(columns={"size": "total"})
+        else:
+            df = df[df["Nome_Corretor"].ne("") & df["Nome_Corretor"].str.lower().ne("nan")]
+            if df.empty:
+                return pd.DataFrame(columns=["Id_Corretor", "Nome_Corretor", "total"])
+            agg = df.groupby(["Nome_Corretor"], as_index=False).size()
+            agg = agg.rename(columns={"size": "total"})
+            agg["Id_Corretor"] = ""
+
+        agg["total"] = pd.to_numeric(agg["total"], errors="coerce").fillna(0).astype(float)
+        return agg[["Id_Corretor", "Nome_Corretor", "total"]]
+
     # =========================================================
-    # Public: Rankings (NOVO - só o principal geral VGV/VGC)
+    # Public: Rankings (AGORA COM CAPTAÇÃO E VISITAS)
     # =========================================================
     def get_all_rankings(
         self,
@@ -581,15 +654,14 @@ class RankingService:
         include_pending: bool = False
     ) -> Dict[str, Any]:
         """
-        Retorna apenas rankings principais (geral AC+PP juntos):
+        Retorna rankings principais (geral AC+PP juntos):
         - vgv / vgv_geral
         - vgc / vgc_geral
-
-        Mantém captacao/visitas como listas vazias para não quebrar o front.
+        - captacao / captacoes
+        - visitas / visitas_rank
         """
         vendas = self.load_vendas(start, end)
 
-        # SEMPRE inicializa (evita UnboundLocalError)
         df_vgv = pd.DataFrame(columns=["Id_Corretor", "Nome_Corretor", "total"])
         df_vgc = pd.DataFrame(columns=["Id_Corretor", "Nome_Corretor", "total"])
 
@@ -598,33 +670,38 @@ class RankingService:
         if vendas.empty:
             warnings.append("Base de vendas vazia para o período.")
         else:
-            # calcula com a lógica do seu algoritmo
             df_vgv = self._calc_vgv_geral_algoritmo(vendas)
             df_vgc = self._calc_vgc_geral_algoritmo(vendas)
 
-            # normaliza
             for df in (df_vgv, df_vgc):
                 if not df.empty:
                     df["Id_Corretor"] = df["Id_Corretor"].astype(str).fillna("").str.strip().str.upper()
                     df["Nome_Corretor"] = df["Nome_Corretor"].astype(str).fillna("").str.strip()
                     df["total"] = pd.to_numeric(df["total"], errors="coerce").fillna(0.0)
 
-        # monta ranking
+        # NOVO: captação e visitas
+        df_capt = self._calc_captacao_rank(start, end)
+        df_vis = self._calc_visitas_rank(start, end)
+
         vgv_list = self._rank_list(df_vgv, "total", "Id_Corretor", "Nome_Corretor", limit)
         vgc_list = self._rank_list(df_vgc, "total", "Id_Corretor", "Nome_Corretor", limit)
+        capt_list = self._rank_list(df_capt, "total", "Id_Corretor", "Nome_Corretor", limit)
+        vis_list = self._rank_list(df_vis, "total", "Id_Corretor", "Nome_Corretor", limit)
 
         return {
-            # compatível com o front atual (ele lê json.vgv/json.vgc)
             "vgv": vgv_list,
             "vgc": vgc_list,
 
-            # compatível com o seu model/abas novas se quiser usar depois
             "vgv_geral": vgv_list,
             "vgc_geral": vgc_list,
 
-            # para não quebrar as abas do front
-            "captacao": [],
-            "visitas": [],
+            # captação
+            "captacao": capt_list,
+            "captacoes": capt_list,  # alias (caso o front use plural)
+
+            # visitas
+            "visitas": vis_list,
+            "visitas_rank": vis_list,  # alias (caso o front use outro nome)
 
             "meta": {
                 "start": start,
@@ -634,8 +711,8 @@ class RankingService:
                 "base_counts": {
                     "vendas": int(len(vendas)) if isinstance(vendas, pd.DataFrame) else 0,
                     "divisoes": 0,
-                    "captacao": 0,
-                    "visitas": 0,
+                    "captacao": int(df_capt["total"].sum()) if not df_capt.empty else 0,
+                    "visitas": int(df_vis["total"].sum()) if not df_vis.empty else 0,
                 },
                 "warnings": warnings,
             }
