@@ -4,8 +4,8 @@ import '../assets/css/ranking.css';
 function Ranking() {
   const API_BASE = useMemo(() => {
     // ajuste se você usa env (recomendado): import.meta.env.VITE_API_BASE
-    //return '/api';
-    return 'http://localhost:5000';
+    return '/api';
+    //return 'http://localhost:5000';
   }, []);
 
   const [formData, setFormData] = useState({
