@@ -127,4 +127,7 @@
   .api-form {
     padding: 1.25rem 1.25rem;
   }
+  body {
+    background-image: url("../img/Banner\ Mobile\ Site.png");
+  }
 }

@@ -346,11 +346,14 @@ z-index: 1; /* Coloca a imagem atrás do conteúdo */
 }
 
 @media (max-width: 490px) {
-.imagem-sobreposta {
-transform: translate(0%, -30%);
-width: 150px;
-height: 150px;
-}
+  .imagem-sobreposta {
+  transform: translate(0%, -30%);
+  width: 150px;
+  height: 150px;
+  }
+  body {
+    background-image: url("../img/Banner\ Mobile\ Site.png");
+  }
 }
 
 .tabs {

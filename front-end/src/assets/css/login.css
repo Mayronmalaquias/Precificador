@@ -77,4 +77,7 @@
         margin: 6vh 16px;
         padding: 30px 20px;
     }
+    body {
+        background-image: url("../img/Banner\ Mobile\ Site.png");
+    }
 }

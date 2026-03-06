@@ -489,3 +489,130 @@ def registrar_visita(payload: Dict[str, Any]) -> str:
     ).execute()
 
     return id_visita
+
+
+def _norm_phone(s: str) -> str:
+    """
+    Normaliza telefone para comparação:
+    - remove tudo que não for dígito
+    - compara pelos últimos 11 dígitos (padrão BR com DDD)
+    """
+    digits = re.sub(r"\D+", "", s or "")
+    if len(digits) > 11:
+        digits = digits[-11:]
+    return digits
+
+
+import datetime as dt
+from typing import Any, Dict, List
+
+def _parse_ddmmyyyy_safe(s: str) -> dt.date:
+    try:
+        return dt.datetime.strptime((s or "").strip(), "%d/%m/%Y").date()
+    except Exception:
+        return dt.date.min
+
+
+def buscar_visitas_do_corretor(id_corretor: str, q: str = "", limit: int = 30) -> List[Dict[str, Any]]:
+    """
+    Retorna lista de visitas do corretor com:
+      - cliente (nome vindo de Fato_Cliente_Visita)
+      - id_visita
+      - dataVisita
+      - imovelId
+      - label (texto auxiliar)
+    """
+    id_corretor = (id_corretor or "").strip()
+    qn = _norm_key(q)
+
+    if not id_corretor:
+        return []
+
+    sheets, _, _ = _get_services()
+
+    res = sheets.values().batchGet(
+        spreadsheetId=SPREADSHEET_ID,
+        ranges=[
+            "Fato_Visitas!A2:R",          # A id_visita, B imovel, C data, D id_corretor, P id_cliente_assinante
+            "Fato_Cliente_Visita!A2:D",   # B id_visita, C cliente_nome
+            "Dim_Cliente_Visita!A2:B",    # fallback (id -> nome), se não tiver em Fato_Cliente_Visita
+        ],
+    ).execute()
+
+    ranges = res.get("valueRanges", [])
+    fato_rows = (ranges[0].get("values", []) if len(ranges) > 0 else [])
+    fato_cli_rows = (ranges[1].get("values", []) if len(ranges) > 1 else [])
+    dim_rows = (ranges[2].get("values", []) if len(ranges) > 2 else [])
+
+    # fallback clienteId -> nome
+    cliente_map: Dict[str, str] = {}
+    for r in dim_rows:
+        cid = (r[0] if len(r) > 0 else "").strip()
+        nome = (r[1] if len(r) > 1 else "").strip()
+        if cid:
+            cliente_map[cid] = nome
+
+    # id_visita -> lista de nomes (Fato_Cliente_Visita)
+    clientes_por_visita: Dict[str, List[str]] = {}
+    for r in fato_cli_rows:
+        id_visita = (r[1] if len(r) > 1 else "").strip()   # coluna B
+        nome_cli = (r[2] if len(r) > 2 else "").strip()    # coluna C
+        if not id_visita or not nome_cli:
+            continue
+        clientes_por_visita.setdefault(id_visita, [])
+        if nome_cli not in clientes_por_visita[id_visita]:
+            clientes_por_visita[id_visita].append(nome_cli)
+
+    itens: List[Dict[str, Any]] = []
+
+    for idx, r in enumerate(fato_rows):
+        row_number = 2 + idx  # linha real no Sheets (se quiser manter)
+
+        id_visita = (r[0] if len(r) > 0 else "").strip()
+        id_imovel = (r[1] if len(r) > 1 else "").strip()
+        data_visita = (r[2] if len(r) > 2 else "").strip()
+        id_cor_row = (r[3] if len(r) > 3 else "").strip()
+
+        if not id_visita:
+            continue
+        if id_cor_row != id_corretor:
+            continue
+
+        # Cliente principal (prioridade: Fato_Cliente_Visita)
+        nomes = clientes_por_visita.get(id_visita, [])
+        if nomes:
+            # se tiver mais de um, mostra o primeiro e indica que há mais
+            cliente_nome = nomes[0] if len(nomes) == 1 else f"{nomes[0]} (+{len(nomes)-1})"
+        else:
+            # fallback: Id_Cliente_Assinante (coluna P)
+            id_cliente_assinante = (r[15] if len(r) > 15 else "").strip()
+            cliente_nome = (cliente_map.get(id_cliente_assinante, "") or "").strip()
+
+        # label auxiliar (mas o front vai mostrar cliente_nome como título)
+        label = " - ".join(
+            [p for p in [cliente_nome, data_visita, f"#{id_imovel}" if id_imovel else ""] if p]
+        ).strip() or id_visita
+
+        # filtro (q): busca por nome, data, imovel, id
+        if qn:
+            hay = " ".join([cliente_nome, data_visita, id_imovel, id_visita, label])
+            if qn not in _norm_key(hay):
+                continue
+
+        itens.append(
+            {
+                "id_visita": id_visita,
+                "cliente": cliente_nome,
+                "dataVisita": data_visita,
+                "imovelId": id_imovel,
+                "label": label,
+                "row": row_number,  # pode manter, mas não precisa mostrar no front
+            }
+        )
+
+    itens.sort(
+        key=lambda it: (_parse_ddmmyyyy_safe(it.get("dataVisita", "")), int(it.get("row", 0))),
+        reverse=True
+    )
+
+    return itens[: max(1, int(limit or 30))]

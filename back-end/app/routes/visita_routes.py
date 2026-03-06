@@ -2,7 +2,7 @@
 from flask import request, current_app
 from flask_restx import Namespace, Resource
 
-from app.services.visita_service import registrar_visita, upload_pdf_to_drive
+from app.services.visita_service import registrar_visita, upload_pdf_to_drive, buscar_visitas_do_corretor
 from app.services.imoview_service import buscar_imoveis_por_endereco
 
 visita_ns = Namespace("visitas", description="Lançamento de visitas")
@@ -75,4 +75,23 @@ class ImoveisBusca(Resource):
 
         except Exception as e:
             current_app.logger.exception("Erro ao buscar imóveis por endereço (Imoview)")
+            return {"ok": False, "error": str(e)}, 500
+
+
+@visita_ns.route("/visitas_busca")
+class VisitaBusca(Resource):
+    def get(self):
+        try:
+            id_corretor = (request.args.get("id_corretor") or "").strip()
+            q = (request.args.get("q") or "").strip()
+            limit = int(request.args.get("limit") or 50)
+
+            if not id_corretor:
+                return {"ok": False, "error": "id_corretor é obrigatório"}, 400
+
+            lista = buscar_visitas_do_corretor(id_corretor=id_corretor, q=q, limit=limit)
+            return {"ok": True, "lista": lista}, 200
+
+        except Exception as e:
+            current_app.logger.exception("Erro ao buscar visita")
             return {"ok": False, "error": str(e)}, 500
