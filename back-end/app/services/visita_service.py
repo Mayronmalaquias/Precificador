@@ -4,9 +4,9 @@
 # 1) Crie credenciais OAuth (Desktop app) no Google Cloud Console e baixe o JSON.
 # 2) Salve como: ./app/utils/asserts/oauth.json
 # 3) Rode UMA VEZ localmente:
-#    python -c "from app.services.visita_service import ensure_oauth_token; ensure_oauth_token()"
+#    python -c "from app.services.visita_service import ensure_oauth_token; ensure_oauth_token(force=True)"
 #    -> vai abrir o navegador para autorizar e gerar ./app/utils/asserts/token.json
-# 4) Em produção: leve o token.json junto (ou rode o passo 3 na máquina que vai rodar o backend).
+# 4) Em produção: leve o token.json junto.
 #
 # Requisitos:
 #   pip install google-api-python-client google-auth google-auth-oauthlib google-auth-httplib2
@@ -17,8 +17,8 @@ import os
 import uuid
 import re
 import datetime as dt
-from typing import Any, Dict, List, Optional, Tuple
-import mimetypes # Adicione este import no topo
+import mimetypes
+from typing import Any, Dict, List
 
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseUpload
@@ -26,16 +26,22 @@ from googleapiclient.http import MediaIoBaseUpload
 from google.oauth2.credentials import Credentials
 from google.auth.transport.requests import Request
 from google_auth_oauthlib.flow import InstalledAppFlow
+from google.auth.exceptions import RefreshError
 
-SPREADSHEET_ID = "1we1qAVRBqAWaXmOfnLnFJzCi8WPt-ZEhxKb0Ab9DiQU"
+
+# =========================
+# CONFIG
+# =========================
+# Use o mesmo ID lido pelo Apps Script
+SPREADSHEET_ID = "1isFLYaYbaKEZrsPDbU1Bc0cswyFUgTElcQf2CNXx0Hc"
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  # app/
 OAUTH_CLIENT_FILE = os.path.join(BASE_DIR, "utils", "asserts", "oauth.json")
 TOKEN_FILE = os.path.join(BASE_DIR, "utils", "asserts", "token.json")
 
-# Onde salvar PDFs no seu Drive:
-DRIVE_PARENT_FOLDER_NAME = "61_Visitas"       # pasta raiz no seu Drive
-DRIVE_SUBFOLDER_NAME = "Fato_Visitas_PDF"     # subpasta para os PDFs
+# Onde salvar PDFs/anexos no Drive
+DRIVE_PARENT_FOLDER_NAME = "61_Visitas"
+DRIVE_SUBFOLDER_NAME = "Fato_Visitas_PDF"
 
 SCOPES = [
     "https://www.googleapis.com/auth/drive.file",
@@ -81,40 +87,78 @@ def _norm_key(s: str) -> str:
     return re.sub(r"\s+", " ", (s or "").strip().lower())
 
 
+def _norm_phone(s: str) -> str:
+    digits = re.sub(r"\D+", "", s or "")
+    if len(digits) > 11:
+        digits = digits[-11:]
+    return digits
+
+
+def _parse_ddmmyyyy_safe(s: str) -> dt.date:
+    try:
+        return dt.datetime.strptime((s or "").strip(), "%d/%m/%Y").date()
+    except Exception:
+        return dt.date.min
+
+
 # =========================
 # OAuth
 # =========================
-def _get_oauth_creds() -> Credentials:
+def _get_oauth_creds() -> Credentials | None:
     """
-    Carrega token.json (OAuth do usuário).
-    Se expirado, faz refresh.
-    Se não existir, inicia fluxo (abre navegador) - usar UMA VEZ no setup.
+    Carrega token.json.
+    Se expirado, tenta refresh.
+    Se o refresh falhar, força o usuário a regenerar o token.
     """
     creds = None
 
     if os.path.exists(TOKEN_FILE):
-        creds = Credentials.from_authorized_user_file(TOKEN_FILE, SCOPES)
+        try:
+            creds = Credentials.from_authorized_user_file(TOKEN_FILE, SCOPES)
+        except Exception as e:
+            raise RuntimeError(
+                f"Não foi possível ler o token OAuth em {TOKEN_FILE}. "
+                f"Apague o arquivo e gere outro. Detalhe: {e}"
+            ) from e
 
-    if creds and creds.expired and creds.refresh_token:
-        creds.refresh(Request())
-        with open(TOKEN_FILE, "w", encoding="utf-8") as f:
-            f.write(creds.to_json())
+    if not creds:
+        return None
 
-    return creds
+    if creds.valid:
+        return creds
+
+    if creds.expired and creds.refresh_token:
+        try:
+            creds.refresh(Request())
+            with open(TOKEN_FILE, "w", encoding="utf-8") as f:
+                f.write(creds.to_json())
+            return creds
+        except RefreshError as e:
+            raise RuntimeError(
+                "O token OAuth expirou, foi revogado ou ficou inválido. "
+                f"Apague o arquivo '{TOKEN_FILE}' e rode novamente:\n"
+                'python -c "from app.services.visita_service import ensure_oauth_token; ensure_oauth_token(force=True)"'
+            ) from e
+
+    return None
 
 
-def ensure_oauth_token() -> None:
+def ensure_oauth_token(force: bool = False) -> None:
     """
-    Rode UMA VEZ para gerar o token.json.
+    Gera um novo token.json.
+    Use force=True para apagar o token anterior e autorizar novamente.
     """
-    if os.path.exists(TOKEN_FILE):
+    if force and os.path.exists(TOKEN_FILE):
+        os.remove(TOKEN_FILE)
+
+    if os.path.exists(TOKEN_FILE) and not force:
         return
 
     if not os.path.exists(OAUTH_CLIENT_FILE):
         raise FileNotFoundError(f"OAuth client não encontrado: {OAUTH_CLIENT_FILE}")
 
     flow = InstalledAppFlow.from_client_secrets_file(OAUTH_CLIENT_FILE, SCOPES)
-    creds = flow.run_local_server(port=0)
+    creds = flow.run_local_server(port=0, prompt="consent")
 
     os.makedirs(os.path.dirname(TOKEN_FILE), exist_ok=True)
     with open(TOKEN_FILE, "w", encoding="utf-8") as f:
@@ -132,7 +176,8 @@ def _get_services():
     creds = _get_oauth_creds()
     if not creds:
         raise RuntimeError(
-            "token.json não encontrado/ inválido. Rode ensure_oauth_token() uma vez para autorizar."
+            "token.json não encontrado ou inválido. "
+            "Rode ensure_oauth_token(force=True) para autorizar novamente."
         )
 
     _sheets = build("sheets", "v4", credentials=creds).spreadsheets()
@@ -151,9 +196,10 @@ def _find_or_create_folder(folder_name: str, parent_id: str | None = None) -> st
     """
     _, drive_files, _ = _get_services()
 
+    safe_folder_name = folder_name.replace("'", "\\'")
     q_parts = [
         "mimeType='application/vnd.google-apps.folder'",
-        f"name='{folder_name}'",
+        f"name='{safe_folder_name}'",
         "trashed=false",
     ]
     if parent_id:
@@ -189,24 +235,28 @@ def upload_pdf_to_drive(file_storage, id_corretor: str, imovel_id: str, data_vis
 
     _, drive_files, _ = _get_services()
 
-    # ✅ Detecta o mimetype e extensão automaticamente
     filename_original = (file_storage.filename or "").lower()
     ext = os.path.splitext(filename_original)[1]
-    mime = mimetypes.guess_type(filename_original)[0] or 'application/octet-stream'
+    mime = mimetypes.guess_type(filename_original)[0] or "application/octet-stream"
 
     safe_id = _sanitize_filename(id_corretor)
     safe_imovel = _sanitize_filename(imovel_id)
     safe_data = _sanitize_filename(data_visita)
 
     base = "_".join([p for p in [safe_id, safe_imovel, safe_data, "anexo"] if p])
-    filename = f"{base}{ext}" # ✅ Mantém a extensão original (.jpg, .pdf, etc)
+    filename = f"{base}{ext}"
 
     root_folder_id = _find_or_create_folder(DRIVE_PARENT_FOLDER_NAME, parent_id=None)
     sub_folder_id = _find_or_create_folder(DRIVE_SUBFOLDER_NAME, parent_id=root_folder_id)
 
+    try:
+        file_storage.stream.seek(0)
+    except Exception:
+        pass
+
     media = MediaIoBaseUpload(
         file_storage.stream,
-        mimetype=mime, # ✅ Usa o mime detectado
+        mimetype=mime,
         resumable=True,
     )
 
@@ -225,7 +275,7 @@ def upload_pdf_to_drive(file_storage, id_corretor: str, imovel_id: str, data_vis
 
 
 # =========================
-# Sheets helpers (Dim lookup/create)
+# Sheets helpers
 # =========================
 def _get_column_values(sheet_name: str, col_letter: str, start_row: int = 2) -> List[str]:
     sheets, _, _ = _get_services()
@@ -273,7 +323,7 @@ def _find_id_by_name_in_dim(dim_sheet: str, id_col_letter: str, name_col_letter:
 
 def ensure_parceiro_id(nome_parceiro: str, imobiliaria: str, id_corretor: str) -> str:
     """
-    Dim_Parceiro_Visita (modelo):
+    Dim_Parceiro_Visita
       A Id_Parceiro
       B Nome_Parceiro
       C Imobiliaria
@@ -296,7 +346,7 @@ def ensure_parceiro_id(nome_parceiro: str, imobiliaria: str, id_corretor: str) -
 
 def ensure_cliente_id(nome_cliente: str, telefone: str, email: str, created_by: str, id_corretor: str) -> str:
     """
-    Dim_Cliente_Visita (modelo):
+    Dim_Cliente_Visita
       A Id_Cliente
       B Nome_Cliente
       C Telefone_Cliente
@@ -329,24 +379,22 @@ def registrar_visita(payload: Dict[str, Any]) -> str:
     - Fato_Visitas (A:R)
     - Fato_Avaliacao (A:N)
     - Fato_Cliente_Visita (A:D)
+    - Fato_Parceiro_Visita (A:C)
     """
     sheets, _, _ = _get_services()
 
     id_visita = uuid.uuid4().hex[:8]
     id_avaliacao = uuid.uuid4().hex[:8]
     id_cliente_visita = uuid.uuid4().hex[:8]
+    id_parceiro_visita = uuid.uuid4().hex[:8]
 
     data_visita = _to_ddmmyyyy(payload.get("dataVisita"))
-    imovel_id = payload.get("imovelId", "")
-
-    # id do corretor vem do login
-    id_corretor = payload.get("idCorretor") or payload.get("corretorId") or ""
+    imovel_id = (payload.get("imovelId") or "").strip()
+    id_corretor = (payload.get("idCorretor") or payload.get("corretorId") or "").strip()
 
     parceiro_externo = payload.get("parceiroExterno", "NAO")
     situacao_imovel = payload.get("situacaoImovel", "CAPTACAO_PROPRIA")
-
     proposta = payload.get("proposta", "")
-    cliente_nome = payload.get("clienteNome", "")
     papel_visita = payload.get("papelVisita", "")
 
     aval = payload.get("avaliacoes", {}) or {}
@@ -366,31 +414,52 @@ def registrar_visita(payload: Dict[str, Any]) -> str:
     elif situacao_imovel == "IMOVEL_NAO_CAPTADO":
         imovel_nao_captado = "TRUE"
 
-    # Campos do Sheets vindos do front
-    anexo_ficha = payload.get("anexoFichaVisita", "")                # E (caminho)
-    audio_desc = payload.get("audioDescricaoClienteVisita", "")      # F
-    link_audio = payload.get("linkAudio", "")                        # G
-    link_imagem = payload.get("linkImagem", "")                      # H (link do PDF no Drive)
-    endereco_externo = payload.get("enderecoExterno", "")            # K
-    assinatura = payload.get("assinatura", "")                       # O
+    anexo_ficha = payload.get("anexoFichaVisita", "")
+    audio_desc = payload.get("audioDescricaoClienteVisita", "")
+    link_audio = payload.get("linkAudio", "")
+    link_imagem = payload.get("linkImagem", "")
+    endereco_externo = payload.get("enderecoExterno", "")
+    assinatura = payload.get("assinatura", "")
 
-    # ✅ Agora o front manda só NOMES (sem IDs)
     parceiro_nome = (payload.get("parceiroNome") or "").strip()
     parceiro_imobiliaria = (payload.get("parceiroImobiliaria") or "").strip()
+
+    cliente_nome = (payload.get("clienteNome") or "").strip()
+    cliente_tel = (
+        payload.get("clienteTelefone")
+        or payload.get("clienteAssinanteTelefone")
+        or ""
+    ).strip()
+    cliente_email = (
+        payload.get("clienteEmail")
+        or payload.get("clienteAssinanteEmail")
+        or ""
+    ).strip()
 
     cliente_assinante_nome = (payload.get("clienteAssinanteNome") or "").strip()
     cliente_assinante_tel = (payload.get("clienteAssinanteTelefone") or "").strip()
     cliente_assinante_email = (payload.get("clienteAssinanteEmail") or "").strip()
 
-    # ✅ IDs gerados/obtidos via Dim
     id_parceiro = ensure_parceiro_id(parceiro_nome, parceiro_imobiliaria, id_corretor)
-    id_cliente_assinante = ensure_cliente_id(
-        cliente_assinante_nome,
-        cliente_assinante_tel,
-        cliente_assinante_email,
+
+    id_cliente = ensure_cliente_id(
+        cliente_nome,
+        cliente_tel,
+        cliente_email,
         created_by,
         id_corretor,
     )
+
+    if cliente_assinante_nome and _norm_key(cliente_assinante_nome) != _norm_key(cliente_nome):
+        id_cliente_assinante = ensure_cliente_id(
+            cliente_assinante_nome,
+            cliente_assinante_tel,
+            cliente_assinante_email,
+            created_by,
+            id_corretor,
+        )
+    else:
+        id_cliente_assinante = id_cliente
 
     visita_row = [
         id_visita,            # A Id_Visita
@@ -413,13 +482,12 @@ def registrar_visita(payload: Dict[str, Any]) -> str:
         imovel_nao_captado,   # R Imovel_Nao_Captado
     ]
 
-    # modelo padrão: cabeçalho na linha 1, dados a partir da 2
-    START_ROW = 2
-    colA = sheets.values().get(
+    start_row = 2
+    col_a = sheets.values().get(
         spreadsheetId=SPREADSHEET_ID,
-        range=f"Fato_Visitas!A{START_ROW}:A",
+        range=f"Fato_Visitas!A{start_row}:A",
     ).execute().get("values", [])
-    next_row = START_ROW + len(colA)
+    next_row = start_row + len(col_a)
 
     sheets.values().update(
         spreadsheetId=SPREADSHEET_ID,
@@ -430,7 +498,7 @@ def registrar_visita(payload: Dict[str, Any]) -> str:
 
     created_by_avaliacao = created_by or (payload.get("corretor") or "")
 
-    # CSV padrão (Fato_Avaliacao):
+    # Fato_Avaliacao
     # A id_Avaliacao
     # B Id_Visita
     # C Id_Cliente
@@ -440,30 +508,27 @@ def registrar_visita(payload: Dict[str, Any]) -> str:
     # G Qualidade_Acabamento
     # H Estado_Conservacao
     # I Condominio_AreaComun
-    # J Preco (NOTA 1-10)
+    # J Preco
     # K Nota_Geral
     # L Preco_N10
     # M CreatedBy
     # N Id_Parceiro
-
     avaliacao_row = [
-        id_avaliacao,                 # A
-        id_visita,                    # B
-        cliente_nome,                 # C (mantido igual ao seu modelo atual)
-        aval.get("localizacao", ""),  # D
-        aval.get("tamanho", ""),      # E
-        aval.get("planta", ""),       # F
-        aval.get("acabamento", ""),   # G
-        aval.get("conservacao", ""),  # H
-        aval.get("condominio", ""),   # I
-        aval.get("preco", ""),        # J ✅ agora vem do front
-        aval.get("notaGeral", ""),    # K
-        preco_nota10,                 # L
-        created_by_avaliacao,         # M
-        id_parceiro,                  # N
+        id_avaliacao,
+        id_visita,
+        id_cliente,
+        aval.get("localizacao", ""),
+        aval.get("tamanho", ""),
+        aval.get("planta", ""),
+        aval.get("acabamento", ""),
+        aval.get("conservacao", ""),
+        aval.get("condominio", ""),
+        aval.get("preco", ""),
+        aval.get("notaGeral", ""),
+        preco_nota10,
+        created_by_avaliacao,
+        id_parceiro,
     ]
-
-
 
     sheets.values().append(
         spreadsheetId=SPREADSHEET_ID,
@@ -473,10 +538,15 @@ def registrar_visita(payload: Dict[str, Any]) -> str:
         body={"values": [avaliacao_row]},
     ).execute()
 
+    # Fato_Cliente_Visita
+    # A id_relacao
+    # B Id_Visita
+    # C Id_Cliente
+    # D Papel_Visita
     cliente_visita_row = [
         id_cliente_visita,
         id_visita,
-        cliente_nome,
+        id_cliente,
         papel_visita,
     ]
 
@@ -488,39 +558,39 @@ def registrar_visita(payload: Dict[str, Any]) -> str:
         body={"values": [cliente_visita_row]},
     ).execute()
 
+    # Fato_Parceiro_Visita
+    # A id_relacao
+    # B Id_Visita
+    # C Id_Parceiro
+    if id_parceiro:
+        parceiro_visita_row = [
+            id_parceiro_visita,
+            id_visita,
+            id_parceiro,
+        ]
+
+        sheets.values().append(
+            spreadsheetId=SPREADSHEET_ID,
+            range="Fato_Parceiro_Visita!A:C",
+            valueInputOption="USER_ENTERED",
+            insertDataOption="INSERT_ROWS",
+            body={"values": [parceiro_visita_row]},
+        ).execute()
+
     return id_visita
 
 
-def _norm_phone(s: str) -> str:
-    """
-    Normaliza telefone para comparação:
-    - remove tudo que não for dígito
-    - compara pelos últimos 11 dígitos (padrão BR com DDD)
-    """
-    digits = re.sub(r"\D+", "", s or "")
-    if len(digits) > 11:
-        digits = digits[-11:]
-    return digits
-
-
-import datetime as dt
-from typing import Any, Dict, List
-
-def _parse_ddmmyyyy_safe(s: str) -> dt.date:
-    try:
-        return dt.datetime.strptime((s or "").strip(), "%d/%m/%Y").date()
-    except Exception:
-        return dt.date.min
-
-
+# =========================
+# Consulta: visitas do corretor
+# =========================
 def buscar_visitas_do_corretor(id_corretor: str, q: str = "", limit: int = 30) -> List[Dict[str, Any]]:
     """
     Retorna lista de visitas do corretor com:
-      - cliente (nome vindo de Fato_Cliente_Visita)
+      - cliente (nome vindo da Dim_Cliente_Visita a partir do Id_Cliente)
       - id_visita
       - dataVisita
       - imovelId
-      - label (texto auxiliar)
+      - label
     """
     id_corretor = (id_corretor or "").strip()
     qn = _norm_key(q)
@@ -533,9 +603,9 @@ def buscar_visitas_do_corretor(id_corretor: str, q: str = "", limit: int = 30) -
     res = sheets.values().batchGet(
         spreadsheetId=SPREADSHEET_ID,
         ranges=[
-            "Fato_Visitas!A2:R",          # A id_visita, B imovel, C data, D id_corretor, P id_cliente_assinante
-            "Fato_Cliente_Visita!A2:D",   # B id_visita, C cliente_nome
-            "Dim_Cliente_Visita!A2:B",    # fallback (id -> nome), se não tiver em Fato_Cliente_Visita
+            "Fato_Visitas!A2:R",
+            "Fato_Cliente_Visita!A2:D",
+            "Dim_Cliente_Visita!A2:B",
         ],
     ).execute()
 
@@ -544,7 +614,6 @@ def buscar_visitas_do_corretor(id_corretor: str, q: str = "", limit: int = 30) -
     fato_cli_rows = (ranges[1].get("values", []) if len(ranges) > 1 else [])
     dim_rows = (ranges[2].get("values", []) if len(ranges) > 2 else [])
 
-    # fallback clienteId -> nome
     cliente_map: Dict[str, str] = {}
     for r in dim_rows:
         cid = (r[0] if len(r) > 0 else "").strip()
@@ -552,13 +621,18 @@ def buscar_visitas_do_corretor(id_corretor: str, q: str = "", limit: int = 30) -
         if cid:
             cliente_map[cid] = nome
 
-    # id_visita -> lista de nomes (Fato_Cliente_Visita)
     clientes_por_visita: Dict[str, List[str]] = {}
     for r in fato_cli_rows:
-        id_visita = (r[1] if len(r) > 1 else "").strip()   # coluna B
-        nome_cli = (r[2] if len(r) > 2 else "").strip()    # coluna C
-        if not id_visita or not nome_cli:
+        id_visita = (r[1] if len(r) > 1 else "").strip()
+        id_cliente_fato = (r[2] if len(r) > 2 else "").strip()
+
+        if not id_visita or not id_cliente_fato:
             continue
+
+        nome_cli = (cliente_map.get(id_cliente_fato, "") or "").strip()
+        if not nome_cli:
+            continue
+
         clientes_por_visita.setdefault(id_visita, [])
         if nome_cli not in clientes_por_visita[id_visita]:
             clientes_por_visita[id_visita].append(nome_cli)
@@ -566,7 +640,7 @@ def buscar_visitas_do_corretor(id_corretor: str, q: str = "", limit: int = 30) -
     itens: List[Dict[str, Any]] = []
 
     for idx, r in enumerate(fato_rows):
-        row_number = 2 + idx  # linha real no Sheets (se quiser manter)
+        row_number = 2 + idx
 
         id_visita = (r[0] if len(r) > 0 else "").strip()
         id_imovel = (r[1] if len(r) > 1 else "").strip()
@@ -578,22 +652,17 @@ def buscar_visitas_do_corretor(id_corretor: str, q: str = "", limit: int = 30) -
         if id_cor_row != id_corretor:
             continue
 
-        # Cliente principal (prioridade: Fato_Cliente_Visita)
         nomes = clientes_por_visita.get(id_visita, [])
         if nomes:
-            # se tiver mais de um, mostra o primeiro e indica que há mais
             cliente_nome = nomes[0] if len(nomes) == 1 else f"{nomes[0]} (+{len(nomes)-1})"
         else:
-            # fallback: Id_Cliente_Assinante (coluna P)
             id_cliente_assinante = (r[15] if len(r) > 15 else "").strip()
             cliente_nome = (cliente_map.get(id_cliente_assinante, "") or "").strip()
 
-        # label auxiliar (mas o front vai mostrar cliente_nome como título)
         label = " - ".join(
             [p for p in [cliente_nome, data_visita, f"#{id_imovel}" if id_imovel else ""] if p]
         ).strip() or id_visita
 
-        # filtro (q): busca por nome, data, imovel, id
         if qn:
             hay = " ".join([cliente_nome, data_visita, id_imovel, id_visita, label])
             if qn not in _norm_key(hay):
@@ -606,7 +675,7 @@ def buscar_visitas_do_corretor(id_corretor: str, q: str = "", limit: int = 30) -
                 "dataVisita": data_visita,
                 "imovelId": id_imovel,
                 "label": label,
-                "row": row_number,  # pode manter, mas não precisa mostrar no front
+                "row": row_number,
             }
         )
 
