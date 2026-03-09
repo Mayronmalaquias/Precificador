@@ -6,10 +6,9 @@ import "../assets/css/VisitaForm.css";
 const API_BASE = "/api";
 //const API_BASE = "http://localhost:5000";
 
-
 export default function VisitaForm() {
   const [corretorInfo, setCorretorInfo] = useState({
-    id: "", // <- C61010 etc (vem do login)
+    id: "",
     username: "",
     nome: "",
     telefone: "",
@@ -20,17 +19,15 @@ export default function VisitaForm() {
 
   const [form, setForm] = useState({
     imovelId: "",
-    dataVisita: new Date().toISOString().split("T")[0], // yyyy-mm-dd
-    parceiroExterno: "NAO", // SIM / NAO
-    situacaoImovel: "CAPTACAO_PROPRIA", // CAPTACAO_PROPRIA | CAPTACAO_PARCEIRO | IMOVEL_NAO_CAPTADO
+    dataVisita: new Date().toISOString().split("T")[0],
+    parceiroExterno: "NAO",
+    situacaoImovel: "CAPTACAO_PROPRIA",
     clienteNome: "",
-    proposta: "Talvez", // Sim / Não / Talvez
-    papelVisita: "Interessado", // Comprador | Interessado
+    proposta: "Talvez",
+    papelVisita: "Interessado",
 
-    // campos extras (Sheets)
     enderecoExterno: "",
 
-    // ✅ agora SEM IDs: só nomes
     parceiroNome: "",
     parceiroImobiliaria: "",
 
@@ -42,29 +39,28 @@ export default function VisitaForm() {
     audioDescricaoClienteVisita: "",
     linkAudio: "",
 
-    // notas 1–10
     localizacao: 10,
     tamanho: 10,
     planta: 10,
     acabamento: 10,
     conservacao: 10,
     condominio: 10,
-    preco: 10, // ✅ ADICIONADO (porque seu CSV tem Preco e seu JSX usa renderNotaButtons("preco"))
+    preco: 10,
     notaGeral: 10,
 
-    precoNota10: "", // número (R$)
+    precoNota10: "",
   });
 
   const [pdfFile, setPdfFile] = useState(null);
   const [loading, setLoading] = useState(false);
 
-  // ✅ estados da busca por endereço
   const [enderecoQuery, setEnderecoQuery] = useState("");
   const [imoveisSugestoes, setImoveisSugestoes] = useState([]);
   const [loadingImoveis, setLoadingImoveis] = useState(false);
   const [showSugestoes, setShowSugestoes] = useState(false);
 
-  // Carrega dados do usuário logado
+  const isImovelNaoCaptado = form.situacaoImovel === "IMOVEL_NAO_CAPTADO";
+
   useEffect(() => {
     const userDataString = localStorage.getItem("userData");
     if (userDataString) {
@@ -94,6 +90,23 @@ export default function VisitaForm() {
     }
   }, []);
 
+  useEffect(() => {
+    if (isImovelNaoCaptado) {
+      setForm((prev) => ({
+        ...prev,
+        imovelId: "0000",
+      }));
+      setEnderecoQuery("");
+      setImoveisSugestoes([]);
+      setShowSugestoes(false);
+    } else if (form.imovelId === "0000") {
+      setForm((prev) => ({
+        ...prev,
+        imovelId: "",
+      }));
+    }
+  }, [isImovelNaoCaptado]);
+
   function updateField(field) {
     return (e) => {
       setForm((prev) => ({
@@ -112,9 +125,14 @@ export default function VisitaForm() {
     };
   }
 
-  // ✅ Busca no backend: /api/visitas/imoveis_busca?endereco=...
   async function buscarImoveisPorEndereco(query) {
     const q = (query || "").trim();
+
+    if (isImovelNaoCaptado) {
+      setImoveisSugestoes([]);
+      return;
+    }
+
     if (q.length < 3) {
       setImoveisSugestoes([]);
       return;
@@ -141,14 +159,16 @@ export default function VisitaForm() {
     }
   }
 
-  // ✅ debounce (evita chamar a API a cada tecla)
   useEffect(() => {
+    if (isImovelNaoCaptado) return;
     if (!showSugestoes) return;
+
     const t = setTimeout(() => {
       buscarImoveisPorEndereco(enderecoQuery);
     }, 350);
+
     return () => clearTimeout(t);
-  }, [enderecoQuery, showSugestoes]);
+  }, [enderecoQuery, showSugestoes, isImovelNaoCaptado]);
 
   async function uploadPdfIfAny({ idCorretor, imovelId, dataVisita }) {
     if (!pdfFile) return { drivePath: "", driveLink: "" };
@@ -185,31 +205,27 @@ export default function VisitaForm() {
 
     setLoading(true);
     try {
-      // 1) Upload do PDF (se houver)
       const { drivePath, driveLink } = await uploadPdfIfAny({
         idCorretor: corretorInfo.id,
         imovelId: form.imovelId,
         dataVisita: form.dataVisita,
       });
 
-      // 2) Payload final (grava caminho + link no Sheets)
       const payload = {
         ...form,
+        imovelId: isImovelNaoCaptado ? "0000" : form.imovelId,
 
         idCorretor: corretorInfo.id,
 
-        // Campos do Sheets (E e H no seu modelo)
-        anexoFichaVisita: drivePath, // ex: Fato_Visitas_PDF/arquivo.pdf
-        linkImagem: driveLink, // webViewLink do Drive
+        anexoFichaVisita: drivePath,
+        linkImagem: driveLink,
 
-        // dados do corretor
         corretor: corretorInfo.nome || corretorInfo.username,
         corretorEmail: corretorInfo.email || "",
         telefoneCorretor: corretorInfo.telefone,
         instagramCorretor: corretorInfo.instagram,
         descricaoCorretor: corretorInfo.descricao,
 
-        // ✅ agora inclui preco (nota 1-10)
         avaliacoes: {
           localizacao: Number(form.localizacao),
           tamanho: Number(form.tamanho),
@@ -236,7 +252,6 @@ export default function VisitaForm() {
 
       alert(`Visita lançada com sucesso! Id: ${data.id_visita}`);
 
-      // limpa alguns campos
       setForm((prev) => ({
         ...prev,
         imovelId: "",
@@ -259,7 +274,6 @@ export default function VisitaForm() {
         precoNota10: "",
       }));
 
-      // limpa busca
       setEnderecoQuery("");
       setImoveisSugestoes([]);
       setShowSugestoes(false);
@@ -301,7 +315,6 @@ export default function VisitaForm() {
       <form className="visita-form" onSubmit={handleSubmit}>
         <h2>Lançar Visita</h2>
 
-        {/* Corretor (somente leitura) */}
         <div className="vf-group">
           <label>Corretor</label>
           <div className="vf-readonly">
@@ -310,7 +323,6 @@ export default function VisitaForm() {
           </div>
         </div>
 
-        {/* Parceiro Externo */}
         <div className="vf-group">
           <label>Visita com Parceiro Externo?</label>
           <div className="vf-toggle-row">
@@ -339,7 +351,6 @@ export default function VisitaForm() {
           </div>
         </div>
 
-        {/* Situação do Imóvel */}
         <div className="vf-group">
           <label>Situação do Imóvel</label>
           <div className="vf-toggle-row">
@@ -374,77 +385,90 @@ export default function VisitaForm() {
               }`}
               onClick={setRadio("situacaoImovel", "IMOVEL_NAO_CAPTADO")}
             >
-              Imóvel não captado
+              Imóvel não captado pela 61
             </button>
           </div>
         </div>
 
-        {/* ✅ BUSCA POR ENDEREÇO */}
-        <div className="vf-group">
-          <label>Buscar imóvel por endereço</label>
-          <input
-            type="text"
-            value={enderecoQuery}
-            onChange={(e) => {
-              setEnderecoQuery(e.target.value);
-              setShowSugestoes(true);
-            }}
-            onFocus={() => setShowSugestoes(true)}
-            placeholder="Ex: SQS 308, W3, Rua 12..."
-          />
+        {!isImovelNaoCaptado ? (
+          <div className="vf-group">
+            <label>Buscar imóvel por endereço</label>
+            <input
+              type="text"
+              value={enderecoQuery}
+              onChange={(e) => {
+                setEnderecoQuery(e.target.value);
+                setShowSugestoes(true);
+              }}
+              onFocus={() => setShowSugestoes(true)}
+              placeholder="Ex: SQS 308, W3, Rua 12..."
+            />
 
-          {loadingImoveis && (
-            <div className="vf-hint">Buscando...</div>
-          )}
+            {loadingImoveis && <div className="vf-hint">Buscando...</div>}
 
-          {showSugestoes && imoveisSugestoes.length > 0 && (
-            <div className="vf-sugestoes">
-              {imoveisSugestoes.map((it) => (
-                <button
-                  type="button"
-                  key={`${it.codigo}-${it.finalidade || ""}`}
-                  className="vf-sugestao-item"
-                  onClick={() => {
-                    const enderecoFull = `${it.endereco || ""}${it.numero ? `, ${it.numero}` : ""}`;
+            {showSugestoes && imoveisSugestoes.length > 0 && (
+              <div className="vf-sugestoes">
+                {imoveisSugestoes.map((it) => (
+                  <button
+                    type="button"
+                    key={`${it.codigo}-${it.finalidade || ""}`}
+                    className="vf-sugestao-item"
+                    onClick={() => {
+                      const enderecoFull = `${it.endereco || ""}${
+                        it.numero ? `, ${it.numero}` : ""
+                      }`;
 
-                    setForm((prev) => ({
-                      ...prev,
-                      imovelId: String(it.codigo || ""),
-                      enderecoExterno: enderecoFull, // opcional: salva o endereço escolhido
-                    }));
+                      setForm((prev) => ({
+                        ...prev,
+                        imovelId: String(it.codigo || ""),
+                        enderecoExterno: enderecoFull,
+                      }));
 
-                    setEnderecoQuery(enderecoFull);
-                    setShowSugestoes(false);
-                    setImoveisSugestoes([]);
-                  }}
-                >
-                  <div className="vf-sugestao-title">
-                    #{it.codigo} {it.finalidade ? `(${it.finalidade})` : ""}{" "}
-                    {it.titulo || ""}
-                  </div>
-                  <div className="vf-sugestao-sub">
-                    {it.endereco || ""}
-                    {it.numero ? `, ${it.numero}` : ""}
-                    {it.bairro ? ` - ${it.bairro}` : ""}
-                    {it.cidade ? ` (${it.cidade}${it.uf ? `/${it.uf}` : ""})` : ""}
-                  </div>
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
+                      setEnderecoQuery(enderecoFull);
+                      setShowSugestoes(false);
+                      setImoveisSugestoes([]);
+                    }}
+                  >
+                    <div className="vf-sugestao-title">
+                      #{it.codigo} {it.finalidade ? `(${it.finalidade})` : ""}{" "}
+                      {it.titulo || ""}
+                    </div>
+                    <div className="vf-sugestao-sub">
+                      {it.endereco || ""}
+                      {it.numero ? `, ${it.numero}` : ""}
+                      {it.bairro ? ` - ${it.bairro}` : ""}
+                      {it.cidade ? ` (${it.cidade}${it.uf ? `/${it.uf}` : ""})` : ""}
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        ) : (
+          <div className="vf-group">
+            <label>Endereço do imóvel</label>
+            <input
+              type="text"
+              value={form.enderecoExterno}
+              onChange={updateField("enderecoExterno")}
+              placeholder="Digite o endereço manualmente"
+              required
+            />
+          </div>
+        )}
 
-        {/* Imóvel (código) */}
-        <div className="vf-group">
-          <label>Imóvel (código)</label>
-          <input
-            type="text"
-            value={form.imovelId}
-            onChange={updateField("imovelId")}
-            placeholder="Será preenchido ao selecionar um imóvel"
-            required
-          />
-        </div>
+        {!isImovelNaoCaptado && (
+          <div className="vf-group">
+            <label>Imóvel (código)</label>
+            <input
+              type="text"
+              value={form.imovelId}
+              onChange={updateField("imovelId")}
+              placeholder="Será preenchido ao selecionar um imóvel"
+              required
+            />
+          </div>
+        )}
 
         <div className="vf-group">
           <label>Data da Visita</label>
@@ -456,7 +480,6 @@ export default function VisitaForm() {
           />
         </div>
 
-        {/* Cliente */}
         <div className="vf-group">
           <label>Cliente na Visita</label>
           <input
@@ -468,7 +491,6 @@ export default function VisitaForm() {
           />
         </div>
 
-        {/* Avaliações */}
         <div className="vf-section-title">Avaliações (1 a 10)</div>
 
         <div className="vf-group">
@@ -523,43 +545,14 @@ export default function VisitaForm() {
           />
         </div>
 
-        {/* Papel na visita */}
-        {/* <div className="vf-group">
-          <label>Papel na visita</label>
-          <div className="vf-toggle-row">
-            <button
-              type="button"
-              className={`vf-toggle ${
-                form.papelVisita === "Comprador" ? "vf-toggle-active" : ""
-              }`}
-              onClick={setRadio("papelVisita", "Comprador")}
-            >
-              Comprador
-            </button>
-            <button
-              type="button"
-              className={`vf-toggle ${
-                form.papelVisita === "Interessado" ? "vf-toggle-active" : ""
-              }`}
-              onClick={setRadio("papelVisita", "Interessado")}
-            >
-              Interessado
-            </button>
-          </div>
-        </div> */}
-
-        {/* PDF */}
-        {/* Seção de Anexo (Foto ou PDF) */}
         <div className="vf-section-title">Anexo (Foto da Câmera ou PDF)</div>
         <div className="vf-group">
           <label>Tirar foto ou anexar PDF</label>
           <input
             type="file"
-            accept="image/*,application/pdf" // ✅ Aceita imagens e PDFs
-            capture="environment"            // ✅ Abre a câmera traseira em dispositivos móveis
-            onChange={(e) =>
-              setPdfFile(e.target.files?.[0] || null)
-            }
+            accept="image/*,application/pdf"
+            capture="environment"
+            onChange={(e) => setPdfFile(e.target.files?.[0] || null)}
           />
           {pdfFile && (
             <div className="vf-hint">
@@ -568,7 +561,6 @@ export default function VisitaForm() {
           )}
         </div>
 
-        {/* Proposta */}
         <div className="vf-group">
           <label>Proposta</label>
           <div className="vf-toggle-row">

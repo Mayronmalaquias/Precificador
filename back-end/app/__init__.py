@@ -48,6 +48,10 @@ def create_app():
     from app.routes.visita_routes import visita_ns
     from app.routes.ranking_routes import ranking_ns
     from app.routes.divisao_comissao_routes import divisao_ns
+    from app.routes.relatorio_visita_route import relatorio_visita
+    from app.routes.imovel_rel_route import imovel_catalogo_ns
+    api.add_namespace(relatorio_visita, path='/')
+    api.add_namespace(imovel_catalogo_ns, path='/')
     api.add_namespace(divisao_ns, path='/')
     # api.add_namespace(mapa_ns, path='/')
     api.add_namespace(analise_ns, path='/')

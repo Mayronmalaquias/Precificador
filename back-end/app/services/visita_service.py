@@ -13,6 +13,7 @@
 
 from __future__ import annotations
 
+import io
 import os
 import uuid
 import re
@@ -42,6 +43,7 @@ TOKEN_FILE = os.path.join(BASE_DIR, "utils", "asserts", "token.json")
 # Onde salvar PDFs/anexos no Drive
 DRIVE_PARENT_FOLDER_NAME = "61_Visitas"
 DRIVE_SUBFOLDER_NAME = "Fato_Visitas_PDF"
+DRIVE_VISITA_REPORTS_SUBFOLDER_NAME="Relatorios_Visita_Gerados"
 
 SCOPES = [
     "https://www.googleapis.com/auth/drive.file",
@@ -56,6 +58,8 @@ _drive = None
 # =========================
 # Utils
 # =========================
+def _safe_str(v: Any) -> str:
+    return "" if v is None else str(v).strip()
 def _to_ddmmyyyy(date_str: str) -> str:
     if not date_str:
         return dt.date.today().strftime("%d/%m/%Y")
@@ -685,3 +689,640 @@ def buscar_visitas_do_corretor(id_corretor: str, q: str = "", limit: int = 30) -
     )
 
     return itens[: max(1, int(limit or 30))]
+
+# =========================
+# PDF da Visita
+# =========================
+def _batch_get_sheet_rows(ranges: List[str]) -> Dict[str, List[Dict[str, Any]]]:
+    sheets, _, _ = _get_services()
+
+    res = sheets.values().batchGet(
+        spreadsheetId=SPREADSHEET_ID,
+        ranges=ranges,
+        majorDimension="ROWS",
+    ).execute()
+
+    value_ranges = res.get("valueRanges", [])
+    out: Dict[str, List[Dict[str, Any]]] = {}
+
+    for rg, vr in zip(ranges, value_ranges):
+        values = vr.get("values", [])
+        sheet_name = rg.split("!")[0]
+
+        if not values:
+            out[sheet_name] = []
+            continue
+
+        header = [str(c).strip() for c in values[0]]
+        rows = []
+
+        for raw in values[1:]:
+            row = {}
+            for i, h in enumerate(header):
+                row[h] = raw[i] if i < len(raw) else ""
+            rows.append(row)
+
+        out[sheet_name] = rows
+
+    return out
+
+
+def _find_first_by_key(rows: List[Dict[str, Any]], key: str, value: Any) -> Dict[str, Any] | None:
+    val = _safe_str(value)
+    for row in rows:
+        if _safe_str(row.get(key)) == val:
+            return row
+    return None
+
+
+def _find_all_by_key(rows: List[Dict[str, Any]], key: str, value: Any) -> List[Dict[str, Any]]:
+    val = _safe_str(value)
+    return [row for row in rows if _safe_str(row.get(key)) == val]
+
+
+def _fmt_money_brl(v: Any) -> str:
+    if v in (None, ""):
+        return ""
+    try:
+        num = float(str(v).replace(".", "").replace(",", "."))
+        return f"R$ {num:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+    except Exception:
+        return str(v)
+
+
+def _fmt_datetime_br(v: Any) -> str:
+    if v in (None, ""):
+        return ""
+
+    if isinstance(v, dt.datetime):
+        return v.strftime("%d/%m/%Y %H:%M:%S")
+
+    s = str(v).strip()
+    if not s:
+        return ""
+
+    formatos = [
+        "%d/%m/%Y %H:%M:%S",
+        "%d/%m/%Y",
+        "%Y-%m-%d %H:%M:%S",
+        "%Y-%m-%dT%H:%M:%S",
+        "%Y-%m-%d",
+    ]
+    for fmt in formatos:
+        try:
+            d = dt.datetime.strptime(s, fmt)
+            return d.strftime("%d/%m/%Y %H:%M:%S")
+        except Exception:
+            continue
+
+    return s
+
+
+def _pick_from_row(row: Dict[str, Any] | None, *keys: str) -> str:
+    if not row:
+        return ""
+    for key in keys:
+        val = _safe_str(row.get(key))
+        if val:
+            return val
+    return ""
+
+
+def _display(v: Any, default: str = "—") -> str:
+    s = _safe_str(v)
+    return s if s else default
+
+
+def _num_or_none(v: Any) -> float | None:
+    s = _safe_str(v)
+    if not s:
+        return None
+    try:
+        return float(s.replace(".", "").replace(",", "."))
+    except Exception:
+        return None
+
+
+def _avg_scores(avaliacoes: List[Dict[str, Any]]) -> Dict[str, str]:
+    campos = [
+        ("Localizacao", "Localização"),
+        ("Tamanho", "Tamanho"),
+        ("Planta_Imovel", "Planta"),
+        ("Qualidade_Acabamento", "Acabamento"),
+        ("Estado_Conservacao", "Conservação"),
+        ("Condominio_AreaComun", "Condomínio"),
+        ("Preco", "Preço"),
+        ("Nota_Geral", "Nota Geral"),
+    ]
+
+    out: Dict[str, str] = {}
+    for key, label in campos:
+        nums = [_num_or_none(a.get(key)) for a in avaliacoes]
+        nums = [n for n in nums if n is not None]
+        if nums:
+            out[label] = f"{sum(nums)/len(nums):.1f}"
+        else:
+            out[label] = "—"
+
+    preco_n10_vals = [_num_or_none(a.get("Preco_N10")) for a in avaliacoes]
+    preco_n10_vals = [n for n in preco_n10_vals if n is not None]
+    out["Preço Nota 10"] = _fmt_money_brl(sum(preco_n10_vals)/len(preco_n10_vals)) if preco_n10_vals else "—"
+
+    return out
+
+
+def _find_corretor_row(visita: Dict[str, Any], dim_corretor: List[Dict[str, Any]]) -> Dict[str, Any] | None:
+    id_corretor = _pick_from_row(visita, "Id_Corretor")
+    created_by = _pick_from_row(visita, "CreatedBy")
+
+    corretor = None
+    if id_corretor:
+        corretor = _find_first_by_key(dim_corretor, "IdCorretor", id_corretor)
+
+    if not corretor and created_by:
+        corretor = _find_first_by_key(dim_corretor, "Email", created_by)
+
+    return corretor
+
+
+def _trash_same_name_files_in_folder(folder_id: str, file_name: str) -> None:
+    _, drive_files, _ = _get_services()
+
+    safe_name = file_name.replace("'", "\\'")
+    q = (
+        f"name='{safe_name}' and "
+        f"'{folder_id}' in parents and "
+        "trashed=false"
+    )
+
+    res = drive_files.list(
+        q=q,
+        spaces="drive",
+        fields="files(id,name)",
+        pageSize=50,
+    ).execute()
+
+    for f in res.get("files", []):
+        drive_files.update(fileId=f["id"], body={"trashed": True}).execute()
+
+
+def _montar_contexto_pdf_visita(visita_id: str) -> Dict[str, Any]:
+    data = _batch_get_sheet_rows(
+        [
+            "Fato_Visitas!A1:R",
+            "Fato_Avaliacao!A1:N",
+            "Dim_Cliente_Visita!A1:F",
+            "Fato_Cliente_Visita!A1:D",
+            "Dim_Corretor!A1:I",
+            "Dim_Parceiro_Visita!A1:D",
+            "Fato_Parceiro_Visita!A1:D",
+        ]
+    )
+
+    fato_visitas = data.get("Fato_Visitas", [])
+    fato_avaliacao = data.get("Fato_Avaliacao", [])
+    dim_cliente = data.get("Dim_Cliente_Visita", [])
+    fato_cliente_visita = data.get("Fato_Cliente_Visita", [])
+    dim_corretor = data.get("Dim_Corretor", [])
+    dim_parceiro = data.get("Dim_Parceiro_Visita", [])
+    fato_parceiro_visita = data.get("Fato_Parceiro_Visita", [])
+
+    visita = _find_first_by_key(fato_visitas, "Id_Visita", visita_id)
+    if not visita:
+        raise ValueError(f"Visita {visita_id} não encontrada.")
+
+    corretor = _find_corretor_row(visita, dim_corretor)
+
+    cliente_map = {
+        _safe_str(r.get("Id_Cliente")): r
+        for r in dim_cliente
+        if _safe_str(r.get("Id_Cliente"))
+    }
+
+    parceiro_map = {
+        _safe_str(r.get("Id_Parceiro")): r
+        for r in dim_parceiro
+        if _safe_str(r.get("Id_Parceiro"))
+    }
+
+    clientes: List[Dict[str, Any]] = []
+    fatos_cliente = _find_all_by_key(fato_cliente_visita, "Id_Visita", visita_id)
+
+    for fc in fatos_cliente:
+        id_cliente = _safe_str(fc.get("Id_Cliente"))
+        cli = cliente_map.get(id_cliente)
+        if not cli:
+            continue
+
+        clientes.append(
+            {
+                "Id_Cliente": id_cliente,
+                "Nome_Cliente": _pick_from_row(cli, "Nome_Cliente", "Nome"),
+                "Telefone_Cliente": _pick_from_row(cli, "Telefone_Cliente", "Telefone"),
+                "Email_Cliente": _pick_from_row(cli, "Email_Cliente", "Email"),
+                "Papel_na_Visita": _pick_from_row(fc, "Papel_na_Visita", "Papel_Visita", "Papel"),
+            }
+        )
+
+    if not clientes and _pick_from_row(visita, "Id_Cliente_Assinante"):
+        cli = cliente_map.get(_pick_from_row(visita, "Id_Cliente_Assinante"))
+        if cli:
+            clientes.append(
+                {
+                    "Id_Cliente": _pick_from_row(cli, "Id_Cliente"),
+                    "Nome_Cliente": _pick_from_row(cli, "Nome_Cliente", "Nome"),
+                    "Telefone_Cliente": _pick_from_row(cli, "Telefone_Cliente", "Telefone"),
+                    "Email_Cliente": _pick_from_row(cli, "Email_Cliente", "Email"),
+                    "Papel_na_Visita": "Assinante",
+                }
+            )
+
+    parceiros: List[Dict[str, Any]] = []
+    fatos_parceiro = _find_all_by_key(fato_parceiro_visita, "Id_Visita", visita_id)
+
+    for fp in fatos_parceiro:
+        id_parceiro = _safe_str(fp.get("Id_Parceiro"))
+        par = parceiro_map.get(id_parceiro)
+        if not par:
+            continue
+
+        parceiros.append(
+            {
+                "Id_Parceiro": id_parceiro,
+                "Nome_Parceiro": _pick_from_row(par, "Nome_Parceiro", "Nome"),
+                "Imobiliaria": _pick_from_row(par, "Imobiliaria"),
+                "Papel_na_Visita": _pick_from_row(fp, "Papel_na_Visita", "Papel_Visita", "Papel"),
+            }
+        )
+
+    if not parceiros and _pick_from_row(visita, "Id_Parceiro"):
+        par = parceiro_map.get(_pick_from_row(visita, "Id_Parceiro"))
+        if par:
+            parceiros.append(
+                {
+                    "Id_Parceiro": _pick_from_row(par, "Id_Parceiro"),
+                    "Nome_Parceiro": _pick_from_row(par, "Nome_Parceiro", "Nome"),
+                    "Imobiliaria": _pick_from_row(par, "Imobiliaria"),
+                    "Papel_na_Visita": "Parceiro",
+                }
+            )
+
+    avals = _find_all_by_key(fato_avaliacao, "Id_Visita", visita_id)
+
+    def _deref_cliente_nome(id_cliente: Any) -> str:
+        cli = cliente_map.get(_safe_str(id_cliente))
+        if cli:
+            return _pick_from_row(cli, "Nome_Cliente", "Nome")
+        return ""
+
+    avaliacoes = []
+    for a in avals:
+        avaliacoes.append(
+            {
+                "Nome_Cliente": _deref_cliente_nome(a.get("Id_Cliente")),
+                "Localizacao": _pick_from_row(a, "Localizacao"),
+                "Tamanho": _pick_from_row(a, "Tamanho"),
+                "Planta_Imovel": _pick_from_row(a, "Planta_Imovel"),
+                "Qualidade_Acabamento": _pick_from_row(a, "Qualidade_Acabamento"),
+                "Estado_Conservacao": _pick_from_row(a, "Estado_Conservacao"),
+                "Condominio_AreaComun": _pick_from_row(a, "Condominio_AreaComun"),
+                "Preco": _pick_from_row(a, "Preco"),
+                "Preco_N10": _pick_from_row(a, "Preco_N10"),
+                "Nota_Geral": _pick_from_row(a, "Nota_Geral"),
+            }
+        )
+
+    return {
+        "Id_Visita": _pick_from_row(visita, "Id_Visita"),
+        "CreatedAt": _fmt_datetime_br(_pick_from_row(visita, "CreatedAt")),
+        "Data_Visita": _fmt_datetime_br(_pick_from_row(visita, "Data_Visita")).split(" ")[0] if _pick_from_row(visita, "Data_Visita") else "",
+        "Proposta": _pick_from_row(visita, "Proposta"),
+        "Id_Imovel": _pick_from_row(visita, "Id_Imovel"),
+        "Tipo_Captacao": _pick_from_row(visita, "Tipo_Captacao"),
+        "Endereco_Externo": _pick_from_row(visita, "Endereco_Externo"),
+        "Visita_Com_Parceiro": _pick_from_row(visita, "Visita_Com_Parceiro"),
+        "Imovel_Nao_Captado": _pick_from_row(visita, "Imovel_Nao_Captado"),
+        "Anexo_Ficha_Visita": _pick_from_row(visita, "Anexo_Ficha_Visita"),
+        "AudiodescricaoClienteVisita": _pick_from_row(visita, "AudiodescricaoClienteVisita"),
+        "Link_Audio": _pick_from_row(visita, "Link_Audio"),
+        "Link_Imagem": _pick_from_row(visita, "Link_Imagem"),
+        "Assinatura": _pick_from_row(visita, "Assinatura"),
+        "CorretorNome": _pick_from_row(corretor, "Nome", "Nome_Corretor", "NomeCompleto"),
+        "CorretorTelefone": _pick_from_row(corretor, "Telefone", "Telefone_Corretor", "Celular", "WhatsApp"),
+        "CorretorInstagram": _pick_from_row(corretor, "Instragram", "Instagram", "Instagram_Corretor"),
+        "CorretorEmail": _pick_from_row(corretor, "Email") or _pick_from_row(visita, "CreatedBy"),
+        "CorretorDescricao": _pick_from_row(corretor, "Descricao", "Descrição", "Bio"),
+        "Clientes": clientes,
+        "Parceiros": parceiros,
+        "Avaliacoes": avaliacoes,
+        "TotAval": len(avaliacoes),
+    }
+
+
+def _build_pdf_visita_bytes(ctx: Dict[str, Any]) -> bytes:
+    try:
+        from reportlab.lib import colors
+        from reportlab.lib.pagesizes import A4
+        from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
+        from reportlab.lib.units import mm
+        from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
+    except ImportError as e:
+        raise RuntimeError(
+            "A biblioteca reportlab não está instalada. Instale com: pip install reportlab"
+        ) from e
+
+    buffer = io.BytesIO()
+
+    doc = SimpleDocTemplate(
+        buffer,
+        pagesize=A4,
+        leftMargin=14 * mm,
+        rightMargin=14 * mm,
+        topMargin=14 * mm,
+        bottomMargin=12 * mm,
+        title=f"Relatorio_Visita_{ctx['Id_Visita']}",
+    )
+
+    styles = getSampleStyleSheet()
+
+    style_title = ParagraphStyle(
+        "custom_title",
+        parent=styles["Title"],
+        fontName="Helvetica-Bold",
+        fontSize=19,
+        textColor=colors.HexColor("#0f172a"),
+        spaceAfter=4,
+    )
+
+    style_subtitle = ParagraphStyle(
+        "custom_subtitle",
+        parent=styles["BodyText"],
+        fontName="Helvetica",
+        fontSize=9.5,
+        textColor=colors.HexColor("#64748b"),
+        spaceAfter=10,
+    )
+
+    style_section = ParagraphStyle(
+        "custom_section",
+        parent=styles["Heading2"],
+        fontName="Helvetica-Bold",
+        fontSize=11,
+        textColor=colors.HexColor("#0f172a"),
+        spaceBefore=8,
+        spaceAfter=6,
+    )
+
+    style_body = ParagraphStyle(
+        "custom_body",
+        parent=styles["BodyText"],
+        fontName="Helvetica",
+        fontSize=9.2,
+        leading=12,
+        textColor=colors.HexColor("#111827"),
+    )
+
+    style_small = ParagraphStyle(
+        "custom_small",
+        parent=styles["BodyText"],
+        fontName="Helvetica",
+        fontSize=8.2,
+        leading=10.5,
+        textColor=colors.HexColor("#4b5563"),
+    )
+
+    def make_info_table(rows, col_widths=(42 * mm, 130 * mm)):
+        tbl = Table(rows, colWidths=list(col_widths))
+        tbl.setStyle(
+            TableStyle(
+                [
+                    ("BACKGROUND", (0, 0), (-1, -1), colors.white),
+                    ("GRID", (0, 0), (-1, -1), 0.35, colors.HexColor("#e5e7eb")),
+                    ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                    ("LEFTPADDING", (0, 0), (-1, -1), 8),
+                    ("RIGHTPADDING", (0, 0), (-1, -1), 8),
+                    ("TOPPADDING", (0, 0), (-1, -1), 6),
+                    ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+                    ("TEXTCOLOR", (0, 0), (0, -1), colors.HexColor("#475569")),
+                    ("FONTNAME", (0, 0), (0, -1), "Helvetica-Bold"),
+                    ("TEXTCOLOR", (1, 0), (1, -1), colors.HexColor("#111827")),
+                ]
+            )
+        )
+        return tbl
+
+    def make_grid_table(data, widths):
+        tbl = Table(data, colWidths=widths, repeatRows=1)
+        tbl.setStyle(
+            TableStyle(
+                [
+                    ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#0f172a")),
+                    ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+                    ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                    ("GRID", (0, 0), (-1, -1), 0.35, colors.HexColor("#e5e7eb")),
+                    ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                    ("FONTSIZE", (0, 0), (-1, -1), 8.5),
+                    ("LEADING", (0, 0), (-1, -1), 10),
+                    ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#f8fafc")]),
+                    ("LEFTPADDING", (0, 0), (-1, -1), 6),
+                    ("RIGHTPADDING", (0, 0), (-1, -1), 6),
+                    ("TOPPADDING", (0, 0), (-1, -1), 6),
+                    ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+                ]
+            )
+        )
+        return tbl
+
+    story = []
+
+    story.append(Paragraph("Relatório de Visita", style_title))
+    story.append(
+        Paragraph(
+            "Documento consolidado da visita, com corretor, clientes, parceiros e resumo das avaliações.",
+            style_subtitle,
+        )
+    )
+
+    resumo_rows = [
+        ["Id da visita", _display(ctx.get("Id_Visita"))],
+        ["Data da visita", _display(ctx.get("Data_Visita"))],
+        ["Criado em", _display(ctx.get("CreatedAt"))],
+        ["Imóvel", _display(ctx.get("Id_Imovel"))],
+        ["Proposta", _display(ctx.get("Proposta"))],
+        ["Tipo de captação", _display(ctx.get("Tipo_Captacao"))],
+    ]
+    story.append(make_info_table(resumo_rows))
+    story.append(Spacer(1, 10))
+
+    story.append(Paragraph("Corretor", style_section))
+    story.append(
+        make_info_table(
+            [
+                ["Nome", _display(ctx.get("CorretorNome"))],
+                ["Telefone", _display(ctx.get("CorretorTelefone"))],
+                ["Instagram", _display(ctx.get("CorretorInstagram"))],
+                ["E-mail", _display(ctx.get("CorretorEmail"))],
+                ["Descrição", _display(ctx.get("CorretorDescricao"))],
+            ]
+        )
+    )
+    story.append(Spacer(1, 10))
+
+    story.append(Paragraph("Detalhes da visita", style_section))
+    detalhes_rows = [
+        ["Endereço externo", _display(ctx.get("Endereco_Externo"))],
+        ["Visita com parceiro", _display(ctx.get("Visita_Com_Parceiro"))],
+        ["Imóvel não captado", _display(ctx.get("Imovel_Nao_Captado"))],
+        ["Áudio descrição", _display(ctx.get("AudiodescricaoClienteVisita"))],
+    ]
+    story.append(make_info_table(detalhes_rows))
+    story.append(Spacer(1, 10))
+
+    story.append(Paragraph("Clientes", style_section))
+    clientes_data = [["Cliente", "Telefone", "E-mail", "Papel"]]
+    if ctx["Clientes"]:
+        for c in ctx["Clientes"]:
+            clientes_data.append(
+                [
+                    _display(c.get("Nome_Cliente")),
+                    _display(c.get("Telefone_Cliente")),
+                    _display(c.get("Email_Cliente")),
+                    _display(c.get("Papel_na_Visita")),
+                ]
+            )
+    else:
+        clientes_data.append(["Sem clientes vinculados", "—", "—", "—"])
+
+    story.append(
+        make_grid_table(
+            clientes_data,
+            [52 * mm, 34 * mm, 62 * mm, 26 * mm],
+        )
+    )
+    story.append(Spacer(1, 10))
+
+    if ctx["Parceiros"]:
+        story.append(Paragraph("Parceiros", style_section))
+        parceiros_data = [["Parceiro", "Imobiliária", "Papel"]]
+        for p in ctx["Parceiros"]:
+            parceiros_data.append(
+                [
+                    _display(p.get("Nome_Parceiro")),
+                    _display(p.get("Imobiliaria")),
+                    _display(p.get("Papel_na_Visita")),
+                ]
+            )
+
+        story.append(
+            make_grid_table(
+                parceiros_data,
+                [65 * mm, 75 * mm, 34 * mm],
+            )
+        )
+        story.append(Spacer(1, 10))
+
+    story.append(Paragraph("Resumo das avaliações", style_section))
+    medias = _avg_scores(ctx["Avaliacoes"])
+
+    resumo_avaliacao = [["Critério", "Resultado"]]
+    for label, value in medias.items():
+        resumo_avaliacao.append([label, value])
+
+    story.append(
+        make_grid_table(
+            resumo_avaliacao,
+            [95 * mm, 79 * mm],
+        )
+    )
+    story.append(Spacer(1, 10))
+
+    if ctx["Avaliacoes"]:
+        respondentes = sorted(
+            {a.get("Nome_Cliente", "").strip() for a in ctx["Avaliacoes"] if a.get("Nome_Cliente")}
+        )
+        if respondentes:
+            story.append(
+                Paragraph(
+                    f"<b>Respondentes:</b> {', '.join(respondentes)}",
+                    style_body,
+                )
+            )
+            story.append(Spacer(1, 6))
+
+    links_disponiveis = []
+    if _safe_str(ctx.get("Link_Audio")):
+        links_disponiveis.append(f"<b>Link do áudio:</b> {ctx['Link_Audio']}")
+    if _safe_str(ctx.get("Link_Imagem")):
+        links_disponiveis.append(f"<b>Link da imagem:</b> {ctx['Link_Imagem']}")
+    if _safe_str(ctx.get("Anexo_Ficha_Visita")):
+        links_disponiveis.append(f"<b>Anexo da ficha:</b> {ctx['Anexo_Ficha_Visita']}")
+    if _safe_str(ctx.get("Assinatura")):
+        links_disponiveis.append(f"<b>Assinatura:</b> {ctx['Assinatura']}")
+
+    if links_disponiveis:
+        story.append(Paragraph("Links e anexos", style_section))
+        for linha in links_disponiveis:
+            story.append(Paragraph(linha, style_small))
+            story.append(Spacer(1, 4))
+
+    doc.build(story)
+    return buffer.getvalue()
+
+
+def gerar_pdf_visita_download(visita_id: str):
+    ctx = _montar_contexto_pdf_visita(visita_id)
+    pdf_bytes = _build_pdf_visita_bytes(ctx)
+    file_name = f"Relatorio_Visita_{visita_id}.pdf"
+    return io.BytesIO(pdf_bytes), file_name
+
+
+def gerar_pdf_visita_publico(visita_id: str) -> Dict[str, str]:
+    ctx = _montar_contexto_pdf_visita(visita_id)
+    pdf_bytes = _build_pdf_visita_bytes(ctx)
+    file_name = f"Relatorio_Visita_{visita_id}.pdf"
+
+    root_folder_id = _find_or_create_folder(DRIVE_PARENT_FOLDER_NAME, parent_id=None)
+    reports_folder_id = _find_or_create_folder(
+        DRIVE_VISITA_REPORTS_SUBFOLDER_NAME,
+        parent_id=root_folder_id,
+    )
+    visita_folder_id = _find_or_create_folder(visita_id, parent_id=reports_folder_id)
+
+    _trash_same_name_files_in_folder(visita_folder_id, file_name)
+
+    _, drive_files, drive = _get_services()
+
+    media = MediaIoBaseUpload(
+        io.BytesIO(pdf_bytes),
+        mimetype="application/pdf",
+        resumable=False,
+    )
+
+    created = drive_files.create(
+        body={"name": file_name, "parents": [visita_folder_id]},
+        media_body=media,
+        fields="id,name,webViewLink",
+    ).execute()
+
+    try:
+        drive.permissions().create(
+            fileId=created["id"],
+            body={"type": "anyone", "role": "reader"},
+            fields="id",
+        ).execute()
+    except Exception:
+        pass
+
+    drive_path = (
+        f"{DRIVE_PARENT_FOLDER_NAME}/"
+        f"{DRIVE_VISITA_REPORTS_SUBFOLDER_NAME}/"
+        f"{visita_id}/"
+        f"{file_name}"
+    )
+
+    return {
+        "file_id": created["id"],
+        "file_name": created["name"],
+        "drive_url": created.get("webViewLink", "") or "",
+        "drive_path": drive_path,
+    }
