@@ -170,9 +170,7 @@ export default function VisitaForm() {
     return () => clearTimeout(t);
   }, [enderecoQuery, showSugestoes, isImovelNaoCaptado]);
 
-  async function uploadPdfIfAny({ idCorretor, imovelId, dataVisita }) {
-    if (!pdfFile) return { drivePath: "", driveLink: "" };
-
+  async function uploadArquivoObrigatorio({ idCorretor, imovelId, dataVisita }) {
     const fd = new FormData();
     fd.append("file", pdfFile);
     fd.append("idCorretor", idCorretor || "");
@@ -186,7 +184,7 @@ export default function VisitaForm() {
 
     const data = await resp.json().catch(() => ({}));
     if (!resp.ok || !data.ok) {
-      throw new Error(data.error || "Erro ao enviar PDF");
+      throw new Error(data.error || "Erro ao enviar arquivo");
     }
 
     return {
@@ -203,9 +201,14 @@ export default function VisitaForm() {
       return;
     }
 
+    if (!pdfFile) {
+      alert("O anexo é obrigatório. Selecione uma foto ou PDF antes de enviar.");
+      return;
+    }
+
     setLoading(true);
     try {
-      const { drivePath, driveLink } = await uploadPdfIfAny({
+      const { drivePath, driveLink } = await uploadArquivoObrigatorio({
         idCorretor: corretorInfo.id,
         imovelId: form.imovelId,
         dataVisita: form.dataVisita,
@@ -277,7 +280,6 @@ export default function VisitaForm() {
       setEnderecoQuery("");
       setImoveisSugestoes([]);
       setShowSugestoes(false);
-
       setPdfFile(null);
     } catch (err) {
       console.error(err);
@@ -552,6 +554,7 @@ export default function VisitaForm() {
             type="file"
             accept="image/*,application/pdf"
             capture="environment"
+            required
             onChange={(e) => setPdfFile(e.target.files?.[0] || null)}
           />
           {pdfFile && (
