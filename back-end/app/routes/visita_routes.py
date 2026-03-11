@@ -7,6 +7,9 @@ from app.services.visita_service import (
     buscar_visitas_do_corretor,
     gerar_pdf_visita_download,
     gerar_pdf_visita_publico,
+    buscar_clientes_do_corretor_com_historico,
+    gerar_pdf_cliente_publico,
+    gerar_pdf_cliente_download,
 )
 from app.services.imoview_service import buscar_imoveis_por_endereco
 # from app.services.relatorio_visita_service import (
@@ -179,3 +182,114 @@ class BaixarPdfVisita(Resource):
                 "ok": False,
                 "error": str(e),
             }, 500
+
+@visita_ns.route("/clientes")
+class Clientes(Resource):
+    def get(self):
+        """Retorna a lista de clientes de um corretor específico."""
+        try:
+            id_corretor = request.args.get("id_corretor")
+            if not id_corretor:
+                return {"ok": False, "error": "id_corretor é obrigatório"}, 400
+            
+            from app.services.visita_service import listar_clientes_do_corretor
+            lista = listar_clientes_do_corretor(id_corretor)
+            return {"ok": True, "lista": lista}, 200
+        except Exception as e:
+            current_app.logger.exception("Erro ao buscar clientes")
+            return {"ok": False, "error": str(e)}, 500
+
+    def post(self):
+        """Cria um novo cliente na planilha Dim_Cliente_Visita."""
+        payload = request.get_json() or {}
+        try:
+            from app.services.visita_service import criar_cliente_manual
+            # Extrai campos do payload (ajuste conforme seu front enviar)
+            nome = payload.get("nome")
+            telefone = payload.get("telefone")
+            email = payload.get("email")
+            id_corretor = payload.get("id_corretor")
+            created_by = payload.get("corretor_email") # Email de quem está logado
+
+            if not nome or not id_corretor:
+                return {"ok": False, "error": "Nome e ID Corretor são obrigatórios"}, 400
+
+            novo_id = criar_cliente_manual(nome, telefone, email, created_by, id_corretor)
+            return {"ok": True, "id_cliente": novo_id}, 201
+        except Exception as e:
+            current_app.logger.exception("Erro ao criar cliente")
+            return {"ok": False, "error": str(e)}, 500
+
+
+@visita_ns.route("/clientes_busca")
+class ClientesBusca(Resource):
+    def get(self):
+        try:
+            id_corretor = (request.args.get("id_corretor") or "").strip()
+            q = (request.args.get("q") or "").strip()
+            limit = int(request.args.get("limit") or 200)
+
+            if not id_corretor:
+                return {"ok": False, "error": "id_corretor é obrigatório"}, 400
+
+            from app.services.visita_service import buscar_clientes_do_corretor_com_historico
+
+            lista = buscar_clientes_do_corretor_com_historico(
+                id_corretor=id_corretor,
+                q=q,
+                limit=limit,
+            )
+            return {"ok": True, "lista": lista}, 200
+
+        except Exception as e:
+            current_app.logger.exception("Erro ao buscar clientes para relatório")
+            return {"ok": False, "error": str(e)}, 500
+
+
+@visita_ns.route("/clientes/pdf")
+class GerarPdfCliente(Resource):
+    def get(self):
+        try:
+            id_cliente = (request.args.get("id_cliente") or "").strip()
+            if not id_cliente:
+                return {"ok": False, "error": "Parâmetro id_cliente é obrigatório."}, 400
+
+            result = gerar_pdf_cliente_publico(id_cliente)
+
+            return {
+                "ok": True,
+                "id_cliente": id_cliente,
+                "file_id": result["file_id"],
+                "file_name": result["file_name"],
+                "drive_url": result["drive_url"],
+                "drive_path": result["drive_path"],
+            }, 200
+
+        except Exception as e:
+            current_app.logger.exception("Erro ao gerar PDF público do cliente")
+            return {"ok": False, "error": str(e)}, 500
+
+
+@visita_ns.route("/clientes/pdf/download")
+class BaixarPdfCliente(Resource):
+    def get(self):
+        try:
+            id_cliente = (request.args.get("id_cliente") or "").strip()
+            if not id_cliente:
+                return {"ok": False, "error": "Parâmetro id_cliente é obrigatório."}, 400
+
+            buffer_pdf, filename = gerar_pdf_cliente_download(id_cliente)
+            buffer_pdf.seek(0)
+
+            return send_file(
+                buffer_pdf,
+                mimetype="application/pdf",
+                as_attachment=True,
+                download_name=filename,
+            )
+
+        except Exception as e:
+            current_app.logger.exception("Erro ao baixar PDF do cliente")
+            return {"ok": False, "error": str(e)}, 500
+
+

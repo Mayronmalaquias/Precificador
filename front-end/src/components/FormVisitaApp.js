@@ -4,9 +4,6 @@ import "../assets/css/AppVisita.css";
 const API_BASE = "/api";
 //const API_BASE = "http://localhost:5000";
 
-const HISTORICO_BASE_URL =
-  "https://script.google.com/macros/s/AKfycbzDDQSdBL3NnPOx_zszEJwtd1r_2RpKzRbAn3LcamBbHizuPnvrr5DLuLVESjd8xScJaQ/exec";
-
 function parseBrDate(dateStr) {
   if (!dateStr) return null;
   const parts = String(dateStr).split("/");
@@ -29,13 +26,16 @@ export default function ApiForms() {
 
   const [loadingPage, setLoadingPage] = useState(true);
   const [loadingVisitaPdf, setLoadingVisitaPdf] = useState(false);
+  const [loadingClientePdf, setLoadingClientePdf] = useState(false);
   const [error, setError] = useState("");
 
   const [visitas, setVisitas] = useState([]);
   const [imoveis, setImoveis] = useState([]);
+  const [clientes, setClientes] = useState([]);
 
   const [filtroVisitas, setFiltroVisitas] = useState("");
   const [filtroImoveis, setFiltroImoveis] = useState("");
+  const [filtroClientes, setFiltroClientes] = useState("");
 
   const [itemSelecionado, setItemSelecionado] = useState(null);
   const [tipoSelecionado, setTipoSelecionado] = useState("");
@@ -81,7 +81,7 @@ export default function ApiForms() {
     setError("");
 
     try {
-      const [respVisitas, respImoveis] = await Promise.all([
+      const [respVisitas, respImoveis, respClientes] = await Promise.all([
         fetch(
           `${API_BASE}/visitas_busca?id_corretor=${encodeURIComponent(
             corretorId
@@ -94,10 +94,17 @@ export default function ApiForms() {
           )}&q=&limit=200`,
           { method: "GET" }
         ),
+        fetch(
+          `${API_BASE}/clientes_busca?id_corretor=${encodeURIComponent(
+            corretorId
+          )}&q=&limit=200`,
+          { method: "GET" }
+        ),
       ]);
 
       const dataVisitas = await respVisitas.json().catch(() => ({}));
       const dataImoveis = await respImoveis.json().catch(() => ({}));
+      const dataClientes = await respClientes.json().catch(() => ({}));
 
       if (!respVisitas.ok || !dataVisitas.ok) {
         throw new Error(dataVisitas.error || "Erro ao carregar visitas.");
@@ -107,15 +114,17 @@ export default function ApiForms() {
         throw new Error(dataImoveis.error || "Erro ao carregar imóveis.");
       }
 
-      const listaVisitas = Array.isArray(dataVisitas.lista)
-        ? dataVisitas.lista
-        : [];
-      const listaImoveis = Array.isArray(dataImoveis.lista)
-        ? dataImoveis.lista
-        : [];
+      if (!respClientes.ok || !dataClientes.ok) {
+        throw new Error(dataClientes.error || "Erro ao carregar clientes.");
+      }
+
+      const listaVisitas = Array.isArray(dataVisitas.lista) ? dataVisitas.lista : [];
+      const listaImoveis = Array.isArray(dataImoveis.lista) ? dataImoveis.lista : [];
+      const listaClientes = Array.isArray(dataClientes.lista) ? dataClientes.lista : [];
 
       setVisitas(listaVisitas);
       setImoveis(listaImoveis);
+      setClientes(listaClientes);
 
       if (listaVisitas.length > 0) {
         setTipoSelecionado("visita");
@@ -123,6 +132,9 @@ export default function ApiForms() {
       } else if (listaImoveis.length > 0) {
         setTipoSelecionado("imovel");
         setItemSelecionado(listaImoveis[0]);
+      } else if (listaClientes.length > 0) {
+        setTipoSelecionado("cliente");
+        setItemSelecionado(listaClientes[0]);
       }
     } catch (err) {
       console.error(err);
@@ -169,9 +181,31 @@ export default function ApiForms() {
     });
   }, [imoveis, filtroImoveis]);
 
+  const clientesFiltrados = useMemo(() => {
+    const q = filtroClientes.trim().toLowerCase();
+    if (!q) return clientes;
+
+    return clientes.filter((item) => {
+      const texto = [
+        item.id_cliente,
+        item.nome,
+        item.telefone,
+        item.email,
+        item.ultima_data,
+        item.label,
+        Array.isArray(item.imoveis) ? item.imoveis.join(" ") : "",
+      ]
+        .join(" ")
+        .toLowerCase();
+
+      return texto.includes(q);
+    });
+  }, [clientes, filtroClientes]);
+
   const resumo = useMemo(() => {
     const totalVisitas = visitas.length;
     const totalImoveis = imoveis.length;
+    const totalClientes = clientes.length;
 
     let ultimaVisita = "-";
     if (visitas.length > 0) {
@@ -190,9 +224,10 @@ export default function ApiForms() {
     return {
       totalVisitas,
       totalImoveis,
+      totalClientes,
       ultimaVisita,
     };
-  }, [visitas, imoveis]);
+  }, [visitas, imoveis, clientes]);
 
   function selecionarVisita(item) {
     setTipoSelecionado("visita");
@@ -201,6 +236,11 @@ export default function ApiForms() {
 
   function selecionarImovel(item) {
     setTipoSelecionado("imovel");
+    setItemSelecionado(item);
+  }
+
+  function selecionarCliente(item) {
+    setTipoSelecionado("cliente");
     setItemSelecionado(item);
   }
 
@@ -272,6 +312,7 @@ export default function ApiForms() {
       alert(err.message || "Erro ao abrir o relatório do imóvel.");
     }
   }
+
   function baixarHistoricoImovel() {
     if (!itemSelecionado || tipoSelecionado !== "imovel") return;
 
@@ -282,14 +323,54 @@ export default function ApiForms() {
     window.open(url, "_blank");
   }
 
+  async function abrirPdfCliente() {
+    if (!itemSelecionado || tipoSelecionado !== "cliente") return;
+
+    setLoadingClientePdf(true);
+    try {
+      const resp = await fetch(
+        `${API_BASE}/clientes/pdf?id_cliente=${encodeURIComponent(
+          itemSelecionado.id_cliente
+        )}`,
+        { method: "GET" }
+      );
+
+      const data = await resp.json().catch(() => ({}));
+
+      if (!resp.ok || !data.ok) {
+        throw new Error(data.error || "Erro ao gerar o PDF do cliente.");
+      }
+
+      if (!data.drive_url) {
+        throw new Error("A API não retornou a URL do PDF do cliente.");
+      }
+
+      window.open(data.drive_url, "_blank");
+    } catch (err) {
+      console.error(err);
+      alert(err.message || "Erro ao abrir o relatório do cliente.");
+    } finally {
+      setLoadingClientePdf(false);
+    }
+  }
+
+  function baixarPdfCliente() {
+    if (!itemSelecionado || tipoSelecionado !== "cliente") return;
+
+    const url =
+      `${API_BASE}/clientes/pdf/download` +
+      `?id_cliente=${encodeURIComponent(itemSelecionado.id_cliente)}`;
+
+    window.open(url, "_blank");
+  }
+
   return (
     <div className="relatorios-page">
       <div className="relatorios-header">
         <div>
           <h1 className="relatorios-title">Painel de Relatórios</h1>
           <p className="relatorios-subtitle">
-            Visualize suas visitas e imóveis automaticamente e gere os PDFs com
-            um clique.
+            Visualize suas visitas, imóveis e clientes e gere os PDFs com um clique.
           </p>
         </div>
 
@@ -312,16 +393,17 @@ export default function ApiForms() {
 
         <div className="relatorios-summary-card">
           <span className="relatorios-summary-label">Total de visitas</span>
-          <strong className="relatorios-summary-value">
-            {resumo.totalVisitas}
-          </strong>
+          <strong className="relatorios-summary-value">{resumo.totalVisitas}</strong>
         </div>
 
         <div className="relatorios-summary-card">
           <span className="relatorios-summary-label">Imóveis visitados</span>
-          <strong className="relatorios-summary-value">
-            {resumo.totalImoveis}
-          </strong>
+          <strong className="relatorios-summary-value">{resumo.totalImoveis}</strong>
+        </div>
+
+        <div className="relatorios-summary-card">
+          <span className="relatorios-summary-label">Clientes</span>
+          <strong className="relatorios-summary-value">{resumo.totalClientes}</strong>
         </div>
 
         <div className="relatorios-summary-card">
@@ -424,12 +506,57 @@ export default function ApiForms() {
             )}
           </div>
         </section>
+
+        <section className="relatorios-list-card">
+          <div className="relatorios-card-header">
+            <h2>Clientes</h2>
+            <span>{clientesFiltrados.length}</span>
+          </div>
+
+          <input
+            type="text"
+            className="relatorios-search"
+            placeholder="Filtrar clientes por nome, telefone, e-mail ou imóvel..."
+            value={filtroClientes}
+            onChange={(e) => setFiltroClientes(e.target.value)}
+          />
+
+          <div className="relatorios-list">
+            {loadingPage ? (
+              <div className="relatorios-empty">Carregando clientes...</div>
+            ) : clientesFiltrados.length === 0 ? (
+              <div className="relatorios-empty">Nenhum cliente encontrado.</div>
+            ) : (
+              clientesFiltrados.map((item) => (
+                <button
+                  key={item.id_cliente}
+                  type="button"
+                  className={`relatorios-item ${
+                    tipoSelecionado === "cliente" &&
+                    itemSelecionado?.id_cliente === item.id_cliente
+                      ? "is-active"
+                      : ""
+                  }`}
+                  onClick={() => selecionarCliente(item)}
+                >
+                  <div className="relatorios-item-title">
+                    {item.nome || "Sem nome"}
+                  </div>
+                  <div className="relatorios-item-sub">
+                    {`Visitas: ${item.qtd_visitas ?? 0}`}
+                    {item.ultima_data ? ` | Última: ${item.ultima_data}` : ""}
+                  </div>
+                </button>
+              ))
+            )}
+          </div>
+        </section>
       </div>
 
       <section className="relatorios-detail-card">
         {!itemSelecionado ? (
           <div className="relatorios-empty">
-            Selecione uma visita ou um imóvel para visualizar os detalhes.
+            Selecione uma visita, imóvel ou cliente para visualizar os detalhes.
           </div>
         ) : tipoSelecionado === "visita" ? (
           <>
@@ -479,7 +606,7 @@ export default function ApiForms() {
               </button>
             </div>
           </>
-        ) : (
+        ) : tipoSelecionado === "imovel" ? (
           <>
             <div className="relatorios-card-header">
               <h2>Detalhes do imóvel</h2>
@@ -526,6 +653,68 @@ export default function ApiForms() {
                 type="button"
                 className="relatorios-secondary-btn"
                 onClick={baixarHistoricoImovel}
+              >
+                Baixar PDF
+              </button>
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="relatorios-card-header">
+              <h2>Detalhes do cliente</h2>
+              <span>{itemSelecionado.id_cliente}</span>
+            </div>
+
+            <div className="relatorios-detail-grid">
+              <div className="relatorios-detail-box">
+                <span className="relatorios-detail-label">Cliente</span>
+                <strong>{itemSelecionado.nome || "-"}</strong>
+              </div>
+
+              <div className="relatorios-detail-box">
+                <span className="relatorios-detail-label">Telefone</span>
+                <strong>{itemSelecionado.telefone || "-"}</strong>
+              </div>
+
+              <div className="relatorios-detail-box">
+                <span className="relatorios-detail-label">E-mail</span>
+                <strong>{itemSelecionado.email || "-"}</strong>
+              </div>
+
+              <div className="relatorios-detail-box">
+                <span className="relatorios-detail-label">Total de visitas</span>
+                <strong>{itemSelecionado.qtd_visitas ?? 0}</strong>
+              </div>
+
+              <div className="relatorios-detail-box">
+                <span className="relatorios-detail-label">Última visita</span>
+                <strong>{itemSelecionado.ultima_data || "-"}</strong>
+              </div>
+
+              <div className="relatorios-detail-box relatorios-detail-box--full">
+                <span className="relatorios-detail-label">Imóveis vinculados</span>
+                <strong>
+                  {Array.isArray(itemSelecionado.imoveis) && itemSelecionado.imoveis.length > 0
+                    ? itemSelecionado.imoveis.join(", ")
+                    : "-"}
+                </strong>
+              </div>
+            </div>
+
+            <div className="relatorios-actions">
+              <button
+                type="button"
+                className="relatorios-primary-btn"
+                onClick={abrirPdfCliente}
+                disabled={loadingClientePdf}
+              >
+                {loadingClientePdf ? "Gerando PDF..." : "Abrir PDF do cliente"}
+              </button>
+
+              <button
+                type="button"
+                className="relatorios-secondary-btn"
+                onClick={baixarPdfCliente}
               >
                 Baixar PDF
               </button>

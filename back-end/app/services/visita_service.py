@@ -1326,3 +1326,514 @@ def gerar_pdf_visita_publico(visita_id: str) -> Dict[str, str]:
         "drive_url": created.get("webViewLink", "") or "",
         "drive_path": drive_path,
     }
+
+
+def listar_clientes_do_corretor(id_corretor: str) -> List[Dict[str, Any]]:
+    """
+    Lê a Dim_Cliente_Visita e retorna clientes vinculados ao ID do corretor.
+    """
+    sheets, _, _ = _get_services()
+    # Lendo o intervalo que contém os dados dos clientes
+    res = sheets.values().get(
+        spreadsheetId=SPREADSHEET_ID,
+        range="Dim_Cliente_Visita!A2:F",
+    ).execute()
+    
+    rows = res.get("values", [])
+    clientes = []
+    
+    for r in rows:
+        # Estrutura: A:Id, B:Nome, C:Telefone, D:Email, E:CreatedBy, F:Id_Corretor
+        row_id_corretor = (r[5] if len(r) > 5 else "").strip()
+        
+        if row_id_corretor == id_corretor:
+            clientes.append({
+                "id_cliente": r[0] if len(r) > 0 else "",
+                "nome": r[1] if len(r) > 1 else "",
+                "telefone": r[2] if len(r) > 2 else "",
+                "email": r[3] if len(r) > 3 else "",
+            })
+            
+    # Ordenar por nome para facilitar no front
+    clientes.sort(key=lambda x: x["nome"].lower())
+    return clientes
+
+def criar_cliente_manual(nome: str, telefone: str, email: str, created_by: str, id_corretor: str) -> str:
+    """
+    Apenas chama a lógica de persistência que você já tem, 
+    mas isolada para criação manual via formulário.
+    """
+    # A função ensure_cliente_id já verifica se existe e cria se não existir.
+    # Como é uma criação manual, garantimos que ela rode.
+    return ensure_cliente_id(
+        nome_cliente=nome,
+        telefone=telefone,
+        email=email,
+        created_by=created_by,
+        id_corretor=id_corretor
+    )
+
+
+def buscar_clientes_do_corretor_com_historico(id_corretor: str, q: str = "", limit: int = 200) -> List[Dict[str, Any]]:
+    """
+    Retorna clientes do corretor com resumo:
+      - id_cliente
+      - nome
+      - telefone
+      - email
+      - qtd_visitas
+      - ultima_data
+      - imoveis
+      - visitas_ids
+      - label
+    """
+    id_corretor = (id_corretor or "").strip()
+    qn = _norm_key(q)
+
+    if not id_corretor:
+        return []
+
+    sheets, _, _ = _get_services()
+
+    res = sheets.values().batchGet(
+        spreadsheetId=SPREADSHEET_ID,
+        ranges=[
+            "Dim_Cliente_Visita!A2:F",
+            "Fato_Cliente_Visita!A2:D",
+            "Fato_Visitas!A2:R",
+        ],
+    ).execute()
+
+    ranges = res.get("valueRanges", [])
+    dim_rows = (ranges[0].get("values", []) if len(ranges) > 0 else [])
+    fato_cli_rows = (ranges[1].get("values", []) if len(ranges) > 1 else [])
+    fato_visita_rows = (ranges[2].get("values", []) if len(ranges) > 2 else [])
+
+    visitas_map: Dict[str, Dict[str, str]] = {}
+    for r in fato_visita_rows:
+        id_visita = (r[0] if len(r) > 0 else "").strip()
+        id_imovel = (r[1] if len(r) > 1 else "").strip()
+        data_visita = (r[2] if len(r) > 2 else "").strip()
+        id_cor_row = (r[3] if len(r) > 3 else "").strip()
+
+        if id_visita and id_cor_row == id_corretor:
+            visitas_map[id_visita] = {
+                "imovelId": id_imovel,
+                "dataVisita": data_visita,
+            }
+
+    cliente_stats: Dict[str, Dict[str, Any]] = {}
+
+    for r in dim_rows:
+        id_cliente = (r[0] if len(r) > 0 else "").strip()
+        nome = (r[1] if len(r) > 1 else "").strip()
+        telefone = (r[2] if len(r) > 2 else "").strip()
+        email = (r[3] if len(r) > 3 else "").strip()
+        row_id_corretor = (r[5] if len(r) > 5 else "").strip()
+
+        if not id_cliente or row_id_corretor != id_corretor:
+            continue
+
+        cliente_stats[id_cliente] = {
+            "id_cliente": id_cliente,
+            "nome": nome,
+            "telefone": telefone,
+            "email": email,
+            "qtd_visitas": 0,
+            "ultima_data": "",
+            "imoveis": [],
+            "visitas_ids": [],
+        }
+
+    for r in fato_cli_rows:
+        id_visita = (r[1] if len(r) > 1 else "").strip()
+        id_cliente = (r[2] if len(r) > 2 else "").strip()
+
+        if not id_visita or not id_cliente:
+            continue
+
+        if id_cliente not in cliente_stats:
+            continue
+
+        visita = visitas_map.get(id_visita)
+        if not visita:
+            continue
+
+        cliente_stats[id_cliente]["qtd_visitas"] += 1
+        cliente_stats[id_cliente]["visitas_ids"].append(id_visita)
+
+        imovel_id = visita.get("imovelId", "")
+        if imovel_id and imovel_id not in cliente_stats[id_cliente]["imoveis"]:
+            cliente_stats[id_cliente]["imoveis"].append(imovel_id)
+
+        data_visita = visita.get("dataVisita", "")
+        atual = cliente_stats[id_cliente]["ultima_data"]
+
+        if data_visita:
+            if not atual or _parse_ddmmyyyy_safe(data_visita) > _parse_ddmmyyyy_safe(atual):
+                cliente_stats[id_cliente]["ultima_data"] = data_visita
+
+    itens = list(cliente_stats.values())
+
+    for item in itens:
+        item["label"] = " - ".join(
+            [
+                item.get("nome", ""),
+                f"Visitas: {item.get('qtd_visitas', 0)}",
+                f"Última: {item.get('ultima_data', '-')}",
+            ]
+        )
+
+    if qn:
+        filtrados = []
+        for item in itens:
+            hay = " ".join(
+                [
+                    item.get("id_cliente", ""),
+                    item.get("nome", ""),
+                    item.get("telefone", ""),
+                    item.get("email", ""),
+                    item.get("ultima_data", ""),
+                    " ".join(item.get("imoveis", [])),
+                    item.get("label", ""),
+                ]
+            )
+            if qn in _norm_key(hay):
+                filtrados.append(item)
+        itens = filtrados
+
+    itens.sort(
+        key=lambda it: (
+            _parse_ddmmyyyy_safe(it.get("ultima_data", "")),
+            it.get("qtd_visitas", 0),
+            it.get("nome", "").lower(),
+        ),
+        reverse=True,
+    )
+
+    return itens[: max(1, int(limit or 200))]
+
+
+
+def _build_pdf_cliente_bytes(ctx: Dict[str, Any]) -> bytes:
+    try:
+        from reportlab.lib import colors
+        from reportlab.lib.pagesizes import A4
+        from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
+        from reportlab.lib.units import mm
+        from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
+    except ImportError as e:
+        raise RuntimeError(
+            "A biblioteca reportlab não está instalada. Instale com: pip install reportlab"
+        ) from e
+
+    buffer = io.BytesIO()
+
+    doc = SimpleDocTemplate(
+        buffer,
+        pagesize=A4,
+        leftMargin=14 * mm,
+        rightMargin=14 * mm,
+        topMargin=14 * mm,
+        bottomMargin=12 * mm,
+        title=f"Relatorio_Cliente_{ctx['Id_Cliente']}",
+    )
+
+    styles = getSampleStyleSheet()
+
+    style_title = ParagraphStyle(
+        "cliente_title",
+        parent=styles["Title"],
+        fontName="Helvetica-Bold",
+        fontSize=19,
+        textColor=colors.HexColor("#0f172a"),
+        spaceAfter=4,
+    )
+
+    style_subtitle = ParagraphStyle(
+        "cliente_subtitle",
+        parent=styles["BodyText"],
+        fontName="Helvetica",
+        fontSize=9.5,
+        textColor=colors.HexColor("#64748b"),
+        spaceAfter=10,
+    )
+
+    style_section = ParagraphStyle(
+        "cliente_section",
+        parent=styles["Heading2"],
+        fontName="Helvetica-Bold",
+        fontSize=11,
+        textColor=colors.HexColor("#0f172a"),
+        spaceBefore=8,
+        spaceAfter=6,
+    )
+
+    def make_info_table(rows, col_widths=(48 * mm, 124 * mm)):
+        tbl = Table(rows, colWidths=list(col_widths))
+        tbl.setStyle(
+            TableStyle(
+                [
+                    ("BACKGROUND", (0, 0), (-1, -1), colors.white),
+                    ("GRID", (0, 0), (-1, -1), 0.35, colors.HexColor("#e5e7eb")),
+                    ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                    ("LEFTPADDING", (0, 0), (-1, -1), 8),
+                    ("RIGHTPADDING", (0, 0), (-1, -1), 8),
+                    ("TOPPADDING", (0, 0), (-1, -1), 6),
+                    ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+                    ("TEXTCOLOR", (0, 0), (0, -1), colors.HexColor("#475569")),
+                    ("FONTNAME", (0, 0), (0, -1), "Helvetica-Bold"),
+                    ("TEXTCOLOR", (1, 0), (1, -1), colors.HexColor("#111827")),
+                ]
+            )
+        )
+        return tbl
+
+    def make_grid_table(data, widths):
+        tbl = Table(data, colWidths=widths, repeatRows=1)
+        tbl.setStyle(
+            TableStyle(
+                [
+                    ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#0f172a")),
+                    ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+                    ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                    ("GRID", (0, 0), (-1, -1), 0.35, colors.HexColor("#e5e7eb")),
+                    ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                    ("FONTSIZE", (0, 0), (-1, -1), 8.5),
+                    ("LEADING", (0, 0), (-1, -1), 10),
+                    ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#f8fafc")]),
+                    ("LEFTPADDING", (0, 0), (-1, -1), 6),
+                    ("RIGHTPADDING", (0, 0), (-1, -1), 6),
+                    ("TOPPADDING", (0, 0), (-1, -1), 6),
+                    ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+                ]
+            )
+        )
+        return tbl
+
+    story = []
+
+    story.append(Paragraph("Relatório Consolidado do Cliente", style_title))
+    story.append(
+        Paragraph(
+            "Histórico de visitas, imóveis vinculados e resumo das avaliações registradas.",
+            style_subtitle,
+        )
+    )
+
+    story.append(
+        make_info_table(
+            [
+                ["Id do cliente", _display(ctx.get("Id_Cliente"))],
+                ["Nome", _display(ctx.get("Nome_Cliente"))],
+                ["Telefone", _display(ctx.get("Telefone_Cliente"))],
+                ["E-mail", _display(ctx.get("Email_Cliente"))],
+                ["Total de visitas", _display(ctx.get("Qtd_Visitas"))],
+                ["Última visita", _display(ctx.get("Ultima_Visita"))],
+            ]
+        )
+    )
+    story.append(Spacer(1, 10))
+
+    story.append(Paragraph("Resumo das avaliações", style_section))
+    resumo = [["Critério", "Resultado"]]
+    for label, value in (ctx.get("Resumo_Avaliacoes") or {}).items():
+        resumo.append([label, value])
+
+    story.append(make_grid_table(resumo, [95 * mm, 79 * mm]))
+    story.append(Spacer(1, 10))
+
+    story.append(Paragraph("Histórico de visitas", style_section))
+    visitas = [["Data", "Id Visita", "Imóvel", "Proposta", "Captação", "Parceiros"]]
+
+    if ctx.get("Visitas"):
+        for v in ctx["Visitas"]:
+            visitas.append([
+                _display(v.get("data_visita")),
+                _display(v.get("id_visita")),
+                _display(v.get("id_imovel")),
+                _display(v.get("proposta")),
+                _display(v.get("tipo_captacao")),
+                ", ".join(v.get("parceiros", [])) if v.get("parceiros") else "—",
+            ])
+    else:
+        visitas.append(["Sem visitas", "—", "—", "—", "—", "—"])
+
+    story.append(
+        make_grid_table(
+            visitas,
+            [22 * mm, 26 * mm, 20 * mm, 26 * mm, 38 * mm, 42 * mm],
+        )
+    )
+
+    doc.build(story)
+    return buffer.getvalue()
+
+
+def gerar_pdf_cliente_download(id_cliente: str):
+    ctx = _montar_contexto_pdf_cliente(id_cliente)
+    pdf_bytes = _build_pdf_cliente_bytes(ctx)
+    file_name = f"Relatorio_Cliente_{id_cliente}.pdf"
+    return io.BytesIO(pdf_bytes), file_name
+
+
+def gerar_pdf_cliente_publico(id_cliente: str) -> Dict[str, str]:
+    ctx = _montar_contexto_pdf_cliente(id_cliente)
+    pdf_bytes = _build_pdf_cliente_bytes(ctx)
+    file_name = f"Relatorio_Cliente_{id_cliente}.pdf"
+
+    root_folder_id = _find_or_create_folder(DRIVE_PARENT_FOLDER_NAME, parent_id=None)
+    reports_folder_id = _find_or_create_folder(
+        "Relatorios_Cliente_Gerados",
+        parent_id=root_folder_id,
+    )
+    cliente_folder_id = _find_or_create_folder(id_cliente, parent_id=reports_folder_id)
+
+    _trash_same_name_files_in_folder(cliente_folder_id, file_name)
+
+    _, drive_files, drive = _get_services()
+
+    media = MediaIoBaseUpload(
+        io.BytesIO(pdf_bytes),
+        mimetype="application/pdf",
+        resumable=False,
+    )
+
+    created = drive_files.create(
+        body={"name": file_name, "parents": [cliente_folder_id]},
+        media_body=media,
+        fields="id,name,webViewLink",
+    ).execute()
+
+    try:
+        drive.permissions().create(
+            fileId=created["id"],
+            body={"type": "anyone", "role": "reader"},
+            fields="id",
+        ).execute()
+    except Exception:
+        pass
+
+    drive_path = (
+        f"{DRIVE_PARENT_FOLDER_NAME}/Relatorios_Cliente_Gerados/{id_cliente}/{file_name}"
+    )
+
+    return {
+        "file_id": created["id"],
+        "file_name": created["name"],
+        "drive_url": created.get("webViewLink", "") or "",
+        "drive_path": drive_path,
+    }
+
+
+def _montar_contexto_pdf_cliente(id_cliente: str) -> Dict[str, Any]:
+    data = _batch_get_sheet_rows(
+        [
+            "Dim_Cliente_Visita!A1:F",
+            "Fato_Cliente_Visita!A1:D",
+            "Fato_Visitas!A1:R",
+            "Fato_Avaliacao!A1:N",
+            "Dim_Parceiro_Visita!A1:D",
+            "Fato_Parceiro_Visita!A1:C",
+        ]
+    )
+
+    dim_cliente = data.get("Dim_Cliente_Visita", [])
+    fato_cliente_visita = data.get("Fato_Cliente_Visita", [])
+    fato_visitas = data.get("Fato_Visitas", [])
+    fato_avaliacao = data.get("Fato_Avaliacao", [])
+    dim_parceiro = data.get("Dim_Parceiro_Visita", [])
+    fato_parceiro_visita = data.get("Fato_Parceiro_Visita", [])
+
+    cliente = _find_first_by_key(dim_cliente, "Id_Cliente", id_cliente)
+    if not cliente:
+        raise ValueError(f"Cliente {id_cliente} não encontrado.")
+
+    visitas_rel = _find_all_by_key(fato_cliente_visita, "Id_Cliente", id_cliente)
+    visita_ids = [_pick_from_row(v, "Id_Visita") for v in visitas_rel if _pick_from_row(v, "Id_Visita")]
+
+    visitas_map = {
+        _pick_from_row(v, "Id_Visita"): v
+        for v in fato_visitas
+        if _pick_from_row(v, "Id_Visita")
+    }
+
+    parceiro_map = {
+        _pick_from_row(p, "Id_Parceiro"): p
+        for p in dim_parceiro
+        if _pick_from_row(p, "Id_Parceiro")
+    }
+
+    parceiros_por_visita = {}
+    for fp in fato_parceiro_visita:
+        vid = _pick_from_row(fp, "Id_Visita")
+        pid = _pick_from_row(fp, "Id_Parceiro")
+        if not vid or not pid:
+            continue
+        parceiros_por_visita.setdefault(vid, [])
+        parceiros_por_visita[vid].append(pid)
+
+    visitas_detalhadas = []
+    avaliacoes_cliente = []
+
+    for vid in visita_ids:
+        visita = visitas_map.get(vid)
+        if not visita:
+            continue
+
+        avals = [
+            a for a in fato_avaliacao
+            if _pick_from_row(a, "Id_Visita") == vid and _pick_from_row(a, "Id_Cliente") == id_cliente
+        ]
+
+        parceiros_nomes = []
+        for pid in parceiros_por_visita.get(vid, []):
+            par = parceiro_map.get(pid)
+            if par:
+                nome_parceiro = _pick_from_row(par, "Nome_Parceiro", "Nome")
+                if nome_parceiro:
+                    parceiros_nomes.append(nome_parceiro)
+
+        visitas_detalhadas.append({
+            "id_visita": vid,
+            "data_visita": _pick_from_row(visita, "Data_Visita"),
+            "id_imovel": _pick_from_row(visita, "Id_Imovel"),
+            "proposta": _pick_from_row(visita, "Proposta"),
+            "tipo_captacao": _pick_from_row(visita, "Tipo_Captacao"),
+            "endereco_externo": _pick_from_row(visita, "Endereco_Externo"),
+            "parceiros": parceiros_nomes,
+            "avaliacoes": avals,
+        })
+
+        for a in avals:
+            avaliacoes_cliente.append({
+                "Localizacao": _pick_from_row(a, "Localizacao"),
+                "Tamanho": _pick_from_row(a, "Tamanho"),
+                "Planta_Imovel": _pick_from_row(a, "Planta_Imovel"),
+                "Qualidade_Acabamento": _pick_from_row(a, "Qualidade_Acabamento"),
+                "Estado_Conservacao": _pick_from_row(a, "Estado_Conservacao"),
+                "Condominio_AreaComun": _pick_from_row(a, "Condominio_AreaComun"),
+                "Preco": _pick_from_row(a, "Preco"),
+                "Preco_N10": _pick_from_row(a, "Preco_N10"),
+                "Nota_Geral": _pick_from_row(a, "Nota_Geral"),
+            })
+
+    visitas_detalhadas.sort(
+        key=lambda x: _parse_ddmmyyyy_safe(x.get("data_visita", "")),
+        reverse=True
+    )
+
+    ultima_data = visitas_detalhadas[0]["data_visita"] if visitas_detalhadas else ""
+
+    return {
+        "Id_Cliente": _pick_from_row(cliente, "Id_Cliente"),
+        "Nome_Cliente": _pick_from_row(cliente, "Nome_Cliente", "Nome"),
+        "Telefone_Cliente": _pick_from_row(cliente, "Telefone_Cliente", "Telefone"),
+        "Email_Cliente": _pick_from_row(cliente, "Email_Cliente", "Email"),
+        "CreatedBy": _pick_from_row(cliente, "CreatedBy"),
+        "Id_Corretor": _pick_from_row(cliente, "Id_Corretor"),
+        "Qtd_Visitas": len(visitas_detalhadas),
+        "Ultima_Visita": ultima_data,
+        "Visitas": visitas_detalhadas,
+        "Resumo_Avaliacoes": _avg_scores(avaliacoes_cliente),
+    }

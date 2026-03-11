@@ -22,7 +22,11 @@ export default function VisitaForm() {
     dataVisita: new Date().toISOString().split("T")[0],
     parceiroExterno: "NAO",
     situacaoImovel: "CAPTACAO_PROPRIA",
+
     clienteNome: "",
+    clienteTelefone: "",
+    clienteEmail: "",
+
     proposta: "Talvez",
     papelVisita: "Interessado",
 
@@ -59,6 +63,13 @@ export default function VisitaForm() {
   const [loadingImoveis, setLoadingImoveis] = useState(false);
   const [showSugestoes, setShowSugestoes] = useState(false);
 
+  const [clientesDoCorretor, setClientesDoCorretor] = useState([]);
+  const [clientesSugestoes, setClientesSugestoes] = useState([]);
+  const [loadingClientes, setLoadingClientes] = useState(false);
+  const [showClientesSugestoes, setShowClientesSugestoes] = useState(false);
+  const [clienteSelecionado, setClienteSelecionado] = useState(null);
+  const [clienteStatus, setClienteStatus] = useState("NOVO"); // EXISTENTE | NOVO
+
   const isImovelNaoCaptado = form.situacaoImovel === "IMOVEL_NAO_CAPTADO";
 
   useEffect(() => {
@@ -75,7 +86,7 @@ export default function VisitaForm() {
           userData.id_usuarios ||
           "";
 
-        setCorretorInfo({
+        const corretor = {
           id: corretorId,
           username: userData.username || "",
           nome: userData.nome || "",
@@ -83,7 +94,13 @@ export default function VisitaForm() {
           instagram: userData.instagram || "",
           descricao: userData.descricao || "",
           email: userData.email || "",
-        });
+        };
+
+        setCorretorInfo(corretor);
+
+        if (corretorId) {
+          carregarClientesDoCorretor(corretorId);
+        }
       } catch (e) {
         console.error("Erro ao ler userData do localStorage", e);
       }
@@ -107,6 +124,45 @@ export default function VisitaForm() {
     }
   }, [isImovelNaoCaptado]);
 
+  useEffect(() => {
+    const termo = (form.clienteNome || "").trim().toLowerCase();
+
+    if (!termo) {
+      setClientesSugestoes([]);
+      setClienteSelecionado(null);
+      setClienteStatus("NOVO");
+      return;
+    }
+
+    const filtrados = clientesDoCorretor.filter((c) =>
+      (c.nome || "").toLowerCase().includes(termo)
+    );
+
+    setClientesSugestoes(filtrados);
+
+    const matchExato = clientesDoCorretor.find(
+      (c) => (c.nome || "").trim().toLowerCase() === termo
+    );
+
+    if (matchExato) {
+      setClienteStatus("EXISTENTE");
+    } else {
+      setClienteStatus("NOVO");
+      setClienteSelecionado(null);
+    }
+  }, [form.clienteNome, clientesDoCorretor]);
+
+  useEffect(() => {
+    if (isImovelNaoCaptado) return;
+    if (!showSugestoes) return;
+
+    const t = setTimeout(() => {
+      buscarImoveisPorEndereco(enderecoQuery);
+    }, 350);
+
+    return () => clearTimeout(t);
+  }, [enderecoQuery, showSugestoes, isImovelNaoCaptado]);
+
   function updateField(field) {
     return (e) => {
       setForm((prev) => ({
@@ -123,6 +179,47 @@ export default function VisitaForm() {
         [field]: value,
       }));
     };
+  }
+
+  async function carregarClientesDoCorretor(idCorretor) {
+    if (!idCorretor) return;
+
+    setLoadingClientes(true);
+    try {
+      const resp = await fetch(
+        `${API_BASE}/clientes?id_corretor=${encodeURIComponent(idCorretor)}`,
+        { method: "GET" }
+      );
+
+      const data = await resp.json().catch(() => ({}));
+
+      if (!resp.ok || !data.ok) {
+        throw new Error(data.error || "Erro ao buscar clientes");
+      }
+
+      const lista = Array.isArray(data.lista) ? data.lista : [];
+      setClientesDoCorretor(lista);
+    } catch (e) {
+      console.error(e);
+      setClientesDoCorretor([]);
+    } finally {
+      setLoadingClientes(false);
+    }
+  }
+
+  function selecionarCliente(cliente) {
+    setClienteSelecionado(cliente);
+    setClienteStatus("EXISTENTE");
+
+    setForm((prev) => ({
+      ...prev,
+      clienteNome: cliente.nome || "",
+      clienteTelefone: cliente.telefone || "",
+      clienteEmail: cliente.email || "",
+    }));
+
+    setShowClientesSugestoes(false);
+    setClientesSugestoes([]);
   }
 
   async function buscarImoveisPorEndereco(query) {
@@ -159,17 +256,6 @@ export default function VisitaForm() {
     }
   }
 
-  useEffect(() => {
-    if (isImovelNaoCaptado) return;
-    if (!showSugestoes) return;
-
-    const t = setTimeout(() => {
-      buscarImoveisPorEndereco(enderecoQuery);
-    }, 350);
-
-    return () => clearTimeout(t);
-  }, [enderecoQuery, showSugestoes, isImovelNaoCaptado]);
-
   async function uploadArquivoObrigatorio({ idCorretor, imovelId, dataVisita }) {
     const fd = new FormData();
     fd.append("file", pdfFile);
@@ -193,6 +279,66 @@ export default function VisitaForm() {
     };
   }
 
+  async function criarClienteSeNecessario() {
+    const nome = (form.clienteNome || "").trim();
+    const telefone = (form.clienteTelefone || "").trim();
+    const email = (form.clienteEmail || "").trim();
+
+    if (!nome) {
+      throw new Error("Informe o nome do cliente.");
+    }
+
+    if (clienteStatus === "EXISTENTE" && clienteSelecionado?.id_cliente) {
+      return clienteSelecionado.id_cliente;
+    }
+
+    const resp = await fetch(`${API_BASE}/clientes`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        nome,
+        telefone,
+        email,
+        id_corretor: corretorInfo.id,
+        corretor_email: corretorInfo.email || "",
+      }),
+    });
+
+    const data = await resp.json().catch(() => ({}));
+
+    if (!resp.ok || !data.ok) {
+      throw new Error(data.error || "Erro ao criar cliente");
+    }
+
+    const novoId = data.id_cliente || null;
+
+    // Atualiza cache local para o autocomplete já reconhecer depois
+    const novoCliente = {
+      id_cliente: novoId,
+      nome,
+      telefone,
+      email,
+    };
+
+    setClientesDoCorretor((prev) => {
+      const jaExiste = prev.some(
+        (c) =>
+          (c.nome || "").trim().toLowerCase() === nome.toLowerCase() &&
+          (c.telefone || "").trim() === telefone &&
+          (c.email || "").trim().toLowerCase() === email.toLowerCase()
+      );
+      if (jaExiste) return prev;
+      return [...prev, novoCliente].sort((a, b) =>
+        (a.nome || "").localeCompare(b.nome || "", "pt-BR", { sensitivity: "base" })
+      );
+    });
+
+    setClienteSelecionado(novoCliente);
+    setClienteStatus("EXISTENTE");
+
+    return novoId;
+  }
+
   async function handleSubmit(e) {
     e.preventDefault();
 
@@ -206,8 +352,15 @@ export default function VisitaForm() {
       return;
     }
 
+    if (!form.clienteNome.trim()) {
+      alert("Informe o nome do cliente.");
+      return;
+    }
+
     setLoading(true);
     try {
+      const idCliente = await criarClienteSeNecessario();
+
       const { drivePath, driveLink } = await uploadArquivoObrigatorio({
         idCorretor: corretorInfo.id,
         imovelId: form.imovelId,
@@ -217,8 +370,8 @@ export default function VisitaForm() {
       const payload = {
         ...form,
         imovelId: isImovelNaoCaptado ? "0000" : form.imovelId,
-
         idCorretor: corretorInfo.id,
+        idCliente: idCliente || "",
 
         anexoFichaVisita: drivePath,
         linkImagem: driveLink,
@@ -228,6 +381,10 @@ export default function VisitaForm() {
         telefoneCorretor: corretorInfo.telefone,
         instagramCorretor: corretorInfo.instagram,
         descricaoCorretor: corretorInfo.descricao,
+
+        clienteNome: form.clienteNome,
+        clienteTelefone: form.clienteTelefone,
+        clienteEmail: form.clienteEmail,
 
         avaliacoes: {
           localizacao: Number(form.localizacao),
@@ -255,12 +412,19 @@ export default function VisitaForm() {
 
       alert(`Visita lançada com sucesso! Id: ${data.id_visita}`);
 
-      setForm((prev) => ({
-        ...prev,
+      setForm({
         imovelId: "",
+        dataVisita: new Date().toISOString().split("T")[0],
+        parceiroExterno: "NAO",
+        situacaoImovel: "CAPTACAO_PROPRIA",
+
         clienteNome: "",
+        clienteTelefone: "",
+        clienteEmail: "",
+
         proposta: "Talvez",
         papelVisita: "Interessado",
+
         enderecoExterno: "",
 
         parceiroNome: "",
@@ -274,13 +438,27 @@ export default function VisitaForm() {
         audioDescricaoClienteVisita: "",
         linkAudio: "",
 
+        localizacao: 10,
+        tamanho: 10,
+        planta: 10,
+        acabamento: 10,
+        conservacao: 10,
+        condominio: 10,
+        preco: 10,
+        notaGeral: 10,
+
         precoNota10: "",
-      }));
+      });
 
       setEnderecoQuery("");
       setImoveisSugestoes([]);
       setShowSugestoes(false);
       setPdfFile(null);
+
+      setClienteSelecionado(null);
+      setClienteStatus("NOVO");
+      setClientesSugestoes([]);
+      setShowClientesSugestoes(false);
     } catch (err) {
       console.error(err);
       alert(err.message || "Erro inesperado");
@@ -487,9 +665,82 @@ export default function VisitaForm() {
           <input
             type="text"
             value={form.clienteNome}
-            onChange={updateField("clienteNome")}
-            placeholder="Nome do cliente"
+            onChange={(e) => {
+              const nome = e.target.value;
+
+              setForm((prev) => ({
+                ...prev,
+                clienteNome: nome,
+              }));
+
+              setShowClientesSugestoes(true);
+              setClienteSelecionado(null);
+
+              if (!nome.trim()) {
+                setForm((prev) => ({
+                  ...prev,
+                  clienteTelefone: "",
+                  clienteEmail: "",
+                }));
+              }
+            }}
+            onFocus={() => setShowClientesSugestoes(true)}
+            placeholder="Digite o nome do cliente"
             required
+          />
+
+          {loadingClientes && (
+            <div className="vf-hint">Carregando clientes...</div>
+          )}
+
+          {!!form.clienteNome && (
+            <div className="vf-hint">
+              Status do cliente:{" "}
+              <strong>
+                {clienteStatus === "EXISTENTE"
+                  ? "Cliente já cadastrado"
+                  : "Novo cliente"}
+              </strong>
+            </div>
+          )}
+
+          {showClientesSugestoes && clientesSugestoes.length > 0 && (
+            <div className="vf-sugestoes">
+              {clientesSugestoes.map((cliente) => (
+                <button
+                  type="button"
+                  key={cliente.id_cliente}
+                  className="vf-sugestao-item"
+                  onClick={() => selecionarCliente(cliente)}
+                >
+                  <div className="vf-sugestao-title">{cliente.nome}</div>
+                  <div className="vf-sugestao-sub">
+                    {cliente.telefone || "Sem telefone"}
+                    {cliente.email ? ` - ${cliente.email}` : ""}
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="vf-group">
+          <label>Telefone do Cliente</label>
+          <input
+            type="text"
+            value={form.clienteTelefone}
+            onChange={updateField("clienteTelefone")}
+            placeholder="Telefone do cliente"
+          />
+        </div>
+
+        <div className="vf-group">
+          <label>E-mail do Cliente</label>
+          <input
+            type="email"
+            value={form.clienteEmail}
+            onChange={updateField("clienteEmail")}
+            placeholder="email@exemplo.com"
           />
         </div>
 
