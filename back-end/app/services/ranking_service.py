@@ -587,6 +587,8 @@ class RankingService:
 
         for _, row in vendas.iterrows():
             valor_comissao_total = float(row.get("Valor_Total_61", 0.0) or 0.0)
+            if valor_comissao_total > 0:
+                valor_comissao_total = valor_comissao_total / 0.06
             if valor_comissao_total <= 0:
                 continue
 
