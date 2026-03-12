@@ -34,7 +34,7 @@ from google.auth.exceptions import RefreshError
 # CONFIG
 # =========================
 # Use o mesmo ID lido pelo Apps Script
-SPREADSHEET_ID = "1isFLYaYbaKEZrsPDbU1Bc0cswyFUgTElcQf2CNXx0Hc"
+SPREADSHEET_ID = "1we1qAVRBqAWaXmOfnLnFJzCi8WPt-ZEhxKb0Ab9DiQU"
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  # app/
 OAUTH_CLIENT_FILE = os.path.join(BASE_DIR, "utils", "asserts", "oauth.json")
