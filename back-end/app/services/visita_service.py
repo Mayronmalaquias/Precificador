@@ -50,9 +50,6 @@ SCOPES = [
     "https://www.googleapis.com/auth/spreadsheets",
 ]
 
-_sheets = None
-_drive_files = None
-_drive = None
 
 
 # =========================
@@ -171,12 +168,9 @@ def ensure_oauth_token(force: bool = False) -> None:
 
 def _get_services():
     """
-    Inicializa serviços Sheets e Drive com OAuth.
+    Cria novas instâncias dos serviços Sheets e Drive a cada chamada.
+    Evita reutilização de conexão HTTP entre requests do Flask.
     """
-    global _sheets, _drive_files, _drive
-    if _sheets and _drive_files and _drive:
-        return _sheets, _drive_files, _drive
-
     creds = _get_oauth_creds()
     if not creds:
         raise RuntimeError(
@@ -184,10 +178,13 @@ def _get_services():
             "Rode ensure_oauth_token(force=True) para autorizar novamente."
         )
 
-    _sheets = build("sheets", "v4", credentials=creds).spreadsheets()
-    _drive = build("drive", "v3", credentials=creds)
-    _drive_files = _drive.files()
-    return _sheets, _drive_files, _drive
+    sheets_service = build("sheets", "v4", credentials=creds, cache_discovery=False)
+    drive_service = build("drive", "v3", credentials=creds, cache_discovery=False)
+
+    sheets = sheets_service.spreadsheets()
+    drive_files = drive_service.files()
+
+    return sheets, drive_files, drive_service
 
 
 # =========================
