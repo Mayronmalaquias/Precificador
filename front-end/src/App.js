@@ -15,6 +15,7 @@ import NovaVisita from './components/NovaVisita';
 import Experts from './components/Experts';
 import Ranking from './components/Ranking';
 import FormComissao from './components/FormComissao';
+import Financiamento from './components/CalculoFinanciamento'
 // em App.js ou Tabs.js
 import './assets/css/styles.css';
 import './assets/css/report.css';
@@ -51,6 +52,7 @@ function App() {
             <Route path="/Experts" element={<Experts />} />
             <Route path="/Ranking" element={<Ranking />} />
             <Route path="/FormComissao" element={<FormComissao />} />
+            <Route path="/61Financiamento" element={<Financiamento />} />
 
           </Routes>
         </main>
