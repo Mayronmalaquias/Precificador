@@ -17,6 +17,9 @@ from app.services.imoview_service import buscar_imoveis_por_endereco
 #     gerar_pdf_visita_publico,
 # )
 
+
+from app.services.gerente_visitas_service import gerar_json_corretores
+
 visita_ns = Namespace("visitas", description="Lançamento de visitas")
 
 
@@ -293,3 +296,20 @@ class BaixarPdfCliente(Resource):
             return {"ok": False, "error": str(e)}, 500
 
 
+@visita_ns.route("/gerentes")
+class VisitasGerente(Resource):
+    def get(self):
+        try:
+            id_gerente = (request.args.get("id_gerente") or "").strip()
+            if not id_gerente:
+                return {
+                    "ok": False,
+                    "error": "Parâmetro id_gerente precisa ser passado"
+                }, 400
+
+            data = gerar_json_corretores(id_gerente)
+            return {"ok": True, "data": data}, 200
+
+        except Exception as e:
+            current_app.logger.exception("Erro ao gerar json do gerente")
+            return {"ok": False, "error": str(e)}, 500

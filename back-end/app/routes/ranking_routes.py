@@ -71,3 +71,41 @@ class RankingsByKind(Resource):
         svc = RankingService()
         all_rankings = svc.get_all_rankings(start=start, end=end, limit=limit, include_pending=include_pending)
         return all_rankings[kind], 200
+
+
+# app/routes/meta_gerente_routes.py
+from flask import Blueprint, request, jsonify
+from app.services.meta_service import MetaGerenteConfig, MetaGerenteService
+from datetime import datetime
+
+meta_gerente_bp = Blueprint("meta_gerente_bp", __name__)
+
+@meta_gerente_bp.route("/relatorio/metas-gerentes", methods=["POST"])
+def gerar_relatorio_metas_gerentes():
+    body = request.get_json() or {}
+    hoje = datetime.today()
+
+    if hoje.month == 1:
+        mes_relatorio_padrao = 12
+    else:
+        mes_relatorio_padrao = hoje.month - 1
+    config = MetaGerenteConfig(
+        ano_relatorio=body.get("ano_relatorio", 2026),
+        mes_relatorio=body.get("mes_relatorio", mes_relatorio_padrao),
+        sheet_id_contratos=body.get("sheet_id_contratos", "1I9Lnbf3Be6oz9YPlHFiA9PkFFb9svDWvDtIcHH5I2QY"),
+        sheet_id_base_inteligencia=body.get("sheet_id_base_inteligencia", "1_GA3LfjgQDTR_oly9fw5-XwHHTMWaUJixdVZ4PIHPB8"),
+        caminho_credencial=body.get("caminho_credencial", "/app/utils/asserts/credenciais.json")
+    )
+
+    service = MetaGerenteService(config)
+
+    metas_mensais = body.get("metas_mensais", {})
+
+    resultado = service.gerar_relatorio(metas_mensais)
+
+    return jsonify({
+        "success": True,
+        "resumo": resultado["resumo"],
+        "arquivos": resultado["arquivos"]
+    })
+
