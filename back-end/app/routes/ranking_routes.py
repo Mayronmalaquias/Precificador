@@ -74,7 +74,8 @@ class RankingsByKind(Resource):
 
 
 # app/routes/meta_gerente_routes.py
-from flask import Blueprint, request, jsonify
+# app/routes/meta_gerente_routes.py# app/routes/meta_gerente_routes.py
+from flask import Blueprint, request, send_file
 from app.services.meta_service import MetaGerenteConfig, MetaGerenteService
 from datetime import datetime
 
@@ -89,23 +90,23 @@ def gerar_relatorio_metas_gerentes():
         mes_relatorio_padrao = 12
     else:
         mes_relatorio_padrao = hoje.month - 1
+
     config = MetaGerenteConfig(
         ano_relatorio=body.get("ano_relatorio", 2026),
         mes_relatorio=body.get("mes_relatorio", mes_relatorio_padrao),
         sheet_id_contratos=body.get("sheet_id_contratos", "1I9Lnbf3Be6oz9YPlHFiA9PkFFb9svDWvDtIcHH5I2QY"),
         sheet_id_base_inteligencia=body.get("sheet_id_base_inteligencia", "1_GA3LfjgQDTR_oly9fw5-XwHHTMWaUJixdVZ4PIHPB8"),
-        caminho_credencial=body.get("caminho_credencial", "/app/utils/asserts/credenciais.json")
+        caminho_credencial=body.get("caminho_credencial", "./app/utils/asserts/credenciais.json")
     )
 
     service = MetaGerenteService(config)
-
     metas_mensais = body.get("metas_mensais", {})
 
-    resultado = service.gerar_relatorio(metas_mensais)
+    pdf_buffer = service.gerar_relatorio_pdf(metas_mensais)
 
-    return jsonify({
-        "success": True,
-        "resumo": resultado["resumo"],
-        "arquivos": resultado["arquivos"]
-    })
-
+    return send_file(
+        pdf_buffer,
+        as_attachment=True,
+        download_name=config.nome_arquivo_pdf,
+        mimetype="application/pdf"
+    )

@@ -2,6 +2,8 @@
 from __future__ import annotations
 
 import os
+import tempfile
+from io import BytesIO
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Dict, Any, List, Tuple, Optional
@@ -35,7 +37,6 @@ class MetaGerenteConfig:
     aba_fato_captacao: str = "Fato_Captacao"
     caminho_credencial: str = "../cred.json"
     gerentes_por_pagina_painel: int = 3
-    pasta_saida_base: Optional[str] = None
 
     @property
     def nome_mes(self) -> str:
@@ -56,14 +57,8 @@ class MetaGerenteConfig:
         return nomes.get(self.mes_relatorio, "mes")
 
     @property
-    def pasta_saida(self) -> str:
-        if self.pasta_saida_base:
-            return self.pasta_saida_base
-
-        return (
-            f"relatorio_metas_gerentes_"
-            f"{self.ano_relatorio}_{self.mes_relatorio:02d}_{self.nome_mes}"
-        )
+    def nome_arquivo_pdf(self) -> str:
+        return f"relatorio_metas_gerentes_{self.ano_relatorio}_{self.mes_relatorio:02d}.pdf"
 
 
 class MetaGerenteService:
@@ -123,10 +118,6 @@ class MetaGerenteService:
             return float(self._to_float_br(x)) > 0
         except Exception:
             return False
-
-    def garantir_pasta_saida(self):
-        os.makedirs(self.config.pasta_saida, exist_ok=True)
-        os.makedirs(os.path.join(self.config.pasta_saida, "graficos"), exist_ok=True)
 
     def autenticar_google_sheets(self):
         if not gspread:
@@ -454,7 +445,6 @@ class MetaGerenteService:
         }
         """
         metas_normalizadas = {}
-
         metas_mensais = metas_mensais or {}
 
         for gerente in lista_gerentes:
@@ -692,6 +682,7 @@ class MetaGerenteService:
     def gerar_paineis_metas_estilo_imagem(
         self,
         df_relatorio: pd.DataFrame,
+        pasta_temp: str,
         gerentes_por_pagina: Optional[int] = None
     ) -> List[str]:
         if df_relatorio.empty:
@@ -717,11 +708,10 @@ class MetaGerenteService:
                 gridspec_kw={"height_ratios": [0.20, 1.0, 1.0] * n}
             )
 
-            if not isinstance(axes, (list, tuple)):
-                try:
-                    axes = axes.flatten().tolist()
-                except Exception:
-                    axes = [axes]
+            try:
+                axes = axes.flatten().tolist()
+            except Exception:
+                axes = [axes]
 
             fig.patch.set_facecolor("#f2f2f2")
 
@@ -771,37 +761,21 @@ class MetaGerenteService:
             plt.tight_layout(h_pad=1.0)
 
             caminho = os.path.join(
-                self.config.pasta_saida,
-                "graficos",
+                pasta_temp,
                 f"painel_metas_gerentes_{self.config.ano_relatorio}_{self.config.mes_relatorio:02d}_parte_{pagina_idx}.png"
             )
 
             plt.savefig(caminho, dpi=220, bbox_inches="tight", facecolor=fig.get_facecolor())
-            plt.close()
+            plt.close(fig)
 
             caminhos.append(caminho)
 
         return caminhos
 
     # ==========================================================
-    # EXCEL
-    # ==========================================================
-    def exportar_excel(self, df_relatorio: pd.DataFrame, df_detalhes: pd.DataFrame) -> str:
-        caminho_excel = os.path.join(
-            self.config.pasta_saida,
-            f"relatorio_metas_gerentes_{self.config.ano_relatorio}_{self.config.mes_relatorio:02d}.xlsx"
-        )
-
-        with pd.ExcelWriter(caminho_excel, engine="openpyxl") as writer:
-            df_relatorio.to_excel(writer, index=False, sheet_name="Resumo")
-            df_detalhes.to_excel(writer, index=False, sheet_name="Detalhes_VGV_Geral")
-
-        return caminho_excel
-
-    # ==========================================================
     # PDF
     # ==========================================================
-    def gerar_pdf_relatorio(self, df_relatorio: pd.DataFrame, caminhos_paineis: List[str]) -> str:
+    def gerar_pdf_relatorio_buffer(self, df_relatorio: pd.DataFrame, caminhos_paineis: List[str]) -> BytesIO:
         from reportlab.lib.pagesizes import A4, landscape
         from reportlab.platypus import (
             SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image, PageBreak
@@ -813,10 +787,7 @@ class MetaGerenteService:
         col_vgv_real = f"VGV_Realizado_{self.config.ano_relatorio}_{self.config.mes_relatorio:02d}"
         col_cap_real = f"Cap_Realizada_{self.config.ano_relatorio}_{self.config.mes_relatorio:02d}"
 
-        caminho_pdf = os.path.join(
-            self.config.pasta_saida,
-            f"relatorio_metas_gerentes_{self.config.ano_relatorio}_{self.config.mes_relatorio:02d}.pdf"
-        )
+        pdf_buffer = BytesIO()
 
         largura_pagina, altura_pagina = landscape(A4)
 
@@ -826,7 +797,7 @@ class MetaGerenteService:
         margem_bottom = 25
 
         doc = SimpleDocTemplate(
-            caminho_pdf,
+            pdf_buffer,
             pagesize=landscape(A4),
             rightMargin=margem_dir,
             leftMargin=margem_esq,
@@ -902,21 +873,23 @@ class MetaGerenteService:
                 story.append(PageBreak())
 
         doc.build(story)
-        return caminho_pdf
+        pdf_buffer.seek(0)
+        return pdf_buffer
 
     # ==========================================================
     # ORQUESTRAÇÃO
     # ==========================================================
-    def gerar_relatorio(self, metas_mensais: Dict[str, Dict[str, Any]]) -> Dict[str, Any]:
+    def gerar_relatorio_pdf(self, metas_mensais: Dict[str, Dict[str, Any]]) -> BytesIO:
         """
         Exemplo de metas_mensais:
         {
             "GERENTE A": {"Meta_VGV_Mes": 8500000, "Meta_Cap_Mes": 10},
-            "GERENTE B": {"Meta_VGV_Mes": 4300000, "Meta_Cap_Mes": 7},
+            "GERENTE B": {"Meta_VGV_Mes": 4300000, "Meta_Cap_Mes": 7}
         }
-        """
-        self.garantir_pasta_saida()
 
+        Retorna:
+            BytesIO com o PDF final
+        """
         df_vendas = self.carregar_contratos()
         df_dim_corretor, df_dim_gerente, df_captacao = self.carregar_base_inteligencia()
 
@@ -979,38 +952,13 @@ class MetaGerenteService:
             metas_mensais_normalizadas
         )
 
-        df_detalhes = self.montar_detalhes_vgv_geral(res_gerentes)
+        with tempfile.TemporaryDirectory() as pasta_temp:
+            caminhos_paineis = self.gerar_paineis_metas_estilo_imagem(
+                df_relatorio=df_relatorio,
+                pasta_temp=pasta_temp,
+                gerentes_por_pagina=self.config.gerentes_por_pagina_painel
+            )
 
-        caminhos_paineis = self.gerar_paineis_metas_estilo_imagem(
-            df_relatorio=df_relatorio,
-            gerentes_por_pagina=self.config.gerentes_por_pagina_painel
-        )
+            pdf_buffer = self.gerar_pdf_relatorio_buffer(df_relatorio, caminhos_paineis)
 
-        caminho_excel = self.exportar_excel(df_relatorio, df_detalhes)
-        caminho_pdf = self.gerar_pdf_relatorio(df_relatorio, caminhos_paineis)
-
-        col_vgv_real = f"VGV_Realizado_{self.config.ano_relatorio}_{self.config.mes_relatorio:02d}"
-        col_cap_real = f"Cap_Realizada_{self.config.ano_relatorio}_{self.config.mes_relatorio:02d}"
-
-        resumo = df_relatorio[[
-            "Gerente",
-            "Meta_VGV_Mes",
-            col_vgv_real,
-            "%_Atingido_VGV",
-            "Meta_Cap_Mes",
-            col_cap_real,
-            "%_Atingido_Cap"
-        ]].to_dict(orient="records")
-
-        return {
-            "resumo": resumo,
-            "arquivos": {
-                "excel": caminho_excel,
-                "pdf": caminho_pdf,
-                "paineis": caminhos_paineis,
-            },
-            "dataframes": {
-                "df_relatorio": df_relatorio,
-                "df_detalhes": df_detalhes,
-            }
-        }
+        return pdf_buffer

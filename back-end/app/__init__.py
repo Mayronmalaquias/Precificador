@@ -46,10 +46,11 @@ def create_app():
     from app.routes.graph_routes import graph_ns
     from app.routes.report_routes import report_ns
     from app.routes.visita_routes import visita_ns
-    from app.routes.ranking_routes import ranking_ns
+    from app.routes.ranking_routes import ranking_ns, meta_gerente_bp
     from app.routes.divisao_comissao_routes import divisao_ns
     from app.routes.relatorio_visita_route import relatorio_visita
     from app.routes.imovel_rel_route import imovel_catalogo_ns
+
     api.add_namespace(relatorio_visita, path='/')
     api.add_namespace(imovel_catalogo_ns, path='/')
     api.add_namespace(divisao_ns, path='/')
@@ -60,6 +61,8 @@ def create_app():
     api.add_namespace(report_ns, path='/')
     api.add_namespace(visita_ns, path='/')
     api.add_namespace(ranking_ns, path='/')
+    app.register_blueprint(meta_gerente_bp)
+
 
 
     return app
