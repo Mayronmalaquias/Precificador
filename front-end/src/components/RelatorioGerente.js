@@ -2,14 +2,13 @@ import React, { useEffect, useMemo, useState } from "react";
 import "../assets/css/RelatorioGerente.css";
 
 function RelatorioGerente() {
-  //const API_BASE = useMemo(() => "http://localhost:5000/gerente-dashboard", []);
-  //const API_VISITAS_BASE = useMemo(() => "http://localhost:5000", []);
-  //const API_IMOVEIS_BASE = useMemo(() => "http://localhost:5000", []);
+  const API_BASE = useMemo(() => "http://localhost:5000/gerente-dashboard", []);
+  const API_VISITAS_BASE = useMemo(() => "http://localhost:5000", []);
+  const API_IMOVEIS_BASE = useMemo(() => "http://localhost:5000", []);
 
-  const API_BASE = useMemo(() => "/api/gerente-dashboard", []);
-  const API_VISITAS_BASE = useMemo(() => "/api", []);
-  const API_IMOVEIS_BASE = useMemo(() => "/api", []);
-
+  // const API_BASE = useMemo(() => "/api/gerente-dashboard", []);
+  // const API_VISITAS_BASE = useMemo(() => "/api", []);
+  // const API_IMOVEIS_BASE = useMemo(() => "/api", []);
 
   const [abaAtiva, setAbaAtiva] = useState("relatoriogerente");
   const [opcaoAtiva, setOpcaoAtiva] = useState("visaoGeral");
@@ -64,11 +63,37 @@ function RelatorioGerente() {
   ];
 
   useEffect(() => {
-    if (!filtros.id_gerente && gerentesFixos.length > 0) {
+    const userDataString = localStorage.getItem("userData");
+
+    if (!userDataString) {
+      setErro("Usuário não encontrado no localStorage. Faça login novamente.");
+      return;
+    }
+
+    try {
+      const userData = JSON.parse(userDataString);
+
+      const idGerente =
+        userData.idCorretor ||
+        userData.id_gerente ||
+        userData.codigoGerente ||
+        userData.codigo_gerente ||
+        userData.codigo ||
+        userData.id_usuarios ||
+        "";
+
+      if (!idGerente) {
+        setErro("Não foi encontrado um id de gerente no usuário logado.");
+        return;
+      }
+
       setFiltros((prev) => ({
         ...prev,
-        id_gerente: gerentesFixos[0].id,
+        id_gerente: idGerente,
       }));
+    } catch (err) {
+      console.error(err);
+      setErro("Erro ao carregar os dados do gerente logado.");
     }
   }, []);
 
@@ -959,21 +984,6 @@ function RelatorioGerente() {
       </div>
 
       <div className="bloco-filtros-gerente">
-        <div className="filtro-item">
-          <label>Gerente</label>
-          <select
-            className="campo-filtro"
-            value={filtros.id_gerente}
-            onChange={(e) => handleFiltroChange("id_gerente", e.target.value)}
-          >
-            <option value="">Selecione</option>
-            {gerentesFixos.map((g) => (
-              <option key={g.id} value={g.id}>
-                {g.nome}
-              </option>
-            ))}
-          </select>
-        </div>
 
         <div className="filtro-item">
           <label>Data inicial</label>
