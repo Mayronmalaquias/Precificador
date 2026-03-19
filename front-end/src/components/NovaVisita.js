@@ -1,728 +1,842 @@
-import React, { useEffect, useMemo, useState } from "react";
-import "../assets/css/AppVisita.css";
+// src/components/VisitaForm.jsx
+import React, { useState, useEffect } from "react";
+import "../assets/css/VisitaForm.css";
 
-// const API_BASE = "/api";
-const API_BASE = "http://localhost:5000";
+// const API_BASE = "http://localhost:5000/visitas";
+const API_BASE = "/api";
+//const API_BASE = "http://localhost:5000";
 
-function parseBrDate(dateStr) {
-  if (!dateStr) return null;
-  const parts = String(dateStr).split("/");
-  if (parts.length !== 3) return null;
-  const [dd, mm, yyyy] = parts.map(Number);
-  if (!dd || !mm || !yyyy) return null;
-  return new Date(yyyy, mm - 1, dd);
-}
+export default function VisitaForm() {
+  const [corretorInfo, setCorretorInfo] = useState({
+    id: "",
+    username: "",
+    nome: "",
+    telefone: "",
+    instagram: "",
+    descricao: "",
+    email: "",
+  });
 
-function formatDateSafe(dateStr) {
-  return dateStr || "-";
-}
+  const [form, setForm] = useState({
+    imovelId: "",
+    dataVisita: new Date().toISOString().split("T")[0],
+    parceiroExterno: "NAO",
+    situacaoImovel: "CAPTACAO_PROPRIA",
 
-export default function ApiForms() {
-  const [gerenteId, setGerenteId] = useState("");
-  const [corTel, setCorTel] = useState("");
-  const [corNome, setCorNome] = useState("");
-  const [corInsta, setCorInsta] = useState("");
-  const [corDesc, setCorDesc] = useState("");
+    clienteNome: "",
+    clienteTelefone: "",
+    clienteEmail: "",
 
-  const [loadingPage, setLoadingPage] = useState(true);
-  const [loadingVisitaPdf, setLoadingVisitaPdf] = useState(false);
-  const [loadingClientePdf, setLoadingClientePdf] = useState(false);
-  const [error, setError] = useState("");
+    proposta: "Talvez",
+    papelVisita: "Interessado",
 
-  const [visitas, setVisitas] = useState([]);
-  const [imoveis, setImoveis] = useState([]);
-  const [clientes, setClientes] = useState([]);
+    enderecoExterno: "",
 
-  const [filtroVisitas, setFiltroVisitas] = useState("");
-  const [filtroImoveis, setFiltroImoveis] = useState("");
-  const [filtroClientes, setFiltroClientes] = useState("");
+    parceiroNome: "",
+    parceiroImobiliaria: "",
 
-  const [itemSelecionado, setItemSelecionado] = useState(null);
-  const [tipoSelecionado, setTipoSelecionado] = useState("");
+    clienteAssinanteNome: "",
+    clienteAssinanteTelefone: "",
+    clienteAssinanteEmail: "",
+
+    assinatura: "",
+    audioDescricaoClienteVisita: "",
+    linkAudio: "",
+
+    localizacao: 10,
+    tamanho: 10,
+    planta: 10,
+    acabamento: 10,
+    conservacao: 10,
+    condominio: 10,
+    preco: 10,
+    notaGeral: 10,
+
+    precoNota10: "",
+  });
+
+  const [pdfFile, setPdfFile] = useState(null);
+  const [loading, setLoading] = useState(false);
+
+  const [enderecoQuery, setEnderecoQuery] = useState("");
+  const [imoveisSugestoes, setImoveisSugestoes] = useState([]);
+  const [loadingImoveis, setLoadingImoveis] = useState(false);
+  const [showSugestoes, setShowSugestoes] = useState(false);
+
+  const [clientesDoCorretor, setClientesDoCorretor] = useState([]);
+  const [clientesSugestoes, setClientesSugestoes] = useState([]);
+  const [loadingClientes, setLoadingClientes] = useState(false);
+  const [showClientesSugestoes, setShowClientesSugestoes] = useState(false);
+  const [clienteSelecionado, setClienteSelecionado] = useState(null);
+  const [clienteStatus, setClienteStatus] = useState("NOVO"); // EXISTENTE | NOVO
+
+  const isImovelNaoCaptado = form.situacaoImovel === "IMOVEL_NAO_CAPTADO";
 
   useEffect(() => {
     const userDataString = localStorage.getItem("userData");
-    if (!userDataString) {
-      setLoadingPage(false);
-      setError("Usuário não encontrado no localStorage. Faça login novamente.");
-      return;
-    }
+    if (userDataString) {
+      try {
+        const userData = JSON.parse(userDataString);
 
-    try {
-      const userData = JSON.parse(userDataString);
+        const corretorId =
+          userData.idCorretor ||
+          userData.id_corretor ||
+          userData.codigoCorretor ||
+          userData.codigo ||
+          userData.id_usuarios ||
+          "";
 
-      const id =
-        userData.idCorretor ||
-        userData.id_gerente ||
-        userData.codigoGerente ||
-        userData.codigo_gerente ||
-        userData.codigo ||
-        userData.id_usuarios ||
-        "";
+        const corretor = {
+          id: corretorId,
+          username: userData.username || "",
+          nome: userData.nome || "",
+          telefone: userData.telefone || "",
+          instagram: userData.instagram || "",
+          descricao: userData.descricao || "",
+          email: userData.email || "",
+        };
 
-      setGerenteId(id);
-      setCorTel(userData.telefone || "");
-      setCorNome(userData.nome || "");
-      setCorInsta(userData.instagram || "");
-      setCorDesc(userData.descricao || "");
-    } catch (err) {
-      console.error(err);
-      setError("Erro ao carregar os dados do gerente.");
-      setLoadingPage(false);
+        setCorretorInfo(corretor);
+
+        if (corretorId) {
+          carregarClientesDoCorretor(corretorId);
+        }
+      } catch (e) {
+        console.error("Erro ao ler userData do localStorage", e);
+      }
     }
   }, []);
 
   useEffect(() => {
-    if (!gerenteId) return;
-    carregarTudo();
-  }, [gerenteId]);
+    if (isImovelNaoCaptado) {
+      setForm((prev) => ({
+        ...prev,
+        imovelId: "0000",
+      }));
+      setEnderecoQuery("");
+      setImoveisSugestoes([]);
+      setShowSugestoes(false);
+    } else if (form.imovelId === "0000") {
+      setForm((prev) => ({
+        ...prev,
+        imovelId: "",
+      }));
+    }
+  }, [isImovelNaoCaptado]);
 
-  async function carregarTudo() {
-    setLoadingPage(true);
-    setError("");
+  useEffect(() => {
+    const termo = (form.clienteNome || "").trim().toLowerCase();
 
+    if (!termo) {
+      setClientesSugestoes([]);
+      setClienteSelecionado(null);
+      setClienteStatus("NOVO");
+      return;
+    }
+
+    const filtrados = clientesDoCorretor.filter((c) =>
+      (c.nome || "").toLowerCase().includes(termo)
+    );
+
+    setClientesSugestoes(filtrados);
+
+    const matchExato = clientesDoCorretor.find(
+      (c) => (c.nome || "").trim().toLowerCase() === termo
+    );
+
+    if (matchExato) {
+      setClienteStatus("EXISTENTE");
+    } else {
+      setClienteStatus("NOVO");
+      setClienteSelecionado(null);
+    }
+  }, [form.clienteNome, clientesDoCorretor]);
+
+  useEffect(() => {
+    if (isImovelNaoCaptado) return;
+    if (!showSugestoes) return;
+
+    const t = setTimeout(() => {
+      buscarImoveisPorEndereco(enderecoQuery);
+    }, 350);
+
+    return () => clearTimeout(t);
+  }, [enderecoQuery, showSugestoes, isImovelNaoCaptado]);
+
+  function updateField(field) {
+    return (e) => {
+      setForm((prev) => ({
+        ...prev,
+        [field]: e.target.value,
+      }));
+    };
+  }
+
+  function setRadio(field, value) {
+    return () => {
+      setForm((prev) => ({
+        ...prev,
+        [field]: value,
+      }));
+    };
+  }
+
+  async function carregarClientesDoCorretor(idCorretor) {
+    if (!idCorretor) return;
+
+    setLoadingClientes(true);
     try {
-      const [respVisitas, respImoveis, respClientes] = await Promise.all([
-        fetch(
-          `${API_BASE}/visitas_busca?id_gerente=${encodeURIComponent(
-            gerenteId
-          )}&q=&limit=200`,
-          { method: "GET" }
-        ),
-        fetch(
-          `${API_BASE}/imoveis_busca_corretor?id_gerente=${encodeURIComponent(
-            gerenteId
-          )}&q=&limit=200`,
-          { method: "GET" }
-        ),
-        fetch(
-          `${API_BASE}/clientes_busca?id_gerente=${encodeURIComponent(
-            gerenteId
-          )}&q=&limit=200`,
-          { method: "GET" }
-        ),
-      ]);
+      const resp = await fetch(
+        `${API_BASE}/clientes?id_corretor=${encodeURIComponent(idCorretor)}`,
+        { method: "GET" }
+      );
 
-      const dataVisitas = await respVisitas.json().catch(() => ({}));
-      const dataImoveis = await respImoveis.json().catch(() => ({}));
-      const dataClientes = await respClientes.json().catch(() => ({}));
+      const data = await resp.json().catch(() => ({}));
 
-      if (!respVisitas.ok || !dataVisitas.ok) {
-        throw new Error(dataVisitas.error || "Erro ao carregar visitas.");
+      if (!resp.ok || !data.ok) {
+        throw new Error(data.error || "Erro ao buscar clientes");
       }
 
-      if (!respImoveis.ok || !dataImoveis.ok) {
-        throw new Error(dataImoveis.error || "Erro ao carregar imóveis.");
-      }
-
-      if (!respClientes.ok || !dataClientes.ok) {
-        throw new Error(dataClientes.error || "Erro ao carregar clientes.");
-      }
-
-      const listaVisitas = Array.isArray(dataVisitas.lista) ? dataVisitas.lista : [];
-      const listaImoveis = Array.isArray(dataImoveis.lista) ? dataImoveis.lista : [];
-      const listaClientes = Array.isArray(dataClientes.lista) ? dataClientes.lista : [];
-
-      setVisitas(listaVisitas);
-      setImoveis(listaImoveis);
-      setClientes(listaClientes);
-
-      if (listaVisitas.length > 0) {
-        setTipoSelecionado("visita");
-        setItemSelecionado(listaVisitas[0]);
-      } else if (listaImoveis.length > 0) {
-        setTipoSelecionado("imovel");
-        setItemSelecionado(listaImoveis[0]);
-      } else if (listaClientes.length > 0) {
-        setTipoSelecionado("cliente");
-        setItemSelecionado(listaClientes[0]);
-      }
-    } catch (err) {
-      console.error(err);
-      setError(err.message || "Erro ao carregar os dados da página.");
+      const lista = Array.isArray(data.lista) ? data.lista : [];
+      setClientesDoCorretor(lista);
+    } catch (e) {
+      console.error(e);
+      setClientesDoCorretor([]);
     } finally {
-      setLoadingPage(false);
+      setLoadingClientes(false);
     }
   }
 
-  const visitasFiltradas = useMemo(() => {
-    const q = filtroVisitas.trim().toLowerCase();
-    if (!q) return visitas;
+  function selecionarCliente(cliente) {
+    setClienteSelecionado(cliente);
+    setClienteStatus("EXISTENTE");
 
-    return visitas.filter((item) => {
-      const texto = [
-        item.cliente,
-        item.dataVisita,
-        item.imovelId,
-        item.id_visita,
-        item.label,
-      ]
-        .join(" ")
-        .toLowerCase();
+    setForm((prev) => ({
+      ...prev,
+      clienteNome: cliente.nome || "",
+      clienteTelefone: cliente.telefone || "",
+      clienteEmail: cliente.email || "",
+    }));
 
-      return texto.includes(q);
+    setShowClientesSugestoes(false);
+    setClientesSugestoes([]);
+  }
+
+  async function buscarImoveisPorEndereco(query) {
+    const q = (query || "").trim();
+
+    if (isImovelNaoCaptado) {
+      setImoveisSugestoes([]);
+      return;
+    }
+
+    if (q.length < 3) {
+      setImoveisSugestoes([]);
+      return;
+    }
+
+    setLoadingImoveis(true);
+    try {
+      const resp = await fetch(
+        `${API_BASE}/imoveis_busca?endereco=${encodeURIComponent(q)}`,
+        { method: "GET" }
+      );
+
+      const data = await resp.json().catch(() => ({}));
+      if (!resp.ok || !data.ok) {
+        throw new Error(data.error || "Erro ao buscar imóveis");
+      }
+
+      setImoveisSugestoes(Array.isArray(data.lista) ? data.lista : []);
+    } catch (e) {
+      console.error(e);
+      setImoveisSugestoes([]);
+    } finally {
+      setLoadingImoveis(false);
+    }
+  }
+
+  async function uploadArquivoObrigatorio({ idCorretor, imovelId, dataVisita }) {
+    const fd = new FormData();
+    fd.append("file", pdfFile);
+    fd.append("idCorretor", idCorretor || "");
+    fd.append("imovelId", imovelId || "");
+    fd.append("dataVisita", dataVisita || "");
+
+    const resp = await fetch(`${API_BASE}/upload_pdf`, {
+      method: "POST",
+      body: fd,
     });
-  }, [visitas, filtroVisitas]);
 
-  const imoveisFiltrados = useMemo(() => {
-    const q = filtroImoveis.trim().toLowerCase();
-    if (!q) return imoveis;
-
-    return imoveis.filter((item) => {
-      const texto = [
-        item.id_imovel,
-        item.ultima_data,
-        item.label,
-        Array.isArray(item.clientes) ? item.clientes.join(" ") : "",
-      ]
-        .join(" ")
-        .toLowerCase();
-
-      return texto.includes(q);
-    });
-  }, [imoveis, filtroImoveis]);
-
-  const clientesFiltrados = useMemo(() => {
-    const q = filtroClientes.trim().toLowerCase();
-    if (!q) return clientes;
-
-    return clientes.filter((item) => {
-      const texto = [
-        item.id_cliente,
-        item.nome,
-        item.telefone,
-        item.email,
-        item.ultima_data,
-        item.label,
-        Array.isArray(item.imoveis) ? item.imoveis.join(" ") : "",
-      ]
-        .join(" ")
-        .toLowerCase();
-
-      return texto.includes(q);
-    });
-  }, [clientes, filtroClientes]);
-
-  const resumo = useMemo(() => {
-    const totalVisitas = visitas.length;
-    const totalImoveis = imoveis.length;
-    const totalClientes = clientes.length;
-
-    let ultimaVisita = "-";
-    if (visitas.length > 0) {
-      const ordenadas = [...visitas].sort((a, b) => {
-        const da = parseBrDate(a.dataVisita);
-        const db = parseBrDate(b.dataVisita);
-        if (!da && !db) return 0;
-        if (!da) return 1;
-        if (!db) return -1;
-        return db - da;
-      });
-
-      ultimaVisita = ordenadas[0]?.dataVisita || "-";
+    const data = await resp.json().catch(() => ({}));
+    if (!resp.ok || !data.ok) {
+      throw new Error(data.error || "Erro ao enviar arquivo");
     }
 
     return {
-      totalVisitas,
-      totalImoveis,
-      totalClientes,
-      ultimaVisita,
+      drivePath: data.drivePath || "",
+      driveLink: data.driveLink || "",
     };
-  }, [visitas, imoveis, clientes]);
-
-  function selecionarVisita(item) {
-    setTipoSelecionado("visita");
-    setItemSelecionado(item);
   }
 
-  function selecionarImovel(item) {
-    setTipoSelecionado("imovel");
-    setItemSelecionado(item);
-  }
+  async function criarClienteSeNecessario() {
+    const nome = (form.clienteNome || "").trim();
+    const telefone = (form.clienteTelefone || "").trim();
+    const email = (form.clienteEmail || "").trim();
 
-  function selecionarCliente(item) {
-    setTipoSelecionado("cliente");
-    setItemSelecionado(item);
-  }
+    if (!nome) {
+      throw new Error("Informe o nome do cliente.");
+    }
 
-  async function abrirPdfVisita() {
-    if (!itemSelecionado || tipoSelecionado !== "visita") return;
+    if (clienteStatus === "EXISTENTE" && clienteSelecionado?.id_cliente) {
+      return clienteSelecionado.id_cliente;
+    }
 
-    setLoadingVisitaPdf(true);
-    try {
-      const resp = await fetch(
-        `${API_BASE}/visitas/pdf?visita_id=${encodeURIComponent(
-          itemSelecionado.id_visita
-        )}`,
-        { method: "GET" }
+    const resp = await fetch(`${API_BASE}/clientes`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        nome,
+        telefone,
+        email,
+        id_corretor: corretorInfo.id,
+        corretor_email: corretorInfo.email || "",
+      }),
+    });
+
+    const data = await resp.json().catch(() => ({}));
+
+    if (!resp.ok || !data.ok) {
+      throw new Error(data.error || "Erro ao criar cliente");
+    }
+
+    const novoId = data.id_cliente || null;
+
+    // Atualiza cache local para o autocomplete já reconhecer depois
+    const novoCliente = {
+      id_cliente: novoId,
+      nome,
+      telefone,
+      email,
+    };
+
+    setClientesDoCorretor((prev) => {
+      const jaExiste = prev.some(
+        (c) =>
+          (c.nome || "").trim().toLowerCase() === nome.toLowerCase() &&
+          (c.telefone || "").trim() === telefone &&
+          (c.email || "").trim().toLowerCase() === email.toLowerCase()
       );
+      if (jaExiste) return prev;
+      return [...prev, novoCliente].sort((a, b) =>
+        (a.nome || "").localeCompare(b.nome || "", "pt-BR", { sensitivity: "base" })
+      );
+    });
+
+    setClienteSelecionado(novoCliente);
+    setClienteStatus("EXISTENTE");
+
+    return novoId;
+  }
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+
+    if (!corretorInfo.id) {
+      alert("Erro: ID/Código do corretor não carregado. Faça login novamente.");
+      return;
+    }
+
+    if (!pdfFile) {
+      alert("O anexo é obrigatório. Selecione uma foto ou PDF antes de enviar.");
+      return;
+    }
+
+    if (!form.clienteNome.trim()) {
+      alert("Informe o nome do cliente.");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const idCliente = await criarClienteSeNecessario();
+
+      const { drivePath, driveLink } = await uploadArquivoObrigatorio({
+        idCorretor: corretorInfo.id,
+        imovelId: form.imovelId,
+        dataVisita: form.dataVisita,
+      });
+
+      const payload = {
+        ...form,
+        imovelId: isImovelNaoCaptado ? "0000" : form.imovelId,
+        idCorretor: corretorInfo.id,
+        idCliente: idCliente || "",
+
+        anexoFichaVisita: drivePath,
+        linkImagem: driveLink,
+
+        corretor: corretorInfo.nome || corretorInfo.username,
+        corretorEmail: corretorInfo.email || "",
+        telefoneCorretor: corretorInfo.telefone,
+        instagramCorretor: corretorInfo.instagram,
+        descricaoCorretor: corretorInfo.descricao,
+
+        clienteNome: form.clienteNome,
+        clienteTelefone: form.clienteTelefone,
+        clienteEmail: form.clienteEmail,
+
+        avaliacoes: {
+          localizacao: Number(form.localizacao),
+          tamanho: Number(form.tamanho),
+          planta: Number(form.planta),
+          acabamento: Number(form.acabamento),
+          conservacao: Number(form.conservacao),
+          condominio: Number(form.condominio),
+          preco: Number(form.preco),
+          notaGeral: Number(form.notaGeral),
+        },
+      };
+
+      const resp = await fetch(`${API_BASE}/visitas`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
 
       const data = await resp.json().catch(() => ({}));
 
       if (!resp.ok || !data.ok) {
-        throw new Error(data.error || "Erro ao gerar o PDF da visita.");
+        throw new Error(data.error || "Erro ao registrar visita");
       }
 
-      if (!data.drive_url) {
-        throw new Error("A API não retornou a URL do PDF.");
-      }
+      alert(`Visita lançada com sucesso! Id: ${data.id_visita}`);
 
-      window.open(data.drive_url, "_blank");
+      setForm({
+        imovelId: "",
+        dataVisita: new Date().toISOString().split("T")[0],
+        parceiroExterno: "NAO",
+        situacaoImovel: "CAPTACAO_PROPRIA",
+
+        clienteNome: "",
+        clienteTelefone: "",
+        clienteEmail: "",
+
+        proposta: "Talvez",
+        papelVisita: "Interessado",
+
+        enderecoExterno: "",
+
+        parceiroNome: "",
+        parceiroImobiliaria: "",
+
+        clienteAssinanteNome: "",
+        clienteAssinanteTelefone: "",
+        clienteAssinanteEmail: "",
+
+        assinatura: "",
+        audioDescricaoClienteVisita: "",
+        linkAudio: "",
+
+        localizacao: 10,
+        tamanho: 10,
+        planta: 10,
+        acabamento: 10,
+        conservacao: 10,
+        condominio: 10,
+        preco: 10,
+        notaGeral: 10,
+
+        precoNota10: "",
+      });
+
+      setEnderecoQuery("");
+      setImoveisSugestoes([]);
+      setShowSugestoes(false);
+      setPdfFile(null);
+
+      setClienteSelecionado(null);
+      setClienteStatus("NOVO");
+      setClientesSugestoes([]);
+      setShowClientesSugestoes(false);
     } catch (err) {
       console.error(err);
-      alert(err.message || "Erro ao abrir o PDF da visita.");
+      alert(err.message || "Erro inesperado");
     } finally {
-      setLoadingVisitaPdf(false);
+      setLoading(false);
     }
   }
 
-  function baixarPdfVisita() {
-    if (!itemSelecionado || tipoSelecionado !== "visita") return;
-
-    const url =
-      `${API_BASE}/visitas/pdf/download` +
-      `?visita_id=${encodeURIComponent(itemSelecionado.id_visita)}`;
-
-    window.open(url, "_blank");
-  }
-
-  async function abrirHistoricoImovel() {
-    if (!itemSelecionado || tipoSelecionado !== "imovel") return;
-
-    try {
-      const resp = await fetch(
-        `${API_BASE}/imoveis/pdf?imovel_id=${encodeURIComponent(
-          itemSelecionado.id_imovel
-        )}`,
-        { method: "GET" }
-      );
-
-      const data = await resp.json().catch(() => ({}));
-
-      if (!resp.ok || !data.ok) {
-        throw new Error(data.error || "Erro ao gerar o PDF do imóvel.");
-      }
-
-      if (!data.drive_url) {
-        throw new Error("A API não retornou a URL do PDF do imóvel.");
-      }
-
-      window.open(data.drive_url, "_blank");
-    } catch (err) {
-      console.error(err);
-      alert(err.message || "Erro ao abrir o relatório do imóvel.");
-    }
-  }
-
-  function baixarHistoricoImovel() {
-    if (!itemSelecionado || tipoSelecionado !== "imovel") return;
-
-    const url =
-      `${API_BASE}/imoveis/pdf/download` +
-      `?imovel_id=${encodeURIComponent(itemSelecionado.id_imovel)}`;
-
-    window.open(url, "_blank");
-  }
-
-  async function abrirPdfCliente() {
-    if (!itemSelecionado || tipoSelecionado !== "cliente") return;
-
-    setLoadingClientePdf(true);
-    try {
-      const resp = await fetch(
-        `${API_BASE}/clientes/pdf?id_cliente=${encodeURIComponent(
-          itemSelecionado.id_cliente
-        )}`,
-        { method: "GET" }
-      );
-
-      const data = await resp.json().catch(() => ({}));
-
-      if (!resp.ok || !data.ok) {
-        throw new Error(data.error || "Erro ao gerar o PDF do cliente.");
-      }
-
-      if (!data.drive_url) {
-        throw new Error("A API não retornou a URL do PDF do cliente.");
-      }
-
-      window.open(data.drive_url, "_blank");
-    } catch (err) {
-      console.error(err);
-      alert(err.message || "Erro ao abrir o relatório do cliente.");
-    } finally {
-      setLoadingClientePdf(false);
-    }
-  }
-
-  function baixarPdfCliente() {
-    if (!itemSelecionado || tipoSelecionado !== "cliente") return;
-
-    const url =
-      `${API_BASE}/clientes/pdf/download` +
-      `?id_cliente=${encodeURIComponent(itemSelecionado.id_cliente)}`;
-
-    window.open(url, "_blank");
+  function renderNotaButtons(field) {
+    const value = Number(form[field]);
+    return (
+      <div className="nota-buttons">
+        {Array.from({ length: 10 }, (_, i) => i + 1).map((n) => (
+          <button
+            key={n}
+            type="button"
+            className={`nota-button ${value === n ? "nota-button-active" : ""}`}
+            onClick={() =>
+              setForm((prev) => ({
+                ...prev,
+                [field]: n,
+              }))
+            }
+          >
+            {n}
+          </button>
+        ))}
+      </div>
+    );
   }
 
   return (
-    <div className="relatorios-page">
-      <div className="relatorios-header">
-        <div>
-          <h1 className="relatorios-title">Painel de Relatórios</h1>
-          <p className="relatorios-subtitle">
-            Visualize suas visitas, imóveis e clientes e gere os PDFs com um clique.
-          </p>
-        </div>
+    <div className="visita-form-wrapper">
+      <form className="visita-form" onSubmit={handleSubmit}>
+        <h2>Lançar Visita</h2>
 
-        <button
-          type="button"
-          className="relatorios-refresh"
-          onClick={carregarTudo}
-          disabled={loadingPage}
-        >
-          {loadingPage ? "Atualizando..." : "Atualizar"}
-        </button>
-      </div>
-
-      <div className="relatorios-top-info">
-        <div className="relatorios-user-card">
-          <div className="relatorios-user-name">{corNome || "Gerente"}</div>
-          <div className="relatorios-user-meta">Id: {gerenteId || "-"}</div>
-          <div className="relatorios-user-meta">Telefone: {corTel || "-"}</div>
-        </div>
-
-        <div className="relatorios-summary-card">
-          <span className="relatorios-summary-label">Total de visitas</span>
-          <strong className="relatorios-summary-value">{resumo.totalVisitas}</strong>
-        </div>
-
-        <div className="relatorios-summary-card">
-          <span className="relatorios-summary-label">Imóveis visitados</span>
-          <strong className="relatorios-summary-value">{resumo.totalImoveis}</strong>
-        </div>
-
-        <div className="relatorios-summary-card">
-          <span className="relatorios-summary-label">Clientes</span>
-          <strong className="relatorios-summary-value">{resumo.totalClientes}</strong>
-        </div>
-
-        <div className="relatorios-summary-card">
-          <span className="relatorios-summary-label">Última visita</span>
-          <strong className="relatorios-summary-value relatorios-summary-date">
-            {resumo.ultimaVisita}
-          </strong>
-        </div>
-      </div>
-
-      {error && <div className="relatorios-error">{error}</div>}
-
-      <div className="relatorios-grid">
-        <section className="relatorios-list-card">
-          <div className="relatorios-card-header">
-            <h2>Visitas</h2>
-            <span>{visitasFiltradas.length}</span>
+        <div className="vf-group">
+          <label>Corretor</label>
+          <div className="vf-readonly">
+            {(corretorInfo.id ? `${corretorInfo.id} - ` : "") +
+              (corretorInfo.nome || corretorInfo.username || "Não identificado")}
           </div>
+        </div>
 
-          <input
-            type="text"
-            className="relatorios-search"
-            placeholder="Filtrar visitas por cliente, data ou imóvel..."
-            value={filtroVisitas}
-            onChange={(e) => setFiltroVisitas(e.target.value)}
-          />
+        <div className="vf-group">
+          <label>Visita com Parceiro Externo?</label>
+          <div className="vf-toggle-row">
+            <button
+              type="button"
+              className={`vf-toggle ${
+                form.parceiroExterno === "NAO"
+                  ? "vf-toggle-active vf-toggle-no"
+                  : ""
+              }`}
+              onClick={setRadio("parceiroExterno", "NAO")}
+            >
+              NÃO
+            </button>
+            <button
+              type="button"
+              className={`vf-toggle ${
+                form.parceiroExterno === "SIM"
+                  ? "vf-toggle-active vf-toggle-yes"
+                  : ""
+              }`}
+              onClick={setRadio("parceiroExterno", "SIM")}
+            >
+              SIM
+            </button>
+          </div>
+        </div>
 
-          <div className="relatorios-list">
-            {loadingPage ? (
-              <div className="relatorios-empty">Carregando visitas...</div>
-            ) : visitasFiltradas.length === 0 ? (
-              <div className="relatorios-empty">Nenhuma visita encontrada.</div>
-            ) : (
-              visitasFiltradas.map((item) => (
-                <button
-                  key={item.id_visita}
-                  type="button"
-                  className={`relatorios-item ${
-                    tipoSelecionado === "visita" &&
-                    itemSelecionado?.id_visita === item.id_visita
-                      ? "is-active"
-                      : ""
-                  }`}
-                  onClick={() => selecionarVisita(item)}
-                >
-                  <div className="relatorios-item-title">
-                    {item.cliente || "Sem cliente"}
-                  </div>
-                  <div className="relatorios-item-sub">
-                    {item.dataVisita ? `Data: ${item.dataVisita}` : ""}
-                    {item.imovelId ? ` | Imóvel: ${item.imovelId}` : ""}
-                  </div>
-                </button>
-              ))
+        <div className="vf-group">
+          <label>Situação do Imóvel</label>
+          <div className="vf-toggle-row">
+            <button
+              type="button"
+              className={`vf-toggle ${
+                form.situacaoImovel === "CAPTACAO_PROPRIA"
+                  ? "vf-toggle-active"
+                  : ""
+              }`}
+              onClick={setRadio("situacaoImovel", "CAPTACAO_PROPRIA")}
+            >
+              Captação Própria
+            </button>
+            <button
+              type="button"
+              className={`vf-toggle ${
+                form.situacaoImovel === "CAPTACAO_PARCEIRO"
+                  ? "vf-toggle-active"
+                  : ""
+              }`}
+              onClick={setRadio("situacaoImovel", "CAPTACAO_PARCEIRO")}
+            >
+              Captação Parceiro
+            </button>
+            <button
+              type="button"
+              className={`vf-toggle ${
+                form.situacaoImovel === "IMOVEL_NAO_CAPTADO"
+                  ? "vf-toggle-active"
+                  : ""
+              }`}
+              onClick={setRadio("situacaoImovel", "IMOVEL_NAO_CAPTADO")}
+            >
+              Imóvel não captado pela 61
+            </button>
+          </div>
+        </div>
+
+        {!isImovelNaoCaptado ? (
+          <div className="vf-group">
+            <label>Buscar imóvel por endereço</label>
+            <input
+              type="text"
+              value={enderecoQuery}
+              onChange={(e) => {
+                setEnderecoQuery(e.target.value);
+                setShowSugestoes(true);
+              }}
+              onFocus={() => setShowSugestoes(true)}
+              placeholder="Ex: SQS 308, W3, Rua 12..."
+            />
+
+            {loadingImoveis && <div className="vf-hint">Buscando...</div>}
+
+            {showSugestoes && imoveisSugestoes.length > 0 && (
+              <div className="vf-sugestoes">
+                {imoveisSugestoes.map((it) => (
+                  <button
+                    type="button"
+                    key={`${it.codigo}-${it.finalidade || ""}`}
+                    className="vf-sugestao-item"
+                    onClick={() => {
+                      const enderecoFull = `${it.endereco || ""}${
+                        it.numero ? `, ${it.numero}` : ""
+                      }`;
+
+                      setForm((prev) => ({
+                        ...prev,
+                        imovelId: String(it.codigo || ""),
+                        enderecoExterno: enderecoFull,
+                      }));
+
+                      setEnderecoQuery(enderecoFull);
+                      setShowSugestoes(false);
+                      setImoveisSugestoes([]);
+                    }}
+                  >
+                    <div className="vf-sugestao-title">
+                      #{it.codigo} {it.finalidade ? `(${it.finalidade})` : ""}{" "}
+                      {it.titulo || ""}
+                    </div>
+                    <div className="vf-sugestao-sub">
+                      {it.endereco || ""}
+                      {it.numero ? `, ${it.numero}` : ""}
+                      {it.bairro ? ` - ${it.bairro}` : ""}
+                      {it.cidade ? ` (${it.cidade}${it.uf ? `/${it.uf}` : ""})` : ""}
+                    </div>
+                  </button>
+                ))}
+              </div>
             )}
           </div>
-        </section>
-
-        <section className="relatorios-list-card">
-          <div className="relatorios-card-header">
-            <h2>Imóveis já visitados</h2>
-            <span>{imoveisFiltrados.length}</span>
-          </div>
-
-          <input
-            type="text"
-            className="relatorios-search"
-            placeholder="Filtrar imóveis ou clientes..."
-            value={filtroImoveis}
-            onChange={(e) => setFiltroImoveis(e.target.value)}
-          />
-
-          <div className="relatorios-list">
-            {loadingPage ? (
-              <div className="relatorios-empty">Carregando imóveis...</div>
-            ) : imoveisFiltrados.length === 0 ? (
-              <div className="relatorios-empty">Nenhum imóvel encontrado.</div>
-            ) : (
-              imoveisFiltrados.map((item) => (
-                <button
-                  key={item.id_imovel}
-                  type="button"
-                  className={`relatorios-item ${
-                    tipoSelecionado === "imovel" &&
-                    itemSelecionado?.id_imovel === item.id_imovel
-                      ? "is-active"
-                      : ""
-                  }`}
-                  onClick={() => selecionarImovel(item)}
-                >
-                  <div className="relatorios-item-title">
-                    {item.id_imovel || "Sem imóvel"}
-                  </div>
-                  <div className="relatorios-item-sub">
-                    {`Visitas: ${item.qtd_visitas ?? 0}`}
-                    {item.ultima_data ? ` | Última: ${item.ultima_data}` : ""}
-                  </div>
-                </button>
-              ))
-            )}
-          </div>
-        </section>
-
-        <section className="relatorios-list-card">
-          <div className="relatorios-card-header">
-            <h2>Clientes</h2>
-            <span>{clientesFiltrados.length}</span>
-          </div>
-
-          <input
-            type="text"
-            className="relatorios-search"
-            placeholder="Filtrar clientes por nome, telefone, e-mail ou imóvel..."
-            value={filtroClientes}
-            onChange={(e) => setFiltroClientes(e.target.value)}
-          />
-
-          <div className="relatorios-list">
-            {loadingPage ? (
-              <div className="relatorios-empty">Carregando clientes...</div>
-            ) : clientesFiltrados.length === 0 ? (
-              <div className="relatorios-empty">Nenhum cliente encontrado.</div>
-            ) : (
-              clientesFiltrados.map((item) => (
-                <button
-                  key={item.id_cliente}
-                  type="button"
-                  className={`relatorios-item ${
-                    tipoSelecionado === "cliente" &&
-                    itemSelecionado?.id_cliente === item.id_cliente
-                      ? "is-active"
-                      : ""
-                  }`}
-                  onClick={() => selecionarCliente(item)}
-                >
-                  <div className="relatorios-item-title">
-                    {item.nome || "Sem nome"}
-                  </div>
-                  <div className="relatorios-item-sub">
-                    {`Visitas: ${item.qtd_visitas ?? 0}`}
-                    {item.ultima_data ? ` | Última: ${item.ultima_data}` : ""}
-                  </div>
-                </button>
-              ))
-            )}
-          </div>
-        </section>
-      </div>
-
-      <section className="relatorios-detail-card">
-        {!itemSelecionado ? (
-          <div className="relatorios-empty">
-            Selecione uma visita, imóvel ou cliente para visualizar os detalhes.
-          </div>
-        ) : tipoSelecionado === "visita" ? (
-          <>
-            <div className="relatorios-card-header">
-              <h2>Detalhes da visita</h2>
-              <span>{itemSelecionado.id_visita}</span>
-            </div>
-
-            <div className="relatorios-detail-grid">
-              <div className="relatorios-detail-box">
-                <span className="relatorios-detail-label">Cliente</span>
-                <strong>{itemSelecionado.cliente || "-"}</strong>
-              </div>
-
-              <div className="relatorios-detail-box">
-                <span className="relatorios-detail-label">Data</span>
-                <strong>{formatDateSafe(itemSelecionado.dataVisita)}</strong>
-              </div>
-
-              <div className="relatorios-detail-box">
-                <span className="relatorios-detail-label">Imóvel</span>
-                <strong>{itemSelecionado.imovelId || "-"}</strong>
-              </div>
-
-              <div className="relatorios-detail-box">
-                <span className="relatorios-detail-label">Id da visita</span>
-                <strong>{itemSelecionado.id_visita || "-"}</strong>
-              </div>
-            </div>
-
-            <div className="relatorios-actions">
-              <button
-                type="button"
-                className="relatorios-primary-btn"
-                onClick={abrirPdfVisita}
-                disabled={loadingVisitaPdf}
-              >
-                {loadingVisitaPdf ? "Gerando PDF..." : "Abrir PDF da visita"}
-              </button>
-
-              <button
-                type="button"
-                className="relatorios-secondary-btn"
-                onClick={baixarPdfVisita}
-              >
-                Baixar PDF
-              </button>
-            </div>
-          </>
-        ) : tipoSelecionado === "imovel" ? (
-          <>
-            <div className="relatorios-card-header">
-              <h2>Detalhes do imóvel</h2>
-              <span>{itemSelecionado.id_imovel}</span>
-            </div>
-
-            <div className="relatorios-detail-grid">
-              <div className="relatorios-detail-box">
-                <span className="relatorios-detail-label">Imóvel</span>
-                <strong>{itemSelecionado.id_imovel || "-"}</strong>
-              </div>
-
-              <div className="relatorios-detail-box">
-                <span className="relatorios-detail-label">Total de visitas</span>
-                <strong>{itemSelecionado.qtd_visitas ?? 0}</strong>
-              </div>
-
-              <div className="relatorios-detail-box">
-                <span className="relatorios-detail-label">Última visita</span>
-                <strong>{itemSelecionado.ultima_data || "-"}</strong>
-              </div>
-
-              <div className="relatorios-detail-box relatorios-detail-box--full">
-                <span className="relatorios-detail-label">Clientes vinculados</span>
-                <strong>
-                  {Array.isArray(itemSelecionado.clientes) &&
-                  itemSelecionado.clientes.length > 0
-                    ? itemSelecionado.clientes.join(", ")
-                    : "-"}
-                </strong>
-              </div>
-            </div>
-
-            <div className="relatorios-actions">
-              <button
-                type="button"
-                className="relatorios-primary-btn"
-                onClick={abrirHistoricoImovel}
-              >
-                Abrir PDF do imóvel
-              </button>
-
-              <button
-                type="button"
-                className="relatorios-secondary-btn"
-                onClick={baixarHistoricoImovel}
-              >
-                Baixar PDF
-              </button>
-            </div>
-          </>
         ) : (
-          <>
-            <div className="relatorios-card-header">
-              <h2>Detalhes do cliente</h2>
-              <span>{itemSelecionado.id_cliente}</span>
-            </div>
-
-            <div className="relatorios-detail-grid">
-              <div className="relatorios-detail-box">
-                <span className="relatorios-detail-label">Cliente</span>
-                <strong>{itemSelecionado.nome || "-"}</strong>
-              </div>
-
-              <div className="relatorios-detail-box">
-                <span className="relatorios-detail-label">Telefone</span>
-                <strong>{itemSelecionado.telefone || "-"}</strong>
-              </div>
-
-              <div className="relatorios-detail-box">
-                <span className="relatorios-detail-label">E-mail</span>
-                <strong>{itemSelecionado.email || "-"}</strong>
-              </div>
-
-              <div className="relatorios-detail-box">
-                <span className="relatorios-detail-label">Total de visitas</span>
-                <strong>{itemSelecionado.qtd_visitas ?? 0}</strong>
-              </div>
-
-              <div className="relatorios-detail-box">
-                <span className="relatorios-detail-label">Última visita</span>
-                <strong>{itemSelecionado.ultima_data || "-"}</strong>
-              </div>
-
-              <div className="relatorios-detail-box relatorios-detail-box--full">
-                <span className="relatorios-detail-label">Imóveis vinculados</span>
-                <strong>
-                  {Array.isArray(itemSelecionado.imoveis) && itemSelecionado.imoveis.length > 0
-                    ? itemSelecionado.imoveis.join(", ")
-                    : "-"}
-                </strong>
-              </div>
-            </div>
-
-            <div className="relatorios-actions">
-              <button
-                type="button"
-                className="relatorios-primary-btn"
-                onClick={abrirPdfCliente}
-                disabled={loadingClientePdf}
-              >
-                {loadingClientePdf ? "Gerando PDF..." : "Abrir PDF do cliente"}
-              </button>
-
-              <button
-                type="button"
-                className="relatorios-secondary-btn"
-                onClick={baixarPdfCliente}
-              >
-                Baixar PDF
-              </button>
-            </div>
-          </>
+          <div className="vf-group">
+            <label>Endereço do imóvel</label>
+            <input
+              type="text"
+              value={form.enderecoExterno}
+              onChange={updateField("enderecoExterno")}
+              placeholder="Digite o endereço manualmente"
+              required
+            />
+          </div>
         )}
-      </section>
+
+        {!isImovelNaoCaptado && (
+          <div className="vf-group">
+            <label>Imóvel (código)</label>
+            <input
+              type="text"
+              value={form.imovelId}
+              onChange={updateField("imovelId")}
+              placeholder="Será preenchido ao selecionar um imóvel"
+              required
+            />
+          </div>
+        )}
+
+        <div className="vf-group">
+          <label>Data da Visita</label>
+          <input
+            type="date"
+            value={form.dataVisita}
+            onChange={updateField("dataVisita")}
+            required
+          />
+        </div>
+
+        <div className="vf-group">
+          <label>Cliente na Visita</label>
+          <input
+            type="text"
+            value={form.clienteNome}
+            onChange={(e) => {
+              const nome = e.target.value;
+
+              setForm((prev) => ({
+                ...prev,
+                clienteNome: nome,
+              }));
+
+              setShowClientesSugestoes(true);
+              setClienteSelecionado(null);
+
+              if (!nome.trim()) {
+                setForm((prev) => ({
+                  ...prev,
+                  clienteTelefone: "",
+                  clienteEmail: "",
+                }));
+              }
+            }}
+            onFocus={() => setShowClientesSugestoes(true)}
+            placeholder="Digite o nome do cliente"
+            required
+          />
+
+          {loadingClientes && (
+            <div className="vf-hint">Carregando clientes...</div>
+          )}
+
+          {!!form.clienteNome && (
+            <div className="vf-hint">
+              Status do cliente:{" "}
+              <strong>
+                {clienteStatus === "EXISTENTE"
+                  ? "Cliente já cadastrado"
+                  : "Novo cliente"}
+              </strong>
+            </div>
+          )}
+
+          {showClientesSugestoes && clientesSugestoes.length > 0 && (
+            <div className="vf-sugestoes">
+              {clientesSugestoes.map((cliente) => (
+                <button
+                  type="button"
+                  key={cliente.id_cliente}
+                  className="vf-sugestao-item"
+                  onClick={() => selecionarCliente(cliente)}
+                >
+                  <div className="vf-sugestao-title">{cliente.nome}</div>
+                  <div className="vf-sugestao-sub">
+                    {cliente.telefone || "Sem telefone"}
+                    {cliente.email ? ` - ${cliente.email}` : ""}
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="vf-group">
+          <label>Telefone do Cliente</label>
+          <input
+            type="text"
+            value={form.clienteTelefone}
+            onChange={updateField("clienteTelefone")}
+            placeholder="Telefone do cliente"
+          />
+        </div>
+
+        <div className="vf-group">
+          <label>E-mail do Cliente</label>
+          <input
+            type="email"
+            value={form.clienteEmail}
+            onChange={updateField("clienteEmail")}
+            placeholder="email@exemplo.com"
+          />
+        </div>
+
+        <div className="vf-section-title">Avaliações (1 a 10)</div>
+
+        <div className="vf-group">
+          <label>Localização</label>
+          {renderNotaButtons("localizacao")}
+        </div>
+
+        <div className="vf-group">
+          <label>Tamanho</label>
+          {renderNotaButtons("tamanho")}
+        </div>
+
+        <div className="vf-group">
+          <label>Planta do Imóvel</label>
+          {renderNotaButtons("planta")}
+        </div>
+
+        <div className="vf-group">
+          <label>Qualidade no acabamento</label>
+          {renderNotaButtons("acabamento")}
+        </div>
+
+        <div className="vf-group">
+          <label>Estado de conservação</label>
+          {renderNotaButtons("conservacao")}
+        </div>
+
+        <div className="vf-group">
+          <label>Condomínio e área comum</label>
+          {renderNotaButtons("condominio")}
+        </div>
+
+        <div className="vf-group">
+          <label>Preço (nota 1 a 10)</label>
+          {renderNotaButtons("preco")}
+        </div>
+
+        <div className="vf-group">
+          <label>Nota geral</label>
+          {renderNotaButtons("notaGeral")}
+        </div>
+
+        <div className="vf-group">
+          <label>Preço NOTA 10 (R$)</label>
+          <input
+            type="number"
+            min="0"
+            step="0.01"
+            value={form.precoNota10}
+            onChange={updateField("precoNota10")}
+            placeholder="0,00"
+          />
+        </div>
+
+        <div className="vf-section-title">Anexo (Foto da Câmera ou PDF)</div>
+        <div className="vf-group">
+          <label>Tirar foto ou anexar PDF</label>
+          <input
+            type="file"
+            accept="image/*,application/pdf"
+            capture="environment"
+            required
+            onChange={(e) => setPdfFile(e.target.files?.[0] || null)}
+          />
+          {pdfFile && (
+            <div className="vf-hint">
+              Arquivo selecionado: <strong>{pdfFile.name}</strong>
+            </div>
+          )}
+        </div>
+
+        <div className="vf-group">
+          <label>Proposta</label>
+          <div className="vf-toggle-row">
+            {["Sim", "Não", "Talvez"].map((opt) => (
+              <button
+                key={opt}
+                type="button"
+                className={`vf-toggle ${
+                  form.proposta === opt ? "vf-toggle-active" : ""
+                }`}
+                onClick={setRadio("proposta", opt)}
+              >
+                {opt}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <button className="vf-submit" type="submit" disabled={loading}>
+          {loading ? "Enviando..." : "Lançar Visita"}
+        </button>
+      </form>
     </div>
   );
 }
