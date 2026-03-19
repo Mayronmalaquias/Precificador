@@ -1,8 +1,8 @@
 import React, { useEffect, useMemo, useState } from "react";
 import "../assets/css/AppVisita.css";
 
-//const API_BASE = "/api";
-const API_BASE = "http://localhost:5000";
+const API_BASE = "/api";
+//const API_BASE = "http://localhost:5000";
 
 function parseBrDate(dateStr) {
   if (!dateStr) return null;

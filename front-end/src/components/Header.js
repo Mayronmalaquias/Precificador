@@ -4,48 +4,60 @@ import '../assets/css/Header.css';
 
 function Header() {
   const navigate = useNavigate();
-  
-  // 1. Verificações de estado vindas do localStorage
+
   const isLogado = localStorage.getItem('auth') === 'true';
-  
-  // 2. Recuperar os dados do usuário para checar a permissão
   const userData = JSON.parse(localStorage.getItem('userData') || '{}');
   const isAdmin = userData.grant === 'admin' || userData.permissao === 'admin';
 
   const handleLogout = () => {
     localStorage.removeItem('auth');
-    localStorage.removeItem('userData'); // Limpa os dados do usuário também
+    localStorage.removeItem('userData');
     navigate('/login');
   };
 
-  const getNavLinkClass = ({ isActive }) => {
-    return isActive ? 'nav-link active-link' : 'nav-link';
-  };
+  const getNavLinkClass = ({ isActive }) =>
+    isActive ? 'nav-link active-link' : 'nav-link';
 
   return (
     <header>
       <h1>Inteligência Imobiliária 61</h1>
+
       <nav>
         <NavLink to="/" end className={getNavLinkClass}>
           Início
         </NavLink>
+
+        {' | '}
+
         <NavLink to="/Experts" className={getNavLinkClass}>
           Experts
         </NavLink>
-        
+
+        {' | '}
+
+        <NavLink to="/61Financiamento" className={getNavLinkClass}>
+          61Financeiro
+        </NavLink>
+
         {isLogado ? (
           <>
             {' | '}
             <NavLink to="/NovaVisita" className={getNavLinkClass}>
               Criar Visita
             </NavLink>
+
+            {' | '}
             <NavLink to="/AppVisita" className={getNavLinkClass}>
-              Relatorio de Visita
+              Relatório de Visita
             </NavLink>
 
-            {/* 3. Condicional para mostrar o Registro apenas para Admins */}
             {isAdmin && (
               <>
+                {' | '}
+                <NavLink to="/RelatorioGerente" className={getNavLinkClass}>
+                  Relatório Gerente
+                </NavLink>
+
                 {' | '}
                 <NavLink to="/register" className={getNavLinkClass}>
                   Registrar Usuário
@@ -54,7 +66,9 @@ function Header() {
             )}
 
             {' | '}
-            <button onClick={handleLogout} className="logout-button">Sair</button>
+            <button onClick={handleLogout} className="logout-button">
+              Sair
+            </button>
           </>
         ) : (
           <>

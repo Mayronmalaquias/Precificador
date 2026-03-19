@@ -50,11 +50,13 @@ def create_app():
     from app.routes.divisao_comissao_routes import divisao_ns
     from app.routes.relatorio_visita_route import relatorio_visita
     from app.routes.imovel_rel_route import imovel_catalogo_ns
+    from app.routes.gerentes_dash_routes import gerente_dashboard_ns
 
     api.add_namespace(relatorio_visita, path='/')
     api.add_namespace(imovel_catalogo_ns, path='/')
     api.add_namespace(divisao_ns, path='/')
     # api.add_namespace(mapa_ns, path='/')
+    api.add_namespace(gerente_dashboard_ns,path="/gerente-dashboard")
     api.add_namespace(analise_ns, path='/')
     api.add_namespace(auth_ns, path='/' )
     api.add_namespace(graph_ns, path='/')
