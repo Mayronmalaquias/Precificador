@@ -49,7 +49,7 @@ function App() {
 
             <Route path="/verificarImovel" element={<ReporteImovel />} />
             <Route path="/enviarVisita" element={<FormVisita />} />
-            <Route path="/Ranking" element={<Ranking />} />
+            <Route path="/Ranking" element={<PrivateRoute><Ranking /></PrivateRoute>} />
             <Route path="/FormComissao" element={<FormComissao />} />
 
             <Route

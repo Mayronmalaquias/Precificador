@@ -58,6 +58,10 @@ function Header() {
                   Relatório Gerente
                 </NavLink>
 
+                <NavLink to="/ranking" className={getNavLinkClass}>
+                  Ranking
+                </NavLink>
+
                 {' | '}
                 <NavLink to="/register" className={getNavLinkClass}>
                   Registrar Usuário
