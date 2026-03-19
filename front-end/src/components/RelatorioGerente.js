@@ -12,6 +12,7 @@ function RelatorioGerente() {
 
   const [abaAtiva, setAbaAtiva] = useState("relatoriogerente");
   const [opcaoAtiva, setOpcaoAtiva] = useState("visaoGeral");
+  const [idGerenteLogado, setIdGerenteLogado] = useState("");
 
   const hoje = new Date();
   const primeiroDiaMes = new Date(hoje.getFullYear(), hoje.getMonth(), 1)
@@ -74,7 +75,7 @@ function RelatorioGerente() {
       const userData = JSON.parse(userDataString);
 
       const idGerente =
-        userData.idCorretor ||
+        userData.idGerente ||
         userData.id_gerente ||
         userData.codigoGerente ||
         userData.codigo_gerente ||
@@ -87,9 +88,13 @@ function RelatorioGerente() {
         return;
       }
 
+      const idGerenteStr = String(idGerente);
+
+      setIdGerenteLogado(idGerenteStr);
+
       setFiltros((prev) => ({
         ...prev,
-        id_gerente: idGerente,
+        id_gerente: idGerenteStr,
       }));
     } catch (err) {
       console.error(err);
@@ -974,7 +979,7 @@ function RelatorioGerente() {
         );
     }
   };
-
+  const podeVerFiltroGerente = idGerenteLogado === "12345678";
   return (
     <div className="pagina-relatorio">
       <div className="titulo-pagina">Relatório Gerente</div>
@@ -984,6 +989,23 @@ function RelatorioGerente() {
       </div>
 
       <div className="bloco-filtros-gerente">
+        {podeVerFiltroGerente && (
+          <div className="filtro-item">
+            <label>Gerente</label>
+            <select
+              className="campo-filtro"
+              value={filtros.id_gerente}
+              onChange={(e) => handleFiltroChange("id_gerente", e.target.value)}
+            >
+              <option value="">Selecione</option>
+              {gerentesFixos.map((g) => (
+                <option key={g.id} value={g.id}>
+                  {g.nome}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
 
         <div className="filtro-item">
           <label>Data inicial</label>
