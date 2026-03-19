@@ -1515,7 +1515,7 @@ def buscar_clientes_do_corretor_com_historico(id_corretor: str, q: str = "", lim
 def _build_pdf_cliente_bytes(ctx: Dict[str, Any]) -> bytes:
     try:
         from reportlab.lib import colors
-        from reportlab.lib.pagesizes import A4
+        from reportlab.lib.pagesizes import A4, landscape
         from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
         from reportlab.lib.units import mm
         from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
@@ -1526,9 +1526,12 @@ def _build_pdf_cliente_bytes(ctx: Dict[str, Any]) -> bytes:
 
     buffer = io.BytesIO()
 
+    total_visitas = len(ctx.get("Visitas") or [])
+    page_size = landscape(A4) if total_visitas >= 4 else A4
+
     doc = SimpleDocTemplate(
         buffer,
-        pagesize=A4,
+        pagesize=page_size,
         leftMargin=14 * mm,
         rightMargin=14 * mm,
         topMargin=14 * mm,
@@ -1596,13 +1599,13 @@ def _build_pdf_cliente_bytes(ctx: Dict[str, Any]) -> bytes:
                     ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
                     ("GRID", (0, 0), (-1, -1), 0.35, colors.HexColor("#e5e7eb")),
                     ("VALIGN", (0, 0), (-1, -1), "TOP"),
-                    ("FONTSIZE", (0, 0), (-1, -1), 8.5),
-                    ("LEADING", (0, 0), (-1, -1), 10),
+                    ("FONTSIZE", (0, 0), (-1, -1), 8.2),
+                    ("LEADING", (0, 0), (-1, -1), 9.5),
                     ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#f8fafc")]),
-                    ("LEFTPADDING", (0, 0), (-1, -1), 6),
-                    ("RIGHTPADDING", (0, 0), (-1, -1), 6),
-                    ("TOPPADDING", (0, 0), (-1, -1), 6),
-                    ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+                    ("LEFTPADDING", (0, 0), (-1, -1), 5),
+                    ("RIGHTPADDING", (0, 0), (-1, -1), 5),
+                    ("TOPPADDING", (0, 0), (-1, -1), 5),
+                    ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
                 ]
             )
         )
@@ -1613,7 +1616,7 @@ def _build_pdf_cliente_bytes(ctx: Dict[str, Any]) -> bytes:
     story.append(Paragraph("Relatório Consolidado do Cliente", style_title))
     story.append(
         Paragraph(
-            "Histórico de visitas, imóveis vinculados e resumo das avaliações registradas.",
+            "Resumo consolidado das visitas e avaliações registradas para o cliente.",
             style_subtitle,
         )
     )
@@ -1623,8 +1626,6 @@ def _build_pdf_cliente_bytes(ctx: Dict[str, Any]) -> bytes:
             [
                 ["Id do cliente", _display(ctx.get("Id_Cliente"))],
                 ["Nome", _display(ctx.get("Nome_Cliente"))],
-                ["Telefone", _display(ctx.get("Telefone_Cliente"))],
-                ["E-mail", _display(ctx.get("Email_Cliente"))],
                 ["Total de visitas", _display(ctx.get("Qtd_Visitas"))],
                 ["Última visita", _display(ctx.get("Ultima_Visita"))],
             ]
@@ -1633,36 +1634,23 @@ def _build_pdf_cliente_bytes(ctx: Dict[str, Any]) -> bytes:
     story.append(Spacer(1, 10))
 
     story.append(Paragraph("Resumo das avaliações", style_section))
-    resumo = [["Critério", "Resultado"]]
-    for label, value in (ctx.get("Resumo_Avaliacoes") or {}).items():
-        resumo.append([label, value])
 
-    story.append(make_grid_table(resumo, [95 * mm, 79 * mm]))
-    story.append(Spacer(1, 10))
+    headers = ctx.get("Resumo_Avaliacoes_Headers") or ["Critérios"]
+    rows = ctx.get("Resumo_Avaliacoes_Rows") or []
 
-    story.append(Paragraph("Histórico de visitas", style_section))
-    visitas = [["Data", "Id Visita", "Imóvel", "Proposta", "Captação", "Parceiros"]]
+    tabela_resumo = [headers] + rows
 
-    if ctx.get("Visitas"):
-        for v in ctx["Visitas"]:
-            visitas.append([
-                _display(v.get("data_visita")),
-                _display(v.get("id_visita")),
-                _display(v.get("id_imovel")),
-                _display(v.get("proposta")),
-                _display(v.get("tipo_captacao")),
-                ", ".join(v.get("parceiros", [])) if v.get("parceiros") else "—",
-            ])
+    total_cols = len(headers)
+    if total_cols <= 1:
+        col_widths = [172 * mm]
     else:
-        visitas.append(["Sem visitas", "—", "—", "—", "—", "—"])
+        largura_total = 180 * mm if page_size == A4 else 255 * mm
+        largura_criterio = 38 * mm
+        largura_restante = max(largura_total - largura_criterio, 40 * mm)
+        largura_visita = largura_restante / (total_cols - 1)
+        col_widths = [largura_criterio] + [largura_visita] * (total_cols - 1)
 
-    story.append(
-        make_grid_table(
-            visitas,
-            [22 * mm, 26 * mm, 20 * mm, 26 * mm, 38 * mm, 42 * mm],
-        )
-    )
-
+    story.append(make_grid_table(tabela_resumo, col_widths))
     doc.build(story)
     return buffer.getvalue()
 
@@ -1722,7 +1710,6 @@ def gerar_pdf_cliente_publico(id_cliente: str) -> Dict[str, str]:
         "drive_path": drive_path,
     }
 
-
 def _montar_contexto_pdf_cliente(id_cliente: str) -> Dict[str, Any]:
     data = _batch_get_sheet_rows(
         [
@@ -1747,7 +1734,11 @@ def _montar_contexto_pdf_cliente(id_cliente: str) -> Dict[str, Any]:
         raise ValueError(f"Cliente {id_cliente} não encontrado.")
 
     visitas_rel = _find_all_by_key(fato_cliente_visita, "Id_Cliente", id_cliente)
-    visita_ids = [_pick_from_row(v, "Id_Visita") for v in visitas_rel if _pick_from_row(v, "Id_Visita")]
+    visita_ids = [
+        _pick_from_row(v, "Id_Visita")
+        for v in visitas_rel
+        if _pick_from_row(v, "Id_Visita")
+    ]
 
     visitas_map = {
         _pick_from_row(v, "Id_Visita"): v
@@ -1771,7 +1762,6 @@ def _montar_contexto_pdf_cliente(id_cliente: str) -> Dict[str, Any]:
         parceiros_por_visita[vid].append(pid)
 
     visitas_detalhadas = []
-    avaliacoes_cliente = []
 
     for vid in visita_ids:
         visita = visitas_map.get(vid)
@@ -1791,6 +1781,8 @@ def _montar_contexto_pdf_cliente(id_cliente: str) -> Dict[str, Any]:
                 if nome_parceiro:
                     parceiros_nomes.append(nome_parceiro)
 
+        avaliacao = avals[0] if avals else {}
+
         visitas_detalhadas.append({
             "id_visita": vid,
             "data_visita": _pick_from_row(visita, "Data_Visita"),
@@ -1799,21 +1791,18 @@ def _montar_contexto_pdf_cliente(id_cliente: str) -> Dict[str, Any]:
             "tipo_captacao": _pick_from_row(visita, "Tipo_Captacao"),
             "endereco_externo": _pick_from_row(visita, "Endereco_Externo"),
             "parceiros": parceiros_nomes,
-            "avaliacoes": avals,
+            "avaliacao": {
+                "Localização": _pick_from_row(avaliacao, "Localizacao"),
+                "Tamanho": _pick_from_row(avaliacao, "Tamanho"),
+                "Planta": _pick_from_row(avaliacao, "Planta_Imovel"),
+                "Acabamento": _pick_from_row(avaliacao, "Qualidade_Acabamento"),
+                "Conservação": _pick_from_row(avaliacao, "Estado_Conservacao"),
+                "Condomínio": _pick_from_row(avaliacao, "Condominio_AreaComun"),
+                "Preço": _pick_from_row(avaliacao, "Preco"),
+                "Nota Geral": _pick_from_row(avaliacao, "Nota_Geral"),
+                "Preço Nota 10": _pick_from_row(avaliacao, "Preco_N10"),
+            },
         })
-
-        for a in avals:
-            avaliacoes_cliente.append({
-                "Localizacao": _pick_from_row(a, "Localizacao"),
-                "Tamanho": _pick_from_row(a, "Tamanho"),
-                "Planta_Imovel": _pick_from_row(a, "Planta_Imovel"),
-                "Qualidade_Acabamento": _pick_from_row(a, "Qualidade_Acabamento"),
-                "Estado_Conservacao": _pick_from_row(a, "Estado_Conservacao"),
-                "Condominio_AreaComun": _pick_from_row(a, "Condominio_AreaComun"),
-                "Preco": _pick_from_row(a, "Preco"),
-                "Preco_N10": _pick_from_row(a, "Preco_N10"),
-                "Nota_Geral": _pick_from_row(a, "Nota_Geral"),
-            })
 
     visitas_detalhadas.sort(
         key=lambda x: _parse_ddmmyyyy_safe(x.get("data_visita", "")),
@@ -1822,15 +1811,43 @@ def _montar_contexto_pdf_cliente(id_cliente: str) -> Dict[str, Any]:
 
     ultima_data = visitas_detalhadas[0]["data_visita"] if visitas_detalhadas else ""
 
+    criterios = [
+        "Localização",
+        "Tamanho",
+        "Planta",
+        "Acabamento",
+        "Conservação",
+        "Condomínio",
+        "Preço",
+        "Nota Geral",
+        "Preço Nota 10",
+        "Proposta",
+    ]
+
+    resumo_headers = ["Critérios"]
+    for i, visita in enumerate(visitas_detalhadas, start=1):
+        data_label = _display(visita.get("data_visita"))
+        resumo_headers.append(f"Visita {i}\n{data_label}")
+
+    resumo_rows = []
+    for criterio in criterios:
+        linha = [criterio]
+        for visita in visitas_detalhadas:
+            if criterio == "Proposta":
+                valor = _display(visita.get("proposta"))
+            else:
+                valor = _display((visita.get("avaliacao") or {}).get(criterio))
+            linha.append(valor)
+        resumo_rows.append(linha)
+
     return {
         "Id_Cliente": _pick_from_row(cliente, "Id_Cliente"),
         "Nome_Cliente": _pick_from_row(cliente, "Nome_Cliente", "Nome"),
-        "Telefone_Cliente": _pick_from_row(cliente, "Telefone_Cliente", "Telefone"),
-        "Email_Cliente": _pick_from_row(cliente, "Email_Cliente", "Email"),
         "CreatedBy": _pick_from_row(cliente, "CreatedBy"),
         "Id_Corretor": _pick_from_row(cliente, "Id_Corretor"),
         "Qtd_Visitas": len(visitas_detalhadas),
         "Ultima_Visita": ultima_data,
         "Visitas": visitas_detalhadas,
-        "Resumo_Avaliacoes": _avg_scores(avaliacoes_cliente),
+        "Resumo_Avaliacoes_Headers": resumo_headers,
+        "Resumo_Avaliacoes_Rows": resumo_rows,
     }

@@ -10,7 +10,6 @@ from app.services.visita_service import (
     _find_or_create_folder,
     _trash_same_name_files_in_folder,
     _safe_str,
-    _fmt_money_brl,
     _parse_ddmmyyyy_safe,
     _find_first_by_key,
     _find_all_by_key,
@@ -23,6 +22,17 @@ DRIVE_IMOVEL_REPORTS_SUBFOLDER_NAME = os.getenv(
     "DRIVE_IMOVEL_REPORTS_SUBFOLDER_NAME",
     "Relatorios_Imovel_Gerados",
 )
+
+
+def _fmt_money_brl(v: Any) -> str:
+    if v in (None, ""):
+        return "—"
+
+    try:
+        num = float(v)  # aqui assume que já está limpo
+        return f"R$ {num:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+    except Exception:
+        return "—"
 
 
 def _pick_from_row(row: Dict[str, Any] | None, *keys: str) -> str:
@@ -40,13 +50,29 @@ def _display(v: Any, default: str = "—") -> str:
     return s if s else default
 
 
+import re
+
 def _num_or_none(v: Any) -> float | None:
     s = _safe_str(v)
+
     if not s:
         return None
+
+    # Remove tudo que não for número, vírgula ou ponto
+    s = re.sub(r"[^\d,\.]", "", s)
+
+    if not s:
+        return None
+
+    # Caso brasileiro: 1.234.567,89
+    if "," in s:
+        s = s.replace(".", "")  # remove milhar
+        s = s.replace(",", ".")  # vírgula vira decimal
+
+    # Caso já esteja padrão: 1234567.89
     try:
-        return float(s.replace(".", "").replace(",", "."))
-    except Exception:
+        return float(s)
+    except:
         return None
 
 
@@ -87,7 +113,7 @@ def _batch_get_rows_from_sheet(
     return out
 
 
-def _avg_scores_imovel(avaliacoes: List[Dict[str, Any]]) -> Dict[str, str]:
+def _stats_scores_imovel(avaliacoes: List[Dict[str, Any]]) -> Dict[str, Dict[str, str]]:
     campos = [
         ("Localizacao", "Localização"),
         ("Tamanho", "Tamanho"),
@@ -99,21 +125,54 @@ def _avg_scores_imovel(avaliacoes: List[Dict[str, Any]]) -> Dict[str, str]:
         ("Nota_Geral", "Nota Geral"),
     ]
 
-    out: Dict[str, str] = {}
+    out: Dict[str, Dict[str, str]] = {}
+
     for key, label in campos:
         nums = [_num_or_none(a.get(key)) for a in avaliacoes]
         nums = [n for n in nums if n is not None]
-        out[label] = f"{sum(nums) / len(nums):.1f}" if nums else "—"
 
-    preco_n10_vals = [_num_or_none(a.get("Preco_N10")) for a in avaliacoes]
-    preco_n10_vals = [n for n in preco_n10_vals if n is not None]
-    out["Preço Nota 10"] = (
-        _fmt_money_brl(sum(preco_n10_vals) / len(preco_n10_vals))
-        if preco_n10_vals
-        else "—"
-    )
+        if nums:
+            out[label] = {
+                "menor": f"{min(nums):.1f}",
+                "medio": f"{sum(nums) / len(nums):.1f}",
+                "maior": f"{max(nums):.1f}",
+            }
+        else:
+            out[label] = {
+                "menor": "—",
+                "medio": "—",
+                "maior": "—",
+            }
 
     return out
+
+
+def _stats_preco_nota10(avaliacoes: List[Dict[str, Any]]) -> Dict[str, str]:
+    preco_n10_vals = [_num_or_none(a.get("Preco_N10")) for a in avaliacoes]
+    preco_n10_vals = [n for n in preco_n10_vals if n is not None]
+    print(preco_n10_vals)
+
+    if not preco_n10_vals:
+        return {
+            "menor": "—",
+            "medio": "—",
+            "maior": "—",
+        }
+    soma = 0
+    for i in preco_n10_vals:
+        soma += i
+    print(soma)
+    print(len(preco_n10_vals))
+    media = soma / len(preco_n10_vals)
+    media = round(media,1)
+    print(media)
+    print(min(preco_n10_vals))
+    print(max(preco_n10_vals))
+    return {
+        "menor": _fmt_money_brl(round(min(preco_n10_vals),1)),
+        "medio": _fmt_money_brl(media),
+        "maior": _fmt_money_brl(round(max(preco_n10_vals),1)),
+    }
 
 
 def _find_corretor_row_from_visita(
@@ -184,14 +243,6 @@ def _montar_contexto_pdf_imovel(imovel_id: str) -> Dict[str, Any]:
         for r in dim_parceiro
         if _safe_str(r.get("Id_Parceiro"))
     }
-
-    enderecos_unicos = []
-    enderecos_seen = set()
-    for v in visitas_do_imovel:
-        endereco = _pick_from_row(v, "Endereco_Externo")
-        if endereco and endereco not in enderecos_seen:
-            enderecos_unicos.append(endereco)
-            enderecos_seen.add(endereco)
 
     todas_avaliacoes = []
     visitas_resumo = []
@@ -313,10 +364,6 @@ def _montar_contexto_pdf_imovel(imovel_id: str) -> Dict[str, Any]:
     return {
         "Id_Imovel": _safe_str(imovel_id),
         "Endereco": _pick_from_row(visita_mais_recente, "Endereco_Externo"),
-        "Enderecos_Encontrados": enderecos_unicos,
-        "Tipo_Captacao": _pick_from_row(visita_mais_recente, "Tipo_Captacao"),
-        "Imovel_Nao_Captado": _pick_from_row(visita_mais_recente, "Imovel_Nao_Captado"),
-        "Visita_Com_Parceiro": _pick_from_row(visita_mais_recente, "Visita_Com_Parceiro"),
         "Total_Visitas": len(visitas_do_imovel),
         "Data_Ultima_Visita": _pick_from_row(visita_mais_recente, "Data_Visita"),
         "Corretores": corretores_unicos,
@@ -382,6 +429,16 @@ def _build_pdf_imovel_bytes(ctx: Dict[str, Any]) -> bytes:
         spaceAfter=6,
     )
 
+    style_highlight = ParagraphStyle(
+        "imovel_highlight",
+        parent=styles["BodyText"],
+        fontName="Helvetica-Bold",
+        fontSize=11,
+        textColor=colors.HexColor("#0f172a"),
+        alignment=1,
+        spaceAfter=0,
+    )
+
     def make_info_table(rows, col_widths=(46 * mm, 126 * mm)):
         tbl = Table(rows, colWidths=list(col_widths))
         tbl.setStyle(
@@ -424,6 +481,41 @@ def _build_pdf_imovel_bytes(ctx: Dict[str, Any]) -> bytes:
         )
         return tbl
 
+    def make_highlight_box_preco_n10(stats: Dict[str, str]):
+        data = [
+            ["Preço Nota 10"],
+            ["Menor avaliação", "Médio", "Maior avaliação"],
+            [stats["menor"], stats["medio"], stats["maior"]],
+        ]
+
+        tbl = Table(data, colWidths=[57 * mm, 57 * mm, 58 * mm])
+        tbl.setStyle(
+            TableStyle(
+                [
+                    ("SPAN", (0, 0), (-1, 0)),
+                    ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#dbeafe")),
+                    ("BACKGROUND", (0, 1), (-1, 1), colors.HexColor("#eff6ff")),
+                    ("BACKGROUND", (0, 2), (-1, 2), colors.HexColor("#f8fbff")),
+                    ("BOX", (0, 0), (-1, -1), 0.8, colors.HexColor("#93c5fd")),
+                    ("INNERGRID", (0, 1), (-1, -1), 0.4, colors.HexColor("#bfdbfe")),
+                    ("ALIGN", (0, 0), (-1, -1), "CENTER"),
+                    ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                    ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                    ("FONTNAME", (0, 1), (-1, 1), "Helvetica-Bold"),
+                    ("FONTNAME", (0, 2), (-1, 2), "Helvetica-Bold"),
+                    ("FONTSIZE", (0, 0), (-1, 0), 11),
+                    ("FONTSIZE", (0, 1), (-1, 1), 9),
+                    ("FONTSIZE", (0, 2), (-1, 2), 12),
+                    ("TEXTCOLOR", (0, 0), (-1, 0), colors.HexColor("#1e3a8a")),
+                    ("TEXTCOLOR", (0, 1), (-1, 1), colors.HexColor("#334155")),
+                    ("TEXTCOLOR", (0, 2), (-1, 2), colors.HexColor("#0f172a")),
+                    ("TOPPADDING", (0, 0), (-1, -1), 8),
+                    ("BOTTOMPADDING", (0, 0), (-1, -1), 8),
+                ]
+            )
+        )
+        return tbl
+
     story = []
 
     story.append(Paragraph("Relatório do Imóvel", style_title))
@@ -437,22 +529,11 @@ def _build_pdf_imovel_bytes(ctx: Dict[str, Any]) -> bytes:
     resumo_rows = [
         ["Id do imóvel", _display(ctx.get("Id_Imovel"))],
         ["Endereço principal", _display(ctx.get("Endereco"))],
-        ["Tipo de captação", _display(ctx.get("Tipo_Captacao"))],
-        ["Visita com parceiro", _display(ctx.get("Visita_Com_Parceiro"))],
-        ["Imóvel não captado", _display(ctx.get("Imovel_Nao_Captado"))],
         ["Total de visitas", _display(ctx.get("Total_Visitas"))],
         ["Última visita", _display(ctx.get("Data_Ultima_Visita"))],
     ]
     story.append(make_info_table(resumo_rows))
     story.append(Spacer(1, 10))
-
-    if ctx.get("Enderecos_Encontrados"):
-        story.append(Paragraph("Endereços encontrados nas visitas", style_section))
-        enderecos_data = [["Endereço"]]
-        for endereco in ctx["Enderecos_Encontrados"]:
-            enderecos_data.append([_display(endereco)])
-        story.append(make_grid_table(enderecos_data, [172 * mm]))
-        story.append(Spacer(1, 10))
 
     if ctx["Corretores"]:
         story.append(Paragraph("Corretores envolvidos", style_section))
@@ -499,22 +580,31 @@ def _build_pdf_imovel_bytes(ctx: Dict[str, Any]) -> bytes:
         story.append(Spacer(1, 10))
 
     story.append(Paragraph("Resumo das avaliações", style_section))
-    medias = _avg_scores_imovel(ctx["Avaliacoes"])
-    resumo_avaliacoes_data = [["Critério", "Resultado"]]
-    for label, value in medias.items():
-        resumo_avaliacoes_data.append([label, value])
-    story.append(make_grid_table(resumo_avaliacoes_data, [95 * mm, 79 * mm]))
+    stats = _stats_scores_imovel(ctx["Avaliacoes"])
+    resumo_avaliacoes_data = [["Critério", "Menor avaliação", "Médio", "Maior avaliação"]]
+    for label, values in stats.items():
+        resumo_avaliacoes_data.append(
+            [
+                label,
+                values["menor"],
+                values["medio"],
+                values["maior"],
+            ]
+        )
+    story.append(make_grid_table(resumo_avaliacoes_data, [62 * mm, 36 * mm, 36 * mm, 38 * mm]))
+    story.append(Spacer(1, 8))
+
+    preco_n10_stats = _stats_preco_nota10(ctx["Avaliacoes"])
+    story.append(make_highlight_box_preco_n10(preco_n10_stats))
     story.append(Spacer(1, 10))
 
     story.append(Paragraph("Histórico de visitas", style_section))
-    visitas_data = [["Id da visita", "Data", "Corretor", "Clientes", "Proposta"]]
+    visitas_data = [["Id da visita", "Data", "Proposta"]]
     for v in ctx["Visitas"]:
         visitas_data.append(
             [
                 _display(v.get("Id_Visita")),
                 _display(v.get("Data_Visita")),
-                _display(v.get("Corretor")),
-                _display(v.get("Clientes")),
                 _display(v.get("Proposta")),
             ]
         )
@@ -522,7 +612,7 @@ def _build_pdf_imovel_bytes(ctx: Dict[str, Any]) -> bytes:
     story.append(
         make_grid_table(
             visitas_data,
-            [26 * mm, 20 * mm, 36 * mm, 58 * mm, 34 * mm],
+            [45 * mm, 35 * mm, 92 * mm],
         )
     )
 

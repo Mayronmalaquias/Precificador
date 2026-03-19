@@ -10,6 +10,8 @@ from app.services.visita_service import (
     buscar_clientes_do_corretor_com_historico,
     gerar_pdf_cliente_publico,
     gerar_pdf_cliente_download,
+    #gerar_pdf_imovel_publico,
+    #gerar_pdf_imovel_download,
 )
 from app.services.imoview_service import buscar_imoveis_por_endereco
 # from app.services.relatorio_visita_service import (
