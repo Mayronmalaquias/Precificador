@@ -75,7 +75,7 @@ function RelatorioGerente() {
       const userData = JSON.parse(userDataString);
 
       const idGerente =
-        userData.idGerente ||
+        userData.idCorretor ||
         userData.id_gerente ||
         userData.codigoGerente ||
         userData.codigo_gerente ||
