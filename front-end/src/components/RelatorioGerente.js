@@ -58,9 +58,13 @@ function RelatorioGerente() {
   ];
 
   const gerentesFixos = [
-    { id: "G61010", nome: "Gerente 1" },
-    { id: "2", nome: "Gerente 2" },
-    { id: "3", nome: "Gerente 3" },
+    { id: "G61010", nome: "Thais Tannús" },
+    { id: "G61001", nome: "José Marques" },
+    { id: "G61002", nome: "Marcelo Souza" },
+    { id: "G61003", nome: "Luana Salvinski" },
+    { id: "G61014", nome: "Marcelo Pincinato" },
+    { id: "G61015", nome: "Helio Junio" },
+    { id: "G61016", nome: "Paolla Gardenia" },
   ];
 
   useEffect(() => {
