@@ -14,6 +14,44 @@ from googleapiclient.errors import HttpError
 load_dotenv()
 API_BASE = (os.getenv("API_BASE") or "").rstrip("/")
 
+CORRETORES_ATIVOS = {
+    "C61180",
+    "C61162",
+    "C61186",
+    "C61147",
+    "C61086",
+    "C61165",
+    "C61175",
+    "C61188",
+    "C61096",
+    "C61059",
+    "C61054",
+    "C61066",
+    "C61095",
+    "C61090",
+    "C61041",
+    "C61184",
+    "C61182",
+    "C61185",
+    "C61179",
+    "C61153",
+    "C61189",
+    "C61010",
+    "C61178",
+    "C61151",
+    "C61174",
+    "C61110",
+    "C61181",
+    "C61086",
+    "C61092",
+    "C61183",
+    "C61114",
+}
+
+def _is_corretor_id_ativo(id_corretor: Any) -> bool:
+    return _safe_str(id_corretor) in CORRETORES_ATIVOS
+
+
 from app.services.visita_service import (
     _get_services,
     _find_or_create_folder,
@@ -270,7 +308,13 @@ def listar_corretores_do_gerente(
     if not id_gerente:
         return []
 
-    lista = [r for r in dim_corretor if _safe_str(r.get("IdGerente")) == id_gerente]
+    lista = [
+        r
+        for r in dim_corretor
+        if _safe_str(r.get("IdGerente")) == id_gerente
+        and _is_corretor_id_ativo(r.get("IdCorretor"))
+    ]
+
     lista.sort(key=lambda x: _safe_str(x.get("Nome")).lower())
     return lista
 
