@@ -983,7 +983,7 @@ function RelatorioGerente() {
         );
     }
   };
-  const podeVerFiltroGerente = idGerenteLogado === "12345678";
+  const podeVerFiltroGerente = idGerenteLogado === "12345678" || idGerenteLogado === "G61001";
   return (
     <div className="pagina-relatorio">
       <div className="titulo-pagina">Relatório Gerente</div>

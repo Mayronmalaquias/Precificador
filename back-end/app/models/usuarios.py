@@ -10,7 +10,7 @@ class Usuarios(Base):
     password = Column(String(50))
     team = Column(String(100))
     nome      = Column(String(100), nullable=True)
-    email     = Column(String(255), unique=True, nullable=True)
+    email     = Column(String(255), nullable=True)
     telefone  = Column(String(20), nullable=True)
     instagram = Column(String(100), nullable=True)
     descricao = Column(Text, nullable=True)
