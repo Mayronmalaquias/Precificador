@@ -46,6 +46,15 @@ CORRETORES_ATIVOS = {
     "C61092",
     "C61183",
     "C61114",
+    "C61039",
+    "C61134",
+    "C61158",
+    "C61166",
+    "C61051",
+    "C61171",
+    "C61161",
+    "C61144",
+
 }
 
 def _is_corretor_id_ativo(id_corretor: Any) -> bool:
