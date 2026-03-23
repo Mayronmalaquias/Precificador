@@ -16,5 +16,6 @@ class Usuarios(Base):
     descricao = Column(Text, nullable=True)
     permissao = Column(String(20))
     id_usuarios = Column(String(50))
+    ativo = Column(Boolean, nullable=False, default=True)
 
 

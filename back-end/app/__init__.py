@@ -51,8 +51,11 @@ def create_app():
     from app.routes.relatorio_visita_route import relatorio_visita
     from app.routes.imovel_rel_route import imovel_catalogo_ns
     from app.routes.gerentes_dash_routes import gerente_dashboard_ns
+    from app.routes.usuarios_routes import corretor_ns
+
 
     api.add_namespace(relatorio_visita, path='/')
+    api.add_namespace(corretor_ns, path='/')
     api.add_namespace(imovel_catalogo_ns, path='/')
     api.add_namespace(divisao_ns, path='/')
     # api.add_namespace(mapa_ns, path='/')

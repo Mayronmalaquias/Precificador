@@ -69,3 +69,21 @@ def login(username, password):
 
     finally:
         session.close()
+
+
+def registrar_nova_senha(username, newpass):
+    session = SessionLocal()
+    try:
+        usuario = session.query(Usuarios).filter_by(username=username).first()
+        if not usuario:
+            return {"error": "Usuario invalido!"}
+        
+        usuario.password = generate_password_hash(newpass)
+        session.commit()
+        return {"ok": "Senha alterada!"}
+
+    except Exception:
+        session.rollback()
+        return {"error": "Ocorreu um erro ao acessar o banco de dados"}
+    finally:
+        session.close()
