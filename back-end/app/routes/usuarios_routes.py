@@ -1,6 +1,6 @@
 from flask import request
 from flask_restx import Resource, Namespace
-from app.services.usuarios_service import retornar_lista, retornar_infos, alterar_ativo
+from app.services.usuarios_service import retornar_lista, retornar_infos, alterar_ativo, _usuario_to_dict
 
 
 corretor_ns = Namespace('corretor', description="Corretores e usuários")
@@ -74,3 +74,22 @@ class AlterarCorretorAtivo(Resource):
             return resultado, 404
 
         return resultado, 200
+
+from app.services.usuarios_service import retornar_corretor_nome
+
+@corretor_ns.route('/corretor/retornar-nome')
+class RetornarCorretorNome(Resource):
+
+    @corretor_ns.doc(description='Retorna corretores por nome')
+    def get(self):
+        nome = request.args.get("nome")
+
+        if not nome:
+            return {"error": "Nome não passado"}, 400
+
+        resultado = retornar_corretor_nome(nome)
+
+        return {
+            "ok": True,
+            "lista": [_usuario_to_dict(u) for u in resultado]
+        }, 200

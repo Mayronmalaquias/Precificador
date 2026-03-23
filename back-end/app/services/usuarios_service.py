@@ -77,3 +77,14 @@ def alterar_ativo(id_corretor, ativo):
 
     finally:
         session.close()
+
+
+def retornar_corretor_nome(nome):
+    session = SessionLocal()
+    try:
+        usuarios = session.query(Usuarios).filter(
+            Usuarios.nome.ilike(f"%{nome}%")
+        ).limit(10).all()
+        return usuarios
+    finally:
+        session.close()
