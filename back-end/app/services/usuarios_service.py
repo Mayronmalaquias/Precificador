@@ -88,3 +88,24 @@ def retornar_corretor_nome(nome):
         return usuarios
     finally:
         session.close()
+
+
+def alterar_gerente(manager, id_corretor):
+    session = SessionLocal()
+    try:
+        user = session.query(Usuarios).filter_by(id_usuarios=id_corretor).first()
+        man = session.query(Usuarios).filter_by(id_usuarios=manager).first()
+        if not user:
+            return {"error": "user invalido"}
+        if not man:
+            return {"error":"manager invalido"}
+        if man.permissao == 'user':
+            return {"error":"gerente invalido!"}
+        user.team = manager 
+        session.commit()
+        return {"ok": "gerente alterado"}
+    except Exception:
+        session.rollback()
+        return {"error": "Algo de errado aconteceu"}       
+    finally:
+        session.close()

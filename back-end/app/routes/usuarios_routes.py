@@ -1,6 +1,6 @@
 from flask import request
 from flask_restx import Resource, Namespace
-from app.services.usuarios_service import retornar_lista, retornar_infos, alterar_ativo, _usuario_to_dict
+from app.services.usuarios_service import retornar_lista, retornar_infos, alterar_ativo, _usuario_to_dict, alterar_gerente
 
 
 corretor_ns = Namespace('corretor', description="Corretores e usuários")
@@ -93,3 +93,20 @@ class RetornarCorretorNome(Resource):
             "ok": True,
             "lista": [_usuario_to_dict(u) for u in resultado]
         }, 200
+
+
+@corretor_ns.route('/corretor/alterar-gerente')
+class AlterarGerenteCorretor(Resource):
+    @corretor_ns.doc(description='Alterar gerente relacionado ao correotr')
+    def post(self):
+        data = request.get_json() or {}
+        newmanager = data.get('manager')
+        id_corretor = data.get('corretor')
+        if not all([newmanager,id_corretor]):
+            return {"error": "Gerente e Corretor precisam ser passados"},400
+        message = alterar_gerente(newmanager, id_corretor)
+
+        if "error" in message:
+            return message, 404
+
+        return message, 200
