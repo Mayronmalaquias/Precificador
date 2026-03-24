@@ -81,6 +81,19 @@ function Login() {
           />
         </label>
 
+        <div style={{ marginTop: '8px' }}>
+          <span
+            style={{
+              cursor: 'pointer',
+              color: '#007bff',
+              fontSize: '14px'
+            }}
+            onClick={() => navigate('/RecuperarSenha')}
+          >
+            Esqueceu a senha?
+          </span>
+        </div>
+
         <br />
 
         <button type="submit" disabled={loading}>

@@ -22,9 +22,9 @@ function Header() {
     'Usuário';
 
   const idCorretor =
-    userData.idCorretor ||
+    userData.id_usuarios ||
     userData.id_corretor ||
-    userData.id ||
+    //userData.id ||
     'Não informado';
 
   const iniciais = useMemo(() => {
@@ -38,6 +38,11 @@ function Header() {
     localStorage.removeItem('auth');
     localStorage.removeItem('userData');
     navigate('/login');
+  };
+
+  const handleTrocarSenha = () => {
+    setMenuAberto(false);
+    navigate('/TrocarSenha');
   };
 
   useEffect(() => {
@@ -183,6 +188,9 @@ function Header() {
 
                 <button onClick={handleLogout} className="logout-button">
                   Sair
+                </button>
+                <button onClick={handleTrocarSenha} className="profile-menu-button">
+                  Trocar senha
                 </button>
               </div>
             )}

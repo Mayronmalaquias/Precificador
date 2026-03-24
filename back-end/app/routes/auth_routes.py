@@ -1,6 +1,7 @@
 from flask import request
 from flask_restx import Resource, Namespace
 from app.services.auth_service import cadastrar_usuario, login, registrar_nova_senha
+from app.services.usuarios_service import retornar_infos
 
 auth_ns = Namespace('auth', description="Autenticação de usuários")
 
@@ -115,3 +116,49 @@ class TrocarSenha(Resource):
         else:
             return {"error": "Usuário ou senha incorretos"}, 401
     
+
+@auth_ns.route('/auth/recuperar-senha')
+class RecuperarSenha(Resource):
+    @auth_ns.doc(description='Recuperar senha por id do usuário')
+    def post(self):
+        data = request.get_json() or {}
+
+        id_corretor = data.get('id_corretor')
+        newpass = data.get('newpass')
+
+        if not id_corretor or not newpass:
+            return {
+                "error": "id_corretor e newpass são obrigatórios"
+            }, 400
+
+        if len(newpass) < 8:
+            return {'error': 'A senha deve conter no mínimo 8 caracteres'}, 400
+
+        if newpass.lower() == newpass or newpass.upper() == newpass:
+            return {'error': 'A senha precisa ter letras maiúsculas e minúsculas'}, 400
+
+        if not any(c.isalpha() for c in newpass):
+            return {'error': 'A senha precisa ter pelo menos uma letra'}, 400
+
+        if not any(c.isdigit() for c in newpass):
+            return {'error': 'A senha precisa ter pelo menos um número'}, 400
+        
+        dados_corretor = retornar_infos(id_corretor=id_corretor)
+
+        if not dados_corretor or "error" in dados_corretor:
+            return {"error": "Usuário não encontrado"}, 404
+
+        username = dados_corretor.get("username")
+
+        if not username:
+            return {"error": "Username não encontrado para este usuário"}, 404
+
+        resultado = registrar_nova_senha(username, newpass)
+
+        if "error" in resultado:
+            return {"error": resultado["error"]}, 400
+
+        return {"ok": "Senha alterada com sucesso"}, 200
+
+
+

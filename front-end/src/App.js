@@ -18,6 +18,8 @@ import Ranking from './components/Ranking';
 import FormComissao from './components/FormComissao';
 import Financiamento from './components/CalculoFinanciamento';
 import RelatorioGerente from './components/RelatorioGerente';
+import RecuperarSenha from './components/RecuperarSenha';
+import TrocarSenha from './components/TrocarSenha'
 
 import './assets/css/styles.css';
 import './assets/css/report.css';
@@ -42,8 +44,13 @@ function App() {
               }
             />
 
+            <Route>
+              <Route path="/TrocarSenha" element={<PrivateRoute><TrocarSenha /></PrivateRoute>} />
+            </Route>
+
             <Route path="/" element={<PaginaPublica />} />
             <Route path="/login" element={<Login />} />
+            <Route path="/RecuperarSenha" element={<RecuperarSenha />}/>
             <Route path="/Experts" element={<Experts />} />
             <Route path="/61Financiamento" element={<Financiamento />} />
 
