@@ -1,5 +1,8 @@
 # 🚀 Projeto Front-End com Docker e React
 
+npm run build (prod)
+npm start(dev)
+
 Este projeto utiliza **React** no front-end e Docker para empacotar e servir a aplicação de forma otimizada com o pacote `serve`.
 
 Rodar projeto
