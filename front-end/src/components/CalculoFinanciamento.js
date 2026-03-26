@@ -142,30 +142,16 @@ function CalculadoraFinanciamento() {
           </div>
 
           <div className="resultado-card">
-            <span className="resultado-label">Prestação Estimada</span>
+            <span className="resultado-label">Valor Estimado da 1ª Parcela</span>
             <strong>{formatarMoeda(resultados.prestacaoEstimada)}</strong>
-            <small>Valor financiamento × 0.0125</small>
+            <small>prazo 420 meses</small>
           </div>
 
           <div className="resultado-card">
-            <span className="resultado-label">Valor de Venda Estimado</span>
+            <span className="resultado-label">Renda estimada Necessária</span>
             <strong>{formatarMoeda(resultados.valorVendaEsti)}</strong>
-            <small>Prestação estimada ÷ 0.3</small>
           </div>
 
-          <div className="resultado-card">
-            <span className="resultado-label">Estimativa em 420 Meses</span>
-            <strong>{formatarMoeda(resultados.total420Meses)}</strong>
-            <small>Prestação estimada × 420</small>
-          </div>
-        </div>
-
-        <div className="formula-box">
-          <h3>Fórmulas utilizadas</h3>
-          <p><strong>Valor_Financiamento</strong> = Preço_Imóvel - Valor_Dinheiro</p>
-          <p><strong>Prestação_Estimada</strong> = Valor_Financiamento × 0.0125</p>
-          <p><strong>Valor_Venda_Esti</strong> = Prestação_Estimada ÷ 0.3</p>
-          <p><strong>Cálculo estimado em 420 meses</strong> = Prestação_Estimada × 420</p>
         </div>
       </div>
     </div>

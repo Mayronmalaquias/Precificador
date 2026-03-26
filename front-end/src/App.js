@@ -20,6 +20,7 @@ import Financiamento from './components/CalculoFinanciamento';
 import RelatorioGerente from './components/RelatorioGerente';
 import RecuperarSenha from './components/RecuperarSenha';
 import TrocarSenha from './components/TrocarSenha'
+import ControleCorretor from './components/ControleCorretor'
 
 import './assets/css/styles.css';
 import './assets/css/report.css';
@@ -94,6 +95,16 @@ function App() {
                 </AdminRoute>
               }
             />
+
+            <Route
+              path="/ControleCorretor"
+              element={
+                <AdminRoute>
+                  <ControleCorretor />
+                </AdminRoute>
+              }
+            />
+
           </Routes>
         </main>
         <Footer />

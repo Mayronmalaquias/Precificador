@@ -83,6 +83,7 @@ function Header() {
     { to: '/AppVisita', label: 'Relatório de Visita', show: isLogado },
     { to: '/RelatorioGerente', label: 'Relatório Gerente', show: isLogado && isAdmin },
     { to: '/ranking', label: 'Ranking', show: isLogado && isAdmin },
+    { to: '/ControleCorretor', label: 'Controle de usuarios', show: isLogado && isAdmin },
     { to: '/register', label: 'Registrar Usuário', show: isLogado && isAdmin },
   ].filter((item) => item.show);
 
