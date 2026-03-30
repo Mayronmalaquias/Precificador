@@ -59,7 +59,7 @@ def _deduplicar_por_id_usuarios(rows):
     return unicos
 
 
-def retornar_lista(id_gerente=None, ativo=None, page=1, per_page=50):
+def retornar_lista(id_gerente=None, ativo=None, page=1, per_page=1000):
     """
     Retorna lista paginada de usuários.
     - id_gerente: filtra pelo campo team
