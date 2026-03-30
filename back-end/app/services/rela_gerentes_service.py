@@ -16,7 +16,7 @@ load_dotenv()
 API_BASE = (os.getenv("API_BASE") or "").rstrip("/")
 
 def _buscar_ids_corretores_ativos() -> set[str]:
-    usuarios_ativos = retornar_lista(ativo=True).get("lista", [])
+    usuarios_ativos = retornar_lista(ativo=True, page=1, per_page=100000)
 
     return {
         _safe_str(usuario.get("id_usuarios"))
