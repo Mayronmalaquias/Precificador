@@ -2,13 +2,13 @@ import React, { useEffect, useMemo, useState } from "react";
 import "../assets/css/RelatorioGerente.css";
 
 function RelatorioGerente() {
-  //const API_BASE = useMemo(() => "http://localhost:5000/gerente-dashboard", []);
-  //const API_VISITAS_BASE = useMemo(() => "http://localhost:5000", []);
-  //const API_IMOVEIS_BASE = useMemo(() => "http://localhost:5000", []);
+  const API_BASE = useMemo(() => "http://localhost:5000/gerente-dashboard", []);
+  const API_VISITAS_BASE = useMemo(() => "http://localhost:5000", []);
+  const API_IMOVEIS_BASE = useMemo(() => "http://localhost:5000", []);
 
-  const API_BASE = useMemo(() => "/api/gerente-dashboard", []);
-  const API_VISITAS_BASE = useMemo(() => "/api", []);
-  const API_IMOVEIS_BASE = useMemo(() => "/api", []);
+  //const API_BASE = useMemo(() => "/api/gerente-dashboard", []);
+  //const API_VISITAS_BASE = useMemo(() => "/api", []);
+  //const API_IMOVEIS_BASE = useMemo(() => "/api", []);
 
   const [abaAtiva, setAbaAtiva] = useState("relatoriogerente");
   const [opcaoAtiva, setOpcaoAtiva] = useState("visaoGeral");
