@@ -2,6 +2,7 @@ from flask import request
 from flask_restx import Resource, Namespace
 from app.services.auth_service import cadastrar_usuario, login, registrar_nova_senha
 from app.services.usuarios_service import retornar_infos
+from app.utils.helpers import normalizar_user
 
 auth_ns = Namespace('auth', description="Autenticação de usuários")
 
@@ -12,7 +13,8 @@ class CadastroUsuario(Resource):
     def post(self):
         data = request.get_json() or {}
 
-        username = (data.get('username') or '').strip()
+        username = (data.get('username') or '')
+        username = normalizar_user(username)
         password = data.get('password')
         team = data.get('team')
 
@@ -58,7 +60,8 @@ class LoginUsuario(Resource):
     def post(self):
         data = request.get_json() or {}
 
-        username = (data.get('username') or '').strip()
+        username = (data.get('username') or '')
+        username = normalizar_user(username)
         password = data.get('password')
 
         if not all([username, password]):
@@ -80,7 +83,8 @@ class LoginUsuario(Resource):
 class TrocarSenha(Resource):
     def post(self):
         data = request.get_json() or {}
-        username = (data.get('username') or '').strip()
+        username = (data.get('username') or '')
+        username = normalizar_user(username)
         old_pass = data.get('old_pass')
         new_pass = data.get('new_pass')
 
@@ -149,6 +153,7 @@ class RecuperarSenha(Resource):
             return {"error": "Usuário não encontrado"}, 404
 
         username = dados_corretor.get("username")
+        username = normalizar_user(username)
 
         if not username:
             return {"error": "Username não encontrado para este usuário"}, 404
