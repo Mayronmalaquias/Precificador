@@ -68,8 +68,8 @@ def retornar_lista(id_gerente=None, ativo=None, page=1, per_page=1000):
     """
     cache_key = f"lista:{id_gerente}:{ativo}:{page}:{per_page}"
     cached = _cache_get(cache_key)
-    if cached:
-        return cached
+    #if cached:
+    #    return cached
 
     session = SessionLocal()
     try:

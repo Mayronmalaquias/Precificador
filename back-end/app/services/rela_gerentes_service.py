@@ -274,21 +274,21 @@ def listar_corretores_do_gerente(
     id_gerente: str,
     data: Optional[Dict[str, List[Dict[str, Any]]]] = None,
 ) -> List[Dict[str, Any]]:
-    data = data or _load_visitas_base()
-    dim_corretor = data.get("Dim_Corretor", [])
+    usuarios_ativos = retornar_lista(
+        id_gerente=id_gerente,
+        ativo=True,
+        page=1,
+        per_page=100000
+    ).get("lista", [])
 
-    id_gerente = _safe_str(id_gerente)
-    if not id_gerente:
-        return []
-
-    ids_ativos = _buscar_ids_corretores_ativos()
-
-    lista = [
-        r
-        for r in dim_corretor
-        if _safe_str(r.get("IdGerente")) == id_gerente
-        and _safe_str(r.get("IdCorretor")) in ids_ativos
-    ]
+    lista = []
+    for u in usuarios_ativos:
+        lista.append({
+            "IdCorretor": _safe_str(u.get("id_usuarios")),
+            "Nome": _safe_str(u.get("nome")),
+            "IdGerente": _safe_str(u.get("team")),
+            "Ativo": u.get("ativo"),
+        })
 
     lista.sort(key=lambda x: _safe_str(x.get("Nome")).lower())
     return lista

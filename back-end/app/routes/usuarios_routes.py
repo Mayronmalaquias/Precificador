@@ -39,8 +39,8 @@ class RetornarListaCorretor(Resource):
         ativo_raw   = request.args.get("ativo")
         ativo       = _parse_bool(ativo_raw)
         page        = int(request.args.get("page", 1))
-        per_page    = min(int(request.args.get("per_page", 500)), 1000)
-
+        per_page    = min(int(request.args.get("per_page", 1000)), 1000)
+        per_page    = 1000
         if ativo_raw is not None and ativo is None:
             return {"error": "Parâmetro 'ativo' inválido. Use true ou false."}, 400
 
