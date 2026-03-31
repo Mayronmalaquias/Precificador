@@ -190,6 +190,23 @@ export default function VisitaForm() {
 
   async function handleSubmit(e) {
     e.preventDefault();
+    // 🚨 validação obrigatória de imóvel
+    if (!isImovelNaoCaptado) {
+      if (!form.imovelId || !form.imovelId.trim()) {
+        alert("Informe o código do imóvel.");
+        return;
+      }
+
+      if (!enderecoQuery || !enderecoQuery.trim()) {
+        alert("Selecione um endereço de imóvel.");
+        return;
+      }
+    } else {
+      if (!form.enderecoExterno || !form.enderecoExterno.trim()) {
+        alert("Informe o endereço do imóvel.");
+        return;
+      }
+    }
     if (!corretorInfo.id) { alert("Erro: faça login novamente."); return; }
     if (!pdfFile)         { alert("Selecione uma foto ou PDF antes de enviar."); return; }
     if (!form.clienteNome.trim()) { alert("Informe o nome do cliente."); return; }
