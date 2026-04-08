@@ -7,8 +7,8 @@
   --bg1:#0B1633;
   --card: rgba(255,255,255,.08);
   --card2: rgba(255,255,255,.10);
-  --stroke: rgba(255,255,255,.12);
-  --stroke2: rgba(255,255,255,.18);
+  --stroke: rgb(245, 245, 245);
+  --stroke2: rgb(255, 255, 255);
   --text: rgba(255,255,255,.92);
   --muted: rgba(255,255,255,.68);
   --muted2: rgba(255,255,255,.55);
@@ -34,6 +34,7 @@
   position: relative;
   width: 100%;
   margin: 28px auto;
+  color:white;
   padding: 22px;
   color: var(--text);
   font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial, "Apple Color Emoji","Segoe UI Emoji";
@@ -74,6 +75,7 @@
   font-size: 30px;
   letter-spacing: .2px;
   line-height: 1.1;
+  color:white;
 }
 
 .ranking__subtitle{
@@ -92,6 +94,7 @@
   border-radius: var(--radius);
   box-shadow: var(--shadow2);
   backdrop-filter: blur(10px);
+  color:white;
 }
 
 .ranking__grid{
@@ -105,7 +108,7 @@
   .ranking__grid{ grid-template-columns: 1fr; }
 }
 
-.ranking__field{ min-width: 0; }
+.ranking__field{ min-width: 0; color:white;}
 
 .ranking__label{
   display:block;
@@ -121,20 +124,23 @@
   padding: 10px 12px;
   border-radius: 12px;
   border: 1px solid var(--stroke2);
-  background: rgba(0,0,0,.18);
+  background: rgb(255, 255, 255);
+  color:white;
   color: var(--text);
   outline: none;
   transition: border-color .18s ease, transform .12s ease, box-shadow .18s ease, background .18s ease;
 }
 
 .ranking__input:hover{
-  border-color: rgba(255,255,255,.28);
-  background: rgba(0,0,0,.22);
+  border-color: rgba(255, 255, 255, 0.28);
+  background: rgba(244, 221, 221, 0.22);
+  color:white;
 }
 
 .ranking__input:focus{
   border-color: #e61b6c;
   box-shadow: var(--ring);
+  color:white;
 }
 
 .ranking__row{
@@ -159,6 +165,7 @@
   width: 18px;
   height: 18px;
   accent-color: var(--primary);
+  color:white;
 }
 
 .ranking__btn{
@@ -254,7 +261,7 @@
 .ranking__h3{
   margin: 0;
   font-size: 16px;
-  letter-spacing: .2px;
+  color:white;
 }
 
 .ranking__meta{

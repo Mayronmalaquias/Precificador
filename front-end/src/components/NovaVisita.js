@@ -63,6 +63,28 @@ export default function VisitaForm() {
 
   const isImovelNaoCaptado = form.situacaoImovel === "IMOVEL_NAO_CAPTADO";
 
+  const formatarMoedaBR = (valor) => {
+    const somenteNumeros = String(valor).replace(/\D/g, "");
+  
+    if (!somenteNumeros) return "";
+  
+    const numero = Number(somenteNumeros) / 100;
+  
+    return numero.toLocaleString("pt-BR", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    });
+  };
+  
+  const handlePrecoNota10Change = (e) => {
+    const somenteNumeros = e.target.value.replace(/\D/g, "");
+  
+    setForm((prev) => ({
+      ...prev,
+      precoNota10: somenteNumeros, // salva sem pontos
+    }));
+  };
+
   // ─── Carregar usuário do localStorage ──────────────────────────────────────
   useEffect(() => {
     const raw = localStorage.getItem("userData");
@@ -366,7 +388,7 @@ export default function VisitaForm() {
           {/* Busca de imóvel ou endereço manual */}
           {!isImovelNaoCaptado ? (
             <div className="vf-group">
-              <label htmlFor="buscaImovel">Buscar imóvel pelo endereço<span className="vf-obrigatorio">*</span></label>
+              <label htmlFor="buscaImovel">Digite o endereço endereço do imóvel<span className="vf-obrigatorio">*</span></label>
               <input
                 id="buscaImovel"
                 type="text"
@@ -391,7 +413,8 @@ export default function VisitaForm() {
                       }}
                     >
                       <div className="vf-sugestao-sub">
-                      {it.endereco || ""}
+                      {it.codigo ? `, ${it.codigo}` : ""}
+                      {it.endereco ? `, ${it.endereco}` : ""}
                       {it.numero ? `, ${it.numero}` : ""}
                       {it.bairro ? ` — ${it.bairro}` : ""}
                       {it.cidade ? ` (${it.cidade}${it.uf ? `/${it.uf}` : ""})` : ""}
@@ -538,16 +561,19 @@ export default function VisitaForm() {
 
           <div className="vf-group">
             <label htmlFor="precoNota10">
-              Qual seria o preço ideal (nota 10)? <span style={{fontWeight:400,color:"#71717a",fontSize:"0.88rem"}}>(R$, opcional)</span>
+              Qual seria o preço ideal (nota 10)?{" "}
+              <span style={{ fontWeight: 400, color: "#71717a", fontSize: "0.88rem" }}>
+                (R$, opcional)
+              </span>
             </label>
+
             <input
               id="precoNota10"
-              type="number"
-              min="0"
-              step="1000"
-              value={form.precoNota10}
-              onChange={updateField("precoNota10")}
-              placeholder="Ex: 450000"
+              type="text"
+              inputMode="numeric"
+              value={formatarMoedaBR(form.precoNota10)}
+              onChange={handlePrecoNota10Change}
+              placeholder="Ex: 450.000,00"
             />
           </div>
         </div>
