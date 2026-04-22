@@ -29,8 +29,8 @@ except ImportError:
 class MetaGerenteConfig:
     ano_relatorio: int
     mes_relatorio: int
-    sheet_id_contratos: str
-    sheet_id_base_inteligencia: str
+    sheet_id_contratos: str = "1cw4mB_fx-8YmnmLByx4au5ytpbQMV-OY1btOIoYAufg"
+    sheet_id_base_inteligencia: str = "1HQDdcbUMj276hnIbPs-WwdWHiUPzMhPRWt4HHRyYGnw"
     aba_contratos: str = "Vendas"
     aba_dim_corretor: str = "Dim_Corretor"
     aba_dim_gerente: str = "Dim_Gerente"
@@ -164,6 +164,7 @@ class MetaGerenteService:
     # CARREGAMENTO DAS BASES
     # ==========================================================
     def carregar_contratos(self):
+        print(self.config.sheet_id_contratos)
         return self.carregar_aba_por_id(
             self.config.sheet_id_contratos,
             self.config.aba_contratos
@@ -891,6 +892,7 @@ class MetaGerenteService:
             BytesIO com o PDF final
         """
         df_vendas = self.carregar_contratos()
+        df_vendas["Data_Contrato"] = pd.to_datetime(df_vendas["Data_Contrato"], errors="coerce")
         df_dim_corretor, df_dim_gerente, df_captacao = self.carregar_base_inteligencia()
 
         if df_vendas.empty:

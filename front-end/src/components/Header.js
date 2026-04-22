@@ -6,6 +6,7 @@ function Header() {
   const navigate = useNavigate();
   const profileRef = useRef(null);
   const servicosRef = useRef(null);
+  
 
   const [menuAberto, setMenuAberto] = useState(false);
   const [servicosAberto, setServicosAberto] = useState(false);
@@ -89,6 +90,7 @@ function Header() {
 
   return (
     <header className="app-header">
+      
       <div className="brand-area" onClick={() => navigate('/')}>
         <div className="brand-icon" aria-hidden="true">
           <svg viewBox="0 0 24 24" fill="none" className="brand-icon-svg">
