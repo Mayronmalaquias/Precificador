@@ -2,8 +2,8 @@
 import React, { useState, useEffect } from "react";
 import "../assets/css/VisitaForm.css";
 
-const API_BASE = "/api";
-//const API_BASE = "http://localhost:5000"
+//const API_BASE = "/api";
+const API_BASE = "http://localhost:5000"
 
 // ─── Ícones simples (evita dependência extra) ─────────────────────────────────
 const Icon = ({ ch, label }) => (
