@@ -29,6 +29,7 @@ function Mapa() {
 
     console.log("Mapa.js: carregarMapa chamada com:", { tipo, tamanho, cluster }); // Log para debug
     setCarregandoMapa(true);
+    // const mapurl = `http://52.67.252.192:5000/mapa/carregar?tipo=${tipo}&cluster=${cluster}&tamanho=${tamanho}`;
     const mapurl = `/api/mapa/carregar?tipo=${tipo}&cluster=${cluster}&tamanho=${tamanho}`;
     fetch(mapurl)
       .then((res) => res.text())
@@ -49,6 +50,8 @@ function Mapa() {
     // Adicionar setCarregandoDados(true/false) se esta função realmente fizer algo demorado.
 
     const { tipoImovel, bairro, quartos, vagas, metragem, nrCluster } = formData;
+    // const url = `http://52.67.252.192/imovel/venda?tipoImovel=${tipoImovel}&bairro=${bairro}&quartos=${quartos}&vagas=${vagas}&metragem=${metragem}&nrCluster=${nrCluster}`;
+    // const url2 = `http://52.67.252.192/imovel/aluguel?tipoImovel=${tipoImovel}&bairro=${bairro}&quartos=${quartos}&vagas=${vagas}&metragem=${metragem}&nrCluster=${nrCluster}`;
     const url = `/api/imovel/venda?tipoImovel=${tipoImovel}&bairro=${bairro}&quartos=${quartos}&vagas=${vagas}&metragem=${metragem}&nrCluster=${nrCluster}`;
     const url2 = `/api/imovel/aluguel?tipoImovel=${tipoImovel}&bairro=${bairro}&quartos=${quartos}&vagas=${vagas}&metragem=${metragem}&nrCluster=${nrCluster}`;
 

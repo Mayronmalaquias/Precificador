@@ -2,7 +2,7 @@ import pandas as pd
 from sqlalchemy.orm import sessionmaker
 from app.models.imovel import Imovel
 from app import engine
-
+from unidecode import unidecode
 
 Session = sessionmaker(bind=engine)
 session = Session()
@@ -52,3 +52,11 @@ def inserir_dados():
     print("Imóveis importados com sucesso.")
 
 
+def normalizar_user(username):
+    if not username:
+        return None
+    username = username.lstrip().rstrip()
+    username = username.replace(" ", "_")
+    username = username.lower()
+    username = unidecode(username)
+    return username

@@ -1,5 +1,14 @@
 # Projeto Back-End com Flask e KMeans
 
+git pull origin dev_miron
+
+python3 -c "from app.services.visita_service import ensure_oauth_token; ensure_oauth_token()"
+
+sudo journalctl -u precificador -n 100 --no-pager
+
+sudo systemctl restart precificador
+
+
 Este projeto é um back-end desenvolvido em **Flask** que realiza **clusterização de dados utilizando o algoritmo KMeans**, expondo os resultados por meio de uma API RESTful. A aplicação é conteinerizada com **Docker** e utiliza **Gunicorn** para execução em ambiente de produção.
 
 ## 🔧 Tecnologias Utilizadas

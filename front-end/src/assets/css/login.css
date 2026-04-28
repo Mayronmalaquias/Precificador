@@ -1,57 +1,71 @@
 /* Estilo moderno e clean para a tela de login */
+
 .divLogin {
+    position: relative;
     max-width: 420px;
     margin: 5vh auto;
     padding: 20px;
-    background: linear-gradient(135deg, #ffffff, #f9f9f9);
+    background:
+        linear-gradient(rgba(255, 255, 255, 0.92), rgba(249, 249, 249, 0.92)),
+        url("https://www.61imoveis.com/assets/img/home/5d7atnzg.png?v=1712237232");
+    background-size: cover;
+    background-position: center;
     border-radius: 16px;
     box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
     display: flex;
     flex-direction: column;
     align-items: center;
-  }
-  
-  .divLogin h2 {
+    overflow: hidden;
+}
+
+.divLogin h2 {
     font-size: 1.8rem;
     color: #222;
     margin-bottom: 20px;
     text-transform: uppercase;
     letter-spacing: 1px;
-  }
-  
-  .divLogin form {
+}
+
+.divLogin form {
     width: 100%;
     display: flex;
     flex-direction: column;
-    gap: 0px;
-  }
-  
-  .divLogin label {
+    gap: 12px;
+}
+
+.divLogin label {
     display: flex;
     flex-direction: column;
     font-weight: 600;
     color: #444;
     font-size: 0.95rem;
-  }
-  
-  .divLogin input {
+    gap: 6px;
+}
+
+.divLogin input {
     padding: 12px;
-    margin-top: 0px;
     border: 1px solid #ddd;
     border-radius: 8px;
     background-color: #fff;
     transition: all 0.3s ease;
     font-size: 1rem;
-  }
-  
-  .divLogin input:focus {
+    box-sizing: border-box;
+}
+
+.divLogin input:focus {
     border-color: #e1005b;
     box-shadow: 0 0 0 2px rgba(225, 0, 91, 0.2);
     outline: none;
-  }
-  
-  .divLogin button {
+}
+
+.divLogin input:disabled {
+    background-color: #f3f3f3;
+    cursor: not-allowed;
+    opacity: 0.8;
+}
+
+.divLogin button {
     padding: 14px;
     background: #e1005b;
     color: #fff;
@@ -60,19 +74,93 @@
     font-size: 1rem;
     font-weight: bold;
     cursor: pointer;
-    transition: background 0.3s ease, transform 0.2s ease;
-  }
-  
-  .divLogin button:hover {
+    transition: background 0.3s ease, transform 0.2s ease, opacity 0.2s ease;
+    margin-top: 8px;
+}
+
+.divLogin button:hover {
     background: #c9004e;
     transform: translateY(-2px);
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-  }
-  
-  @media (max-width: 480px) {
-    .divLogin {
-      margin: 6vh 16px;
-      padding: 30px 20px;
+}
+
+.divLogin button:disabled {
+    opacity: 0.7;
+    cursor: not-allowed;
+    transform: none;
+    box-shadow: none;
+}
+
+.login-loading {
+    margin-top: 12px;
+    font-size: 14px;
+    color: #555;
+    text-align: center;
+}
+
+/* Overlay de carregamento */
+.login-overlay {
+    position: absolute;
+    inset: 0;
+    background: rgba(255, 255, 255, 0.88);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    z-index: 20;
+    backdrop-filter: blur(2px);
+}
+
+.login-overlay p {
+    margin-top: 12px;
+    font-size: 15px;
+    font-weight: 600;
+    color: #333;
+}
+
+.login-spinner {
+    width: 38px;
+    height: 38px;
+    border: 4px solid #e5e5e5;
+    border-top: 4px solid #e1005b;
+    border-radius: 50%;
+    animation: girar 0.8s linear infinite;
+}
+
+@keyframes girar {
+    100% {
+        transform: rotate(360deg);
     }
+}
+
+
+.profile-menu-button {
+    width: 100%;
+    padding: 10px 12px;
+    margin-top: 10px;
+    border: none;
+    border-radius: 8px;
+    background: #f4f6f8;
+    color: #222;
+    font-size: 14px;
+    cursor: pointer;
+    transition: 0.2s;
   }
   
+  .profile-menu-button:hover {
+    background: #e9edf2;
+  }
+
+
+@media (max-width: 480px) {
+    .divLogin {
+        margin: 6vh 16px;
+        padding: 30px 20px;
+    }
+
+    body {
+        background-image: url("../img/Banner Mobile Site.png");
+        background-size: cover;
+        background-position: center;
+    }
+}

@@ -1,0 +1,269 @@
+/* =========================
+   Divisão de Comissão (61)
+   Paleta: #e1005b + branco + rosa claro
+   ========================= */
+
+.dc {
+  position: relative;
+  padding: 22px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.92);
+  border: 1px solid rgba(225, 0, 91, 0.14);
+  box-shadow: 0 18px 50px rgba(0,0,0,0.18);
+  backdrop-filter: blur(8px);
+  overflow: hidden;
+}
+
+/* brilho “premium” por trás */
+.dc::before{
+  content:"";
+  position:absolute;
+  inset:-2px;
+  background:
+    radial-gradient(520px 240px at 18% 10%, rgba(225,0,91,.18), transparent 60%),
+    radial-gradient(500px 260px at 92% 0%, rgba(225,0,91,.10), transparent 55%);
+  pointer-events:none;
+}
+
+.dc h2{
+  position: relative;
+  margin: 0 0 14px 0;
+  font-size: 22px;
+  color: #2c2c2c;
+  letter-spacing: .2px;
+}
+
+.dc__form{
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+/* Select do contrato */
+.dc__select{
+  width: 100%;
+  height: 44px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(0,0,0,0.12);
+  background: #fff;
+  color: #222;
+  outline: none;
+  transition: border-color .18s ease, box-shadow .18s ease, transform .12s ease;
+}
+
+.dc__select:hover{
+  border-color: rgba(225,0,91,0.28);
+}
+
+.dc__select:focus{
+  border-color: rgba(225,0,91,0.55);
+  box-shadow: 0 0 0 4px rgba(225,0,91,0.14);
+}
+
+/* Cards VENDA / CAPTAÇÃO */
+.dc__section{
+  background: #fff;
+  border-radius: 14px;
+  border: 1px solid rgba(0,0,0,0.10);
+  box-shadow: 0 12px 28px rgba(0,0,0,0.10);
+  padding: 14px;
+}
+
+.dc__sectionHead{
+  display:flex;
+  align-items:center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+
+.dc__sectionTitle{
+  margin: 0;
+  font-size: 15px;
+  letter-spacing: .6px;
+  color: #1f1f1f;
+}
+
+.dc__sum{
+  font-size: 12px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(0,0,0,0.10);
+  background: rgba(0,0,0,0.03);
+  color: #333;
+}
+
+.dc__sum.is-ok{
+  border-color: rgba(46, 184, 114, 0.35);
+  background: rgba(46, 184, 114, 0.08);
+}
+
+.dc__sum.is-warn{
+  border-color: rgba(225, 0, 91, 0.35);
+  background: rgba(225, 0, 91, 0.08);
+}
+
+/* Cabeçalho das colunas das linhas */
+.dc__gridHead{
+  display: grid;
+  grid-template-columns: 2fr 1fr 1fr 2fr 44px;
+  gap: 8px;
+  padding: 10px 10px;
+  border-radius: 12px;
+  background: linear-gradient(180deg, rgba(225,0,91,0.08), rgba(225,0,91,0.04));
+  border: 1px solid rgba(225,0,91,0.14);
+  color: rgba(30,30,30,0.78);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: .2px;
+}
+
+@media (max-width: 860px){
+  .dc__gridHead{ display:none; }
+}
+
+/* Uma linha */
+.dc__line{
+  display: grid;
+  grid-template-columns: 2fr 1fr 1fr 2fr 44px;
+  gap: 8px;
+  margin-top: 10px;
+  align-items: center;
+}
+
+@media (max-width: 860px){
+  .dc__line{
+    grid-template-columns: 1fr;
+    gap: 10px;
+    padding: 12px;
+    border-radius: 12px;
+    border: 1px solid rgba(0,0,0,0.10);
+    background: rgba(0,0,0,0.02);
+  }
+}
+
+/* Controles */
+.dc__control{
+  width: 100%;
+  height: 42px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(0,0,0,0.12);
+  background: #fff;
+  color: #1f1f1f;
+  outline: none;
+  transition: border-color .18s ease, box-shadow .18s ease, transform .12s ease, background .18s ease;
+}
+
+.dc__control:hover{
+  border-color: rgba(225,0,91,0.26);
+  background: #fff;
+}
+
+.dc__control:focus{
+  border-color: rgba(225,0,91,0.55);
+  box-shadow: 0 0 0 4px rgba(225,0,91,0.12);
+}
+
+.dc__control--select{
+  appearance: none;
+  background-image:
+    linear-gradient(45deg, transparent 50%, rgba(225,0,91,.85) 50%),
+    linear-gradient(135deg, rgba(225,0,91,.85) 50%, transparent 50%);
+  background-position:
+    calc(100% - 18px) 18px,
+    calc(100% - 12px) 18px;
+  background-size: 6px 6px, 6px 6px;
+  background-repeat: no-repeat;
+  padding-right: 34px;
+}
+
+.dc__control--perc{
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Botões */
+.dc__btn{
+  height: 42px;
+  padding: 0 14px;
+  border-radius: 12px;
+  border: none;
+  cursor: pointer;
+  font-weight: 800;
+  letter-spacing: .2px;
+  transition: transform .12s ease, box-shadow .18s ease, background .18s ease, opacity .18s ease;
+}
+
+.dc__btn:hover{
+  transform: translateY(-1px);
+  box-shadow: 0 12px 22px rgba(0,0,0,0.12);
+}
+
+.dc__btn:active{
+  transform: translateY(0);
+  box-shadow: none;
+}
+
+.dc__btn:disabled{
+  opacity: .65;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+.dc__btn--primary{
+  background: linear-gradient(135deg, #e1005b, #ff3a88);
+  color: #fff;
+}
+
+.dc__btn--primary:hover{
+  background: linear-gradient(135deg, #cf0053, #ff2b80);
+}
+
+.dc__btn--ghost{
+  background: rgba(225,0,91,0.10);
+  color: #b00046;
+  border: 1px dashed rgba(225,0,91,0.30);
+}
+
+.dc__btn--ghost:hover{
+  background: rgba(225,0,91,0.14);
+}
+
+.dc__btn--danger{
+  width: 44px;
+  min-width: 44px;
+  padding: 0;
+  background: rgba(0,0,0,0.06);
+  color: #333;
+  border: 1px solid rgba(0,0,0,0.10);
+  border-radius: 12px;
+  font-size: 18px;
+  line-height: 1;
+}
+
+.dc__btn--danger:hover{
+  background: rgba(225,0,91,0.12);
+  border-color: rgba(225,0,91,0.25);
+  color: #b00046;
+}
+
+/* Melhorando inputs do tipo number (caso use) */
+.dc input[type="number"]{
+  max-width: none;
+  margin-right: 0;
+}
+
+/* Evita estilo genérico do button do seu CSS “global” dominar demais aqui */
+.dc button{
+  margin: 0;
+}
+
+/* Pequeno ajuste para a divLogin (se ela existir no login.css) */
+.divLogin.dc{
+  background: rgba(255,255,255,0.92);
+}

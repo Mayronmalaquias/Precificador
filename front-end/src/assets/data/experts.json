@@ -1,0 +1,297 @@
+{
+  "citiesOrder": [
+    "Asa Sul",
+    "Asa Norte",
+    "Noroeste",
+    "Sudoeste",
+    "Lago Norte",
+    "Lago Sul",
+    "Águas Claras"
+  ],
+  "experts": [
+    {
+      "slug": "bianca-pinhal",
+      "name": "Bianca Pinhal",
+      "photo": "./img/corretor/Bianca Pinhal.jpg",
+      "cities": ["Asa Norte"],
+      "roleTag": "Expert Asa Norte",
+      "bioShort": "Especialista em apartamentos na Asa Norte, com foco estratégico em negociação.",
+      "bioFull": "Sou Bianca Pinhal, administradora com MBA em Gestão Empresarial e corretora associada à 61 Imóveis. Atuo com foco na Asa Norte, oferecendo um atendimento estratégico, transparente e alinhado ao perfil de cada cliente.",
+      "contacts": {
+        "whatsapp": "5561991449206",
+        "instagram": "",
+        "email": ""
+      },
+      "properties": [
+        {
+          "title": "SQN 311 - Apartamento 3 quartos com suíte",
+          "url": "https://www.61imoveis.com/imovel/apartamento-3-quartos-suite-sqn-311/10623",
+          "thumb": "https://cdn.imoview.com.br/61imoveis/Imoveis/10623/0jaf1k-11042025-img-9760-1744672296.jpg?1756900814"
+        },
+        {
+          "title": "SQN 313 - 3 quartos, 102 m², 1 suíte, vazado",
+          "url": "https://www.61imoveis.com/imovel/apartamento-sqn-313-3-quartos-102-m-1-suite-vazado/11290",
+          "thumb": "https://cdn.imoview.com.br/61imoveis/Imoveis/11290/rtafrh-chatgpt-image-3-de-out-de-2025-10-46-38-1759932463.png?1759932465"
+        }
+      ]
+    },
+    {
+      "slug": "rafael-bastos",
+      "name": "Rafael Bastos",
+      "photo": "./img/corretor/Rafael Bastos.jpg",
+      "cities": ["Asa Norte"],
+      "roleTag": "Expert Asa Norte",
+      "bioShort": "Especialista em apartamentos de 2 a 4 quartos na Asa Norte, com foco em encontrar o cliente certo para cada imóvel.",
+      "bioFull": "Sou Rafael Bastos, corretor da 61 Imóveis e especialista com foco na Asa Norte. Conheço profundamente as particularidades da região, o estilo de vida dos moradores e como direcionar cada perfil de cliente ao imóvel ideal.\n\nSou formado em Administração e atuei por anos na área de gestão e qualidade antes de migrar para o mercado imobiliário. Hoje, possuo um estoque ativo de apartamentos de 2 a 4 quartos na Asa Norte e já conto com uma carteira de clientes interessados.\n\nTrabalho com o suporte completo da 61 Imóveis, que possui um departamento de marketing interno robusto e o maior site imobiliário do mercado local, garantindo visibilidade qualificada e resultados concretos.",
+      "contacts": {
+        "whatsapp": "5561993357149",
+        "instagram": "",
+        "email": ""
+      },
+      "properties": [
+        {
+          "title": "SQN 110 - Apartamento nascente com vaga, vista livre e cobertura coletiva",
+          "url": "https://www.61imoveis.com/imovel/lindo-apartamento-nascente-com-vaga-vista-livre-e-cobertura-coletiva-a-venda-na-sqn-110/10548",
+          "thumb": "https://cdn.imoview.com.br/61imoveis/Imoveis/10548/zgts1f-1-1745961797.jpeg?1757532440"
+        },
+        {
+          "title": "715 Norte - Apartamento 3 quartos, 1 suíte, vazado, com elevador",
+          "url": "https://www.61imoveis.com/imovel/apartamento-3-quartos-1-suite-vazado-com-elevador-a-venda-na-715-norte/10586",
+          "thumb": "https://cdn.imoview.com.br/61imoveis/Imoveis/10586/rpt31l-28052025-img-5642-1748569876.jpg?1757532480"
+        },
+        {
+          "title": "SQN 211 - Cobertura duplex nascente",
+          "url": "https://www.61imoveis.com/imovel/cobertura-duplex-nascente-a-venda-na-sqn-211/10039",
+          "thumb": "https://cdn.imoview.com.br/61imoveis/Imoveis/10039/9popy-12-1733449632.jpeg?1757532171"
+        }
+      ]
+    },
+    {
+      "slug": "sergio-cardoso",
+      "name": "Sérgio Cardoso",
+      "photo": "./img/corretor/Sérgio Cardoso.jpg",
+      "cities": ["Lago Norte"],
+      "roleTag": "Expert Lago Norte",
+      "bioShort": "Especialista em casas e terrenos no Lago Norte e Asa Norte.",
+      "bioFull": "Me chamo Sérgio Cardoso, tenho 54 anos e sou brasiliense. Sou formado em Marketing e Gestão Imobiliária, com toda a minha trajetória profissional dedicada à área comercial. Atualmente sou corretor associado da 61 Imóveis, com foco em apartamentos na Asa Norte e casas e terrenos no Lago Norte.",
+      "contacts": {
+        "whatsapp": "5561998631303",
+        "instagram": "https://www.instagram.com/seu_corretor61/",
+        "email": "sergio.cardoso@61imoveis.com.br"
+      },
+      "properties": [
+        {
+          "title": "SHIN QL 11 - Casa de alto padrão, 5 suítes, lazer completo",
+          "url": "https://www.61imoveis.com/imovel/shin-ql-11-casa-de-alto-padrao-5-suites-lazer-completo-lago-norte/11706",
+          "thumb": "https://cdn.imoview.com.br/61imoveis/Imoveis/11706/60rhy-captura-de-tela-2026-01-22-173526-1769114690.png?1769114692"
+        },
+        {
+          "title": "SHIN QL 12 - Casa de alto padrão, 4 suítes, lazer completo e sustentável",
+          "url": "https://www.61imoveis.com/imovel/shin-ql-12-casa-de-alto-padrao-4-suites-lazer-completo-sustentavel-lago-norte/11655",
+          "thumb": "https://cdn.imoview.com.br/61imoveis/Imoveis/11655/6h8pu-captura-de-tela-2026-01-10-172753-1768324342.png?1768324344"
+        },
+        {
+          "title": "SHIN QL 3 - Fotovoltaica, recém reformada",
+          "url": "https://www.61imoveis.com/imovel/shin-ql-3-fotovoltaica-recem-reformada-no-lago-norte/11377",
+          "thumb": "https://cdn.imoview.com.br/61imoveis/Imoveis/11377/3ayjl-23102025-img-2611-1761408663.jpg?1761408667"
+        }
+      ]
+    },
+    {
+      "slug": "sidnei-mota",
+      "name": "Sidnei Mota",
+      "photo": "./img/corretor/Sidnei Mota.jpg",
+      "cities": ["Lago Sul"],
+      "roleTag": "Expert Lago Sul",
+      "bioShort": "Especialista em casas e condomínios no Lago Sul e Jardim Botânico.",
+      "bioFull": "Olá! Sou Sidnei Mota, corretor especialista em toda a região do Lago Sul e Jardim Botânico, com foco principal nos Condomínios Solar de Brasília (Quadras 1, 2 e 3), Ville de Montagne, Jardins do Lago (QD 1, 2 e 9), Mansões Itaipu e Quintas da Alvorada.\n\nTenho grande conhecimento sobre regularização fundiária dos condomínios da região e sobre o comportamento do mercado. Atualmente, tenho uma carteira de clientes para compra imediata de casas no Jardim Botânico e coloco-me à disposição para trabalhar a venda do seu imóvel com dedicação e responsabilidade.\n\nCuidarei de toda a documentação e do seu imóvel com o carinho que ele merece.",
+      "contacts": {
+        "whatsapp": "",
+        "instagram": "",
+        "email": ""
+      },
+      "properties": []
+    },
+    {
+      "slug": "armando-magalhaes",
+      "name": "Armando Magalhães",
+      "photo": "./img/corretor/Armando Thomaz.jpg",
+      "cities": ["Lago Sul"],
+      "roleTag": "Expert Lago Sul",
+      "bioShort": "Especialista no Lago Sul, com atuação estratégica, avaliação precisa e foco em resultados.",
+      "bioFull": "Sou Armando Magalhães, corretor de imóveis especializado na região do Lago Sul. Minha atuação é pautada por estratégia, relacionamento de longo prazo e avaliações precisas, sempre com o suporte do sistema de inteligência de mercado da 61 Imóveis.\n\nMeu compromisso é oferecer um serviço de excelência, com transparência, segurança e foco total nos objetivos de cada cliente.",
+      "contacts": {
+        "whatsapp": "5561982342970",
+        "instagram": "",
+        "email": ""
+      },
+      "properties": [
+        {
+          "title": "Ville de Montagne - Térrea com 03 suítes",
+          "url": "https://www.61imoveis.com/imovel/ville-de-montagne-terrea-com-03-suites/11225",
+          "thumb": "https://cdn.imoview.com.br/61imoveis/Imoveis/11225/ktbddg-09102025-img-0786-1760391947.jpg?1761335015"
+        },
+        {
+          "title": "Condomínio Ville de Montagne - 04 suítes, Habite-se e vista panorâmica",
+          "url": "https://www.61imoveis.com/imovel/condominio-ville-de-montagne-04-suites-com-habite-se-vista-panoramica/11296",
+          "thumb": "https://cdn.imoview.com.br/61imoveis/Imoveis/11296/ujcysh-09102025-img-0653-1760395750.jpg?1760395753"
+        },
+        {
+          "title": "Jardim Botânico III - Térrea",
+          "url": "https://www.61imoveis.com/imovel/jardim-botanico-iii-terrea/11538",
+          "thumb": "https://cdn.imoview.com.br/61imoveis/Imoveis/11538/0uqib-imagem-do-whatsapp-de-2025-12-02-as-102915-714118a2-1764695758.jpg?1764695759"
+        }
+      ]
+    },
+    {
+      "slug": "fernando-cravos",
+      "name": "Fernando Cravos",
+      "photo": "./img/corretor/Fernando Cravos.jpg",
+      "cities": ["Águas Claras"],
+      "roleTag": "Expert Águas Claras",
+      "bioShort": "Especialista em apartamentos em Águas Claras.",
+      "bioFull": "Sou Fernando Cravos, corretor com mais de sete anos de experiência no mercado imobiliário, atuando com foco em apartamentos em Águas Claras. Meu trabalho é baseado em transparência, agilidade e acompanhamento completo do cliente.",
+      "contacts": {
+        "whatsapp": "5561995651974",
+        "instagram": "",
+        "email": ""
+      },
+      "properties": [
+        {
+          "title": "Via Paradiso - 3 qts, nascente, 1 vaga",
+          "url": "https://www.61imoveis.com/imovel/via-paradiso-3-qts-nascente-1-vaga/11674",
+          "thumb": "https://cdn.imoview.com.br/61imoveis/Imoveis/11674/8m0pb-61-imoveis-rua-28-norte-res-via-paradiso-3-1768916339.jpg?1768917415"
+        },
+        {
+          "title": "Mirante Duo - 2 quartos de canto",
+          "url": "https://www.61imoveis.com/imovel/mirante-duo-2-quartos-de-canto/11591",
+          "thumb": "https://cdn.imoview.com.br/61imoveis/Imoveis/11591/4bhz-61-imoveis-av-parque-aguas-claras-res-mirante-duo-2-1766580027.jpg?1769026990"
+        }
+      ]
+    },
+    {
+      "slug": "luana-salvinski",
+      "name": "Luana Salvinski",
+      "photo": "./img/corretor/Luana Salvisnsk.jpg",
+      "cities": ["Águas Claras"],
+      "roleTag": "Expert Águas Claras",
+      "bioShort": "Especialista exclusivamente em Águas Claras, com atendimento estratégico.",
+      "bioFull": "Sou Luana Salvinski, corretora de imóveis, moradora e especialista exclusivamente em Águas Claras há mais de 8 anos. Construí minha trajetória com foco em conhecimento técnico, leitura de mercado e atendimento estratégico, entendendo que cada cliente tem uma história, uma necessidade e um momento único.\n\nMinha atuação vai além da intermediação. Atuo de forma estratégica e personalizada, com atendimento por agenda limitada, oferecendo agilidade, exclusividade e alto nível de acompanhamento.\n\nMeu compromisso é oferecer um atendimento próximo, honesto e altamente profissional, trazendo tranquilidade em cada etapa do processo.",
+      "contacts": {
+        "whatsapp": "",
+        "instagram": "",
+        "email": ""
+      },
+      "properties": [
+        {
+          "title": "Res. Jales Machado - 3qts, closet, 2 vagas, nascente (analisa permuta)",
+          "url": "https://www.61imoveis.com/imovel/analisa-permuta-res-jales-machado-3qts-closet-2-vagas-nascente/11419",
+          "thumb": "https://cdn.imoview.com.br/61imoveis/Imoveis/11419/2y-61-imoveis-rua-8-sul-res-jales-machado-2-1762968265.jpg?1768330921"
+        },
+        {
+          "title": "Res. Olavo Bilac - 4 qts, DCE, varanda, nascente, 2 vagas soltas",
+          "url": "https://www.61imoveis.com/imovel/olavo-bilac-4-qts-dce-varanda-nascente-andar-alto-2-vagas-soltas/11391",
+          "thumb": "https://cdn.imoview.com.br/61imoveis/Imoveis/11391/4puse-61-imoveis-rua-21-sul-res-olavo-bilac-10-1762191556.jpg?1767716483"
+        },
+        {
+          "title": "Vitali - 2qts, 1 vaga, nascente e reformado",
+          "url": "https://www.61imoveis.com/imovel/vitali-2qts-1-vaga-nascente-e-reformado/11694",
+          "thumb": "https://cdn.imoview.com.br/61imoveis/Imoveis/11694/fdghn-img-1179-1768950065.jpeg?1768950065"
+        }
+      ]
+    },
+    {
+      "slug": "maria-carolina",
+      "name": "Maria Carolina",
+      "photo": "./img/corretor/Maria Carolina1.jpg",
+      "cities": ["Águas Claras"],
+      "roleTag": "Expert Águas Claras",
+      "bioShort": "Especialista em Águas Claras, com 20 anos de atuação e abordagem consultiva.",
+      "bioFull": "Sou Maria Carolina, profissional com 20 anos de atuação no mercado imobiliário, especialista na região de Águas Claras. Ao longo dessa trajetória, construí minha carreira com base em atualização constante, acompanhamento das novas tendências do mercado e, principalmente, no entendimento profundo das necessidades de cada cliente.\n\nMinha formação em Psicologia complementa minha atuação como corretora, permitindo uma escuta atenta, empática e estratégica. Mais do que vender imóveis, meu objetivo é atuar como consultora, orientando cada decisão com informação, clareza e segurança, desde o primeiro contato até a finalização do negócio.\n\nMeu trabalho é pautado no respeito, profissionalismo, transparência e comunicação clara, oferecendo tranquilidade e confiança em cada etapa.",
+      "contacts": {
+        "whatsapp": "",
+        "instagram": "",
+        "email": ""
+      },
+      "properties": [
+        {
+          "title": "Residencial de Espanha - 3 quartos, 1 suíte, 2 vagas soltas, andar alto",
+          "url": "https://www.61imoveis.com/imovel/residencial-de-espanha-3-quartos-1-suite-2-vagas-soltas-andar-alto-rua-25-sul/11314",
+          "thumb": "https://cdn.imoview.com.br/61imoveis/Imoveis/11314/5gknm-61-imoveis-rua-25-sul-res-de-espanha-apt-1302-bl-b-4-1761146209.jpg?1765287441"
+        },
+        {
+          "title": "Res. Politec - 3 quartos, 2 vagas, reformado, nascente, vista livre",
+          "url": "https://www.61imoveis.com/imovel/res-politec-3-quartos-2-vagas-reformado-nascente-vista-livre/10850",
+          "thumb": "https://cdn.imoview.com.br/61imoveis/Imoveis/10850/itrqpj-61-imoveis-r-16-sul-res-politec-apt-907-14-1750177685.jpg?1762269462"
+        },
+        {
+          "title": "Residencial The View - Duplex 2 quartos, 124 m², 2 vagas (ágio)",
+          "url": "https://www.61imoveis.com/imovel/residencial-the-view-duplex-2-quartos-124-m-duas-vagas-agio/11145",
+          "thumb": "https://cdn.imoview.com.br/61imoveis/Imoveis/11145/2lfrkk-whatsapp-image-2025-08-26-at-121306-2-1756221557.jpeg?1758814895"
+        }
+      ]
+    },
+    {
+      "slug": "fernando-borges",
+      "name": "Fernando Borges",
+      "photo": "",
+      "cities": ["Águas Claras"],
+      "roleTag": "Expert Águas Claras",
+      "bioShort": "Especialista em alto padrão em Águas Claras, com foco em apartamentos de 3 e 4 quartos.",
+      "bioFull": "Sou Fernando Borges, corretor de imóveis com atuação focada no alto padrão em Águas Claras. Minha trajetória no mercado me permitiu acompanhar de perto a evolução do bairro e entender, na prática, o que realmente faz diferença para quem investe na faixa de alto valor: localização, qualidade construtiva, segurança patrimonial e liquidez.\n\nSou especializado em apartamentos de 3 e 4 quartos e ofereço um atendimento direto, transparente e estratégico, conduzindo cada negociação do início ao fim com responsabilidade, critério e atenção aos detalhes.\n\nPara mim, cada cliente tem uma história e uma necessidade diferente. Por isso, faço questão de ouvir, orientar com clareza e conduzir todo o processo com respeito, discrição e comprometimento real com a sua decisão.\n\nCom o suporte da 61 Imóveis, uno experiência local, estrutura jurídica e tecnologia para garantir decisões seguras e uma experiência imobiliária eficiente. Se você quiser uma avaliação imobiliária mais precisa do seu apartamento, posso fazer sem custo.",
+      "contacts": {
+        "whatsapp": "5561998145063",
+        "instagram": "",
+        "email": ""
+      },
+      "properties": [
+        {
+          "title": "Apartamento 3 quartos com 2 vagas em Águas Claras Norte (oportunidade)",
+          "url": "https://www.61imoveis.com/imovel/apartamento-residencial-de-3-quartos-com-2-vagas-em-aguas-claras-norte-oportunidade-de-venda/11328",
+          "thumb": "https://cdn.imoview.com.br/61imoveis/Imoveis/11328/464fb-61-imoveis-rua-das-carnaubas-res-reserva-parque-clube-4-1763498892.jpg?1763498895"
+        },
+        {
+          "title": "3 quartos, andar alto, vista livre - Encontro das Águas (Rua 28 Sul)",
+          "url": "https://www.61imoveis.com/imovel/3-quartos-andar-alto-e-vista-livre-encontro-das-aguas-rua-28-sul/11330",
+          "thumb": "https://cdn.imoview.com.br/61imoveis/Imoveis/11330/l5yj6-61-imoveis-r-das-paineiras-res-encontro-das-aguas-apt-1001-bl-b-1761070620.jpg?1761070625"
+        },
+        {
+          "title": "3 quartos, DCE, 2 vagas, nascente - Portal das Andorinhas",
+          "url": "https://www.61imoveis.com/imovel/3-quartos-dce-2-vagas-nascente-portal-das-andorinhas/11077",
+          "thumb": "https://cdn.imoview.com.br/61imoveis/Imoveis/11077/qouic-61-imoveis-res-portal-das-andorinhas-q-203-apt-402-bl-a-2-1754663229.jpg?1754663233"
+        }
+      ]
+    },
+    {
+      "slug": "sergio-blake",
+      "name": "Sérgio Blake",
+      "photo": "../img/corretor/Sergio Blake.jpg",
+      "cities": ["Águas Claras"],
+      "roleTag": "Expert Águas Claras",
+      "bioShort": "Especialista em apartamentos de 3 e 4 quartos em Águas Claras, com acompanhamento completo do início ao fim.",
+      "bioFull": "Olá! Sou Sérgio Henrique Medeiros de França, especialista comercial com formação em gestão financeira e corretor de imóveis na 61 Imóveis. Meu nicho são apartamentos de 3 e 4 quartos em Águas Claras.\n\nValorizo um acompanhamento completo do cliente em todas as etapas do processo de venda, incluindo atenção rigorosa à documentação para evitar surpresas. A 61 Imóveis atua com resultados comprovados, forte presença em Águas Claras e um estoque em constante crescimento, o que amplia o volume de clientes e a agilidade na venda.\n\nNa 61 Imóveis, cada corretor atua por especialização, entendendo dinâmica local, tempo de venda, tendências de preços e hábitos dos moradores. Além disso, contamos com inteligência imobiliária baseada em dados e um setor de pós-contrato que acompanha até a finalização do registro e pagamento, garantindo suporte contínuo.\n\nRecebo constantemente leads e indicações e estou à disposição para agendar uma visita e apresentar a estratégia ideal para a venda do seu imóvel.",
+      "contacts": {
+        "whatsapp": "5561995516523",
+        "instagram": "",
+        "email": ""
+      },
+      "properties": [
+        {
+          "title": "Mirante São Francisco - Apartamento reformado 2 qts, 1 suíte, 1 vaga",
+          "url": "https://www.61imoveis.com/imovel/mirante-sao-francisco-apartamento-reformado-2-qts-1-suite-1-vaga/11629",
+          "thumb": "https://cdn.imoview.com.br/61imoveis/Imoveis/11629/i3hdl-61-imoveis-rua-24-sul-ed-mirante-sao-francisco-2-1767727970.jpg?1767728068"
+        },
+        {
+          "title": "Residencial Imprensa I - Apto 3 quartos, 1 suíte, 1 vaga",
+          "url": "https://www.61imoveis.com/imovel/apto-3-quartos-l-1-suite-l-1-vaga-residencial-imprensa-i/11239",
+          "thumb": "https://cdn.imoview.com.br/61imoveis/Imoveis/11239/w183-61-imoveis-qd-201-res-imprensa-i-bl-e-apt-1502-2-1764089001.jpg?1764089004"
+        },
+        {
+          "title": "Rua 4 Sul - Res. Elegance - 3 quartos, DCE, 1 vaga coberta",
+          "url": "https://www.61imoveis.com/imovel/rua-4-sul-res-elegance-3-quartos-dce-1-vaga-coberta/11076",
+          "thumb": "https://cdn.imoview.com.br/61imoveis/Imoveis/11076/873um-61-imoveis-r4-sul-res-elegance-apt-306-7-1759848710.jpg?1763407677"
+        }
+      ]
+    }
+  ]
+}

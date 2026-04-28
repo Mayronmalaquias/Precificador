@@ -1,0 +1,639 @@
+:root{
+  --brand-pink-rgb: 230, 0, 126;
+  --brand-pink-25: rgba(var(--brand-pink-rgb), 0.25);
+  --brand-pink-18: rgba(var(--brand-pink-rgb), 0.18);
+
+  --glass-bg: rgba(255,255,255,0.86);
+  --glass-border: rgba(255,255,255,0.55);
+  --shadow-soft: 0 10px 22px rgba(0,0,0,0.10);
+  --shadow-hover: 0 16px 34px rgba(0,0,0,0.16);
+}
+
+body.expert-bg{
+  position: relative;
+  min-height: 100vh;
+}
+
+.expert-container {
+  max-width: 1200px;   /* controla a largura */
+  margin: 0 auto;      /* centraliza */
+  padding-left: 16px;
+  padding-right: 16px;
+}
+
+/* ==========================
+   BACKGROUND GLOBAL (HUB)
+   Mantido como estava
+========================== */
+body.expert-bg::before{
+  content:"";
+  position: fixed;
+  inset: 0;
+  background-image: url("https://www.61imoveis.com/assets/img/home/5d7atnzg.png?v=1712237232");
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  z-index: -2;
+}
+
+body.expert-bg::after{
+  content:"";
+  position: fixed;
+  inset: 0;
+  background: rgba(255,255,255,0.72);
+  z-index: -1;
+}
+
+.expert-page{
+  padding-top: 22px;
+  padding-bottom: 28px;
+}
+
+.expert-title{
+  text-align: center;
+  font-weight: 850;
+  margin: 0 0 6px 0;
+}
+
+.expert-subtitle{
+  text-align: center;
+  opacity: 0.85;
+  margin: 0 0 22px 0;
+}
+
+.city-block{
+  width: 100%;
+  margin-bottom: 18px;
+}
+
+.city-block-inner{
+  background: var(--brand-pink-25);
+  border: 1px solid var(--brand-pink-18);
+  border-radius: 16px;
+  padding: 18px 18px 14px 18px;
+  box-shadow: var(--shadow-soft);
+}
+
+.city-block-header{
+  margin-bottom: 12px;
+}
+
+/* ✅ pedido: centralizar e aumentar nome do bairro */
+.city-title{
+  margin: 0;
+  text-align: center;
+  font-size: 1.55rem;     /* maior */
+  font-weight: 900;
+  letter-spacing: 0.2px;
+}
+
+.city-cards{
+  display: grid;
+  grid-template-columns: repeat(12, 1fr);
+  gap: 14px;
+}
+
+/* ✅ pedido: “tamanho antigo”, porém 25% menor */
+.expert-card{
+  grid-column: span 12;
+  background: #fff;
+  border-radius: 14px;
+  padding: 10px; /* menor */
+  text-decoration: none;
+  color: inherit;
+  border: 1px solid rgba(0,0,0,0.06);
+  transition: transform .15s ease, box-shadow .15s ease;
+}
+
+.expert-card:hover{
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-hover);
+}
+
+/* Foto em cima */
+.expert-card-photo{
+  width: 100%;
+  border-radius: 12px;
+  overflow: hidden;
+  background: #f1f1f1;
+  aspect-ratio: 1 / 1;
+}
+
+.expert-card-photo img{
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* Corpo mais compacto */
+.expert-card-body{
+  padding-top: 8px;
+}
+
+.expert-card-name{
+  margin: 0;
+  font-weight: 900;
+  font-size: 1.05rem;
+  line-height: 1.15;
+}
+
+.expert-card-tag{
+  margin: 6px 0 0 0;
+  font-size: 0.9rem;
+  opacity: 0.75;
+}
+
+/* responsivo (mantém padrão) */
+@media (min-width: 576px){
+  .expert-card{ grid-column: span 6; }
+}
+@media (min-width: 992px){
+  .expert-card{ grid-column: span 4; }
+}
+
+/* ---------------------------
+   Página do expert (base)
+---------------------------- */
+.expert-profile-wrap{
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  border-radius: 18px;
+  padding: 18px;
+  box-shadow: var(--shadow-soft);
+  backdrop-filter: blur(8px);
+}
+
+.expert-profile-grid{
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 16px;
+}
+
+@media (min-width: 992px){
+  .expert-profile-grid{
+    grid-template-columns: 320px 1fr;
+    gap: 18px;
+    align-items: start;
+  }
+}
+
+.expert-hero-photo{
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  border-radius: 16px;
+  overflow: hidden;
+  background: #f1f1f1;
+  box-shadow: 0 10px 22px rgba(0,0,0,0.10);
+}
+
+.expert-hero-photo img{
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.expert-name{
+  font-size: 1.85rem;
+  font-weight: 900;
+  margin: 0 0 6px 0;
+}
+
+.expert-cities{
+  font-weight: 700;
+  opacity: 0.85;
+  margin-bottom: 10px;
+}
+
+.expert-bio-short{
+  margin: 10px 0 0 0;
+  opacity: 0.92;
+}
+
+.expert-bio-full{
+  margin: 14px 0 0 0;
+  line-height: 1.65;
+  opacity: 0.92;
+}
+
+.expert-cta-box{
+  margin-top: 14px;
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 10px;
+}
+
+@media (min-width: 576px){
+  .expert-cta-box{
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+.btn-soft{
+  border-radius: 12px !important;
+  padding: 10px 12px !important;
+  font-weight: 800 !important;
+  border: 1px solid rgba(0,0,0,0.08) !important;
+  background: rgba(255,255,255,0.88) !important;
+  transition: transform .12s ease, box-shadow .12s ease;
+}
+
+.btn-soft:hover{
+  transform: translateY(-1px);
+  box-shadow: 0 10px 20px rgba(0,0,0,0.10);
+}
+
+.btn-soft-primary{
+  border-radius: 12px !important;
+  padding: 10px 12px !important;
+  font-weight: 900 !important;
+  border: 1px solid rgba(var(--brand-pink-rgb), 0.25) !important;
+  background: rgba(var(--brand-pink-rgb), 0.12) !important;
+  color: #111 !important;
+}
+
+.btn-soft-primary:hover{
+  background: rgba(var(--brand-pink-rgb), 0.18) !important;
+  box-shadow: 0 10px 20px rgba(0,0,0,0.10);
+}
+
+.expert-section-title{
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 900;
+}
+
+.property-card{
+  display: block;
+  height: 100%;
+  background: rgba(255,255,255,0.92);
+  border: 1px solid rgba(0,0,0,0.06);
+  border-radius: 16px;
+  overflow: hidden;
+  text-decoration: none;
+  color: inherit;
+  box-shadow: 0 10px 22px rgba(0,0,0,0.10);
+  transition: transform .15s ease, box-shadow .15s ease;
+}
+
+.property-card:hover{
+  transform: translateY(-2px);
+  box-shadow: 0 16px 34px rgba(0,0,0,0.16);
+}
+
+.property-thumb{
+  width: 100%;
+  aspect-ratio: 16 / 10;
+  background: #eee;
+}
+
+.property-thumb img{
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.property-body{
+  padding: 12px 12px 14px 12px;
+}
+
+.property-title{
+  font-weight: 850;
+  font-size: 1rem;
+  margin: 0;
+}
+
+.property-cta{
+  margin-top: 6px;
+  font-size: 0.93rem;
+  opacity: 0.78;
+}
+
+.empty-city{
+  padding: 12px;
+  font-style: italic;
+  opacity: 0.7;
+}
+
+/* =========================================================
+   PREMIUM LOOK — PÁGINAS DO EXPERT (SLUG)
+   Requer: <main className="... expert-slug">
+   (Não altera o HUB)
+========================================================= */
+
+/* Fundo mais “leve” e sofisticado só no slug */
+body.expert-bg .expert-slug {
+  position: relative;
+  margin: 0 auto; /* Centraliza o container da página */
+  max-width: 1120px; /* Limita a largura máxima */
+}
+
+/* Desliga o background global na área do slug (para não “brigar” com o premium) */
+body.expert-bg .expert-slug::before,
+body.expert-bg .expert-slug::after{
+  pointer-events: none;
+}
+
+/* Padrão com quadrados menores */
+body.expert-bg .expert-slug::before{
+  content:"";
+  position: fixed;
+  inset: 0;
+  background-image: url("https://www.61imoveis.com/assets/img/home/5d7atnzg.png?v=1712237232");
+  background-size: 220px 220px;   /* quadrados menores */
+  background-repeat: repeat;
+  background-position: center;
+  opacity: 0.55;
+  z-index: -2;
+}
+
+body.expert-bg .expert-slug::after{
+  content:"";
+  position: fixed;
+  inset: 0;
+  background: radial-gradient(circle at 20% 10%,
+    rgba(255,255,255,0.90) 0%,
+    rgba(255,255,255,0.78) 45%,
+    rgba(255,255,255,0.70) 100%);
+  z-index: -1;
+}
+
+/* Container mais “respirado” no slug */
+body.expert-bg .expert-slug .container.my-4 {
+  max-width: 100%; /* Garantir que a largura não ultrapasse a página */
+  margin: 0 auto; /* Centraliza o container */
+}
+
+/* Card principal: mais premium */
+body.expert-bg .expert-slug .expert-profile-wrap {
+  border-radius: 22px;
+  padding: 22px;
+  border: 1px solid rgba(0,0,0,0.06);
+  box-shadow: 0 18px 40px rgba(0,0,0,0.10), 0 2px 0 rgba(255,255,255,0.75) inset;
+  backdrop-filter: blur(10px);
+  margin: 0 auto; /* Garante que o card do expert também fique centralizado */
+  width: 100%;
+  max-width: 900px; /* Define um máximo para o card */
+}
+
+/* Grid com alinhamento melhor */
+body.expert-bg .expert-slug .expert-profile-grid{
+  gap: 18px;
+}
+
+@media (min-width: 992px){
+  body.expert-bg .expert-slug .expert-profile-grid{
+    grid-template-columns: 360px 1fr;
+    gap: 22px;
+  }
+}
+
+/* Foto com borda “soft” */
+body.expert-bg .expert-slug .expert-hero-photo{
+  border-radius: 20px;
+  box-shadow:
+    0 18px 40px rgba(0,0,0,0.14),
+    0 0 0 1px rgba(255,255,255,0.65) inset;
+}
+
+/* Nome com mais presença */
+body.expert-bg .expert-slug .expert-name{
+  font-size: clamp(1.65rem, 3vw, 2.15rem);
+  letter-spacing: -0.2px;
+  margin-bottom: 8px;
+}
+
+/* Linha “Atuação:” + melhor espaçamento */
+body.expert-bg .expert-slug .expert-cities{
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0 0 12px 0;
+  opacity: 1;
+  font-weight: 700;
+}
+
+body.expert-bg .expert-slug .expert-cities{
+  padding: 0;
+}
+
+body.expert-bg .expert-slug .expert-cities::before{
+  content: "Atuação:";
+  margin-right: 8px;
+  opacity: 0.75;
+  font-weight: 800;
+}
+
+/* Bio curta destacada */
+body.expert-bg .expert-slug .expert-bio-short{
+  margin-top: 8px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: rgba(255,255,255,0.72);
+  border: 1px solid rgba(0,0,0,0.06);
+  box-shadow: 0 10px 22px rgba(0,0,0,0.06);
+  line-height: 1.55;
+}
+
+/* Bio completa com melhor leitura */
+body.expert-bg .expert-slug .expert-bio-full{
+  font-size: 1.02rem;
+  line-height: 1.75;
+  opacity: 0.95;
+}
+
+/* CTA em barra (3 colunas no sm+) */
+body.expert-bg .expert-slug .expert-cta-box{
+  margin-top: 16px;
+  grid-template-columns: 1fr;
+  gap: 10px;
+}
+
+@media (min-width: 576px){
+  body.expert-bg .expert-slug .expert-cta-box{
+    grid-template-columns: 1fr 1fr 1fr;
+  }
+}
+
+/* Botões premium */
+body.expert-bg .expert-slug .btn-soft,
+body.expert-bg .expert-slug .btn-soft-primary{
+  border-radius: 14px !important;
+  padding: 11px 14px !important;
+  font-weight: 900 !important;
+  letter-spacing: 0.1px;
+}
+
+body.expert-bg .expert-slug .btn-soft-primary{
+  background: linear-gradient(
+    135deg,
+    rgba(var(--brand-pink-rgb), 0.16),
+    rgba(var(--brand-pink-rgb), 0.10)
+  ) !important;
+  border: 1px solid rgba(var(--brand-pink-rgb), 0.28) !important;
+  box-shadow:
+    0 12px 26px rgba(0,0,0,0.10),
+    0 0 0 1px rgba(255,255,255,0.45) inset;
+}
+
+body.expert-bg .expert-slug .btn-soft-primary:hover{
+  transform: translateY(-1px);
+  box-shadow:
+    0 18px 34px rgba(0,0,0,0.14),
+    0 0 0 1px rgba(255,255,255,0.55) inset;
+}
+
+body.expert-bg .expert-slug .btn-soft{
+  background: rgba(255,255,255,0.78) !important;
+  border: 1px solid rgba(0,0,0,0.08) !important;
+}
+
+body.expert-bg .expert-slug .btn-soft:hover{
+  transform: translateY(-1px);
+}
+
+/* Seção imóveis: título com linha sutil */
+body.expert-bg .expert-slug .expert-section-title{
+  margin-top: 10px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid rgba(0,0,0,0.08);
+}
+
+/* Cards de imóvel mais “premium” */
+body.expert-bg .expert-slug .property-card{
+  border-radius: 18px;
+  border: 1px solid rgba(0,0,0,0.06);
+  box-shadow:
+    0 14px 30px rgba(0,0,0,0.10),
+    0 0 0 1px rgba(255,255,255,0.55) inset;
+}
+
+body.expert-bg .expert-slug .property-body{
+  padding: 14px 14px 16px 14px;
+}
+
+body.expert-bg .expert-slug .property-title{
+  font-size: 1.02rem;
+  line-height: 1.25;
+}
+
+body.expert-bg .expert-slug .property-cta{
+  margin-top: 8px;
+  font-weight: 800;
+  opacity: 0.85;
+}
+
+body.expert-bg .expert-slug .property-card:hover{
+  transform: translateY(-3px);
+}
+
+/* =========================================================
+   SLUG — reduzir tamanho das imagens dos imóveis
+========================================================= */
+
+/* deixa os cards mais compactos no slug */
+body.expert-bg .expert-slug .property-card{
+  border-radius: 16px;
+}
+
+/* ✅ reduz a altura da thumb (imagem) */
+body.expert-bg .expert-slug .property-thumb{
+  aspect-ratio: 16 / 7;   /* era 16/10 → agora fica mais “baixa” */
+}
+
+/* ✅ opcional: reduz o padding do texto do card */
+body.expert-bg .expert-slug .property-body{
+  padding: 12px 12px 14px 12px; /* era 14/14/16 */
+}
+
+/* ✅ opcional: título um pouco menor e com limite de linhas */
+body.expert-bg .expert-slug .property-title{
+  font-size: 0.98rem;
+  line-height: 1.25;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;     /* no máx 2 linhas */
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+
+/* Ajuste mobile */
+@media (max-width: 575.98px){
+  body.expert-bg .expert-slug .expert-profile-wrap{
+    padding: 16px;
+  }
+}
+
+/* =========================================================
+   SLUG — Grade própria para "Imóveis deste expert"
+   (independente do Bootstrap) + thumbs menores
+========================================================= */
+
+/* Cria grid só na seção de imóveis (slug) */
+body.expert-bg .expert-slug #expert-properties{
+  display: grid;
+  grid-template-columns: repeat(1, minmax(0, 1fr));
+  gap: 14px;
+  align-items: start;
+}
+
+/* Em telas médias: 2 colunas */
+@media (min-width: 768px){
+  body.expert-bg .expert-slug #expert-properties{
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* Em telas grandes: 3 colunas */
+@media (min-width: 1100px){
+  body.expert-bg .expert-slug #expert-properties{
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+/* Faz o título ocupar a linha inteira */
+body.expert-bg .expert-slug #expert-properties > .col-12:not(.col-md-6):not(.col-lg-4){
+  grid-column: 1 / -1;
+}
+
+/* Se existirem colunas do bootstrap, neutraliza margens/padding que podem estourar */
+body.expert-bg .expert-slug #expert-properties > [class*="col-"]{
+  width: auto !important;
+  max-width: none !important;
+  padding-left: 0 !important;
+  padding-right: 0 !important;
+}
+
+/* Card mais compacto */
+body.expert-bg .expert-slug .property-card{
+  height: auto;
+}
+
+/* ✅ Thumb MENOR (mais baixa) */
+body.expert-bg .expert-slug .property-thumb{
+  aspect-ratio: 16 / 7;     /* mais baixa que 16/10 */
+  max-height: 220px;        /* trava a altura */
+  overflow: hidden;
+}
+
+/* Garante corte bonito */
+body.expert-bg .expert-slug .property-thumb img{
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+/* Texto mais compacto */
+body.expert-bg .expert-slug .property-body{
+  padding: 12px 12px 14px 12px;
+}
+
+/* Título com limite de linhas */
+body.expert-bg .expert-slug .property-title{
+  font-size: 0.98rem;
+  line-height: 1.25;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}

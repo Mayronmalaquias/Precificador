@@ -1,7 +1,14 @@
 # 🚀 Projeto Front-End com Docker e React
 
+npm run build (prod)
+npm start(dev)
+
 Este projeto utiliza **React** no front-end e Docker para empacotar e servir a aplicação de forma otimizada com o pacote `serve`.
 
+Rodar projeto
+sudo systemctl restart precificador (VM Back)
+source venv/bin/activate
+python -c "from app.services.visita_service import ensure_oauth_token; ensure_oauth_token()"
 ---
 
 ## 🧱 Estrutura do Dockerfile

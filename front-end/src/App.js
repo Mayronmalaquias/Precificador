@@ -5,15 +5,29 @@ import Header from './components/Header';
 import Footer from './components/Footer';
 import Tabs from './components/Tabs';
 import Login from './components/Login';
-import ReporteImovel from './components/ReporteImovelWidget'
+import Register from './components/Register';
+import ReporteImovel from './components/ReporteImovelWidget';
 import PrivateRoute from './auth/PrivateRoute';
+import AdminRoute from './auth/AdminRoute';
 import PaginaPublica from './components/FormularioPublico';
-// em App.js ou Tabs.js
+import FormVisita from './components/FormVisita';
+import AppVisita from './components/FormVisitaApp';
+import NovaVisita from './components/NovaVisita';
+import Experts from './components/Experts';
+import Ranking from './components/Ranking';
+import FormComissao from './components/FormComissao';
+import Financiamento from './components/CalculoFinanciamento';
+import RelatorioGerente from './components/RelatorioGerente';
+import RecuperarSenha from './components/RecuperarSenha';
+import TrocarSenha from './components/TrocarSenha'
+import ControleCorretor from './components/ControleCorretor'
+
 import './assets/css/styles.css';
 import './assets/css/report.css';
 import './assets/css/map.css';
 import './assets/css/footer.css';
 import './assets/css/chat.css';
+import './assets/css/FormVisita.css';
 
 function App() {
   return (
@@ -30,12 +44,67 @@ function App() {
                 </PrivateRoute>
               }
             />
-            <Route path="/" element={
-                <PaginaPublica />
+
+            <Route>
+              <Route path="/TrocarSenha" element={<PrivateRoute><TrocarSenha /></PrivateRoute>} />
+            </Route>
+
+            <Route path="/" element={<PaginaPublica />} />
+            <Route path="/login" element={<Login />} />
+            <Route path="/RecuperarSenha" element={<RecuperarSenha />}/>
+            <Route path="/Experts" element={<Experts />} />
+            <Route path="/61Financiamento" element={<Financiamento />} />
+
+            <Route path="/verificarImovel" element={<ReporteImovel />} />
+            <Route path="/enviarVisita" element={<FormVisita />} />
+            <Route path="/Ranking" element={<PrivateRoute><Ranking /></PrivateRoute>} />
+            <Route path="/FormComissao" element={<FormComissao />} />
+
+            <Route
+              path="/AppVisita"
+              element={
+                <PrivateRoute>
+                  <AppVisita />
+                </PrivateRoute>
               }
             />
-            <Route path="/login" element={<Login />} />
-            <Route path="/verificarImovel" element={<ReporteImovel />} />
+
+            <Route
+              path="/NovaVisita"
+              element={
+                <PrivateRoute>
+                  <NovaVisita />
+                </PrivateRoute>
+              }
+            />
+
+            <Route
+              path="/register"
+              element={
+                <AdminRoute>
+                  <Register />
+                </AdminRoute>
+              }
+            />
+
+            <Route
+              path="/RelatorioGerente"
+              element={
+                <AdminRoute>
+                  <RelatorioGerente />
+                </AdminRoute>
+              }
+            />
+
+            <Route
+              path="/ControleCorretor"
+              element={
+                <AdminRoute>
+                  <ControleCorretor />
+                </AdminRoute>
+              }
+            />
+
           </Routes>
         </main>
         <Footer />

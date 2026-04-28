@@ -1,0 +1,29 @@
+# Arquivos de ambiente - Contém senhas e chaves de API
+.env
+
+# Arquivos de credenciais em qualquer pasta do projeto
+**/credenciais.json
+**/credenciaiss
+**/oauth.json
+**/~$estudo.xlsx
+**/sss.json
+**/service_account.json
+**/token.json
+
+
+# Cache e arquivos compilados do Python
+__pycache__/
+*.pyc
+# Arquivos de dados pré-computados ou muito grandes
+**/precomputed_analise1.json
+**/precomputed_analise.json
+# .gitignore
+**/__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.json
+*.csv
+.env
+venv/
+.vscode/

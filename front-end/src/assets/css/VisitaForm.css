@@ -1,0 +1,156 @@
+/* src/assets/css/VisitaForm.css */
+
+.visita-form-wrapper {
+  display: flex;
+  justify-content: center;
+  padding: 16px;
+}
+
+.visita-form {
+  width: 100%;
+  max-width: 480px;
+  background: #ffffff;
+  border-radius: 16px;
+  padding: 20px 16px 24px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+  box-sizing: border-box;
+}
+
+.visita-form h2 {
+  margin: 0 0 16px;
+  text-align: center;
+  color: #e1005b;
+  font-size: 1.4rem;
+}
+
+.vf-group {
+  margin-bottom: 14px;
+}
+
+.vf-group label {
+  display: block;
+  font-size: 0.9rem;
+  font-weight: 600;
+  margin-bottom: 4px;
+  color: #555;
+}
+
+.vf-readonly {
+  background: #ffe4f1;
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 0.94rem;
+}
+
+.visita-form input[type="text"],
+.visita-form input[type="date"],
+.visita-form input[type="number"] {
+  width: 100%;
+  border-radius: 8px;
+  border: 1px solid #ddd;
+  padding: 8px 10px;
+  font-size: 0.95rem;
+  box-sizing: border-box;
+}
+
+.visita-form input:focus {
+  outline: none;
+  border-color: #e1005b;
+  box-shadow: 0 0 0 2px rgba(225, 0, 91, 0.15);
+}
+
+.vf-toggle-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.vf-toggle {
+  flex: 1;
+  min-width: 90px;
+  padding: 8px 6px;
+  border-radius: 999px;
+  border: 1px solid #ffb6d8;
+  background: #fff;
+  color: #e1005b;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  text-align: center;
+}
+
+.vf-toggle-active {
+  background: #e1005b;
+  color: #fff;
+  border-color: #e1005b;
+}
+
+.vf-toggle-yes.vf-toggle-active {
+  background: #2ecc71;
+  border-color: #2ecc71;
+}
+
+.vf-toggle-no.vf-toggle-active {
+  background: #e74c3c;
+  border-color: #e74c3c;
+}
+
+.vf-section-title {
+  margin: 18px 0 6px;
+  font-weight: 700;
+  font-size: 0.95rem;
+  color: #333;
+}
+
+.nota-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.nota-button {
+  flex: 1;
+  max-width: 38px;
+  padding: 6px 0;
+  border-radius: 6px;
+  border: 1px solid #ffc2df;
+  background: #fff;
+  font-size: 0.75rem;
+  cursor: pointer;
+}
+
+.nota-button-active {
+  background: #e1005b;
+  border-color: #e1005b;
+  color: #fff;
+}
+
+.vf-submit {
+  width: 100%;
+  margin-top: 12px;
+  border: none;
+  border-radius: 999px;
+  padding: 10px 0;
+  background: #e1005b;
+  color: #fff;
+  font-weight: 700;
+  font-size: 1rem;
+  cursor: pointer;
+}
+
+.vf-submit:disabled {
+  opacity: 0.7;
+  cursor: default;
+}
+
+/* Responsivo */
+@media (max-width: 480px) {
+  .visita-form {
+    padding: 16px 12px 20px;
+    border-radius: 12px;
+  }
+
+  .vf-toggle {
+    flex: 1 1 45%;
+  }
+}

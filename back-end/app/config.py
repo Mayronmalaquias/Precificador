@@ -1,13 +1,18 @@
 from dotenv import load_dotenv
 import os
+import os
+
+
+from dotenv import load_dotenv
+# ...
 from urllib.parse import quote_plus
 
 load_dotenv()
 
 class Config:
     DB_USER = quote_plus(os.getenv("DB_USER", "inteligencia"))
-    DB_PASSWORD = quote_plus(os.getenv("DB_PASSWORD", "61Imoveis!"))
-    DB_HOST = os.getenv("DB_HOST", "coleta-61.ctug6oqcsj14.us-east-2.rds.amazonaws.com")
+    DB_PASSWORD = quote_plus(os.getenv("DB_PASSWORD", "61imoveis"))
+    DB_HOST = os.getenv("DB_HOST", "db-restore.ctug6oqcsj14.us-east-2.rds.amazonaws.com")
     DB_PORT = os.getenv("DB_PORT", "5432")
     DB_NAME = os.getenv("DB_NAME", "coleta_imobiliaria")
 
