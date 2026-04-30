@@ -1,10 +1,10 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import "../assets/css/RelatorioGerente.css";
 
 function RelatorioGerente() {
-  //const API_BASE = useMemo(() => "http://localhost:5000/gerente-dashboard", []);
-  //const API_VISITAS_BASE = useMemo(() => "http://localhost:5000", []);
-  //const API_IMOVEIS_BASE = useMemo(() => "http://localhost:5000", []);
+ //const API_BASE = useMemo(() => "http://localhost:5000/gerente-dashboard", []);
+ //const API_VISITAS_BASE = useMemo(() => "http://localhost:5000", []);
+ //const API_IMOVEIS_BASE = useMemo(() => "http://localhost:5000", []);
 
   const API_BASE = useMemo(() => "/api/gerente-dashboard", []);
   const API_VISITAS_BASE = useMemo(() => "/api", []);
@@ -22,9 +22,22 @@ function RelatorioGerente() {
 
   const [filtros, setFiltros] = useState({
     id_gerente: "",
+    corretor_geral: "",
     start: primeiroDiaMes,
     end: hojeStr,
     q: "",
+  });
+
+  const [filtrosVisitas, setFiltrosVisitas] = useState({
+    imovel: "",
+  });
+
+  const [filtrosImoveis, setFiltrosImoveis] = useState({
+    imovel: "",
+  });
+
+  const [filtrosClientes, setFiltrosClientes] = useState({
+    cliente: "",
   });
 
   const [loading, setLoading] = useState(false);
@@ -43,6 +56,8 @@ function RelatorioGerente() {
 
   const [itemSelecionado, setItemSelecionado] = useState(null);
   const [tipoSelecionado, setTipoSelecionado] = useState("");
+
+  const detalheRef = useRef(null);
 
   const [loadingPdfVisita, setLoadingPdfVisita] = useState(false);
   const [loadingPdfCliente, setLoadingPdfCliente] = useState(false);
@@ -66,6 +81,131 @@ function RelatorioGerente() {
     { id: "G61015", nome: "Helio Junio" },
     { id: "G61016", nome: "Paolla Gardenia" },
   ];
+
+  const normalizarTexto = (valor) => {
+    return String(valor || "")
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .trim();
+  };
+
+  const contemTexto = (texto, filtro) => {
+    if (!filtro) return true;
+    return normalizarTexto(texto).includes(normalizarTexto(filtro));
+  };
+
+  const obterNomeCorretor = (item) => {
+    if (Array.isArray(item?.corretores)) {
+      return item.corretores.join(", ");
+    }
+
+    return (
+      item?.corretor_nome ||
+      item?.nome_corretor ||
+      item?.corretor ||
+      item?.nomeCorretor ||
+      item?.Corretor ||
+      item?.NomeCorretor ||
+      item?.nome ||
+      ""
+    );
+  };
+
+  const obterTextoImovel = (item) => {
+    return [
+      item?.codigo,
+      item?.codigo_imovel,
+      item?.id_imovel,
+      item?.imovel,
+      item?.titulo,
+      item?.endereco,
+      item?.endereco_externo,
+      item?.bairro,
+      item?.tipo_imovel,
+    ]
+      .filter(Boolean)
+      .join(" - ");
+  };
+
+  const obterNomeCliente = (item) => {
+    return (
+      item?.cliente_nome ||
+      item?.nome_cliente ||
+      item?.cliente ||
+      item?.nome ||
+      item?.Nome ||
+      ""
+    );
+  };
+
+  const listaCorretoresFiltro = useMemo(() => {
+    const mapa = new Map();
+
+    (corretores || []).forEach((corretor) => {
+      const id =
+        corretor.IdCorretor ||
+        corretor.id_corretor ||
+        corretor.id ||
+        corretor.codigo ||
+        "";
+
+      const nome =
+        corretor.Nome ||
+        corretor.nome ||
+        corretor.corretor ||
+        corretor.nome_corretor ||
+        id ||
+        "";
+
+      if (nome) {
+        mapa.set(nome, {
+          id,
+          nome,
+        });
+      }
+    });
+
+    return Array.from(mapa.values()).sort((a, b) =>
+      a.nome.localeCompare(b.nome, "pt-BR")
+    );
+  }, [corretores]);
+
+  const visitasFiltradas = useMemo(() => {
+    return (visitas || []).filter((visita) => {
+      const corretor = obterNomeCorretor(visita);
+      const imovel = obterTextoImovel(visita);
+
+      return (
+        contemTexto(corretor, filtros.corretor_geral) &&
+        contemTexto(imovel, filtrosVisitas.imovel)
+      );
+    });
+  }, [visitas, filtros.corretor_geral, filtrosVisitas]);
+
+  const imoveisFiltrados = useMemo(() => {
+    return (imoveis || []).filter((imovel) => {
+      const corretor = obterNomeCorretor(imovel);
+      const textoImovel = obterTextoImovel(imovel);
+
+      return (
+        contemTexto(corretor, filtros.corretor_geral) &&
+        contemTexto(textoImovel, filtrosImoveis.imovel)
+      );
+    });
+  }, [imoveis, filtros.corretor_geral, filtrosImoveis]);
+
+  const clientesFiltrados = useMemo(() => {
+    return (clientes || []).filter((cliente) => {
+      const nomeCliente = obterNomeCliente(cliente);
+      const corretor = obterNomeCorretor(cliente);
+
+      return (
+        contemTexto(corretor, filtros.corretor_geral) &&
+        contemTexto(nomeCliente, filtrosClientes.cliente)
+      );
+    });
+  }, [clientes, filtros.corretor_geral, filtrosClientes]);
 
   useEffect(() => {
     const userDataString = localStorage.getItem("userData");
@@ -211,13 +351,22 @@ function RelatorioGerente() {
     setFiltros((prev) => ({
       ...prev,
       [campo]: valor,
+      ...(campo === "id_gerente" ? { corretor_geral: "" } : {}),
     }));
+
+    if (campo === "id_gerente") {
+      setCorretorSelecionado("");
+      setItemSelecionado(null);
+      setTipoSelecionado("");
+    }
   };
 
   const aplicarBusca = async () => {
     if (!filtros.id_gerente) return;
+
     setLoading(true);
     setErro("");
+
     try {
       await carregarListas();
     } catch (e) {
@@ -244,6 +393,7 @@ function RelatorioGerente() {
       alert("Selecione um corretor.");
       return;
     }
+
     const params = new URLSearchParams({ id_corretor: corretorSelecionado });
     window.open(`${API_BASE}/corretor/pdf?${params.toString()}`, "_blank");
   };
@@ -253,35 +403,50 @@ function RelatorioGerente() {
       alert("Selecione um corretor.");
       return;
     }
+
     const params = new URLSearchParams({ id_corretor: corretorSelecionado });
     window.open(`${API_BASE}/corretor/pdf/download?${params.toString()}`, "_blank");
   };
 
+  const rolarParaDetalhes = () => {
+  setTimeout(() => {
+    detalheRef.current?.scrollIntoView({
+      behavior: "smooth",
+      block: "start",
+    });
+  }, 100);
+};
+
   const selecionarVisita = (item) => {
     setTipoSelecionado("visita");
     setItemSelecionado(item);
+    rolarParaDetalhes();
   };
 
   const selecionarImovel = (item) => {
     setTipoSelecionado("imovel");
     setItemSelecionado(item);
+    rolarParaDetalhes();
   };
 
   const selecionarCliente = (item) => {
     setTipoSelecionado("cliente");
     setItemSelecionado(item);
+    rolarParaDetalhes();
   };
 
   async function abrirPdfVisita() {
     if (!itemSelecionado || tipoSelecionado !== "visita") return;
 
     setLoadingPdfVisita(true);
+
     try {
       const resp = await fetch(
         `${API_VISITAS_BASE}/visitas/pdf?visita_id=${encodeURIComponent(
           itemSelecionado.id_visita
         )}`
       );
+
       const data = await resp.json().catch(() => ({}));
 
       if (!resp.ok || !data.ok) {
@@ -303,10 +468,9 @@ function RelatorioGerente() {
   function baixarPdfVisita() {
     if (!itemSelecionado || tipoSelecionado !== "visita") return;
 
-    const url =
-      `${API_VISITAS_BASE}/visitas/pdf/download?visita_id=${encodeURIComponent(
-        itemSelecionado.id_visita
-      )}`;
+    const url = `${API_VISITAS_BASE}/visitas/pdf/download?visita_id=${encodeURIComponent(
+      itemSelecionado.id_visita
+    )}`;
 
     window.open(url, "_blank");
   }
@@ -315,12 +479,14 @@ function RelatorioGerente() {
     if (!itemSelecionado || tipoSelecionado !== "imovel") return;
 
     setLoadingPdfImovel(true);
+
     try {
       const resp = await fetch(
         `${API_IMOVEIS_BASE}/imoveis/pdf?imovel_id=${encodeURIComponent(
           itemSelecionado.id_imovel
         )}`
       );
+
       const data = await resp.json().catch(() => ({}));
 
       if (!resp.ok || !data.ok) {
@@ -342,10 +508,9 @@ function RelatorioGerente() {
   function baixarPdfImovel() {
     if (!itemSelecionado || tipoSelecionado !== "imovel") return;
 
-    const url =
-      `${API_IMOVEIS_BASE}/imoveis/pdf/download?imovel_id=${encodeURIComponent(
-        itemSelecionado.id_imovel
-      )}`;
+    const url = `${API_IMOVEIS_BASE}/imoveis/pdf/download?imovel_id=${encodeURIComponent(
+      itemSelecionado.id_imovel
+    )}`;
 
     window.open(url, "_blank");
   }
@@ -354,12 +519,14 @@ function RelatorioGerente() {
     if (!itemSelecionado || tipoSelecionado !== "cliente") return;
 
     setLoadingPdfCliente(true);
+
     try {
       const resp = await fetch(
         `${API_VISITAS_BASE}/clientes/pdf?id_cliente=${encodeURIComponent(
           itemSelecionado.id_cliente
         )}`
       );
+
       const data = await resp.json().catch(() => ({}));
 
       if (!resp.ok || !data.ok) {
@@ -381,10 +548,9 @@ function RelatorioGerente() {
   function baixarPdfCliente() {
     if (!itemSelecionado || tipoSelecionado !== "cliente") return;
 
-    const url =
-      `${API_VISITAS_BASE}/clientes/pdf/download?id_cliente=${encodeURIComponent(
-        itemSelecionado.id_cliente
-      )}`;
+    const url = `${API_VISITAS_BASE}/clientes/pdf/download?id_cliente=${encodeURIComponent(
+      itemSelecionado.id_cliente
+    )}`;
 
     window.open(url, "_blank");
   }
@@ -414,12 +580,14 @@ function RelatorioGerente() {
               return (
                 <div key={`${label}-${index}`} className="grafico-linha">
                   <div className="grafico-label">{label}</div>
+
                   <div className="grafico-barra-area">
                     <div
                       className="grafico-barra-fill"
                       style={{ width: largura }}
                     />
                   </div>
+
                   <div className="grafico-valor">{valor}</div>
                 </div>
               );
@@ -443,6 +611,7 @@ function RelatorioGerente() {
               <div className="ranking-nome">
                 {index + 1}º - {item.corretor}
               </div>
+
               <div className="ranking-badge">
                 {item.total} {unidade}
               </div>
@@ -457,6 +626,39 @@ function RelatorioGerente() {
     <div className="card-padrao">
       <h3 className="card-titulo">Visitas do time</h3>
 
+      <div className="filtros-lista-relatorio">
+        <div className="grupo-filtro-lista">
+          <label>Imóvel</label>
+          <input
+            type="text"
+            placeholder="Filtrar por código ou imóvel"
+            value={filtrosVisitas.imovel}
+            onChange={(e) =>
+              setFiltrosVisitas((prev) => ({
+                ...prev,
+                imovel: e.target.value,
+              }))
+            }
+          />
+        </div>
+
+        <button
+          type="button"
+          className="botao-limpar-lista"
+          onClick={() =>
+            setFiltrosVisitas({
+              imovel: "",
+            })
+          }
+        >
+          Limpar filtro da aba
+        </button>
+      </div>
+
+      <p className="contador-filtros-lista">
+        Exibindo {visitasFiltradas.length} de {(visitas || []).length} visitas
+      </p>
+
       <div className="tabela-wrapper">
         <table className="tabela-relatorio">
           <thead>
@@ -469,13 +671,14 @@ function RelatorioGerente() {
               <th>Ações</th>
             </tr>
           </thead>
+
           <tbody>
-            {!visitas.length ? (
+            {!visitasFiltradas.length ? (
               <tr>
                 <td colSpan="6">Nenhuma visita encontrada.</td>
               </tr>
             ) : (
-              visitas.map((item) => (
+              visitasFiltradas.map((item) => (
                 <tr
                   key={item.id_visita}
                   className={
@@ -488,8 +691,13 @@ function RelatorioGerente() {
                   <td>{item.data_visita || "-"}</td>
                   <td>{item.corretor || "-"}</td>
                   <td>{item.id_imovel || "-"}</td>
-                  <td>{Array.isArray(item.clientes) ? item.clientes.join(", ") : "-"}</td>
+                  <td>
+                    {Array.isArray(item.clientes)
+                      ? item.clientes.join(", ")
+                      : "-"}
+                  </td>
                   <td>{item.proposta || "-"}</td>
+
                   <td>
                     <div className="acoes-tabela">
                       <button
@@ -498,6 +706,7 @@ function RelatorioGerente() {
                       >
                         Ver
                       </button>
+
                       <button
                         className="botao-secundario"
                         onClick={() => window.open(item.pdf_download_url, "_blank")}
@@ -519,6 +728,39 @@ function RelatorioGerente() {
     <div className="card-padrao">
       <h3 className="card-titulo">Imóveis do time</h3>
 
+      <div className="filtros-lista-relatorio">
+        <div className="grupo-filtro-lista">
+          <label>Imóvel</label>
+          <input
+            type="text"
+            placeholder="Filtrar por código, endereço ou imóvel"
+            value={filtrosImoveis.imovel}
+            onChange={(e) =>
+              setFiltrosImoveis((prev) => ({
+                ...prev,
+                imovel: e.target.value,
+              }))
+            }
+          />
+        </div>
+
+        <button
+          type="button"
+          className="botao-limpar-lista"
+          onClick={() =>
+            setFiltrosImoveis({
+              imovel: "",
+            })
+          }
+        >
+          Limpar filtro da aba
+        </button>
+      </div>
+
+      <p className="contador-filtros-lista">
+        Exibindo {imoveisFiltrados.length} de {(imoveis || []).length} imóveis
+      </p>
+
       <div className="tabela-wrapper">
         <table className="tabela-relatorio">
           <thead>
@@ -531,13 +773,14 @@ function RelatorioGerente() {
               <th>Ações</th>
             </tr>
           </thead>
+
           <tbody>
-            {!imoveis.length ? (
+            {!imoveisFiltrados.length ? (
               <tr>
                 <td colSpan="6">Nenhum imóvel encontrado.</td>
               </tr>
             ) : (
-              imoveis.map((item) => (
+              imoveisFiltrados.map((item) => (
                 <tr
                   key={item.id_imovel}
                   className={
@@ -551,7 +794,12 @@ function RelatorioGerente() {
                   <td>{item.endereco_externo || "-"}</td>
                   <td>{item.qtd_visitas ?? 0}</td>
                   <td>{item.ultima_data || "-"}</td>
-                  <td>{Array.isArray(item.corretores) ? item.corretores.join(", ") : "-"}</td>
+                  <td>
+                    {Array.isArray(item.corretores)
+                      ? item.corretores.join(", ")
+                      : "-"}
+                  </td>
+
                   <td>
                     <div className="acoes-tabela">
                       <button
@@ -560,12 +808,15 @@ function RelatorioGerente() {
                       >
                         Ver
                       </button>
+
                       <button
                         className="botao-secundario"
                         onClick={() =>
                           window.open(
                             item.pdf_download_url ||
-                              `${API_IMOVEIS_BASE}/imoveis/pdf/download?imovel_id=${encodeURIComponent(item.id_imovel)}`,
+                              `${API_IMOVEIS_BASE}/imoveis/pdf/download?imovel_id=${encodeURIComponent(
+                                item.id_imovel
+                              )}`,
                             "_blank"
                           )
                         }
@@ -587,6 +838,39 @@ function RelatorioGerente() {
     <div className="card-padrao">
       <h3 className="card-titulo">Clientes do time</h3>
 
+      <div className="filtros-lista-relatorio">
+        <div className="grupo-filtro-lista">
+          <label>Cliente</label>
+          <input
+            type="text"
+            placeholder="Filtrar por cliente"
+            value={filtrosClientes.cliente}
+            onChange={(e) =>
+              setFiltrosClientes((prev) => ({
+                ...prev,
+                cliente: e.target.value,
+              }))
+            }
+          />
+        </div>
+
+        <button
+          type="button"
+          className="botao-limpar-lista"
+          onClick={() =>
+            setFiltrosClientes({
+              cliente: "",
+            })
+          }
+        >
+          Limpar filtro da aba
+        </button>
+      </div>
+
+      <p className="contador-filtros-lista">
+        Exibindo {clientesFiltrados.length} de {(clientes || []).length} clientes
+      </p>
+
       <div className="tabela-wrapper">
         <table className="tabela-relatorio">
           <thead>
@@ -600,13 +884,14 @@ function RelatorioGerente() {
               <th>Ações</th>
             </tr>
           </thead>
+
           <tbody>
-            {!clientes.length ? (
+            {!clientesFiltrados.length ? (
               <tr>
                 <td colSpan="7">Nenhum cliente encontrado.</td>
               </tr>
             ) : (
-              clientes.map((item) => (
+              clientesFiltrados.map((item) => (
                 <tr
                   key={item.id_cliente}
                   className={
@@ -619,9 +904,14 @@ function RelatorioGerente() {
                   <td>{item.nome || "-"}</td>
                   <td>{item.telefone || "-"}</td>
                   <td>{item.email || "-"}</td>
-                  <td>{Array.isArray(item.corretores) ? item.corretores.join(", ") : "-"}</td>
+                  <td>
+                    {Array.isArray(item.corretores)
+                      ? item.corretores.join(", ")
+                      : "-"}
+                  </td>
                   <td>{item.qtd_visitas ?? 0}</td>
                   <td>{item.ultima_visita || "-"}</td>
+
                   <td>
                     <div className="acoes-tabela">
                       <button
@@ -630,6 +920,7 @@ function RelatorioGerente() {
                       >
                         Ver
                       </button>
+
                       <button
                         className="botao-secundario"
                         onClick={() => window.open(item.pdf_download_url, "_blank")}
@@ -671,6 +962,7 @@ function RelatorioGerente() {
             grafVisitas.labels || [],
             grafVisitas.valores || []
           )}
+
           {renderBarrasSimples(
             "Clientes por dia",
             grafClientes.labels || [],
@@ -691,13 +983,18 @@ function RelatorioGerente() {
 
         <div className="tabs-internas">
           <button
-            className={`tab-interna ${tipoRankingAtivo === "visitas" ? "ativa" : ""}`}
+            className={`tab-interna ${
+              tipoRankingAtivo === "visitas" ? "ativa" : ""
+            }`}
             onClick={() => setTipoRankingAtivo("visitas")}
           >
             Ranking por visitas
           </button>
+
           <button
-            className={`tab-interna ${tipoRankingAtivo === "clientes" ? "ativa" : ""}`}
+            className={`tab-interna ${
+              tipoRankingAtivo === "clientes" ? "ativa" : ""
+            }`}
             onClick={() => setTipoRankingAtivo("clientes")}
           >
             Ranking por clientes
@@ -730,6 +1027,7 @@ function RelatorioGerente() {
       <div className="grid-pdfs">
         <div className="card-padrao">
           <h3 className="card-titulo">Relatório consolidado do gerente</h3>
+
           <p className="card-texto">
             Gera o relatório consolidado com resumo, ranking e visitas do período.
           </p>
@@ -738,6 +1036,7 @@ function RelatorioGerente() {
             <button className="botao-principal" onClick={abrirPdfGerente}>
               Ver PDF
             </button>
+
             <button className="botao-secundario" onClick={baixarPdfGerente}>
               Baixar PDF
             </button>
@@ -746,6 +1045,7 @@ function RelatorioGerente() {
 
         <div className="card-padrao">
           <h3 className="card-titulo">Relatório individual do corretor</h3>
+
           <p className="card-texto">
             Selecione um corretor para gerar o relatório individual.
           </p>
@@ -756,9 +1056,13 @@ function RelatorioGerente() {
             onChange={(e) => setCorretorSelecionado(e.target.value)}
           >
             <option value="">Selecione um corretor</option>
+
             {corretores.map((corretor) => (
-              <option key={corretor.IdCorretor} value={corretor.IdCorretor}>
-                {corretor.Nome}
+              <option
+                key={corretor.IdCorretor || corretor.id_corretor || corretor.Nome}
+                value={corretor.IdCorretor || corretor.id_corretor || ""}
+              >
+                {corretor.Nome || corretor.nome || corretor.corretor}
               </option>
             ))}
           </select>
@@ -767,6 +1071,7 @@ function RelatorioGerente() {
             <button className="botao-principal" onClick={abrirPdfCorretor}>
               Ver PDF
             </button>
+
             <button className="botao-secundario" onClick={baixarPdfCorretor}>
               Baixar PDF
             </button>
@@ -791,7 +1096,7 @@ function RelatorioGerente() {
       return (
         <section className="card-padrao">
           <div className="card-header-flex">
-            <h3 className="card-titulo">Detalhes da ultima visita</h3>
+            <h3 className="card-titulo">Detalhes da última visita</h3>
             <span className="badge-info">{itemSelecionado.id_visita}</span>
           </div>
 
@@ -814,7 +1119,8 @@ function RelatorioGerente() {
             <div className="detalhe-box detalhe-box-full">
               <span className="detalhe-label">Clientes</span>
               <strong>
-                {Array.isArray(itemSelecionado.clientes) && itemSelecionado.clientes.length > 0
+                {Array.isArray(itemSelecionado.clientes) &&
+                itemSelecionado.clientes.length > 0
                   ? itemSelecionado.clientes.join(", ")
                   : "-"}
               </strong>
@@ -829,6 +1135,7 @@ function RelatorioGerente() {
             >
               {loadingPdfVisita ? "Gerando PDF..." : "Abrir PDF da visita"}
             </button>
+
             <button className="botao-secundario" onClick={baixarPdfVisita}>
               Baixar PDF
             </button>
@@ -869,7 +1176,8 @@ function RelatorioGerente() {
             <div className="detalhe-box detalhe-box-full">
               <span className="detalhe-label">Clientes vinculados</span>
               <strong>
-                {Array.isArray(itemSelecionado.clientes) && itemSelecionado.clientes.length > 0
+                {Array.isArray(itemSelecionado.clientes) &&
+                itemSelecionado.clientes.length > 0
                   ? itemSelecionado.clientes.join(", ")
                   : "-"}
               </strong>
@@ -878,7 +1186,8 @@ function RelatorioGerente() {
             <div className="detalhe-box detalhe-box-full">
               <span className="detalhe-label">Corretores vinculados</span>
               <strong>
-                {Array.isArray(itemSelecionado.corretores) && itemSelecionado.corretores.length > 0
+                {Array.isArray(itemSelecionado.corretores) &&
+                itemSelecionado.corretores.length > 0
                   ? itemSelecionado.corretores.join(", ")
                   : "-"}
               </strong>
@@ -893,6 +1202,7 @@ function RelatorioGerente() {
             >
               {loadingPdfImovel ? "Gerando PDF..." : "Abrir PDF do imóvel"}
             </button>
+
             <button className="botao-secundario" onClick={baixarPdfImovel}>
               Baixar PDF
             </button>
@@ -937,7 +1247,8 @@ function RelatorioGerente() {
           <div className="detalhe-box detalhe-box-full">
             <span className="detalhe-label">Corretores vinculados</span>
             <strong>
-              {Array.isArray(itemSelecionado.corretores) && itemSelecionado.corretores.length > 0
+              {Array.isArray(itemSelecionado.corretores) &&
+              itemSelecionado.corretores.length > 0
                 ? itemSelecionado.corretores.join(", ")
                 : "-"}
             </strong>
@@ -952,6 +1263,7 @@ function RelatorioGerente() {
           >
             {loadingPdfCliente ? "Gerando PDF..." : "Abrir PDF do cliente"}
           </button>
+
           <button className="botao-secundario" onClick={baixarPdfCliente}>
             Baixar PDF
           </button>
@@ -964,16 +1276,22 @@ function RelatorioGerente() {
     switch (opcaoAtiva) {
       case "visaoGeral":
         return renderVisaoGeral();
+
       case "ranking":
         return renderConteudoRanking();
+
       case "visitas":
         return renderTabelaVisitas();
+
       case "imoveis":
         return renderTabelaImoveis();
+
       case "clientes":
         return renderTabelaClientes();
+
       case "pdfs":
         return renderPdfs();
+
       default:
         return (
           <div className="card-padrao">
@@ -983,7 +1301,12 @@ function RelatorioGerente() {
         );
     }
   };
-  const podeVerFiltroGerente = idGerenteLogado === "12345678" || idGerenteLogado === "G61001" || idGerenteLogado ==="ADM001";
+
+  const podeVerFiltroGerente =
+    idGerenteLogado === "12345678" ||
+    idGerenteLogado === "G61001" ||
+    idGerenteLogado === "ADM001";
+
   return (
     <div className="pagina-relatorio">
       <div className="titulo-pagina">Relatório Gerente</div>
@@ -996,12 +1319,14 @@ function RelatorioGerente() {
         {podeVerFiltroGerente && (
           <div className="filtro-item">
             <label>Gerente</label>
+
             <select
               className="campo-filtro"
               value={filtros.id_gerente}
               onChange={(e) => handleFiltroChange("id_gerente", e.target.value)}
             >
               <option value="">Selecione</option>
+
               {gerentesFixos.map((g) => (
                 <option key={g.id} value={g.id}>
                   {g.nome}
@@ -1012,7 +1337,26 @@ function RelatorioGerente() {
         )}
 
         <div className="filtro-item">
+          <label>Corretor</label>
+
+          <select
+            className="campo-filtro"
+            value={filtros.corretor_geral}
+            onChange={(e) => handleFiltroChange("corretor_geral", e.target.value)}
+          >
+            <option value="">Todos os corretores</option>
+
+            {listaCorretoresFiltro.map((corretor) => (
+              <option key={corretor.id || corretor.nome} value={corretor.nome}>
+                {corretor.nome}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div className="filtro-item">
           <label>Data inicial</label>
+
           <input
             type="date"
             className="campo-filtro"
@@ -1023,6 +1367,7 @@ function RelatorioGerente() {
 
         <div className="filtro-item">
           <label>Data final</label>
+
           <input
             type="date"
             className="campo-filtro"
@@ -1033,6 +1378,7 @@ function RelatorioGerente() {
 
         <div className="filtro-item filtro-acoes">
           <label>&nbsp;</label>
+
           <button className="botao-principal" onClick={aplicarBusca}>
             Aplicar
           </button>
@@ -1059,7 +1405,8 @@ function RelatorioGerente() {
 
           <div className="conteudo-area">
             {renderizarConteudo()}
-            <div style={{ marginTop: "18px" }}>{renderDetalheSelecionado()}</div>
+
+            <div ref={detalheRef} className="detalhe-scroll-anchor" style={{ marginTop: "18px" }}>{renderDetalheSelecionado()}</div>
           </div>
         </div>
       )}

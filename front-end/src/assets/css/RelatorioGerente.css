@@ -502,6 +502,85 @@
   line-height: 1.5;
 }
 
+/* ================================
+   FILTROS INTERNOS DAS TABELAS
+   Visitas / Imóveis / Clientes
+================================ */
+
+.filtros-lista-relatorio {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  align-items: flex-end;
+  margin: 16px 0 10px;
+  padding: 14px;
+  background: #f8fafc;
+  border: 1px solid #e6ebf2;
+  border-radius: 14px;
+}
+
+.grupo-filtro-lista {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 220px;
+  flex: 1;
+}
+
+.grupo-filtro-lista label {
+  font-size: 13px;
+  font-weight: 600;
+  color: #475569;
+}
+
+.grupo-filtro-lista input {
+  width: 100%;
+  height: 42px;
+  border: 1px solid #d5dce6;
+  border-radius: 10px;
+  padding: 0 12px;
+  background: #ffffff;
+  color: #0f172a;
+  font-size: 14px;
+  outline: none;
+  box-sizing: border-box;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.grupo-filtro-lista input:focus {
+  border-color: #0f172a;
+  box-shadow: 0 0 0 4px rgba(15, 23, 42, 0.08);
+}
+
+.grupo-filtro-lista input::placeholder {
+  color: #94a3b8;
+}
+
+.botao-limpar-lista {
+  height: 42px;
+  border: none;
+  border-radius: 10px;
+  padding: 0 16px;
+  background: #eef2f7;
+  color: #0f172a;
+  border: 1px solid #dbe3ee;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 14px;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.botao-limpar-lista:hover {
+  background: #e2e8f0;
+}
+
+.contador-filtros-lista {
+  margin: 4px 0 14px;
+  font-size: 13px;
+  color: #64748b;
+}
+
 @media (max-width: 1200px) {
   .grid-cards-quantidades {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -618,6 +697,19 @@
   .tabela-relatorio {
     min-width: 680px;
   }
+
+  .filtros-lista-relatorio {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .grupo-filtro-lista {
+    min-width: 100%;
+  }
+
+  .botao-limpar-lista {
+    width: 100%;
+  }
 }
 
 @media (max-width: 600px) {
@@ -661,4 +753,9 @@
   .campo-filtro {
     height: 42px;
   }
+}
+
+.detalhe-scroll-anchor {
+  margin-top: 18px;
+  scroll-margin-top: 24px;
 }
