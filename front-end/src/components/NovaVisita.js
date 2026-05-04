@@ -214,13 +214,13 @@ export default function VisitaForm() {
     e.preventDefault();
     // 🚨 validação obrigatória de imóvel
     if (!isImovelNaoCaptado) {
-      if (!form.imovelId || !form.imovelId.trim()) {
-        alert("Informe o código do imóvel.");
-        return;
-      }
+    //  if (!form.imovelId || !form.imovelId.trim()) {
+    //    alert("Informe o código do imóvel.");
+    //    return;
+    //  }
 
       if (!enderecoQuery || !enderecoQuery.trim()) {
-        alert("Selecione um endereço de imóvel.");
+        alert("Digit um endereço de imovel!");
         return;
       }
     } else {
