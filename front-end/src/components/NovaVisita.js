@@ -623,7 +623,6 @@ export default function VisitaForm() {
                 type="file"
                 className="vf-upload-input"
                 accept="image/*,application/pdf"
-                capture="environment"
                 required
                 onChange={e => setPdfFile(e.target.files?.[0] || null)}
               />
