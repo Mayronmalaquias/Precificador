@@ -718,6 +718,31 @@ class RankingService:
     # =========================================================
     # Público: rankings
     # =========================================================
+    def get_ranking(
+        self,
+        kind: str,
+        start: Optional[str],
+        end: Optional[str],
+        limit: int = 100,
+        include_pending: bool = False
+    ) -> List[Dict[str, Any]]:
+        kind = (kind or "").lower().strip()
+
+        if kind in {"vgv_geral", "vgc_geral"}:
+            vendas = self.load_vendas(start, end)
+            if kind == "vgv_geral":
+                rank_df = self._calc_vgv_geral_algoritmo(vendas)
+            else:
+                rank_df = self._calc_vgc_geral_algoritmo(vendas)
+        elif kind == "captacao":
+            rank_df = self._calc_captacao_rank(start, end)
+        elif kind == "visitas":
+            rank_df = self._calc_visitas_rank(start, end)
+        else:
+            raise ValueError("kind invalido")
+
+        return self._rank_list(rank_df, "total", "Id_Corretor", "Nome_Corretor", limit)
+
     def get_all_rankings(
         self,
         start: Optional[str],

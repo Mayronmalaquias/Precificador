@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import '../assets/css/login.css';
+import { useToast } from '../context/ToastContext';
+import { api } from '../services/api';
 
 function Cadastro() {
   const [formData, setFormData] = useState({
@@ -9,171 +10,151 @@ function Cadastro() {
     team: '',
     permissao: '',
     id_usuarios: '',
-
-    // novos
     nome: '',
     email: '',
     telefone: '',
     instagram: '',
-    descricao: ''
+    descricao: '',
   });
+  const [loading, setLoading] = useState(false);
 
   const navigate = useNavigate();
+  const toast = useToast();
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    setFormData(prev => ({
-      ...prev,
-      [name]: value
-    }));
+    setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    // validações básicas front
     if (formData.password.length < 8) {
-      alert('A senha deve conter no mínimo 8 caracteres');
+      toast('A senha deve ter no mínimo 8 caracteres.', 'error');
       return;
     }
 
-    // (opcional) validação simples de email
     if (formData.email && !/^\S+@\S+\.\S+$/.test(formData.email)) {
-      alert('E-mail inválido');
+      toast('E-mail inválido.', 'error');
       return;
     }
 
-    // (opcional) limpar telefone pra só números
     const payload = {
       ...formData,
-      telefone: formData.telefone ? formData.telefone.replace(/\D/g, '') : ''
+      telefone: formData.telefone ? formData.telefone.replace(/\D/g, '') : '',
     };
 
+    setLoading(true);
     try {
-      const response = await fetch('/api/auth/cadastro', {
-      //const response = await fetch('http://localhost:5000/auth/cadastro', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
-
-      const data = await response.json();
-
-      if (response.ok) {
-        alert('Usuário cadastrado com sucesso!');
-        navigate('/login');
-      } else {
-        alert(data.error || 'Erro ao cadastrar usuário');
-      }
+      await api.post('/auth/cadastro', payload);
+      toast('Usuário cadastrado com sucesso!', 'success');
+      navigate('/login');
     } catch (error) {
-      console.error('Erro na requisição:', error);
-      alert('Erro de conexão com o servidor.');
+      toast(error.message || 'Erro de conexão com o servidor.', 'error');
+    } finally {
+      setLoading(false);
     }
   };
 
   return (
-    <div className="divLogin">
-      <h2>Cadastro de Usuário</h2>
+    <div className="ds-auth-wrapper">
+      <div className="ds-auth-card ds-auth-card--wide">
+        <span className="ds-auth-accent" />
+        <h2 className="ds-auth-title">Cadastro de Usuário</h2>
+        <p className="ds-auth-subtitle">Preencha os dados para criar uma nova conta</p>
 
-      <form onSubmit={handleSubmit}>
-        <input
-          name="username"
-          type="text"
-          placeholder="Username"
-          value={formData.username}
-          onChange={handleChange}
-          required
-        />
+        <form className="ds-form" onSubmit={handleSubmit}>
+          <div className="ds-form-row">
+            <div className="ds-form-group">
+              <label className="ds-label" htmlFor="reg-username">Username *</label>
+              <input id="reg-username" className="ds-input" name="username"
+                type="text" placeholder="Username" value={formData.username}
+                onChange={handleChange} required disabled={loading} />
+            </div>
 
-        <input
-          name="nome"
-          type="text"
-          placeholder="Nome"
-          value={formData.nome}
-          onChange={handleChange}
-        />
+            <div className="ds-form-group">
+              <label className="ds-label" htmlFor="reg-nome">Nome</label>
+              <input id="reg-nome" className="ds-input" name="nome"
+                type="text" placeholder="Nome completo" value={formData.nome}
+                onChange={handleChange} disabled={loading} />
+            </div>
+          </div>
 
-        <input
-          name="email"
-          type="email"
-          placeholder="E-mail"
-          value={formData.email}
-          onChange={handleChange}
-        />
+          <div className="ds-form-row">
+            <div className="ds-form-group">
+              <label className="ds-label" htmlFor="reg-email">E-mail</label>
+              <input id="reg-email" className="ds-input" name="email"
+                type="email" placeholder="email@exemplo.com" value={formData.email}
+                onChange={handleChange} disabled={loading} />
+            </div>
 
-        <input
-          name="telefone"
-          type="text"
-          placeholder="Telefone (DDD + número)"
-          value={formData.telefone}
-          onChange={handleChange}
-        />
+            <div className="ds-form-group">
+              <label className="ds-label" htmlFor="reg-tel">Telefone</label>
+              <input id="reg-tel" className="ds-input" name="telefone"
+                type="text" placeholder="(61) 9 9999-9999" value={formData.telefone}
+                onChange={handleChange} disabled={loading} />
+            </div>
+          </div>
 
-        <input
-          name="instagram"
-          type="text"
-          placeholder="Instagram (ex: @usuario)"
-          value={formData.instagram}
-          onChange={handleChange}
-        />
+          <div className="ds-form-row">
+            <div className="ds-form-group">
+              <label className="ds-label" htmlFor="reg-id">ID do Usuário *</label>
+              <input id="reg-id" className="ds-input" name="id_usuarios"
+                type="text" placeholder="ID" value={formData.id_usuarios}
+                onChange={handleChange} required disabled={loading} />
+            </div>
 
-        <input
-          name="id_usuarios"
-          type="text"
-          placeholder="ID do Usuário"
-          value={formData.id_usuarios}
-          onChange={handleChange}
-          required
-        />
+            <div className="ds-form-group">
+              <label className="ds-label" htmlFor="reg-team">Equipe *</label>
+              <input id="reg-team" className="ds-input" name="team"
+                type="text" placeholder="Nome da equipe" value={formData.team}
+                onChange={handleChange} required disabled={loading} />
+            </div>
+          </div>
 
-        <input
-          name="team"
-          type="text"
-          placeholder="Equipe (Team)"
-          value={formData.team}
-          onChange={handleChange}
-          required
-        />
+          <div className="ds-form-row">
+            <div className="ds-form-group">
+              <label className="ds-label" htmlFor="reg-insta">Instagram</label>
+              <input id="reg-insta" className="ds-input" name="instagram"
+                type="text" placeholder="@usuario" value={formData.instagram}
+                onChange={handleChange} disabled={loading} />
+            </div>
 
-        <select
-          name="permissao"
-          value={formData.permissao}
-          onChange={handleChange}
-          required
-        >
-          <option value="">Selecione a Permissão</option>
-          <option value="user">Usuário</option>
-          <option value="admin">Administrador</option>
-        </select>
+            <div className="ds-form-group">
+              <label className="ds-label" htmlFor="reg-perm">Permissão *</label>
+              <select id="reg-perm" className="ds-input ds-select" name="permissao"
+                value={formData.permissao} onChange={handleChange} required disabled={loading}>
+                <option value="">Selecione...</option>
+                <option value="user">Usuário</option>
+                <option value="admin">Administrador</option>
+              </select>
+            </div>
+          </div>
 
-        <textarea
-          name="descricao"
-          placeholder="Descrição (opcional)"
-          value={formData.descricao}
-          onChange={handleChange}
-          rows={3}
-          style={{ resize: 'vertical' }}
-        />
+          <div className="ds-form-group">
+            <label className="ds-label" htmlFor="reg-desc">Descrição</label>
+            <textarea id="reg-desc" className="ds-input ds-textarea" name="descricao"
+              placeholder="Descrição (opcional)" value={formData.descricao}
+              onChange={handleChange} rows={3} disabled={loading} />
+          </div>
 
-        <input
-          name="password"
-          type="password"
-          placeholder="Senha (mín. 8 caracteres)"
-          value={formData.password}
-          onChange={handleChange}
-          required
-        />
+          <div className="ds-form-group">
+            <label className="ds-label" htmlFor="reg-pass">Senha *</label>
+            <input id="reg-pass" className="ds-input" name="password"
+              type="password" placeholder="Mínimo 8 caracteres" value={formData.password}
+              onChange={handleChange} required disabled={loading} autoComplete="new-password" />
+          </div>
 
-        <button type="submit">Cadastrar</button>
-
-        <button
-          type="button"
-          onClick={() => navigate('/login')}
-          style={{ backgroundColor: '#666', marginTop: '10px' }}
-        >
-          Voltar para Login
-        </button>
-      </form>
+          <div style={{ display: 'flex', gap: '12px', marginTop: '4px' }}>
+            <button type="submit" className="ds-btn ds-btn-primary" style={{ flex: 1 }} disabled={loading}>
+              {loading ? <><span className="ds-spinner" /> Cadastrando...</> : 'Cadastrar'}
+            </button>
+            <button type="button" className="ds-btn ds-btn-secondary" onClick={() => navigate('/login')} disabled={loading}>
+              Voltar
+            </button>
+          </div>
+        </form>
+      </div>
     </div>
   );
 }

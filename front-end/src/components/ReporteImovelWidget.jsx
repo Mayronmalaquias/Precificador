@@ -1,9 +1,10 @@
 // LinkReporteImovel.jsx
 import React, { useMemo, useState } from "react";
+import { BASE } from "../services/api";
 import "../assets/css/ReporteImovelWidget.css"; // importe o CSS abaixo
 
 export default function LinkReporteImovel({
-  baseUrl = "http://52.67.252.192/reporteImovel",
+  baseUrl = `${BASE}/reporteImovel`,
   paramName = "codigo",
   autoFocus = true,
 }) {

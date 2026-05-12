@@ -1,64 +1,34 @@
-import React, { useMemo, useState } from "react";
-import "../assets/css/TrocarSenha.css";
-
-const API_BASE = "/api";
-//const API_BASE = "http://localhost:5000/"
+import React, { useState } from "react";
+import { BASE } from '../services/api';
 
 export default function TrocarSenha() {
-  const userLogado = useMemo(() => {
-    try {
-      return JSON.parse(localStorage.getItem("user")) || null;
-    } catch {
-      return null;
-    }
-  }, []);
-  const userDataString = localStorage.getItem("userData");
-  const userData = JSON.parse(userDataString);
-  const username = userData.username
-  //const username = userLogado?.username || "";
+  const userData = (() => {
+    try { return JSON.parse(localStorage.getItem("userData") || "{}"); } catch { return {}; }
+  })();
+  const username = userData.username || "";
 
   const [senhaAtual, setSenhaAtual] = useState("");
   const [novaSenha, setNovaSenha] = useState("");
   const [confirmarSenha, setConfirmarSenha] = useState("");
-
   const [loading, setLoading] = useState(false);
   const [mensagem, setMensagem] = useState("");
   const [erro, setErro] = useState("");
 
   async function handleSubmit(e) {
     e.preventDefault();
-
     setMensagem("");
     setErro("");
 
-    if (!username) {
-      setErro("Usuário não identificado. Faça login novamente.");
-      return;
-    }
-
-    if (!senhaAtual || !novaSenha || !confirmarSenha) {
-      setErro("Preencha todos os campos.");
-      return;
-    }
-
-    if (novaSenha !== confirmarSenha) {
-      setErro("A nova senha e a confirmação não coincidem.");
-      return;
-    }
+    if (!username) { setErro("Usuário não identificado. Faça login novamente."); return; }
+    if (!senhaAtual || !novaSenha || !confirmarSenha) { setErro("Preencha todos os campos."); return; }
+    if (novaSenha !== confirmarSenha) { setErro("A nova senha e a confirmação não coincidem."); return; }
 
     setLoading(true);
-
     try {
-      const response = await fetch(`${API_BASE}/auth/switch-password`, {
+      const response = await fetch(`${BASE}/auth/switch-password`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          username: username,
-          old_pass: senhaAtual,
-          new_pass: novaSenha,
-        }),
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username, old_pass: senhaAtual, new_pass: novaSenha }),
       });
 
       const data = await response.json();
@@ -72,7 +42,7 @@ export default function TrocarSenha() {
       setSenhaAtual("");
       setNovaSenha("");
       setConfirmarSenha("");
-    } catch (err) {
+    } catch {
       setErro("Não foi possível conectar ao servidor.");
     } finally {
       setLoading(false);
@@ -80,59 +50,44 @@ export default function TrocarSenha() {
   }
 
   return (
-    <div className="trocar-senha-page">
-      <div className="trocar-senha-card">
-        <h2>Troca de Senha</h2>
-        <p className="subtitulo">
-          Altere sua senha de acesso com segurança.
-        </p>
+    <div className="ds-auth-wrapper">
+      <div className="ds-auth-card">
+        <span className="ds-auth-accent" />
+        <h2 className="ds-auth-title">Trocar Senha</h2>
+        <p className="ds-auth-subtitle">Altere sua senha de acesso com segurança.</p>
 
-        <form onSubmit={handleSubmit} className="trocar-senha-form">
-          <div className="form-group">
-            <label>Usuário</label>
-            <input
-              type="text"
-              value={username}
-              disabled
-              placeholder="Usuário logado"
-            />
+        <form className="ds-form" onSubmit={handleSubmit}>
+          <div className="ds-form-group">
+            <label className="ds-label">Usuário</label>
+            <input className="ds-input" type="text" value={username} disabled />
           </div>
 
-          <div className="form-group">
-            <label>Senha atual</label>
-            <input
-              type="password"
-              value={senhaAtual}
-              onChange={(e) => setSenhaAtual(e.target.value)}
-              placeholder="Digite sua senha atual"
-            />
+          <div className="ds-form-group">
+            <label className="ds-label" htmlFor="senha-atual">Senha atual</label>
+            <input id="senha-atual" className="ds-input" type="password"
+              value={senhaAtual} onChange={(e) => setSenhaAtual(e.target.value)}
+              placeholder="Digite sua senha atual" disabled={loading} />
           </div>
 
-          <div className="form-group">
-            <label>Nova senha</label>
-            <input
-              type="password"
-              value={novaSenha}
-              onChange={(e) => setNovaSenha(e.target.value)}
-              placeholder="Digite a nova senha"
-            />
+          <div className="ds-form-group">
+            <label className="ds-label" htmlFor="nova-senha">Nova senha</label>
+            <input id="nova-senha" className="ds-input" type="password"
+              value={novaSenha} onChange={(e) => setNovaSenha(e.target.value)}
+              placeholder="Digite a nova senha" disabled={loading} />
           </div>
 
-          <div className="form-group">
-            <label>Confirmar nova senha</label>
-            <input
-              type="password"
-              value={confirmarSenha}
-              onChange={(e) => setConfirmarSenha(e.target.value)}
-              placeholder="Confirme a nova senha"
-            />
+          <div className="ds-form-group">
+            <label className="ds-label" htmlFor="confirmar-senha">Confirmar nova senha</label>
+            <input id="confirmar-senha" className="ds-input" type="password"
+              value={confirmarSenha} onChange={(e) => setConfirmarSenha(e.target.value)}
+              placeholder="Confirme a nova senha" disabled={loading} />
           </div>
 
-          {erro && <div className="alert erro">{erro}</div>}
-          {mensagem && <div className="alert sucesso">{mensagem}</div>}
+          {erro     && <div className="ds-alert ds-alert-error">{erro}</div>}
+          {mensagem && <div className="ds-alert ds-alert-success">{mensagem}</div>}
 
-          <button type="submit" disabled={loading}>
-            {loading ? "Alterando..." : "Alterar senha"}
+          <button type="submit" className="ds-btn ds-btn-primary ds-btn-full" disabled={loading}>
+            {loading ? <><span className="ds-spinner" /> Alterando...</> : 'Alterar senha'}
           </button>
         </form>
       </div>

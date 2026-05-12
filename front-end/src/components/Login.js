@@ -1,107 +1,99 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import '../assets/css/login.css';
+import { useAuth } from '../context/AuthContext';
+import { useToast } from '../context/ToastContext';
+import { api } from '../services/api';
 
 function Login() {
   const [username, setUsername] = useState('');
   const [senha, setSenha] = useState('');
   const [loading, setLoading] = useState(false);
+  const [erro, setErro] = useState('');
 
   const navigate = useNavigate();
+  const { login } = useAuth();
+  const toast = useToast();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-
     if (loading) return;
-
+    setErro('');
     setLoading(true);
 
     try {
-      const response = await fetch('/api/auth/login', {
-      //const response = await fetch('http://localhost:5000/auth/login', {  
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          username: username,
-          password: senha
-        })
-      });
+      const data = await api.post('/auth/login', { username, password: senha });
 
-      const data = await response.json();
-
-      if (response.ok && data.login === true) {
-        localStorage.setItem('auth', 'true');
-
-        if (data.user) {
-          localStorage.setItem('userData', JSON.stringify(data.user));
-        }
-
+      if (data.login === true) {
+        login(data.user || {});
         navigate('/');
       } else {
-        alert(data.error || 'Credenciais inválidas');
+        setErro(data.error || 'Credenciais inválidas.');
       }
     } catch (error) {
-      console.error('Erro ao fazer login:', error);
-      alert('Erro de conexão com o servidor.');
+      setErro(error.message || 'Erro de conexão com o servidor.');
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="divLogin">
-      <h2>Login</h2>
+    <div className="ds-auth-wrapper">
+      <div className="ds-auth-card">
+        <span className="ds-auth-accent" />
+        <h2 className="ds-auth-title">Entrar</h2>
+        <p className="ds-auth-subtitle">Acesse sua conta para continuar</p>
 
-      <form onSubmit={handleSubmit}>
-        <label>
-          Username:
-          <input
-            type="text"
-            value={username}
-            onChange={(e) => setUsername(e.target.value)}
-            required
-            placeholder="Digite seu nome de usuário"
-            disabled={loading}
-          />
-        </label>
+        <form className="ds-form" onSubmit={handleSubmit}>
+          <div className="ds-form-group">
+            <label className="ds-label" htmlFor="username">Usuário</label>
+            <input
+              id="username"
+              className="ds-input"
+              type="text"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              placeholder="Digite seu usuário"
+              disabled={loading}
+              required
+              autoComplete="username"
+            />
+          </div>
 
-        <br />
+          <div className="ds-form-group">
+            <label className="ds-label" htmlFor="senha">Senha</label>
+            <input
+              id="senha"
+              className="ds-input"
+              type="password"
+              value={senha}
+              onChange={(e) => setSenha(e.target.value)}
+              placeholder="Digite sua senha"
+              disabled={loading}
+              required
+              autoComplete="current-password"
+            />
+          </div>
 
-        <label>
-          Senha:
-          <input
-            type="password"
-            value={senha}
-            onChange={(e) => setSenha(e.target.value)}
-            required
-            placeholder="Digite sua senha"
-            disabled={loading}
-          />
-        </label>
-
-        <div style={{ marginTop: '8px' }}>
-          <span
-            style={{
-              cursor: 'pointer',
-              color: '#007bff',
-              fontSize: '14px'
-            }}
+          <button
+            type="button"
+            className="ds-link"
+            style={{ alignSelf: 'flex-start' }}
             onClick={() => navigate('/RecuperarSenha')}
           >
             Esqueceu a senha?
-          </span>
-        </div>
+          </button>
 
-        <br />
+          {erro && <div className="ds-alert ds-alert-error">{erro}</div>}
 
-        <button type="submit" disabled={loading}>
-          {loading ? 'Entrando...' : 'Entrar'}
-        </button>
-
-        {loading && <p className="login-loading">Carregando...</p>}
-      </form>
+          <button
+            type="submit"
+            className="ds-btn ds-btn-primary ds-btn-full"
+            disabled={loading}
+          >
+            {loading ? <><span className="ds-spinner" /> Entrando...</> : 'Entrar'}
+          </button>
+        </form>
+      </div>
     </div>
   );
 }

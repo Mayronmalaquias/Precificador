@@ -2,14 +2,15 @@
 import React, { useState, useEffect } from "react";
 import "../assets/css/VisitaForm.css";
 
-const API_BASE = "/api";
-//const API_BASE = "http://localhost:5000"
+import { BASE } from '../services/api';
+import { useToast } from '../context/ToastContext';
 
 // ─── Ícones simples (evita dependência extra) ─────────────────────────────────
 const Icon = ({ ch, label }) => (
   <span role="img" aria-label={label} className="vf-section-icon">{ch}</span>
 );
 export default function VisitaForm() {
+  const toast = useToast();
   const [successMessage, setSuccessMessage] = useState("");
 
   const [corretorInfo, setCorretorInfo] = useState({
@@ -144,7 +145,7 @@ export default function VisitaForm() {
   async function carregarClientesDoCorretor(idCorretor) {
     setLoadingClientes(true);
     try {
-      const r = await fetch(`${API_BASE}/clientes?id_corretor=${encodeURIComponent(idCorretor)}`);
+      const r = await fetch(`${BASE}/clientes?id_corretor=${encodeURIComponent(idCorretor)}`);
       const d = await r.json().catch(() => ({}));
       if (r.ok && d.ok) setClientesDoCorretor(Array.isArray(d.lista) ? d.lista : []);
     } catch (e) { console.error(e); }
@@ -162,7 +163,7 @@ export default function VisitaForm() {
     if (isImovelNaoCaptado || q.length < 3) { setImoveisSugestoes([]); return; }
     setLoadingImoveis(true);
     try {
-      const r = await fetch(`${API_BASE}/imoveis_busca?endereco=${encodeURIComponent(q)}`);
+      const r = await fetch(`${BASE}/imoveis_busca?endereco=${encodeURIComponent(q)}`);
       const d = await r.json().catch(() => ({}));
       if (r.ok && d.ok) setImoveisSugestoes(Array.isArray(d.lista) ? d.lista : []);
     } catch (e) { console.error(e); }
@@ -175,7 +176,7 @@ export default function VisitaForm() {
     fd.append("idCorretor", idCorretor || "");
     fd.append("imovelId", imovelId || "");
     fd.append("dataVisita", dataVisita || "");
-    const r = await fetch(`${API_BASE}/upload_pdf`, { method: "POST", body: fd });
+    const r = await fetch(`${BASE}/upload_pdf`, { method: "POST", body: fd });
     const d = await r.json().catch(() => ({}));
     if (!r.ok || !d.ok) throw new Error(d.error || "Erro ao enviar arquivo");
     return { drivePath: d.drivePath || "", driveLink: d.driveLink || "" };
@@ -188,7 +189,7 @@ export default function VisitaForm() {
     if (!nome) throw new Error("Informe o nome do cliente.");
     if (clienteStatus === "EXISTENTE" && clienteSelecionado?.id_cliente) return clienteSelecionado.id_cliente;
 
-    const r = await fetch(`${API_BASE}/clientes`, {
+    const r = await fetch(`${BASE}/clientes`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ nome, telefone, email, id_corretor: corretorInfo.id, corretor_email: corretorInfo.email || "" }),
@@ -220,18 +221,18 @@ export default function VisitaForm() {
     //  }
 
       if (!enderecoQuery || !enderecoQuery.trim()) {
-        alert("Digit um endereço de imovel!");
+        toast("Digit um endereço de imovel!", "error");
         return;
       }
     } else {
       if (!form.enderecoExterno || !form.enderecoExterno.trim()) {
-        alert("Informe o endereço do imóvel.");
+        toast("Informe o endereço do imóvel.", "error");
         return;
       }
     }
-    if (!corretorInfo.id) { alert("Erro: faça login novamente."); return; }
-    if (!pdfFile)         { alert("Selecione uma foto ou PDF antes de enviar."); return; }
-    if (!form.clienteNome.trim()) { alert("Informe o nome do cliente."); return; }
+    if (!corretorInfo.id) { toast("Erro: faça login novamente.", "error"); return; }
+    if (!pdfFile)         { toast("Selecione uma foto ou PDF antes de enviar.", "error"); return; }
+    if (!form.clienteNome.trim()) { toast("Informe o nome do cliente.", "error"); return; }
     setLoading(true);
     try {
       const idCliente = await criarClienteSeNecessario();
@@ -255,7 +256,7 @@ export default function VisitaForm() {
           preco: Number(form.preco), notaGeral: Number(form.notaGeral),
         },
       };
-      const r = await fetch(`${API_BASE}/visitas`, {
+      const r = await fetch(`${BASE}/visitas`, {
         method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload),
       });
       const d = await r.json().catch(() => ({}));
@@ -268,7 +269,7 @@ export default function VisitaForm() {
       setClienteSelecionado(null); setClienteStatus("NOVO"); setClientesSugestoes([]); setShowClientesSugestoes(false);
     } catch (err) {
       console.error(err);
-      alert(err.message || "Erro inesperado. Tente novamente.");
+      toast(err.message || "Erro inesperado. Tente novamente.", "error");
     } finally {
       setLoading(false);
     }

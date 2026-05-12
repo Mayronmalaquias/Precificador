@@ -1,0 +1,411 @@
+/* ============================================================
+   Design System — Imobiliária 61
+   Importe este arquivo UMA VEZ no App.js (já está importado).
+   Use as classes ds-* e variáveis --ds-* em qualquer componente.
+   ============================================================ */
+
+:root {
+  /* Marca */
+  --ds-primary:        #e1005b;
+  --ds-primary-dark:   #c9004e;
+  --ds-primary-soft:   rgba(225, 0, 91, 0.12);
+
+  /* Superfícies */
+  --ds-bg:             #f4f6fb;
+  --ds-surface:        #ffffff;
+  --ds-surface-alt:    #f8fafc;
+  --ds-border:         #e5e7eb;
+
+  /* Texto */
+  --ds-text:           #111827;
+  --ds-text-secondary: #6b7280;
+  --ds-text-muted:     #9ca3af;
+
+  /* Feedback */
+  --ds-success:        #16a34a;
+  --ds-success-bg:     #dcfce7;
+  --ds-success-border: #86efac;
+
+  --ds-error:          #dc2626;
+  --ds-error-bg:       #fef2f2;
+  --ds-error-border:   #fca5a5;
+
+  --ds-warning:        #d97706;
+  --ds-warning-bg:     #fffbeb;
+  --ds-warning-border: #fcd34d;
+
+  --ds-info:           #2563eb;
+  --ds-info-bg:        #eff6ff;
+  --ds-info-border:    #93c5fd;
+
+  /* Tipografia */
+  --ds-font: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+
+  /* Border radius */
+  --ds-radius-sm:   8px;
+  --ds-radius-md:   12px;
+  --ds-radius-lg:   16px;
+  --ds-radius-xl:   20px;
+  --ds-radius-full: 9999px;
+
+  /* Sombras */
+  --ds-shadow-sm: 0 1px 3px rgba(0,0,0,0.08);
+  --ds-shadow-md: 0 4px 16px rgba(0,0,0,0.08);
+  --ds-shadow-lg: 0 10px 30px rgba(0,0,0,0.10);
+  --ds-shadow-xl: 0 20px 48px rgba(0,0,0,0.14);
+
+  /* Transições */
+  --ds-transition: 0.2s ease;
+  --ds-transition-fast: 0.12s ease;
+}
+
+/* ──────────────────────────────────────────
+   Layout
+   ────────────────────────────────────────── */
+.ds-page {
+  min-height: calc(100vh - 72px);
+  background: transparent;
+  padding: 32px 16px 48px;
+  font-family: var(--ds-font);
+  color: var(--ds-text);
+}
+
+.ds-container {
+  width: 100%;
+  max-width: 900px;
+  margin: 0 auto;
+}
+
+.ds-container-lg {
+  width: 100%;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+/* ──────────────────────────────────────────
+   Auth pages (Login, Register, etc.)
+   ────────────────────────────────────────── */
+.ds-auth-wrapper {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: calc(100vh - 72px);
+  padding: 24px 16px;
+  background: transparent;
+  font-family: var(--ds-font);
+}
+
+.ds-auth-card {
+  width: 100%;
+  max-width: 440px;
+  background: var(--ds-surface);
+  border-radius: var(--ds-radius-xl);
+  padding: 36px 32px 32px;
+  box-shadow: var(--ds-shadow-lg);
+}
+
+.ds-auth-card--wide {
+  max-width: 580px;
+}
+
+.ds-auth-title {
+  margin: 0 0 6px;
+  font-size: 1.6rem;
+  font-weight: 700;
+  color: var(--ds-text);
+  letter-spacing: -0.01em;
+}
+
+.ds-auth-subtitle {
+  margin: 0 0 24px;
+  font-size: 0.9rem;
+  color: var(--ds-text-secondary);
+}
+
+.ds-auth-accent {
+  display: block;
+  width: 40px;
+  height: 4px;
+  background: var(--ds-primary);
+  border-radius: var(--ds-radius-full);
+  margin-bottom: 20px;
+}
+
+/* ──────────────────────────────────────────
+   Card
+   ────────────────────────────────────────── */
+.ds-card {
+  background: var(--ds-surface);
+  border-radius: var(--ds-radius-lg);
+  padding: 24px;
+  box-shadow: var(--ds-shadow-md);
+  border: 1px solid var(--ds-border);
+}
+
+/* ──────────────────────────────────────────
+   Formulários
+   ────────────────────────────────────────── */
+.ds-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.ds-form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+@media (max-width: 540px) {
+  .ds-form-row { grid-template-columns: 1fr; }
+}
+
+.ds-form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.ds-label {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--ds-text);
+}
+
+.ds-input,
+.ds-select,
+.ds-textarea {
+  width: 100%;
+  padding: 0 14px;
+  height: 44px;
+  border: 1.5px solid var(--ds-border);
+  border-radius: var(--ds-radius-sm);
+  font-size: 0.95rem;
+  font-family: var(--ds-font);
+  color: var(--ds-text);
+  background: var(--ds-surface);
+  outline: none;
+  transition: border-color var(--ds-transition-fast), box-shadow var(--ds-transition-fast);
+  box-sizing: border-box;
+}
+
+.ds-textarea {
+  height: auto;
+  padding: 12px 14px;
+  resize: vertical;
+  min-height: 80px;
+}
+
+.ds-input:focus,
+.ds-select:focus,
+.ds-textarea:focus {
+  border-color: var(--ds-primary);
+  box-shadow: 0 0 0 3px var(--ds-primary-soft);
+}
+
+.ds-input:disabled,
+.ds-select:disabled {
+  background: #f3f4f6;
+  cursor: not-allowed;
+  opacity: 0.75;
+}
+
+/* ──────────────────────────────────────────
+   Botões
+   ────────────────────────────────────────── */
+.ds-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 44px;
+  padding: 0 22px;
+  border-radius: var(--ds-radius-md);
+  font-size: 0.95rem;
+  font-weight: 600;
+  font-family: var(--ds-font);
+  border: none;
+  cursor: pointer;
+  transition: background var(--ds-transition-fast), transform var(--ds-transition-fast),
+              box-shadow var(--ds-transition-fast), opacity var(--ds-transition-fast);
+  white-space: nowrap;
+  text-decoration: none;
+}
+
+.ds-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none !important;
+  box-shadow: none !important;
+}
+
+.ds-btn-primary {
+  background: var(--ds-primary);
+  color: #ffffff;
+}
+
+.ds-btn-primary:hover:not(:disabled) {
+  background: var(--ds-primary-dark);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 14px rgba(225, 0, 91, 0.32);
+}
+
+.ds-btn-secondary {
+  background: var(--ds-surface);
+  color: var(--ds-text);
+  border: 1.5px solid var(--ds-border);
+}
+
+.ds-btn-secondary:hover:not(:disabled) {
+  background: var(--ds-surface-alt);
+  transform: translateY(-1px);
+}
+
+.ds-btn-ghost {
+  background: transparent;
+  color: var(--ds-text-secondary);
+  border: none;
+}
+
+.ds-btn-ghost:hover:not(:disabled) {
+  background: var(--ds-surface-alt);
+  color: var(--ds-text);
+}
+
+.ds-btn-full { width: 100%; }
+
+.ds-btn-sm {
+  height: 36px;
+  padding: 0 16px;
+  font-size: 0.875rem;
+}
+
+/* ──────────────────────────────────────────
+   Alertas inline
+   ────────────────────────────────────────── */
+.ds-alert {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 16px;
+  border-radius: var(--ds-radius-md);
+  font-size: 0.875rem;
+  font-weight: 500;
+  line-height: 1.5;
+}
+
+.ds-alert-error {
+  background: var(--ds-error-bg);
+  color: var(--ds-error);
+  border: 1px solid var(--ds-error-border);
+}
+
+.ds-alert-success {
+  background: var(--ds-success-bg);
+  color: var(--ds-success);
+  border: 1px solid var(--ds-success-border);
+}
+
+.ds-alert-warning {
+  background: var(--ds-warning-bg);
+  color: var(--ds-warning);
+  border: 1px solid var(--ds-warning-border);
+}
+
+.ds-alert-info {
+  background: var(--ds-info-bg);
+  color: var(--ds-info);
+  border: 1px solid var(--ds-info-border);
+}
+
+/* ──────────────────────────────────────────
+   Spinner / loading
+   ────────────────────────────────────────── */
+.ds-spinner {
+  display: inline-block;
+  width: 20px;
+  height: 20px;
+  border: 2.5px solid rgba(225, 0, 91, 0.2);
+  border-top-color: var(--ds-primary);
+  border-radius: 50%;
+  animation: ds-spin 0.65s linear infinite;
+  flex-shrink: 0;
+}
+
+.ds-spinner-lg {
+  width: 36px;
+  height: 36px;
+  border-width: 3.5px;
+}
+
+@keyframes ds-spin {
+  to { transform: rotate(360deg); }
+}
+
+.ds-loading-center {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  padding: 48px 24px;
+  color: var(--ds-text-secondary);
+  font-size: 0.9rem;
+}
+
+/* ──────────────────────────────────────────
+   Link de texto
+   ────────────────────────────────────────── */
+.ds-link {
+  color: var(--ds-primary);
+  cursor: pointer;
+  font-size: 0.875rem;
+  font-weight: 500;
+  background: none;
+  border: none;
+  padding: 0;
+  text-decoration: none;
+  transition: color var(--ds-transition-fast);
+}
+
+.ds-link:hover {
+  color: var(--ds-primary-dark);
+  text-decoration: underline;
+}
+
+/* ──────────────────────────────────────────
+   Divisor
+   ────────────────────────────────────────── */
+.ds-divider {
+  height: 1px;
+  background: var(--ds-border);
+  margin: 20px 0;
+  border: none;
+}
+
+/* ──────────────────────────────────────────
+   Títulos de seção
+   ────────────────────────────────────────── */
+.ds-page-title {
+  font-size: 1.75rem;
+  font-weight: 700;
+  color: var(--ds-text);
+  margin: 0 0 4px;
+  letter-spacing: -0.015em;
+}
+
+.ds-page-subtitle {
+  font-size: 0.95rem;
+  color: var(--ds-text-secondary);
+  margin: 0 0 28px;
+}
+
+@media (max-width: 480px) {
+  .ds-auth-card {
+    padding: 28px 20px 24px;
+  }
+  .ds-page {
+    padding: 20px 12px 40px;
+  }
+}

@@ -229,7 +229,7 @@ function ExpertView({ slug, dataset }) {
                     <a
                       className="btn btn-soft-primary"
                       target="_blank"
-                      rel="noopener"
+                      rel="noreferrer"
                       href={waLink}
                     >
                       Falar no WhatsApp
@@ -244,7 +244,7 @@ function ExpertView({ slug, dataset }) {
                     <a
                       className="btn btn-soft"
                       target="_blank"
-                      rel="noopener"
+                      rel="noreferrer"
                       href={expert.contacts.instagram}
                     >
                       Instagram
@@ -264,7 +264,7 @@ function ExpertView({ slug, dataset }) {
           {ensureArray(expert.properties).length > 0 ? (
             ensureArray(expert.properties).map((p, i) => (
               <div className="col-12 col-md-6 col-lg-4 mt-3" key={i}>
-                <a className="property-card" href={p.url} target="_blank" rel="noopener">
+                <a className="property-card" href={p.url} target="_blank" rel="noreferrer">
                   <div className="property-thumb">
                     <img src={p.thumb} alt={p.title} />
                   </div>

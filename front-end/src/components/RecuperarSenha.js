@@ -1,13 +1,11 @@
 import React, { useState } from "react";
-import "../assets/css/RecuperarSenha.css";
+import { BASE } from '../services/api';
 
-const API_BASE = "/api/auth";
-//const API_BASE ="http://localhost:5000/auth"
+const API_BASE = `${BASE}/auth`;
 
 export default function RecuperarSenha() {
   const [idCorretor, setIdCorretor] = useState("");
   const [novaSenha, setNovaSenha] = useState("");
-
   const [mensagem, setMensagem] = useState("");
   const [erro, setErro] = useState("");
   const [loading, setLoading] = useState(false);
@@ -23,17 +21,11 @@ export default function RecuperarSenha() {
     }
 
     setLoading(true);
-
     try {
       const response = await fetch(`${API_BASE}/recuperar-senha`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          id_corretor: idCorretor,
-          newpass: novaSenha
-        })
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id_corretor: idCorretor, newpass: novaSenha }),
       });
 
       const data = await response.json();
@@ -46,7 +38,7 @@ export default function RecuperarSenha() {
       setMensagem(data.ok || data.message || "Senha alterada com sucesso.");
       setIdCorretor("");
       setNovaSenha("");
-    } catch (err) {
+    } catch {
       setErro("Não foi possível conectar ao servidor.");
     } finally {
       setLoading(false);
@@ -54,39 +46,32 @@ export default function RecuperarSenha() {
   }
 
   return (
-    <div className="recuperar-senha-page">
-      <div className="recuperar-senha-card">
-        <h2>Recuperar Senha</h2>
-        <p className="subtitulo">
-          Informe o ID do corretor e a nova senha para redefinir o acesso.
-        </p>
+    <div className="ds-auth-wrapper">
+      <div className="ds-auth-card">
+        <span className="ds-auth-accent" />
+        <h2 className="ds-auth-title">Recuperar Senha</h2>
+        <p className="ds-auth-subtitle">Informe o ID do corretor e a nova senha para redefinir o acesso.</p>
 
-        <form onSubmit={handleRecuperarSenha} className="bloco-form">
-          <div className="form-group">
-            <label>ID do corretor</label>
-            <input
-              type="text"
-              value={idCorretor}
-              onChange={(e) => setIdCorretor(e.target.value)}
-              placeholder="Digite o ID do corretor"
-            />
+        <form className="ds-form" onSubmit={handleRecuperarSenha}>
+          <div className="ds-form-group">
+            <label className="ds-label" htmlFor="id-corretor">ID do Corretor</label>
+            <input id="id-corretor" className="ds-input" type="text"
+              value={idCorretor} onChange={(e) => setIdCorretor(e.target.value)}
+              placeholder="Digite o ID do corretor" disabled={loading} />
           </div>
 
-          <div className="form-group">
-            <label>Nova senha</label>
-            <input
-              type="password"
-              value={novaSenha}
-              onChange={(e) => setNovaSenha(e.target.value)}
-              placeholder="Digite a nova senha"
-            />
+          <div className="ds-form-group">
+            <label className="ds-label" htmlFor="nova-senha-rec">Nova Senha</label>
+            <input id="nova-senha-rec" className="ds-input" type="password"
+              value={novaSenha} onChange={(e) => setNovaSenha(e.target.value)}
+              placeholder="Digite a nova senha" disabled={loading} />
           </div>
 
-          {erro && <div className="alert erro">{erro}</div>}
-          {mensagem && <div className="alert sucesso">{mensagem}</div>}
+          {erro     && <div className="ds-alert ds-alert-error">{erro}</div>}
+          {mensagem && <div className="ds-alert ds-alert-success">{mensagem}</div>}
 
-          <button type="submit" disabled={loading}>
-            {loading ? "Alterando..." : "Redefinir senha"}
+          <button type="submit" className="ds-btn ds-btn-primary ds-btn-full" disabled={loading}>
+            {loading ? <><span className="ds-spinner" /> Redefinindo...</> : 'Redefinir senha'}
           </button>
         </form>
       </div>

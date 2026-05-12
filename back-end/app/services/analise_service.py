@@ -6,7 +6,7 @@ from app.models.imovel import Imovel, ImovelAluguel, ImovelVenda
 from sqlalchemy.orm import sessionmaker
 from app.models.imovel import Imovel
 from app import engine, cache
-from sqlalchemy import text
+from sqlalchemy import bindparam, text
 from datetime import datetime, timedelta, date
 
 # =========================
@@ -89,11 +89,226 @@ def get_data_cache_token():
     @cache.memoize(timeout=30)
     def _token_inner():
         with engine.connect() as conn:
-            result = conn.execute(text("SELECT MAX(data_coleta) FROM imoveis")).scalar()
+            result = conn.execute(text(f"SELECT MAX(gerado_em) FROM {ESTUDO_METRICAS_TABLE}")).scalar()
             return (result or datetime(1970,1,1)).isoformat()
     return _token_inner()
 
 input_file = "./dados/dados_map.csv"
+
+ESTUDO_METRICAS_TABLE = os.getenv("ESTUDO_METRICAS_TABLE", "analytics.estudo_metricas")
+
+
+def _norm_upper(value):
+    return str(value or "").strip().upper()
+
+
+def _to_float(value):
+    if value in (None, ""):
+        return 0.0
+    try:
+        return float(value)
+    except Exception:
+        try:
+            return float(str(value).replace(".", "").replace(",", "."))
+        except Exception:
+            return 0.0
+
+
+def _to_int(value, default=0):
+    try:
+        return int(float(str(value).strip()))
+    except Exception:
+        return default
+
+
+def _bairros_para_metricas(bairro):
+    bairro_norm = _norm_upper(bairro)
+    if bairro_norm in {"AGUAS CLARAS", "ÁGUAS CLARAS"}:
+        return ["NORTE", "SUL"]
+    return [bairro_norm]
+
+
+def _tipo_para_metricas(tipo_imovel):
+    tipo_norm = _norm_upper(tipo_imovel)
+    if tipo_norm == "APARTAMENTO":
+        return "APARTAMENTO"
+    return tipo_norm
+
+
+def _vaga_cat(vagas):
+    return "SEM VAGA" if _to_int(vagas, 1) == 0 else "COM VAGA"
+
+
+def _cluster_nome(nr_cluster):
+    cluster = _to_int(nr_cluster, 0)
+    if cluster <= 0:
+        return ""
+    if cluster in {1, 2, 3}:
+        return "01 - Original"
+    if cluster in {4, 5, 6}:
+        return "02 - Semi-Reformado"
+    if cluster in {7, 8, 9}:
+        return "03 - Reformado"
+    return ""
+
+
+def _metragem_fx(metragem, tipo_imovel=""):
+    metragem_num = _to_float(metragem)
+    if metragem_num <= 0:
+        return ""
+    if metragem_num < 75:
+        return "<75"
+    if metragem_num < 90:
+        return "75-90"
+    if metragem_num < 130:
+        return "90-130"
+    if metragem_num < 160:
+        return "130-160"
+    if metragem_num < 200:
+        return "160-200"
+    if _tipo_para_metricas(tipo_imovel) == "APARTAMENTO":
+        return ">200"
+    if metragem_num < 400:
+        return "200-400"
+    if metragem_num < 600:
+        return "400-600"
+    if metragem_num < 800:
+        return "600-800"
+    if metragem_num < 1000:
+        return "800-1000"
+    return ">1000"
+
+
+def _metricas_attempts(quartos, nr_cluster, metragem, tipo_imovel):
+    cluster = _cluster_nome(nr_cluster)
+    quartos_num = _to_int(quartos, 0)
+    metragem_faixa = _metragem_fx(metragem, tipo_imovel)
+
+    attempts = []
+    if cluster:
+        attempts.append({
+            "segmento": "CLUSTER_VAGA",
+            "cluster_nome": cluster,
+            "quartos": -1,
+            "metragem_fx": "",
+        })
+    if quartos_num > 0:
+        attempts.append({
+            "segmento": "QUARTOS_VAGA",
+            "cluster_nome": "",
+            "quartos": quartos_num,
+            "metragem_fx": "",
+        })
+    if metragem_faixa:
+        attempts.append({
+            "segmento": "METRAGEM_VAGA",
+            "cluster_nome": "",
+            "quartos": -1,
+            "metragem_fx": metragem_faixa,
+        })
+    attempts.append({
+        "segmento": "GERAL_VAGA",
+        "cluster_nome": "",
+        "quartos": -1,
+        "metragem_fx": "",
+    })
+
+    deduped = []
+    seen = set()
+    for attempt in attempts:
+        key = tuple(attempt.items())
+        if key not in seen:
+            seen.add(key)
+            deduped.append(attempt)
+    return deduped
+
+
+def _fetch_estudo_metricas_row(tipo_imovel, bairro, oferta, vagas, attempt):
+    query = text(f"""
+        SELECT *
+        FROM {ESTUDO_METRICAS_TABLE}
+        WHERE UPPER(TRIM(tipo)) = :tipo
+          AND UPPER(TRIM(oferta)) = :oferta
+          AND UPPER(TRIM(bairro)) IN :bairros
+          AND UPPER(TRIM(segmento)) = :segmento
+          AND UPPER(TRIM(vaga_cat)) = :vaga_cat
+          AND UPPER(TRIM(COALESCE(cluster_nome, ''))) = :cluster_nome
+          AND UPPER(TRIM(COALESCE(metragem_fx, ''))) = :metragem_fx
+          AND quartos = :quartos
+        ORDER BY gerado_em DESC NULLS LAST,
+                 mes_alvo DESC NULLS LAST,
+                 mes_ref DESC NULLS LAST,
+                 amostra DESC NULLS LAST
+        LIMIT 1
+    """).bindparams(bindparam("bairros", expanding=True))
+
+    params = {
+        "tipo": _tipo_para_metricas(tipo_imovel),
+        "oferta": _norm_upper(oferta),
+        "bairros": _bairros_para_metricas(bairro),
+        "segmento": attempt["segmento"],
+        "vaga_cat": _vaga_cat(vagas),
+        "cluster_nome": attempt["cluster_nome"],
+        "metragem_fx": attempt["metragem_fx"],
+        "quartos": attempt["quartos"],
+    }
+
+    with engine.connect() as conn:
+        return conn.execute(query, params).mappings().first()
+
+
+def _build_metricas_response(row, oferta, metragem):
+    m2_medio = _to_float(row.get("m2_medio"))
+    preco_mediana = _to_float(row.get("preco_mediana"))
+    area_mediana = _to_float(row.get("area_mediana"))
+    amostra = _to_int(row.get("amostra"), 0)
+    metragem_num = _to_float(metragem)
+    valor_nominal = m2_medio * metragem_num if metragem_num > 0 else preco_mediana
+
+    base = {
+        "bairro": row.get("bairro"),
+        "tipo": row.get("tipo"),
+        "oferta": row.get("oferta"),
+        "segmento": row.get("segmento"),
+        "vagaCat": row.get("vaga_cat"),
+        "clusterNome": row.get("cluster_nome"),
+        "quartos": row.get("quartos"),
+        "metragemFx": row.get("metragem_fx"),
+        "mesAlvo": row.get("mes_alvo"),
+        "mesRef": row.get("mes_ref"),
+        "amostra": amostra,
+        "m2Mediana": _to_float(row.get("m2_mediana")),
+        "precoMediana": preco_mediana,
+        "areaMediana": area_mediana,
+        "geradoEm": str(row.get("gerado_em") or ""),
+    }
+
+    if _norm_upper(oferta) == "VENDA":
+        return {
+            **base,
+            "valorM2Venda": m2_medio,
+            "valorVendaNominal": valor_nominal,
+            "metragemMediaVenda": area_mediana,
+            "coeficienteVariacaoVenda": 0,
+            "tamanhoAmostraVenda": amostra,
+        }
+
+    return {
+        **base,
+        "valorM2Aluguel": m2_medio,
+        "valorAluguelNominal": valor_nominal,
+        "metragemMediaAluguel": area_mediana,
+        "coeficienteVariacaoAluguel": 0,
+        "tamanhoAmostraAluguel": amostra,
+    }
+
+
+def consultar_estudo_metricas(tipo_imovel, bairro, quartos, nr_cluster, oferta, vagas=None, metragem=None):
+    for attempt in _metricas_attempts(quartos, nr_cluster, metragem, tipo_imovel):
+        row = _fetch_estudo_metricas_row(tipo_imovel, bairro, oferta, vagas, attempt)
+        if row:
+            return _build_metricas_response(row, oferta, metragem)
+    return None
 
 def remover_outliers_iqr(df, coluna):
     Q1 = df[coluna].quantile(0.25)
@@ -362,39 +577,11 @@ def clusterizar_dados2(df, valor_coluna, oferta_tipo, cluster, n_clusters=9):
 def carregar_dados_do_banco():
     Session = sessionmaker(bind=engine)
     session = Session()
-    hoje = date.today()
-    uma_semana_atras = hoje - timedelta(days=150)
-    imoveis = session.query(Imovel).all()
-    dados = [{
-        "id":i.id,
-        "codigo": i.codigo,
-        "anunciante": i.anunciante,
-        "oferta": i.oferta,
-        "tipo": i.tipo,
-        "area_util": float(i.area_util)if i.area_util is not None else 0.0,
-        "bairro": i.bairro,
-        "cidade": i.cidade,
-        "preco": float(i.preco)if i.preco is not None else 0.0,
-        "valor_m2": float(i.valor_m2)if i.valor_m2 is not None else 0.0,
-        "quartos": float(i.quartos)if i.quartos is not None else 0.0,
-        "vagas": float(i.vagas)if i.vagas is not None else 0.0,
-        "latitude": float(i.latitude) if i.latitude is not None else 0.0,
-        "longitude": float(i.longitude)if i.longitude is not None else 0.0,
-        "data_coleta":i.data_coleta
-    } for i in imoveis]
-    session.close()
-    return pd.DataFrame(dados)
-
-@cache.cached(timeout=600)
-def carregar_dados_df():
-    Session = sessionmaker(bind=engine)
-    session = Session()
-    hoje = date.today()
-    uma_semana_atras = hoje - timedelta(days=360)
-    imoveis = session.query(Imovel).filter(Imovel.data_coleta >= uma_semana_atras).all()
+    imoveis = session.query(Imovel).filter(Imovel.oferta.in_(["Venda", "Aluguel"])).all()
     dados = [{
         "id": i.id,
         "codigo": i.codigo,
+        "link": i.link,
         "anunciante": i.anunciante,
         "oferta": i.oferta,
         "tipo": i.tipo,
@@ -406,8 +593,41 @@ def carregar_dados_df():
         "quartos": float(i.quartos) if i.quartos is not None else 0.0,
         "vagas": float(i.vagas) if i.vagas is not None else 0.0,
         "latitude": float(i.latitude) if i.latitude is not None else 0.0,
-        "longitude": float(i.longitude)if i.longitude is not None else 0.0,
-        "data_coleta":i.data_coleta
+        "longitude": float(i.longitude) if i.longitude is not None else 0.0,
+        "quadra": i.quadra or "",
+        "data_coleta": i.data_coleta,
+    } for i in imoveis]
+    session.close()
+    return pd.DataFrame(dados)
+
+@cache.cached(timeout=600)
+def carregar_dados_df():
+    Session = sessionmaker(bind=engine)
+    session = Session()
+    hoje = date.today()
+    uma_semana_atras = hoje - timedelta(days=360)
+    imoveis = session.query(Imovel).filter(
+        Imovel.data_coleta >= uma_semana_atras,
+        Imovel.oferta.in_(["Venda", "Aluguel"])
+    ).all()
+    dados = [{
+        "id": i.id,
+        "codigo": i.codigo,
+        "link": i.link,
+        "anunciante": i.anunciante,
+        "oferta": i.oferta,
+        "tipo": i.tipo,
+        "area_util": float(i.area_util) if i.area_util is not None else 0.0,
+        "bairro": i.bairro,
+        "cidade": i.cidade,
+        "preco": float(i.preco) if i.preco is not None else 0.0,
+        "valor_m2": float(i.valor_m2) if i.valor_m2 is not None else 0.0,
+        "quartos": float(i.quartos) if i.quartos is not None else 0.0,
+        "vagas": float(i.vagas) if i.vagas is not None else 0.0,
+        "latitude": float(i.latitude) if i.latitude is not None else 0.0,
+        "longitude": float(i.longitude) if i.longitude is not None else 0.0,
+        "quadra": i.quadra or "",
+        "data_coleta": i.data_coleta,
     } for i in imoveis]
     session.close()
     return pd.DataFrame(dados)

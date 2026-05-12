@@ -726,7 +726,7 @@ def registrar_visita(payload: Dict[str, Any]) -> str:
 # ---------------------------------------------------------------------------
 # Consulta: visitas do corretor
 # ---------------------------------------------------------------------------
-def buscar_visitas_do_corretor(id_corretor: str, q: str = "", limit: int = 30) -> List[Dict[str, Any]]:
+def _buscar_visitas_do_corretor_resumo(id_corretor: str, q: str = "", limit: int = 30) -> List[Dict[str, Any]]:
     """Retorna visitas do corretor com nome do cliente, data e imóvel."""
     id_corretor = (id_corretor or "").strip()
     if not id_corretor:
@@ -783,6 +783,161 @@ def buscar_visitas_do_corretor(id_corretor: str, q: str = "", limit: int = 30) -
             "cliente": cliente_nome,
             "dataVisita": data_visita,
             "imovelId": id_imovel,
+            "label": label,
+            "row": 2 + idx,
+        })
+
+    itens.sort(key=lambda it: (_parse_ddmmyyyy_safe(it["dataVisita"]), int(it["row"])), reverse=True)
+    return itens[:max(1, int(limit or 30))]
+
+
+def buscar_visitas_do_corretor(id_corretor: str, q: str = "", limit: int = 30) -> List[Dict[str, Any]]:
+    """Retorna visitas do corretor com clientes, parceiros e detalhes."""
+    id_corretor = (id_corretor or "").strip()
+    if not id_corretor:
+        return []
+
+    qn = _norm_key(q)
+    data = _batch_get_sheet_rows([
+        "Fato_Visitas!A1:R",
+        "Fato_Cliente_Visita!A1:D",
+        "Dim_Cliente_Visita!A1:F",
+        "Fato_Avaliacao!A1:N",
+        "Dim_Parceiro_Visita!A1:D",
+        "Fato_Parceiro_Visita!A1:D",
+    ])
+
+    cliente_map: Dict[str, Dict[str, str]] = {
+        _safe_str(r.get("Id_Cliente")): {
+            "id_cliente": _safe_str(r.get("Id_Cliente")),
+            "nome": _pick_from_row(r, "Nome_Cliente", "Nome"),
+            "telefone": _pick_from_row(r, "Telefone_Cliente", "Telefone"),
+            "email": _pick_from_row(r, "Email_Cliente", "Email"),
+        }
+        for r in data.get("Dim_Cliente_Visita", [])
+        if _safe_str(r.get("Id_Cliente"))
+    }
+
+    parceiro_map: Dict[str, Dict[str, str]] = {
+        _safe_str(r.get("Id_Parceiro")): {
+            "id_parceiro": _safe_str(r.get("Id_Parceiro")),
+            "nome": _pick_from_row(r, "Nome_Parceiro", "Nome"),
+            "imobiliaria": _pick_from_row(r, "Imobiliaria"),
+        }
+        for r in data.get("Dim_Parceiro_Visita", [])
+        if _safe_str(r.get("Id_Parceiro"))
+    }
+
+    clientes_por_visita: Dict[str, List[Dict[str, str]]] = {}
+    for r in data.get("Fato_Cliente_Visita", []):
+        vid = _safe_str(r.get("Id_Visita"))
+        cid = _safe_str(r.get("Id_Cliente"))
+        cliente = cliente_map.get(cid)
+        if vid and cliente:
+            item = {
+                **cliente,
+                "papel": _pick_from_row(r, "Papel_na_Visita", "Papel_Visita", "Papel"),
+            }
+            clientes_por_visita.setdefault(vid, [])
+            if item["id_cliente"] not in {c.get("id_cliente") for c in clientes_por_visita[vid]}:
+                clientes_por_visita[vid].append(item)
+
+    parceiros_por_visita: Dict[str, List[Dict[str, str]]] = {}
+    for r in data.get("Fato_Parceiro_Visita", []):
+        vid = _safe_str(r.get("Id_Visita"))
+        pid = _safe_str(r.get("Id_Parceiro"))
+        parceiro = parceiro_map.get(pid)
+        if vid and parceiro:
+            item = {
+                **parceiro,
+                "papel": _pick_from_row(r, "Papel_na_Visita", "Papel_Visita", "Papel"),
+            }
+            parceiros_por_visita.setdefault(vid, [])
+            if item["id_parceiro"] not in {p.get("id_parceiro") for p in parceiros_por_visita[vid]}:
+                parceiros_por_visita[vid].append(item)
+
+    avaliacoes_por_visita: Dict[str, List[Dict[str, str]]] = {}
+    for r in data.get("Fato_Avaliacao", []):
+        vid = _safe_str(r.get("Id_Visita"))
+        cid = _safe_str(r.get("Id_Cliente"))
+        if not vid:
+            continue
+        avaliacoes_por_visita.setdefault(vid, []).append({
+            "cliente": cliente_map.get(cid, {}).get("nome", ""),
+            "localizacao": _safe_str(r.get("Localizacao")),
+            "tamanho": _safe_str(r.get("Tamanho")),
+            "planta": _safe_str(r.get("Planta_Imovel")),
+            "acabamento": _safe_str(r.get("Qualidade_Acabamento")),
+            "conservacao": _safe_str(r.get("Estado_Conservacao")),
+            "condominio": _safe_str(r.get("Condominio_AreaComun")),
+            "preco": _safe_str(r.get("Preco")),
+            "notaGeral": _safe_str(r.get("Nota_Geral")),
+            "precoNota10": _safe_str(r.get("Preco_N10")),
+        })
+
+    itens: List[Dict[str, Any]] = []
+    for idx, r in enumerate(data.get("Fato_Visitas", [])):
+        id_visita = _safe_str(r.get("Id_Visita"))
+        id_imovel = _safe_str(r.get("Id_Imovel"))
+        data_visita = _safe_str(r.get("Data_Visita"))
+        id_cor_row = _safe_str(r.get("Id_Corretor"))
+
+        if not id_visita or id_cor_row != id_corretor:
+            continue
+
+        clientes = clientes_por_visita.get(id_visita, [])
+        if not clientes:
+            cliente_assinante = cliente_map.get(_safe_str(r.get("Id_Cliente_Assinante")))
+            if cliente_assinante:
+                clientes = [{**cliente_assinante, "papel": "Assinante"}]
+
+        nomes = [c.get("nome", "") for c in clientes if c.get("nome")]
+        cliente_nome = nomes[0] if len(nomes) == 1 else f"{nomes[0]} (+{len(nomes)-1})" if nomes else ""
+
+        parceiros = parceiros_por_visita.get(id_visita, [])
+        if not parceiros:
+            parceiro_direto = parceiro_map.get(_safe_str(r.get("Id_Parceiro")))
+            if parceiro_direto:
+                parceiros = [{**parceiro_direto, "papel": "Parceiro"}]
+
+        avaliacoes = avaliacoes_por_visita.get(id_visita, [])
+        label = " - ".join(filter(None, [cliente_nome, data_visita, f"#{id_imovel}" if id_imovel else ""])) or id_visita
+        busca = " ".join([
+            cliente_nome,
+            " ".join(nomes),
+            data_visita,
+            id_imovel,
+            id_visita,
+            label,
+            _safe_str(r.get("Endereco_Externo")),
+            _safe_str(r.get("Proposta")),
+            _safe_str(r.get("Tipo_Captacao")),
+            " ".join(p.get("nome", "") for p in parceiros),
+        ])
+
+        if qn and qn not in _norm_key(busca):
+            continue
+
+        itens.append({
+            "id_visita": id_visita,
+            "cliente": cliente_nome,
+            "clientes": clientes,
+            "dataVisita": data_visita,
+            "imovelId": id_imovel,
+            "proposta": _safe_str(r.get("Proposta")),
+            "tipoCaptacao": _safe_str(r.get("Tipo_Captacao")),
+            "enderecoExterno": _safe_str(r.get("Endereco_Externo")),
+            "visitaComParceiro": _safe_str(r.get("Visita_Com_Parceiro")),
+            "imovelNaoCaptado": _safe_str(r.get("Imovel_Nao_Captado")),
+            "anexoFichaVisita": _safe_str(r.get("Anexo_Ficha_Visita")),
+            "audioDescricaoClienteVisita": _safe_str(r.get("AudiodescricaoClienteVisita")),
+            "linkAudio": _safe_str(r.get("Link_Audio")),
+            "linkImagem": _safe_str(r.get("Link_Imagem")),
+            "assinatura": _safe_str(r.get("Assinatura")),
+            "createdAt": _fmt_datetime_br(r.get("CreatedAt")),
+            "createdBy": _safe_str(r.get("CreatedBy")),
+            "parceiros": parceiros,
+            "avaliacoes": avaliacoes,
             "label": label,
             "row": 2 + idx,
         })

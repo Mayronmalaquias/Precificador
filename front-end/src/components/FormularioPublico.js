@@ -1,10 +1,12 @@
-import React, { useEffect, useState, useRef, useCallback } from 'react'; // Adicionado useCallback
+import React, { useEffect, useState, useRef, useCallback } from 'react';
 import Logo61 from '../assets/img/LOGO 61 PNG (3).png';
+import { BASE } from '../services/api';
 import '../assets/css/footerPaginaUnica.css';
 import '../assets/css/reportPaginaUnica.css';
 import '../assets/css/stylesPaginaUnica.css';
 import '../assets/css/chat.css';
 import grafico from '../assets/img/Evolução M2.png';
+// import ChatWidget from './ChatWidget'; // desativado temporariamente
 
 
 
@@ -81,9 +83,7 @@ const buscarGrafico = useCallback(() => {
   setErroGrafico(null);
   setGraficoLinha(''); // Limpa o gráfico anterior
 
-  // A rota deve corresponder à definida no backend
-  // const url = 'http://56.124.51.158/graph/graficoLinha'; 
-  const url = '/api/graph/graficoLinha'; 
+  const url = `${BASE}/graph/graficoLinha`;
 
   fetch(url)
       .then(async (res) => {
@@ -120,10 +120,8 @@ const buscarDados = useCallback(() => {
     setDadosAPI2(null);
 
     const { tipoImovel, bairro, quartos, vagas, metragem, nrCluster } = formData;
-    // const url = `http://56.124.51.158/imovel/venda?tipoImovel=${tipoImovel}&bairro=${bairro}&quartos=${quartos}&vagas=${vagas}&metragem=${metragem}&nrCluster=${nrCluster}`;
-    // const urlAluguelOriginal = `http://56.124.51.158/imovel/aluguel?tipoImovel=${tipoImovel}&bairro=${bairro}&quartos=${quartos}&vagas=${vagas}&metragem=${metragem}&nrCluster=${nrCluster}`;
-    const url = `/api/imovel/venda?tipoImovel=${tipoImovel}&bairro=${bairro}&quartos=${quartos}&vagas=${vagas}&metragem=${metragem}&nrCluster=${nrCluster}`;
-    const urlAluguelOriginal = `/api/imovel/aluguel?tipoImovel=${tipoImovel}&bairro=${bairro}&quartos=${quartos}&vagas=${vagas}&metragem=${metragem}&nrCluster=${nrCluster}`;
+    const url = `${BASE}/imovel/venda?tipoImovel=${tipoImovel}&bairro=${bairro}&quartos=${quartos}&vagas=${vagas}&metragem=${metragem}&nrCluster=${nrCluster}`;
+    const urlAluguelOriginal = `${BASE}/imovel/aluguel?tipoImovel=${tipoImovel}&bairro=${bairro}&quartos=${quartos}&vagas=${vagas}&metragem=${metragem}&nrCluster=${nrCluster}`;
 
     // A requisição de Venda permanece a mesma
     const fetchVenda = fetch(url)
@@ -159,8 +157,7 @@ const buscarDados = useCallback(() => {
         console.warn('1ª tentativa de aluguel falhou. Tentando novamente com 0 quartos...', err.message);
 
         // Cria a nova URL com quartos=0
-        // const urlAluguelRetry = `http://56.124.51.158/imovel/aluguel?tipoImovel=${tipoImovel}&bairro=${bairro}&quartos=0&vagas=${vagas}&metragem=${metragem}&nrCluster=${nrCluster}`;
-        const urlAluguelRetry = `/api/imovel/aluguel?tipoImovel=${tipoImovel}&bairro=${bairro}&quartos=0&vagas=${vagas}&metragem=${metragem}&nrCluster=${nrCluster}`;
+        const urlAluguelRetry = `${BASE}/imovel/aluguel?tipoImovel=${tipoImovel}&bairro=${bairro}&quartos=0&vagas=${vagas}&metragem=${metragem}&nrCluster=${nrCluster}`;
         
         // Retorna a nova promessa de fetch para que o Promise.allSettled espere por ela
         return fetch(urlAluguelRetry)
@@ -189,29 +186,6 @@ const buscarDados = useCallback(() => {
         setCarregandoDados(false);
       });
 }, [formData]);
-
-  // // Envolver carregarMapa com useCallback
-  // const carregarMapa = useCallback(() => {
-  //   // Se mapSelectorRef ou mapOptionRef não estiverem no JSX ainda, você pode
-  //   // definir valores padrão ou buscar de formData se for o caso.
-  //   const tipo = mapSelectorRef.current?.value || 'mapaAnuncio';
-  //   const cluster = formData.nrCluster || '5'; // Usar formData para nrCluster
-  //   const tamanho = mapOptionRef.current?.value || 'mapaCluster';
-
-  //   console.log("carregarMapa chamada com tipo:", tipo, "cluster:", cluster, "tamanho:", tamanho);
-  //   setCarregandoMapa(true);
-
-  //   // Ajuste a URL conforme necessário, por exemplo, para localhost ou prefixo http://52.67.252.192
-  //   fetch(`http://52.67.252.192/carregar_mapa?tipo=${tipo}&cluster=${cluster}&tamanho=${tamanho}`)
-  //     .then(res => res.text())
-  //     .then(html => setMapaHtml(html))
-  //     .catch(err => {
-  //       console.error('Erro ao carregar o mapa:', err);
-  //       // Removido o alert para melhor UX, erro já é logado.
-  //       // Considere mostrar o erro na UI se for crítico.
-  //     })
-  //     .finally(() => setCarregandoMapa(false));
-  // }, [formData.nrCluster]); // Depende de nrCluster do formData e dos refs (que não causam re-run do useCallback)
 
   // REMOVER o useEffect que dispara com formData
   // useEffect(() => {
@@ -242,14 +216,15 @@ const buscarDados = useCallback(() => {
   };
 
   return (
-    <main>
-      <div className="main-container">
+    <main className="home-page">
+      <div className="main-container home-workspace">
         {/* <iframe width="560" height="315" src="https://www.youtube.com/embed/dQw4w9WgXcQ" title="YouTube video player" frameBorder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowFullScreen></iframe> */}
 
-        <form>
+        <form className="home-pricing-panel">
 
           <section
             aria-labelledby="mini-tutorial-title"
+            className="home-intro-panel"
             style={{
               border: '1px solid #e5e7eb',
               borderRadius: 8,
@@ -320,7 +295,7 @@ const buscarDados = useCallback(() => {
                 }}
                 /> */}
 
-          <div>
+          <div className="home-condition-tabs">
             <button
               type="button"
               className={`botao-cluster ${formData.nrCluster === '1' ? 'botao-cluster-selecionado' : ''}`}
@@ -345,8 +320,8 @@ const buscarDados = useCallback(() => {
           </div>
 
           {/* --- Botão Aplicar Filtros --- */}
-          <div style={{ marginTop: '20px', marginBottom: '20px' }}>
-            <button type="button" onClick={handleAplicarFiltros} style={{ padding: '10px 15px', fontSize: '16px' }}>
+          <div className="home-action-row">
+            <button type="button" className="home-primary-action" onClick={handleAplicarFiltros}>
               Aplicar Filtros e Atualizar
             </button>
           </div>
@@ -357,7 +332,7 @@ const buscarDados = useCallback(() => {
               <p>Carregando dados da análise...</p>
             </div>
           ) : (
-            <ul className="lista-com-imagem">
+            <ul className="lista-com-imagem home-results">
               <li className="negrito">
                 <strong>Valor de M² de Venda:</strong>
                 {erroDadosVenda ?
@@ -443,10 +418,10 @@ const buscarDados = useCallback(() => {
           />
         </div> */}
 
-          <div class="container-central">
-              <a class="ZapComentario" href="https://api.whatsapp.com/send?phone=5561998786161" target="_blank">Fale com corretor 61</a>
+          <div className="container-central">
+              <a className="ZapComentario" href="https://api.whatsapp.com/send?phone=5561998786161" target="_blank" rel="noreferrer">Fale com corretor 61</a>
           </div>
-          <ul class="guias">
+          <ul className="guias">
             <li><a href="https://lp.61imoveis.com/guia-61-de-venda-de-imoveis" target="_blank" rel="noreferrer">Guia de Venda</a></li>
             <li><a href="https://lp.61imoveis.com/guia-61-de-aluguel-de-imoveis" target="_blank" rel="noreferrer">Guia de Locação</a></li>
             <li><a href="https://lp.61imoveis.com/guia-61-do-comprador-de-imoveis" target="_blank" rel="noreferrer">Guia do Comprador de Imoveis</a></li>
@@ -468,8 +443,11 @@ const buscarDados = useCallback(() => {
             <img src={Logo61} alt="Imagem sobre o campo" className="imagem-sobreposta" />
           </div> */}
         </form>
-      <iframe width="560" height="315" src="https://www.youtube.com/embed/q_qsPITTfK8?si=W4XwmBvTVv5hBXMX" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>
+      <div className="home-video-panel">
+        <iframe width="560" height="315" src="https://www.youtube.com/embed/q_qsPITTfK8?si=W4XwmBvTVv5hBXMX" title="YouTube video player" frameBorder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" referrerPolicy="strict-origin-when-cross-origin" allowFullScreen></iframe>
       </div>
+      </div>
+      {/* <ChatWidget /> */}
     </main>
   );
 }

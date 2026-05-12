@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
+import { BASE } from '../services/api';
 import '../assets/css/formComissao.css';
+import { useToast } from '../context/ToastContext';
 
 function DivisaoComissao() {
-  const API_BASE = '/api';
-  // const API_BASE = 'http://localhost:5000';
+  const toast = useToast();
+  const API_BASE = BASE;
 
   const emptyLine = { nome_corretor: '', id_corretor: '', percentual: '', observacao: '' };
 
@@ -44,11 +46,11 @@ function DivisaoComissao() {
       if (response.ok) {
         setContratos(Array.isArray(data.contratos) ? data.contratos : []);
       } else {
-        alert(data.error || 'Erro ao carregar contratos de 2026.');
+        toast(data.error || 'Erro ao carregar contratos de 2026.', 'error');
       }
     } catch (error) {
       console.error('Erro ao buscar contratos:', error);
-      alert('Erro de conexão ao carregar contratos.');
+      toast('Erro de conexão ao carregar contratos.', 'error');
     } finally {
       setLoadingContratos(false);
     }
@@ -69,11 +71,11 @@ function DivisaoComissao() {
       if (response.ok) {
         setCorretores(Array.isArray(data.corretores) ? data.corretores : []);
       } else {
-        alert(data.error || 'Erro ao carregar corretores.');
+        toast(data.error || 'Erro ao carregar corretores.', 'error');
       }
     } catch (error) {
       console.error('Erro ao buscar corretores:', error);
-      alert('Erro de conexão ao carregar corretores.');
+      toast('Erro de conexão ao carregar corretores.', 'error');
     } finally {
       setLoadingCorretores(false);
     }
@@ -133,7 +135,7 @@ function DivisaoComissao() {
 
   const validate = () => {
     if (!formData.id_contrato.trim()) {
-      alert('Selecione um contrato.');
+      toast('Selecione um contrato.', 'error');
       return false;
     }
 
@@ -141,7 +143,7 @@ function DivisaoComissao() {
     const captValid = formData.captacao.filter((l) => String(l.nome_corretor).trim() && String(l.percentual).trim());
 
     if (vendaValid.length === 0 && captValid.length === 0) {
-      alert('Adicione pelo menos 1 linha em VENDA ou CAPTAÇÃO.');
+      toast('Adicione pelo menos 1 linha em VENDA ou CAPTAÇÃO.', 'error');
       return false;
     }
 
@@ -149,12 +151,12 @@ function DivisaoComissao() {
     const somaCapt = sumPercent('captacao');
 
     if (vendaValid.length > 0 && Math.abs(somaVenda - 100) > 0.0001) {
-      alert(`A soma dos percentuais de VENDA deve ser 100. Atual: ${somaVenda.toFixed(2)}`);
+      toast(`A soma dos percentuais de VENDA deve ser 100. Atual: ${somaVenda.toFixed(2)}`, 'error');
       return false;
     }
 
     if (captValid.length > 0 && Math.abs(somaCapt - 100) > 0.0001) {
-      alert(`A soma dos percentuais de CAPTAÇÃO deve ser 100. Atual: ${somaCapt.toFixed(2)}`);
+      toast(`A soma dos percentuais de CAPTAÇÃO deve ser 100. Atual: ${somaCapt.toFixed(2)}`, 'error');
       return false;
     }
 
@@ -167,11 +169,11 @@ function DivisaoComissao() {
         if (!nome && !String(l.percentual).trim()) continue;
 
         if (!nome) {
-          alert(`${label} linha ${i + 1}: Nome do corretor é obrigatório.`);
+          toast(`${label} linha ${i + 1}: Nome do corretor é obrigatório.`, 'error');
           return false;
         }
         if (Number.isNaN(perc) || perc <= 0 || perc > 100) {
-          alert(`${label} linha ${i + 1}: Percentual inválido (0-100).`);
+          toast(`${label} linha ${i + 1}: Percentual inválido (0-100).`, 'error');
           return false;
         }
       }
@@ -237,13 +239,13 @@ function DivisaoComissao() {
       const data = await response.json();
 
       if (response.ok) {
-        alert(`Divisão salva! Linhas inseridas: ${data.linhas_inseridas}`);
+        toast(`Divisão salva! Linhas inseridas: ${data.linhas_inseridas}`, 'success');
       } else {
-        alert(data.error || 'Erro ao salvar divisão.');
+        toast(data.error || 'Erro ao salvar divisão.', 'error');
       }
     } catch (error) {
       console.error('Erro na requisição:', error);
-      alert('Erro de conexão com o servidor.');
+      toast('Erro de conexão com o servidor.', 'error');
     } finally {
       setLoading(false);
     }

@@ -1,32 +1,16 @@
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { useAuth } from '../context/AuthContext';
 import '../assets/css/Header.css';
 
 function Header() {
   const navigate = useNavigate();
+  const { isLogado, isAdmin, nomeUsuario, idCorretor, logout } = useAuth();
   const profileRef = useRef(null);
   const servicosRef = useRef(null);
-  
 
   const [menuAberto, setMenuAberto] = useState(false);
   const [servicosAberto, setServicosAberto] = useState(false);
-
-  const isLogado = localStorage.getItem('auth') === 'true';
-  const userData = JSON.parse(localStorage.getItem('userData') || '{}');
-  const isAdmin = userData.grant === 'admin' || userData.permissao === 'admin';
-
-  const nomeUsuario =
-    userData.nome ||
-    userData.name ||
-    userData.nomeCorretor ||
-    userData.usuario ||
-    'Usuário';
-
-  const idCorretor =
-    userData.id_usuarios ||
-    userData.id_corretor ||
-    //userData.id ||
-    'Não informado';
 
   const iniciais = useMemo(() => {
     const partes = String(nomeUsuario).trim().split(' ').filter(Boolean);
@@ -36,8 +20,7 @@ function Header() {
   }, [nomeUsuario]);
 
   const handleLogout = () => {
-    localStorage.removeItem('auth');
-    localStorage.removeItem('userData');
+    logout();
     navigate('/login');
   };
 
@@ -185,7 +168,7 @@ function Header() {
                   <div className="profile-dropdown-avatar">{iniciais}</div>
                   <div className="profile-dropdown-user">
                     <strong>{nomeUsuario}</strong>
-                    <span>ID Corretor: {idCorretor}</span>
+                    <span>ID: {idCorretor}</span>
                   </div>
                 </div>
 

@@ -7,7 +7,7 @@ class Usuarios(Base):
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     username = Column(String(100))
-    password = Column(String(50))
+    password = Column(String(255))
     team = Column(String(100))
     nome      = Column(String(100), nullable=True)
     email     = Column(String(255), nullable=True)

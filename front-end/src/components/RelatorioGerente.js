@@ -1,14 +1,13 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
+import { BASE } from '../services/api';
 import "../assets/css/RelatorioGerente.css";
+import { useToast } from '../context/ToastContext';
 
 function RelatorioGerente() {
- //const API_BASE = useMemo(() => "http://localhost:5000/gerente-dashboard", []);
- //const API_VISITAS_BASE = useMemo(() => "http://localhost:5000", []);
- //const API_IMOVEIS_BASE = useMemo(() => "http://localhost:5000", []);
-
-  const API_BASE = useMemo(() => "/api/gerente-dashboard", []);
-  const API_VISITAS_BASE = useMemo(() => "/api", []);
-  const API_IMOVEIS_BASE = useMemo(() => "/api", []);
+  const toast = useToast();
+  const API_BASE = `${BASE}/gerente-dashboard`;
+  const API_VISITAS_BASE = BASE;
+  const API_IMOVEIS_BASE = BASE;
 
   const [abaAtiva, setAbaAtiva] = useState("relatoriogerente");
   const [opcaoAtiva, setOpcaoAtiva] = useState("visaoGeral");
@@ -390,7 +389,7 @@ function RelatorioGerente() {
 
   const abrirPdfCorretor = () => {
     if (!corretorSelecionado) {
-      alert("Selecione um corretor.");
+      toast("Selecione um corretor.", "error");
       return;
     }
 
@@ -400,7 +399,7 @@ function RelatorioGerente() {
 
   const baixarPdfCorretor = () => {
     if (!corretorSelecionado) {
-      alert("Selecione um corretor.");
+      toast("Selecione um corretor.", "error");
       return;
     }
 
@@ -459,7 +458,7 @@ function RelatorioGerente() {
 
       window.open(data.drive_url, "_blank");
     } catch (err) {
-      alert(err.message || "Erro ao abrir o PDF da visita.");
+      toast(err.message || "Erro ao abrir o PDF da visita.", "error");
     } finally {
       setLoadingPdfVisita(false);
     }
@@ -499,7 +498,7 @@ function RelatorioGerente() {
 
       window.open(data.drive_url, "_blank");
     } catch (err) {
-      alert(err.message || "Erro ao abrir o PDF do imóvel.");
+      toast(err.message || "Erro ao abrir o PDF do imóvel.", "error");
     } finally {
       setLoadingPdfImovel(false);
     }
@@ -539,7 +538,7 @@ function RelatorioGerente() {
 
       window.open(data.drive_url, "_blank");
     } catch (err) {
-      alert(err.message || "Erro ao abrir o PDF do cliente.");
+      toast(err.message || "Erro ao abrir o PDF do cliente.", "error");
     } finally {
       setLoadingPdfCliente(false);
     }

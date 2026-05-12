@@ -1,8 +1,8 @@
 import React, { useEffect, useMemo, useState, useCallback } from "react";
 import "../assets/css/ControleCorretores.css";
 
-//const API_BASE = process.env.REACT_APP_API_URL || "http://localhost:5000";
-const API_BASE = "/api"
+import { BASE as API_BASE } from '../services/api';
+import { useToast } from '../context/ToastContext';
 const EQUIPES_MAP = {
   G61001: "AGEF",
   G61002: "AGUIA",
@@ -30,6 +30,7 @@ async function apiFetch(path, options = {}) {
 }
 
 function ControleCorretores() {
+  const toast = useToast();
   const [usuario, setUsuario] = useState(null);
   const [corretores, setCorretores] = useState([]);
   const [equipes, setEquipes] = useState([]);
@@ -139,10 +140,10 @@ function ControleCorretores() {
           )
         );
       } else {
-        alert(data?.error || "Erro ao alterar gerente.");
+        toast(data?.error || "Erro ao alterar gerente.", "error");
       }
     } catch {
-      alert("Erro de comunicação com a API.");
+      toast("Erro de comunicação com a API.", "error");
     } finally {
       setLoadingAcao(null);
     }
@@ -167,10 +168,10 @@ function ControleCorretores() {
           )
         );
       } else {
-        alert(data?.error || "Erro ao alterar status.");
+        toast(data?.error || "Erro ao alterar status.", "error");
       }
     } catch {
-      alert("Erro de comunicação com a API.");
+      toast("Erro de comunicação com a API.", "error");
     } finally {
       setLoadingAcao(null);
     }

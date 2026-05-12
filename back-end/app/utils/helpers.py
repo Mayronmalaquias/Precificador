@@ -1,61 +1,54 @@
 import pandas as pd
-from sqlalchemy.orm import sessionmaker
-from app.models.imovel import Imovel
-from app import engine
 from unidecode import unidecode
 
-Session = sessionmaker(bind=engine)
-session = Session()
+from app import SessionLocal
+from app.models.imovel import Imovel
 
-# Lê o CSV
 
 def inserir_dados():
-    df = pd.read_csv('./dados/dados_map.csv')
+    session = SessionLocal()
+    df = pd.read_csv("./dados/dados_map.csv")
+    try:
+        df["vagas"] = df["vagas"].fillna(0).astype(int)
+        df["quartos"] = df["quartos"].fillna(0).astype(int)
+        df["area_util"] = df["area_util"].fillna(0)
+        df["valor_m2"] = df["valor_m2"].fillna(0)
+        df["preco"] = df["preco"].fillna(0)
 
-    # Trata os NaNs
-    df['vagas'] = df['vagas'].fillna(0).astype(int)
-    df['quartos'] = df['quartos'].fillna(0).astype(int)
-    df['area_util'] = df['area_util'].fillna(0)
-    df['valor_m2'] = df['valor_m2'].fillna(0)
-    df['preco'] = df['preco'].fillna(0)
-    # Insere dados
-    for _, row in df.iterrows():
-        if(row['preco'] > 100000000 or row['valor_m2'] > 100000000):
-            continue
-        imovel = Imovel(
-            codigo=row['codigo'],
-            anunciante=row['anunciante'],
-            oferta=row['oferta'],
-            tipo=row['tipo'],
-            area_util=row['area_util'],
-            bairro=row['bairro'],
-            cidade=row['cidade'],
-            preco=row['preco'],
-            valor_m2=row['valor_m2'],
-            quartos=row['quartos'],
-            vagas=row['vagas'],
-            latitude=row['latitude'],
-            longitude=row['longitude']
-        )
-        session.add(imovel)
-        session.flush()  # garante que o imovel.id seja gerado antes de usar
+        for _, row in df.iterrows():
+            if row["preco"] > 100000000 or row["valor_m2"] > 100000000:
+                continue
+            imovel = Imovel(
+                codigo=row["codigo"],
+                anunciante=row["anunciante"],
+                oferta=row["oferta"],
+                tipo=row["tipo"],
+                area_util=row["area_util"],
+                bairro=row["bairro"],
+                cidade=row["cidade"],
+                preco=row["preco"],
+                valor_m2=row["valor_m2"],
+                quartos=row["quartos"],
+                vagas=row["vagas"],
+                latitude=row["latitude"],
+                longitude=row["longitude"],
+            )
+            session.add(imovel)
+            session.flush()
 
-        # Descomente se quiser popular ImovelAluguel ou ImovelVenda no futuro
-        # if row['tipo_imovel'] == 'aluguel':
-        #     aluguel = ImovelAluguel(id=imovel.id, cluster=row['cluster'])
-        #     session.add(aluguel)
-        # elif row['tipo_imovel'] == 'venda':
-        #     venda = ImovelVenda(id=imovel.id, cluster=row['cluster'])
-        #     session.add(venda)
-
-    session.commit()
-    print("Imóveis importados com sucesso.")
+        session.commit()
+        print("Imoveis importados com sucesso.")
+    except Exception:
+        session.rollback()
+        raise
+    finally:
+        session.close()
 
 
 def normalizar_user(username):
     if not username:
         return None
-    username = username.lstrip().rstrip()
+    username = username.strip()
     username = username.replace(" ", "_")
     username = username.lower()
     username = unidecode(username)

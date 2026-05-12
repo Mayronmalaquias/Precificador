@@ -4,12 +4,14 @@ from app.models.base import Base
 
 class Imovel(Base):
     __tablename__ = "imoveis"
-    
+
     id = Column(Integer, primary_key=True)
     codigo = Column(String(50))
+    link = Column(String(500))
     data_coleta = Column(Date)
     anunciante = Column(String(100))
-    oferta = Column(String(20))
+    creci = Column(String(50))
+    oferta = Column(String(30))
     tipo = Column(String(50))
     area_util = Column(Integer)
     bairro = Column(String(100))
@@ -20,7 +22,8 @@ class Imovel(Base):
     vagas = Column(Integer)
     latitude = Column(Numeric)
     longitude = Column(Numeric)
-    creci = Column(String(50))
+    quadra = Column(String(100))
+    portal = Column(String(50))
 
     __mapper_args__ = {
         "polymorphic_identity": "imovel"

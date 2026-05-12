@@ -1,6 +1,10 @@
 // src/App.js
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { AuthProvider } from './context/AuthContext';
+import { ToastProvider } from './context/ToastContext';
+import './assets/css/design-system.css';
+import './assets/css/Toast.css';
 import Header from './components/Header';
 import Footer from './components/Footer';
 import Tabs from './components/Tabs';
@@ -31,85 +35,61 @@ import './assets/css/FormVisita.css';
 
 function App() {
   return (
-    <Router>
-      <div className="page">
-        <Header />
-        <main>
-          <Routes>
-            <Route
-              path="/interno"
-              element={
-                <PrivateRoute>
-                  <Tabs />
-                </PrivateRoute>
-              }
-            />
+    <AuthProvider>
+      <ToastProvider>
+        <Router>
+          <div className="page">
+            <Header />
+            <main>
+              <Routes>
+                <Route
+                  path="/interno"
+                  element={<PrivateRoute><Tabs /></PrivateRoute>}
+                />
+                <Route
+                  path="/TrocarSenha"
+                  element={<PrivateRoute><TrocarSenha /></PrivateRoute>}
+                />
 
-            <Route>
-              <Route path="/TrocarSenha" element={<PrivateRoute><TrocarSenha /></PrivateRoute>} />
-            </Route>
-
-            <Route path="/" element={<PaginaPublica />} />
-            <Route path="/login" element={<Login />} />
-            <Route path="/RecuperarSenha" element={<RecuperarSenha />}/>
-            <Route path="/Experts" element={<Experts />} />
-            <Route path="/61Financiamento" element={<Financiamento />} />
-
-            <Route path="/verificarImovel" element={<ReporteImovel />} />
-            <Route path="/enviarVisita" element={<FormVisita />} />
-            <Route path="/Ranking" element={<PrivateRoute><Ranking /></PrivateRoute>} />
-            <Route path="/FormComissao" element={<FormComissao />} />
-
-            <Route
-              path="/AppVisita"
-              element={
-                <PrivateRoute>
-                  <AppVisita />
-                </PrivateRoute>
-              }
-            />
-
-            <Route
-              path="/NovaVisita"
-              element={
-                <PrivateRoute>
-                  <NovaVisita />
-                </PrivateRoute>
-              }
-            />
-
-            <Route
-              path="/register"
-              element={
-                <AdminRoute>
-                  <Register />
-                </AdminRoute>
-              }
-            />
-
-            <Route
-              path="/RelatorioGerente"
-              element={
-                <AdminRoute>
-                  <RelatorioGerente />
-                </AdminRoute>
-              }
-            />
-
-            <Route
-              path="/ControleCorretor"
-              element={
-                <AdminRoute>
-                  <ControleCorretor />
-                </AdminRoute>
-              }
-            />
-
-          </Routes>
-        </main>
-        <Footer />
-      </div>
-    </Router>
+                <Route path="/" element={<PaginaPublica />} />
+                <Route path="/login" element={<Login />} />
+                <Route path="/RecuperarSenha" element={<RecuperarSenha />} />
+                <Route path="/Experts" element={<Experts />} />
+                <Route path="/61Financiamento" element={<Financiamento />} />
+                <Route path="/verificarImovel" element={<ReporteImovel />} />
+                <Route path="/enviarVisita" element={<FormVisita />} />
+                <Route path="/FormComissao" element={<FormComissao />} />
+                <Route
+                  path="/Ranking"
+                  element={<PrivateRoute><Ranking /></PrivateRoute>}
+                />
+                <Route
+                  path="/AppVisita"
+                  element={<PrivateRoute><AppVisita /></PrivateRoute>}
+                />
+                <Route
+                  path="/NovaVisita"
+                  element={<PrivateRoute><NovaVisita /></PrivateRoute>}
+                />
+                <Route
+                  path="/register"
+                  element={<AdminRoute><Register /></AdminRoute>}
+                />
+                <Route
+                  path="/RelatorioGerente"
+                  element={<AdminRoute><RelatorioGerente /></AdminRoute>}
+                />
+                <Route
+                  path="/ControleCorretor"
+                  element={<AdminRoute><ControleCorretor /></AdminRoute>}
+                />
+              </Routes>
+            </main>
+            <Footer />
+          </div>
+        </Router>
+      </ToastProvider>
+    </AuthProvider>
   );
 }
 

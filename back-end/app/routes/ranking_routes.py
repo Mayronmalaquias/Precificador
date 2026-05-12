@@ -57,7 +57,7 @@ class RankingsByKind(Resource):
             "include_pending": "Mesma regra do endpoint geral. Padrão: false.",
         }
     )
-    @ranking_ns.marshal_with(fields.List(fields.Nested(ranking_item)))
+    @ranking_ns.marshal_list_with(ranking_item)
     def get(self, kind: str):
         kind = (kind or "").lower().strip()
         if kind not in {"vgv_geral", "vgc_geral", "captacao", "visitas"}:
@@ -69,8 +69,8 @@ class RankingsByKind(Resource):
         include_pending = request.args.get("include_pending", "false").lower() == "true"
 
         svc = RankingService()
-        all_rankings = svc.get_all_rankings(start=start, end=end, limit=limit, include_pending=include_pending)
-        return all_rankings[kind], 200
+        ranking = svc.get_ranking(kind=kind, start=start, end=end, limit=limit, include_pending=include_pending)
+        return ranking, 200
 
 
 # app/routes/meta_gerente_routes.py

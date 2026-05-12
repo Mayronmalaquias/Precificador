@@ -27,7 +27,7 @@
   display: flex;
   justify-content: center;
   padding: 16px 12px 40px;
-  background: var(--fundo);
+  /*background: var(--fundo);*/
   min-height: 100vh;
 }
 

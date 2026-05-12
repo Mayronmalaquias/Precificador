@@ -1,8 +1,9 @@
 from app import create_app
+from app.config import Config
 
-# Cria a aplicação Flask usando a função de fábrica
+
 app = create_app()
 
-if __name__ == '__main__':
-    # Rodar a aplicação em modo de desenvolvimento
-    app.run(debug=True, host='0.0.0.0')
+
+if __name__ == "__main__":
+    app.run(debug=Config.SQLALCHEMY_ECHO, host="0.0.0.0")

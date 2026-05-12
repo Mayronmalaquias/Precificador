@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
+import { BASE } from '../services/api';
 
 function Mapa() {
   const [formData, setFormData] = useState({
@@ -29,8 +30,7 @@ function Mapa() {
 
     console.log("Mapa.js: carregarMapa chamada com:", { tipo, tamanho, cluster }); // Log para debug
     setCarregandoMapa(true);
-    // const mapurl = `http://52.67.252.192:5000/mapa/carregar?tipo=${tipo}&cluster=${cluster}&tamanho=${tamanho}`;
-    const mapurl = `/api/mapa/carregar?tipo=${tipo}&cluster=${cluster}&tamanho=${tamanho}`;
+    const mapurl = `${BASE}/mapa/carregar?tipo=${tipo}&cluster=${cluster}&tamanho=${tamanho}`;
     fetch(mapurl)
       .then((res) => res.text())
       .then(setMapaHtml)
@@ -50,10 +50,8 @@ function Mapa() {
     // Adicionar setCarregandoDados(true/false) se esta função realmente fizer algo demorado.
 
     const { tipoImovel, bairro, quartos, vagas, metragem, nrCluster } = formData;
-    // const url = `http://52.67.252.192/imovel/venda?tipoImovel=${tipoImovel}&bairro=${bairro}&quartos=${quartos}&vagas=${vagas}&metragem=${metragem}&nrCluster=${nrCluster}`;
-    // const url2 = `http://52.67.252.192/imovel/aluguel?tipoImovel=${tipoImovel}&bairro=${bairro}&quartos=${quartos}&vagas=${vagas}&metragem=${metragem}&nrCluster=${nrCluster}`;
-    const url = `/api/imovel/venda?tipoImovel=${tipoImovel}&bairro=${bairro}&quartos=${quartos}&vagas=${vagas}&metragem=${metragem}&nrCluster=${nrCluster}`;
-    const url2 = `/api/imovel/aluguel?tipoImovel=${tipoImovel}&bairro=${bairro}&quartos=${quartos}&vagas=${vagas}&metragem=${metragem}&nrCluster=${nrCluster}`;
+    const url = `${BASE}/imovel/venda?tipoImovel=${tipoImovel}&bairro=${bairro}&quartos=${quartos}&vagas=${vagas}&metragem=${metragem}&nrCluster=${nrCluster}`;
+    const url2 = `${BASE}/imovel/aluguel?tipoImovel=${tipoImovel}&bairro=${bairro}&quartos=${quartos}&vagas=${vagas}&metragem=${metragem}&nrCluster=${nrCluster}`;
 
     // Exemplo de como as chamadas fetch poderiam ser (ajuste conforme sua necessidade)
     fetch(url)
