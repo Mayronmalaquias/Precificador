@@ -6,7 +6,7 @@ import '../assets/css/reportPaginaUnica.css';
 import '../assets/css/stylesPaginaUnica.css';
 import '../assets/css/chat.css';
 import grafico from '../assets/img/Evolução M2.png';
-import ChatWidget from './ChatWidget'; // desativado temporariamente
+// import ChatWidget from './ChatWidget'; // desativado temporariamente
 
 
 
@@ -447,7 +447,7 @@ const buscarDados = useCallback(() => {
         <iframe width="560" height="315" src="https://www.youtube.com/embed/q_qsPITTfK8?si=W4XwmBvTVv5hBXMX" title="YouTube video player" frameBorder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" referrerPolicy="strict-origin-when-cross-origin" allowFullScreen></iframe>
       </div>
       </div>
-      <ChatWidget />
+      {/* <ChatWidget /> */}
     </main>
   );
 }
