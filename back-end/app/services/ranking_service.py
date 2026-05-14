@@ -631,26 +631,48 @@ class RankingService:
         if df.empty:
             return pd.DataFrame(columns=["Id_Corretor", "Nome_Corretor", "total"])
 
-        _, name_to_id = self._maps_corretores()
+        id_to_name, name_to_id = self._maps_corretores()
         rows = []
+
+        def _resolve_captador(value: Any) -> Dict[str, str]:
+            raw = str(value or "").strip()
+            key = raw.upper()
+            if not key or key in {"-", "NAN", "NONE"}:
+                return {}
+
+            if key in id_to_name:
+                return {
+                    "Id_Corretor": key,
+                    "Nome_Corretor": id_to_name[key],
+                }
+
+            nome = self._limpar_nome(raw)
+            if not nome:
+                return {}
+
+            return {
+                "Id_Corretor": name_to_id.get(nome, ""),
+                "Nome_Corretor": nome,
+            }
 
         for c in ["Captador1", "Captador2", "Captador3"]:
             if c not in df.columns:
                 continue
 
-            tmp = df[[c]].copy()
-            tmp["Nome_Corretor"] = tmp[c].astype(str).fillna("").str.strip().str.upper()
-            tmp = tmp[tmp["Nome_Corretor"].ne("") & tmp["Nome_Corretor"].ne("NAN")]
-
-            if not tmp.empty:
-                rows.append(tmp[["Nome_Corretor"]])
+            for value in df[c].tolist():
+                captador = _resolve_captador(value)
+                if captador:
+                    rows.append(captador)
 
         if not rows:
             return pd.DataFrame(columns=["Id_Corretor", "Nome_Corretor", "total"])
 
-        x = pd.concat(rows, ignore_index=True)
-        agg = x.groupby("Nome_Corretor", as_index=False).size().rename(columns={"size": "total"})
-        agg["Id_Corretor"] = agg["Nome_Corretor"].map(lambda n: name_to_id.get(str(n).strip().upper(), ""))
+        x = pd.DataFrame(rows)
+        agg = (
+            x.groupby(["Id_Corretor", "Nome_Corretor"], as_index=False)
+            .size()
+            .rename(columns={"size": "total"})
+        )
 
         # excluir
         agg = agg[
