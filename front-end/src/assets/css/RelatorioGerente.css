@@ -664,12 +664,25 @@
   }
 
   .grafico-linha {
-    grid-template-columns: 1fr;
-    gap: 6px;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px 8px;
+  }
+
+  .grafico-label {
+    flex: 1 1 auto;
+    min-width: 0;
   }
 
   .grafico-valor {
-    text-align: left;
+    flex: 0 0 auto;
+    text-align: right;
+  }
+
+  .grafico-barra-area {
+    flex: 0 0 100%;
+    order: 3;
   }
 
   .card-numero {
@@ -695,7 +708,7 @@
   }
 
   .tabela-relatorio {
-    min-width: 680px;
+    min-width: 580px;
   }
 
   .filtros-lista-relatorio {
@@ -708,6 +721,29 @@
   }
 
   .botao-limpar-lista {
+    width: 100%;
+  }
+
+  .filtro-acoes .botao-principal,
+  .filtro-acoes .botao-secundario {
+    width: 100%;
+  }
+
+  .acoes-pdf {
+    flex-direction: column;
+  }
+
+  .acoes-pdf .botao-principal,
+  .acoes-pdf .botao-secundario {
+    width: 100%;
+  }
+
+  .acoes-tabela {
+    flex-direction: column;
+  }
+
+  .acoes-tabela .botao-principal,
+  .acoes-tabela .botao-secundario {
     width: 100%;
   }
 }
@@ -752,6 +788,92 @@
   .botao-secundario,
   .campo-filtro {
     height: 42px;
+  }
+}
+
+@media (max-width: 480px) {
+  .pagina-relatorio {
+    padding: 10px;
+  }
+
+  .titulo-pagina {
+    font-size: 19px;
+    margin-bottom: 12px;
+  }
+
+  .bloco-filtros-gerente {
+    padding: 10px;
+    gap: 8px;
+  }
+
+  .menu-lateral {
+    padding: 8px;
+    gap: 6px;
+    border-radius: 14px;
+  }
+
+  .menu-item {
+    font-size: 11px;
+    padding: 7px 10px;
+  }
+
+  .card-numero {
+    padding: 14px;
+    min-height: 88px;
+  }
+
+  .card-numero-valor {
+    font-size: 22px;
+  }
+
+  .card-numero-titulo {
+    font-size: 12px;
+    margin-bottom: 8px;
+  }
+
+  .card-padrao {
+    padding: 14px;
+  }
+
+  .card-titulo {
+    font-size: 16px;
+    margin-bottom: 14px;
+  }
+
+  .secao-titulo {
+    font-size: 17px;
+    margin-bottom: 14px;
+  }
+
+  .ranking-badge {
+    font-size: 12px;
+    padding: 5px 9px;
+  }
+
+  .ranking-nome {
+    font-size: 13px;
+  }
+
+  .tab-interna {
+    font-size: 13px;
+    padding: 8px 12px;
+  }
+
+  .detalhe-box {
+    padding: 12px;
+  }
+
+  .campo-filtro,
+  .botao-principal,
+  .botao-secundario {
+    height: 40px;
+    font-size: 13px;
+  }
+
+  .tabela-relatorio thead th,
+  .tabela-relatorio tbody td {
+    padding: 10px 8px;
+    font-size: 12px;
   }
 }
 

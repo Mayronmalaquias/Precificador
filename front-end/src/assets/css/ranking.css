@@ -431,6 +431,10 @@
   .ranking__contentGrid {
     grid-template-columns: 1fr;
   }
+
+  .ranking__summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 @media (max-width: 720px) {
@@ -462,5 +466,88 @@
 
   .ranking__btn {
     width: 100%;
+  }
+
+  .ranking__sectionTabs {
+    width: 100%;
+    overflow-x: auto;
+    flex-wrap: nowrap;
+    scrollbar-width: none;
+  }
+
+  .ranking__sectionTabs::-webkit-scrollbar {
+    display: none;
+  }
+
+  .ranking__tabs {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+    padding-bottom: 2px;
+  }
+
+  .ranking__tabs::-webkit-scrollbar {
+    display: none;
+  }
+
+  .ranking__sectionTab,
+  .ranking__tab {
+    flex-shrink: 0;
+  }
+}
+
+@media (max-width: 480px) {
+  .ranking {
+    width: calc(100% - 16px);
+    margin-top: 12px;
+    margin-bottom: 32px;
+  }
+
+  .ranking__hero {
+    padding: 14px;
+    min-height: auto;
+    gap: 12px;
+  }
+
+  .ranking__title {
+    font-size: 1.5rem;
+  }
+
+  .ranking__subtitle {
+    font-size: 0.84rem;
+  }
+
+  .ranking__period {
+    padding: 10px 12px;
+  }
+
+  .ranking__panel {
+    padding: 12px;
+  }
+
+  .ranking__summaryCard {
+    padding: 12px;
+  }
+
+  .ranking__summaryCard strong {
+    font-size: 1.2rem;
+    margin-top: 4px;
+  }
+
+  .ranking__h3 {
+    font-size: 0.98rem;
+  }
+
+  .ranking__table {
+    min-width: 460px;
+  }
+
+  .ranking__table th,
+  .ranking__table td {
+    padding: 10px 8px;
+  }
+
+  .ranking__podiumItem {
+    padding: 10px;
   }
 }
