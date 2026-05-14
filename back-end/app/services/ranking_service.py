@@ -1,4 +1,4 @@
-# app/services/ranking_service.py
+﻿# app/services/ranking_service.py
 import os
 import json
 import pandas as pd
@@ -538,9 +538,11 @@ class RankingService:
     def _calc_vgv_geral_algoritmo(self, vendas: pd.DataFrame) -> pd.DataFrame:
         """
         REGRA OFICIAL:
-        - por contrato: junta vendedores e captadores
-        - remove duplicidade
-        - cada nome recebe 1x o Valor_Negocio
+        - vendedores dividem Valor_Negocio entre si
+        - captadores dividem Valor_Negocio entre si (independente dos vendedores)
+        - 1v+1c: ambos recebem 1x Valor_Negocio
+        - 2v+1c: cada vendedor recebe 1/2, captador recebe 1x
+        - 1v+2c: vendedor recebe 1x, cada captador recebe 1/2
         """
         if vendas.empty:
             return pd.DataFrame(columns=["Id_Corretor", "Nome_Corretor", "total"])
@@ -564,10 +566,15 @@ class RankingService:
             vendedores = {n for n in vendedores if n}
             captadores = {n for n in captadores if n}
 
-            todos = vendedores | captadores
+            if vendedores:
+                por_vendedor = valor_imovel / len(vendedores)
+                for nome in vendedores:
+                    acc[nome] = acc.get(nome, 0.0) + por_vendedor
 
-            for nome in todos:
-                acc[nome] = acc.get(nome, 0.0) + valor_imovel
+            if captadores:
+                por_captador = valor_imovel / len(captadores)
+                for nome in captadores:
+                    acc[nome] = acc.get(nome, 0.0) + por_captador
 
         return self._finalize_rank_df(acc)
 
@@ -575,10 +582,12 @@ class RankingService:
         """
         REGRA OFICIAL:
         - usa Valor_Total_61 BRUTO
-        - se houver venda + captação => 50% / 50%
-        - se só houver um lado => 100% para aquele lado
-        - divide igualmente entre os nomes do lado
-        - NÃO divide por 0.06
+        - vendedores dividem Valor_Total_61 entre si (mesma logica do VGV)
+        - captadores dividem Valor_Total_61 entre si (mesma logica do VGV)
+        - 1v+1c: ambos recebem 1x Valor_Total_61
+        - 2v+1c: cada vendedor recebe 1/2, captador recebe 1x
+        - 1v+2c: vendedor recebe 1x, cada captador recebe 1/2
+        - NÃO divide por 0.06, NÃO faz split 50/50 entre os lados
         """
         if vendas.empty:
             return pd.DataFrame(columns=["Id_Corretor", "Nome_Corretor", "total"])
@@ -587,8 +596,6 @@ class RankingService:
 
         for _, row in vendas.iterrows():
             valor_comissao_total = float(row.get("Valor_Total_61", 0.0) or 0.0)
-            if valor_comissao_total > 0:
-                valor_comissao_total = valor_comissao_total / 0.06
             if valor_comissao_total <= 0:
                 continue
 
@@ -604,29 +611,13 @@ class RankingService:
             vendedores = {n for n in vendedores if n}
             captadores = {n for n in captadores if n}
 
-            tem_venda = len(vendedores) > 0
-            tem_capt = len(captadores) > 0
-
-            if tem_venda and tem_capt:
-                parcela_venda = valor_comissao_total * 0.5
-                parcela_capt = valor_comissao_total * 0.5
-            elif tem_venda:
-                parcela_venda = valor_comissao_total
-                parcela_capt = 0.0
-            elif tem_capt:
-                parcela_venda = 0.0
-                parcela_capt = valor_comissao_total
-            else:
-                parcela_venda = 0.0
-                parcela_capt = 0.0
-
-            if tem_venda and parcela_venda > 0:
-                por_vendedor = parcela_venda / len(vendedores)
+            if vendedores:
+                por_vendedor = valor_comissao_total / len(vendedores)
                 for nome in vendedores:
                     acc[nome] = acc.get(nome, 0.0) + por_vendedor
 
-            if tem_capt and parcela_capt > 0:
-                por_captador = parcela_capt / len(captadores)
+            if captadores:
+                por_captador = valor_comissao_total / len(captadores)
                 for nome in captadores:
                     acc[nome] = acc.get(nome, 0.0) + por_captador
 

@@ -1,4 +1,4 @@
-"""
+﻿"""
 app/services/visita_service.py
 OAuth (usuário real) para gravar no "Meu Drive" + gravar no Google Sheets
 
@@ -26,6 +26,7 @@ import datetime as dt
 from dataclasses import dataclass, field
 from decimal import Decimal, InvalidOperation
 from typing import Any, Dict, List, Optional, Tuple
+from xml.sax.saxutils import escape
 
 from google.auth.exceptions import RefreshError
 from google.auth.transport.requests import Request
@@ -217,6 +218,34 @@ def _fmt_datetime_br(v: Any) -> str:
 def _display(v: Any, default: str = "—") -> str:
     s = _safe_str(v)
     return s if s else default
+
+
+def _shorten_pdf_text(value: Any, max_chars: int, default: str = "—") -> str:
+    text = _display(value, default)
+    if len(text) <= max_chars:
+        return text
+    return text[: max(1, max_chars - 1)].rstrip() + "…"
+
+
+def _pdf_cliente_endereco_header(visita: Dict[str, Any], index: int, total_visitas: int) -> str:
+    if total_visitas <= 2:
+        max_chars = 52
+    elif total_visitas <= 4:
+        max_chars = 34
+    elif total_visitas <= 6:
+        max_chars = 24
+    elif total_visitas <= 9:
+        max_chars = 18
+    else:
+        max_chars = 14
+
+    endereco = _shorten_pdf_text(
+        visita.get("endereco_externo"),
+        max_chars,
+        default=f"Visita {index}",
+    )
+    data_visita = _display(visita.get("data_visita"))
+    return f"{endereco}\n{data_visita}"
 
 
 def _num_or_none(v: Any) -> Optional[float]:
@@ -621,10 +650,8 @@ def registrar_visita(payload: Dict[str, Any]) -> str:
     # Tipo de captação
     tipo_captacao = ""
     imovel_nao_captado = ""
-    if situacao_imovel == "CAPTACAO_PROPRIA":
-        tipo_captacao = "Captação Própria"
-    elif situacao_imovel == "CAPTACAO_PARCEIRO":
-        tipo_captacao = "Captação Parceiro"
+    if situacao_imovel in {"CAPTACAO_61", "CAPTACAO_PROPRIA", "CAPTACAO_PARCEIRO"}:
+        tipo_captacao = "Captação 61"
     elif situacao_imovel == "IMOVEL_NAO_CAPTADO":
         imovel_nao_captado = "TRUE"
 
@@ -951,6 +978,7 @@ def buscar_visitas_do_corretor(id_corretor: str, q: str = "", limit: int = 30) -
 # ---------------------------------------------------------------------------
 def listar_clientes_do_corretor(id_corretor: str) -> List[Dict[str, Any]]:
     """Retorna clientes vinculados ao corretor (leitura simples da Dim)."""
+    id_corretor_norm = _safe_str(id_corretor).upper()
     sheets, _, _ = _get_services()
 
     res = _with_retry(lambda: sheets.values().get(
@@ -960,7 +988,7 @@ def listar_clientes_do_corretor(id_corretor: str) -> List[Dict[str, Any]]:
 
     clientes = []
     for r in res.get("values", []):
-        if (r[5] if len(r) > 5 else "").strip() == id_corretor:
+        if _safe_str(r[5] if len(r) > 5 else "").upper() == id_corretor_norm:
             clientes.append({
                 "id_cliente": r[0] if len(r) > 0 else "",
                 "nome": r[1] if len(r) > 1 else "",
@@ -983,6 +1011,7 @@ def buscar_clientes_do_corretor_com_historico(id_corretor: str, q: str = "", lim
     id_corretor = (id_corretor or "").strip()
     if not id_corretor:
         return []
+    id_corretor_norm = _safe_str(id_corretor).upper()
 
     qn = _norm_key(q)
     data = _batch_get_sheet_rows([
@@ -991,6 +1020,12 @@ def buscar_clientes_do_corretor_com_historico(id_corretor: str, q: str = "", lim
         "Fato_Visitas!A1:R",
     ])
 
+    cliente_dim_map = {
+        _safe_str(r.get("Id_Cliente")): r
+        for r in data.get("Dim_Cliente_Visita", [])
+        if _safe_str(r.get("Id_Cliente"))
+    }
+
     # Índice: id_visita → {imovelId, dataVisita} — apenas visitas do corretor
     visitas_map: Dict[str, Dict[str, str]] = {
         _safe_str(r.get("Id_Visita")): {
@@ -998,7 +1033,7 @@ def buscar_clientes_do_corretor_com_historico(id_corretor: str, q: str = "", lim
             "dataVisita": _safe_str(r.get("Data_Visita")),
         }
         for r in data.get("Fato_Visitas", [])
-        if _safe_str(r.get("Id_Visita")) and _safe_str(r.get("Id_Corretor")) == id_corretor
+        if _safe_str(r.get("Id_Visita")) and _safe_str(r.get("Id_Corretor")).upper() == id_corretor_norm
     }
 
     # Stats por cliente
@@ -1014,19 +1049,32 @@ def buscar_clientes_do_corretor_com_historico(id_corretor: str, q: str = "", lim
             "visitas_ids": [],
         }
         for r in data.get("Dim_Cliente_Visita", [])
-        if _safe_str(r.get("Id_Cliente")) and _safe_str(r.get("Id_Corretor")) == id_corretor
+        if _safe_str(r.get("Id_Cliente")) and _safe_str(r.get("Id_Corretor")).upper() == id_corretor_norm
     }
 
     for r in data.get("Fato_Cliente_Visita", []):
         vid = _safe_str(r.get("Id_Visita"))
         cid = _safe_str(r.get("Id_Cliente"))
 
-        if not vid or not cid or cid not in cliente_stats:
+        if not vid or not cid:
             continue
 
         visita = visitas_map.get(vid)
         if not visita:
             continue
+
+        if cid not in cliente_stats:
+            cliente = cliente_dim_map.get(cid, {})
+            cliente_stats[cid] = {
+                "id_cliente": cid,
+                "nome": _safe_str(cliente.get("Nome_Cliente")),
+                "telefone": _safe_str(cliente.get("Telefone_Cliente")),
+                "email": _safe_str(cliente.get("Email_Cliente")),
+                "qtd_visitas": 0,
+                "ultima_data": "",
+                "imoveis": [],
+                "visitas_ids": [],
+            }
 
         stats = cliente_stats[cid]
         stats["qtd_visitas"] += 1
@@ -1257,9 +1305,10 @@ def _montar_contexto_pdf_cliente(id_cliente: str) -> Dict[str, Any]:
     visitas_detalhadas.sort(key=lambda x: _parse_ddmmyyyy_safe(x.get("data_visita", "")), reverse=True)
     ultima_data = visitas_detalhadas[0]["data_visita"] if visitas_detalhadas else ""
 
+    total_visitas = len(visitas_detalhadas)
     criterios_pdf = CRITERIOS_AVALIACAO + ["Proposta"]
     resumo_headers = ["Critérios"] + [
-        f"Visita {i}\n{_display(v.get('data_visita'))}"
+        _pdf_cliente_endereco_header(v, i, total_visitas)
         for i, v in enumerate(visitas_detalhadas, start=1)
     ]
 
@@ -1269,6 +1318,9 @@ def _montar_contexto_pdf_cliente(id_cliente: str) -> Dict[str, Any]:
         for visita in visitas_detalhadas:
             if criterio == "Proposta":
                 valor = _display(visita.get("proposta"))
+            elif criterio == "Preço Nota 10":
+                raw = (visita.get("avaliacao") or {}).get(criterio)
+                valor = _fmt_money_brl(raw) if raw else "—"
             else:
                 valor = _display((visita.get("avaliacao") or {}).get(criterio))
             linha.append(valor)
@@ -1351,6 +1403,74 @@ def _make_grid_table(data, widths_mm, mm, colors, Table, TableStyle):
     return tbl
 
 
+def _make_cliente_resumo_table(data, widths_mm, mm, colors, Table, TableStyle, Paragraph, ParagraphStyle, total_visitas: int):
+    if total_visitas >= 10:
+        header_size, header_leading = 5.4, 6.2
+    elif total_visitas >= 7:
+        header_size, header_leading = 6.0, 6.8
+    elif total_visitas >= 4:
+        header_size, header_leading = 6.8, 7.6
+    else:
+        header_size, header_leading = 7.6, 8.6
+
+    header_style = ParagraphStyle(
+        "cliente_resumo_header",
+        fontName="Helvetica-Bold",
+        fontSize=header_size,
+        leading=header_leading,
+        textColor=colors.white,
+        wordWrap="CJK",
+        splitLongWords=True,
+    )
+
+    body_style = ParagraphStyle(
+        "cliente_resumo_body",
+        fontName="Helvetica",
+        fontSize=8.0,
+        leading=9.4,
+        textColor=colors.HexColor("#111827"),
+        wordWrap="CJK",
+        splitLongWords=True,
+    )
+
+    money_style = ParagraphStyle(
+        "cliente_resumo_money",
+        parent=body_style,
+        fontSize=4.8 if total_visitas >= 10 else 5.4 if total_visitas >= 7 else 6.2,
+        leading=5.4 if total_visitas >= 10 else 6.0 if total_visitas >= 7 else 6.8,
+        wordWrap=None,
+        splitLongWords=False,
+    )
+
+    table_data = []
+    for row_index, row in enumerate(data):
+        converted = []
+        is_preco_n10 = row_index > 0 and _safe_str(row[0]) == "Preço Nota 10"
+        for col_index, value in enumerate(row):
+            text = escape(_display(value)).replace("\n", "<br/>")
+            if row_index == 0:
+                style = header_style
+            elif is_preco_n10 and col_index > 0:
+                style = money_style
+            else:
+                style = body_style
+            converted.append(Paragraph(text, style))
+        table_data.append(converted)
+
+    tbl = Table(table_data, colWidths=[w * mm for w in widths_mm], repeatRows=1)
+    tbl.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#0f172a")),
+        ("GRID", (0, 0), (-1, -1), 0.35, colors.HexColor("#e5e7eb")),
+        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+        ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#f8fafc")]),
+        ("LEFTPADDING", (0, 0), (-1, -1), 4),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 4),
+        ("TOPPADDING", (0, 0), (-1, -1), 5),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
+    ]))
+    return tbl
+
+
 # ---------------------------------------------------------------------------
 # PDF: Visita
 # ---------------------------------------------------------------------------
@@ -1365,7 +1485,24 @@ def _build_pdf_visita_bytes(ctx: Dict[str, Any]) -> bytes:
     st = _make_styles(getSampleStyleSheet(), ParagraphStyle)
     rl = (colors, mm, Table, TableStyle)
 
-    story = [
+    _LOGO = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "utils", "asserts", "logo_61.png")
+    story = []
+    try:
+        from reportlab.platypus import Image as _RLImg
+        if os.path.isfile(_LOGO):
+            _logo_img = _RLImg(_LOGO, width=28*mm, height=28*mm, hAlign="LEFT")
+            _logo_tbl = Table([[_logo_img]], colWidths=[28*mm])
+            _logo_tbl.setStyle(TableStyle([
+                ("LEFTPADDING", (0,0),(-1,-1), 0),
+                ("RIGHTPADDING",(0,0),(-1,-1), 0),
+                ("TOPPADDING",  (0,0),(-1,-1), 0),
+                ("BOTTOMPADDING",(0,0),(-1,-1),0),
+            ]))
+            story.append(_logo_tbl)
+            story.append(Spacer(1, 8))
+    except Exception:
+        pass
+    story += [
         Paragraph("Relatório de Visita", st["title"]),
         Paragraph("Documento consolidado da visita, com corretor, clientes, parceiros e resumo das avaliações.", st["subtitle"]),
         _make_info_table([
@@ -1444,14 +1581,32 @@ def _build_pdf_cliente_bytes(ctx: Dict[str, Any]) -> bytes:
     buffer = io.BytesIO()
     total_visitas = len(ctx.get("Visitas") or [])
     page_size = landscape(A4) if total_visitas >= 4 else A4
+    horizontal_margin = 10 * mm if total_visitas >= 7 else 14 * mm
 
-    doc = SimpleDocTemplate(buffer, pagesize=page_size, leftMargin=14*mm, rightMargin=14*mm,
+    doc = SimpleDocTemplate(buffer, pagesize=page_size, leftMargin=horizontal_margin, rightMargin=horizontal_margin,
                             topMargin=14*mm, bottomMargin=12*mm,
                             title=f"Relatorio_Cliente_{ctx['Id_Cliente']}")
 
     st = _make_styles(getSampleStyleSheet(), ParagraphStyle)
 
-    story = [
+    _LOGO = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "utils", "asserts", "logo_61.png")
+    story = []
+    try:
+        from reportlab.platypus import Image as _RLImg
+        if os.path.isfile(_LOGO):
+            _logo_img = _RLImg(_LOGO, width=28*mm, height=28*mm, hAlign="LEFT")
+            _logo_tbl = Table([[_logo_img]], colWidths=[28*mm])
+            _logo_tbl.setStyle(TableStyle([
+                ("LEFTPADDING", (0,0),(-1,-1), 0),
+                ("RIGHTPADDING",(0,0),(-1,-1), 0),
+                ("TOPPADDING",  (0,0),(-1,-1), 0),
+                ("BOTTOMPADDING",(0,0),(-1,-1),0),
+            ]))
+            story.append(_logo_tbl)
+            story.append(Spacer(1, 8))
+    except Exception:
+        pass
+    story += [
         Paragraph("Relatório Consolidado do Cliente", st["title"]),
         Paragraph("Resumo consolidado das visitas e avaliações registradas para o cliente.", st["subtitle"]),
         _make_info_table([
@@ -1468,12 +1623,24 @@ def _build_pdf_cliente_bytes(ctx: Dict[str, Any]) -> bytes:
     rows = ctx.get("Resumo_Avaliacoes_Rows") or []
     total_cols = len(headers)
 
-    largura_total = 180 if page_size == A4 else 255
-    largura_criterio = 38
+    largura_total = 188 if page_size == A4 else (263 if total_visitas >= 7 else 255)
+    largura_criterio = 34 if total_visitas >= 7 else 38
     largura_visita = max((largura_total - largura_criterio) / max(total_cols - 1, 1), 20)
     col_widths = [largura_criterio] + [largura_visita] * (total_cols - 1)
 
-    story.append(_make_grid_table([headers] + rows, col_widths, mm, colors, Table, TableStyle))
+    story.append(
+        _make_cliente_resumo_table(
+            [headers] + rows,
+            col_widths,
+            mm,
+            colors,
+            Table,
+            TableStyle,
+            Paragraph,
+            ParagraphStyle,
+            total_visitas,
+        )
+    )
     doc.build(story)
     return buffer.getvalue()
 

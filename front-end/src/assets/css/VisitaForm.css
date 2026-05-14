@@ -23,6 +23,11 @@
   font-size: 1.4rem;
 }
 
+.visita-form h2::before {
+  content: "\1F3E0";
+  margin-right: 8px;
+}
+
 .vf-group {
   margin-bottom: 14px;
 }
@@ -57,6 +62,97 @@
   outline: none;
   border-color: #e1005b;
   box-shadow: 0 0 0 2px rgba(225, 0, 91, 0.15);
+}
+
+.vf-hint {
+  margin-top: 6px;
+  color: #71717a;
+  font-size: 0.82rem;
+}
+
+.vf-sugestoes {
+  margin-top: 8px;
+  display: grid;
+  gap: 8px;
+  max-height: 280px;
+  overflow-y: auto;
+}
+
+.vf-sugestao-item {
+  width: 100%;
+  border: 1px solid #ffd0e5;
+  border-radius: 10px;
+  background: #fff;
+  padding: 9px 10px;
+  text-align: left;
+  cursor: pointer;
+  box-sizing: border-box;
+}
+
+.vf-sugestao-item:hover {
+  border-color: #e1005b;
+  background: #fff5fa;
+}
+
+.vf-sugestao-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.vf-sugestao-codigo,
+.vf-sugestao-finalidade {
+  display: inline-flex;
+  align-items: center;
+  min-height: 20px;
+  border-radius: 999px;
+  padding: 2px 8px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.vf-sugestao-codigo {
+  background: #e1005b;
+  color: #fff;
+}
+
+.vf-sugestao-codigo::before {
+  content: "\1F3F7\FE0F";
+  margin-right: 4px;
+}
+
+.vf-sugestao-finalidade {
+  background: #f4f4f5;
+  color: #52525b;
+}
+
+.vf-sugestao-title {
+  color: #18181b;
+  font-size: 0.9rem;
+  font-weight: 700;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+
+.vf-sugestao-title::before {
+  content: "\1F3E2";
+  margin-right: 4px;
+}
+
+.vf-sugestao-sub {
+  margin-top: 3px;
+  color: #71717a;
+  font-size: 0.8rem;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+
+.vf-sugestao-sub::before {
+  content: "\1F4CD";
+  margin-right: 4px;
 }
 
 .vf-toggle-row {
@@ -95,11 +191,26 @@
   border-color: #e74c3c;
 }
 
+.vf-toggle-yes::before {
+  content: "\2705";
+  margin-right: 5px;
+}
+
+.vf-toggle-no::before {
+  content: "\274C";
+  margin-right: 5px;
+}
+
 .vf-section-title {
   margin: 18px 0 6px;
   font-weight: 700;
   font-size: 0.95rem;
   color: #333;
+}
+
+.vf-section-title::before {
+  content: "\1F4CC";
+  margin-right: 6px;
 }
 
 .nota-buttons {
@@ -125,6 +236,52 @@
   color: #fff;
 }
 
+.vf-upload-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 42px;
+  border: 1px dashed #ff9fcb;
+  border-radius: 10px;
+  padding: 8px 10px;
+  background: #fff7fb;
+  color: #52525b;
+  font-size: 0.88rem;
+  cursor: pointer;
+  box-sizing: border-box;
+}
+
+.vf-upload-label.has-file {
+  border-style: solid;
+  border-color: #2ecc71;
+  background: #f0fff6;
+  color: #18733d;
+}
+
+.vf-upload-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+}
+
+.vf-upload-icon:empty::before {
+  content: "\1F4CE";
+}
+
+.vf-upload-label.has-file .vf-upload-icon {
+  font-size: 0;
+}
+
+.vf-upload-label.has-file .vf-upload-icon::before {
+  content: "\2705";
+  font-size: 1rem;
+}
+
+.vf-upload-input {
+  display: none;
+}
+
 .vf-submit {
   width: 100%;
   margin-top: 12px;
@@ -136,6 +293,11 @@
   font-weight: 700;
   font-size: 1rem;
   cursor: pointer;
+}
+
+.vf-submit::before {
+  content: "\2705";
+  margin-right: 6px;
 }
 
 .vf-submit:disabled {

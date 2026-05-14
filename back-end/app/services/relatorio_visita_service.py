@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import io
 import os
@@ -456,6 +456,23 @@ def _build_pdf_bytes_visita(ctx: Dict[str, Any]) -> bytes:
     )
 
     story = []
+
+    _LOGO = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "utils", "asserts", "logo_61.png")
+    try:
+        from reportlab.platypus import Image as _RLImg
+        if os.path.isfile(_LOGO):
+            _logo_img = _RLImg(_LOGO, width=28*mm, height=28*mm, hAlign="LEFT")
+            _logo_tbl = Table([[_logo_img]], colWidths=[28*mm])
+            _logo_tbl.setStyle(TableStyle([
+                ("LEFTPADDING", (0,0),(-1,-1), 0),
+                ("RIGHTPADDING",(0,0),(-1,-1), 0),
+                ("TOPPADDING",  (0,0),(-1,-1), 0),
+                ("BOTTOMPADDING",(0,0),(-1,-1),0),
+            ]))
+            story.append(_logo_tbl)
+            story.append(Spacer(1, 8))
+    except Exception:
+        pass
 
     story.append(Paragraph("Relatório de Visita", style_title))
     story.append(Spacer(1, 8))

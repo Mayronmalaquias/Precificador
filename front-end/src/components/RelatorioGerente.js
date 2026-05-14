@@ -6,8 +6,6 @@ import { useToast } from '../context/ToastContext';
 function RelatorioGerente() {
   const toast = useToast();
   const API_BASE = `${BASE}/gerente-dashboard`;
-  const API_VISITAS_BASE = BASE;
-  const API_IMOVEIS_BASE = BASE;
 
   const [abaAtiva, setAbaAtiva] = useState("relatoriogerente");
   const [opcaoAtiva, setOpcaoAtiva] = useState("visaoGeral");
@@ -136,6 +134,48 @@ function RelatorioGerente() {
       item?.Nome ||
       ""
     );
+  };
+
+  const primeiroValor = (...valores) => {
+    return valores.find(
+      (valor) => valor !== undefined && valor !== null && String(valor).trim() !== ""
+    );
+  };
+
+  const montarUrlPdf = (recurso, id, download = false) => {
+    if (!id) return "";
+
+    const params = new URLSearchParams();
+    const chavesPorRecurso = {
+      visitas: "visita_id",
+      clientes: "id_cliente",
+      imoveis: "imovel_id",
+    };
+    const chave = chavesPorRecurso[recurso];
+
+    if (!chave) return "";
+
+    params.set(chave, String(id));
+
+    return `${BASE}/${recurso}/pdf${download ? "/download" : ""}?${params.toString()}`;
+  };
+
+  const obterIdVisita = (item) =>
+    primeiroValor(item?.id_visita, item?.Id_Visita, item?.visita_id);
+
+  const obterIdImovel = (item) =>
+    primeiroValor(item?.id_imovel, item?.Id_Imovel, item?.imovel_id, item?.codigo);
+
+  const obterIdCliente = (item) =>
+    primeiroValor(item?.id_cliente, item?.Id_Cliente, item?.cliente_id);
+
+  const abrirUrl = (url, mensagemErro = "Link não disponível.") => {
+    if (!url) {
+      toast(mensagemErro, "error");
+      return;
+    }
+
+    window.open(url, "_blank");
   };
 
   const listaCorretoresFiltro = useMemo(() => {
@@ -441,9 +481,7 @@ function RelatorioGerente() {
 
     try {
       const resp = await fetch(
-        `${API_VISITAS_BASE}/visitas/pdf?visita_id=${encodeURIComponent(
-          itemSelecionado.id_visita
-        )}`
+        montarUrlPdf("visitas", obterIdVisita(itemSelecionado))
       );
 
       const data = await resp.json().catch(() => ({}));
@@ -467,11 +505,10 @@ function RelatorioGerente() {
   function baixarPdfVisita() {
     if (!itemSelecionado || tipoSelecionado !== "visita") return;
 
-    const url = `${API_VISITAS_BASE}/visitas/pdf/download?visita_id=${encodeURIComponent(
-      itemSelecionado.id_visita
-    )}`;
-
-    window.open(url, "_blank");
+    abrirUrl(
+      montarUrlPdf("visitas", obterIdVisita(itemSelecionado), true),
+      "Não foi encontrado o id da visita para download."
+    );
   }
 
   async function abrirPdfImovel() {
@@ -481,9 +518,7 @@ function RelatorioGerente() {
 
     try {
       const resp = await fetch(
-        `${API_IMOVEIS_BASE}/imoveis/pdf?imovel_id=${encodeURIComponent(
-          itemSelecionado.id_imovel
-        )}`
+        montarUrlPdf("imoveis", obterIdImovel(itemSelecionado))
       );
 
       const data = await resp.json().catch(() => ({}));
@@ -507,11 +542,10 @@ function RelatorioGerente() {
   function baixarPdfImovel() {
     if (!itemSelecionado || tipoSelecionado !== "imovel") return;
 
-    const url = `${API_IMOVEIS_BASE}/imoveis/pdf/download?imovel_id=${encodeURIComponent(
-      itemSelecionado.id_imovel
-    )}`;
-
-    window.open(url, "_blank");
+    abrirUrl(
+      montarUrlPdf("imoveis", obterIdImovel(itemSelecionado), true),
+      "Não foi encontrado o id do imóvel para download."
+    );
   }
 
   async function abrirPdfCliente() {
@@ -521,9 +555,7 @@ function RelatorioGerente() {
 
     try {
       const resp = await fetch(
-        `${API_VISITAS_BASE}/clientes/pdf?id_cliente=${encodeURIComponent(
-          itemSelecionado.id_cliente
-        )}`
+        montarUrlPdf("clientes", obterIdCliente(itemSelecionado))
       );
 
       const data = await resp.json().catch(() => ({}));
@@ -547,11 +579,10 @@ function RelatorioGerente() {
   function baixarPdfCliente() {
     if (!itemSelecionado || tipoSelecionado !== "cliente") return;
 
-    const url = `${API_VISITAS_BASE}/clientes/pdf/download?id_cliente=${encodeURIComponent(
-      itemSelecionado.id_cliente
-    )}`;
-
-    window.open(url, "_blank");
+    abrirUrl(
+      montarUrlPdf("clientes", obterIdCliente(itemSelecionado), true),
+      "Não foi encontrado o id do cliente para download."
+    );
   }
 
   const cardNumero = (titulo, valor) => (
@@ -708,7 +739,12 @@ function RelatorioGerente() {
 
                       <button
                         className="botao-secundario"
-                        onClick={() => window.open(item.pdf_download_url, "_blank")}
+                        onClick={() =>
+                          abrirUrl(
+                            montarUrlPdf("visitas", obterIdVisita(item), true),
+                            "Não foi encontrado o id da visita para download."
+                          )
+                        }
                       >
                         Download
                       </button>
@@ -811,12 +847,9 @@ function RelatorioGerente() {
                       <button
                         className="botao-secundario"
                         onClick={() =>
-                          window.open(
-                            item.pdf_download_url ||
-                              `${API_IMOVEIS_BASE}/imoveis/pdf/download?imovel_id=${encodeURIComponent(
-                                item.id_imovel
-                              )}`,
-                            "_blank"
+                          abrirUrl(
+                            montarUrlPdf("imoveis", obterIdImovel(item), true),
+                            "Não foi encontrado o id do imóvel para download."
                           )
                         }
                       >
@@ -922,7 +955,12 @@ function RelatorioGerente() {
 
                       <button
                         className="botao-secundario"
-                        onClick={() => window.open(item.pdf_download_url, "_blank")}
+                        onClick={() =>
+                          abrirUrl(
+                            montarUrlPdf("clientes", obterIdCliente(item), true),
+                            "Não foi encontrado o id do cliente para download."
+                          )
+                        }
                       >
                         Download
                       </button>
