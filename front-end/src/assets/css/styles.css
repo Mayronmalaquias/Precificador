@@ -331,6 +331,8 @@ input[type="range"]::-moz-range-thumb {
   body {
     background-image: url("../img/Banner Mobile Site.png");
     background-size: cover;
+    background-attachment: scroll;
+    background-position: center top;
   }
 
   .main-container {

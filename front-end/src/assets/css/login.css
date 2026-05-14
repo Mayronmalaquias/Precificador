@@ -161,6 +161,7 @@
     body {
         background-image: url("../img/Banner Mobile Site.png");
         background-size: cover;
-        background-position: center;
+        background-position: center top;
+        background-attachment: scroll;
     }
 }
