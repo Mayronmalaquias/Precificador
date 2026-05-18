@@ -578,7 +578,7 @@ class RankingService:
 
         return self._finalize_rank_df(acc)
 
-    def _calc_vgc_geral_algoritmo(self, vendas: pd.DataFrame) -> pd.DataFrame:
+    def _calc_vgc_geral_algoritmo(self, vendas: pd.DataFrame, apply_factor: bool = False) -> pd.DataFrame:
         """
         REGRA OFICIAL:
         - usa Valor_Total_61 BRUTO
@@ -587,7 +587,7 @@ class RankingService:
         - 1v+1c: ambos recebem 1x Valor_Total_61
         - 2v+1c: cada vendedor recebe 1/2, captador recebe 1x
         - 1v+2c: vendedor recebe 1x, cada captador recebe 1/2
-        - NÃO divide por 0.06, NÃO faz split 50/50 entre os lados
+        - NÃO divide por 0.06 por padrão; se apply_factor=True divide cada valor por 0.06
         """
         if vendas.empty:
             return pd.DataFrame(columns=["Id_Corretor", "Nome_Corretor", "total"])
@@ -595,9 +595,12 @@ class RankingService:
         acc: Dict[str, float] = {}
 
         for _, row in vendas.iterrows():
-            valor_comissao_total = float(row.get("Valor_Total_61", 0.0) or 0.0)
-            if valor_comissao_total <= 0:
+            valor_total = float(row.get("Valor_Total_61", 0.0) or 0.0)
+            if valor_total <= 0:
                 continue
+
+            if apply_factor:
+                valor_total = valor_total / 0.06
 
             vendedores = {
                 self._limpar_nome(row.get("Corretor_Venda_1_Nome")),
@@ -611,13 +614,19 @@ class RankingService:
             vendedores = {n for n in vendedores if n}
             captadores = {n for n in captadores if n}
 
+            n_lados = (1 if vendedores else 0) + (1 if captadores else 0)
+            if n_lados == 0:
+                continue
+
+            valor_por_lado = valor_total / n_lados
+
             if vendedores:
-                por_vendedor = valor_comissao_total / len(vendedores)
+                por_vendedor = valor_por_lado / len(vendedores)
                 for nome in vendedores:
                     acc[nome] = acc.get(nome, 0.0) + por_vendedor
 
             if captadores:
-                por_captador = valor_comissao_total / len(captadores)
+                por_captador = valor_por_lado / len(captadores)
                 for nome in captadores:
                     acc[nome] = acc.get(nome, 0.0) + por_captador
 
@@ -736,7 +745,8 @@ class RankingService:
         kind: str,
         start: Optional[str],
         end: Optional[str],
-        include_pending: bool = False
+        include_pending: bool = False,
+        apply_factor: bool = False,
     ) -> List[Dict[str, Any]]:
         kind = (kind or "").lower().strip()
 
@@ -745,7 +755,7 @@ class RankingService:
             if kind == "vgv_geral":
                 rank_df = self._calc_vgv_geral_algoritmo(vendas)
             else:
-                rank_df = self._calc_vgc_geral_algoritmo(vendas)
+                rank_df = self._calc_vgc_geral_algoritmo(vendas, apply_factor=apply_factor)
         elif kind == "captacao":
             rank_df = self._calc_captacao_rank(start, end)
         elif kind == "visitas":
@@ -759,7 +769,8 @@ class RankingService:
         self,
         start: Optional[str],
         end: Optional[str],
-        include_pending: bool = False
+        include_pending: bool = False,
+        apply_factor: bool = False,
     ) -> Dict[str, Any]:
         vendas = self.load_vendas(start, end)
 
@@ -771,7 +782,7 @@ class RankingService:
         df_vgv = self._calc_vgv_geral_algoritmo(vendas) if not vendas.empty else pd.DataFrame(
             columns=["Id_Corretor", "Nome_Corretor", "total"]
         )
-        df_vgc = self._calc_vgc_geral_algoritmo(vendas) if not vendas.empty else pd.DataFrame(
+        df_vgc = self._calc_vgc_geral_algoritmo(vendas, apply_factor=apply_factor) if not vendas.empty else pd.DataFrame(
             columns=["Id_Corretor", "Nome_Corretor", "total"]
         )
         df_capt = self._calc_captacao_rank(start, end)
@@ -811,6 +822,127 @@ class RankingService:
                 },
                 "warnings": warnings,
             }
+        }
+
+    # =========================================================
+    # Público: detalhe corretor
+    # =========================================================
+    def get_corretor_detalhe(
+        self,
+        nome_corretor: str,
+        kind: str,
+        start: Optional[str],
+        end: Optional[str],
+        apply_factor: bool = False,
+    ) -> Dict[str, Any]:
+        nome_norm = self._limpar_nome(nome_corretor)
+        vendas = self.load_vendas(start, end)
+        negociacoes: List[Dict[str, Any]] = []
+        total = 0.0
+        total_vgv = 0.0
+        total_vgc_bruto = 0.0
+        total_vgc_fator = 0.0
+
+        for _, row in vendas.iterrows():
+            vendedores = {
+                self._limpar_nome(row.get("Corretor_Venda_1_Nome")),
+                self._limpar_nome(row.get("Corretor_Venda_2_Nome")),
+            }
+            captadores = {
+                self._limpar_nome(row.get("Corretor_Captador_1_Nome")),
+                self._limpar_nome(row.get("Corretor_Captador_2_Nome")),
+            }
+            vendedores = {n for n in vendedores if n}
+            captadores = {n for n in captadores if n}
+
+            is_vend = nome_norm in vendedores
+            is_cap = nome_norm in captadores
+
+            if not is_vend and not is_cap:
+                continue
+
+            if is_vend and is_cap:
+                papel = "VENDA + CAPTAÇÃO"
+            elif is_vend:
+                papel = "VENDA"
+            else:
+                papel = "CAPTAÇÃO"
+
+            n_lados = (1 if vendedores else 0) + (1 if captadores else 0)
+            if n_lados == 0:
+                continue
+
+            vn = float(row.get("Valor_Negocio", 0.0) or 0.0)
+            v61 = float(row.get("Valor_Total_61", 0.0) or 0.0)
+
+            # Acumula porção de cada lado em que o corretor aparece
+            vgv_corretor = 0.0
+            vgc_bruto_corretor = 0.0
+            vgc_fator_corretor = 0.0
+
+            if is_vend and len(vendedores) > 0:
+                vgv_corretor += vn / len(vendedores)
+                if v61 > 0:
+                    vgc_bruto_corretor += (v61 / n_lados) / len(vendedores)
+                    vgc_fator_corretor += (v61 / 0.06 / n_lados) / len(vendedores)
+
+            if is_cap and len(captadores) > 0:
+                vgv_corretor += vn / len(captadores)
+                if v61 > 0:
+                    vgc_bruto_corretor += (v61 / n_lados) / len(captadores)
+                    vgc_fator_corretor += (v61 / 0.06 / n_lados) / len(captadores)
+
+            if kind == "vgc_geral":
+                valor_corretor = vgc_fator_corretor if apply_factor else vgc_bruto_corretor
+                if valor_corretor <= 0:
+                    continue
+            else:
+                valor_corretor = vgv_corretor
+                if valor_corretor <= 0:
+                    continue
+
+            outros = sorted((vendedores | captadores) - {nome_norm})
+
+            empreend_cols = ["Empreendimento", "empreendimento", "Endereco", "Endereco_Imovel", "Descricao"]
+            empreendimento = ""
+            for c in empreend_cols:
+                v = str(row.get(c, "")).strip()
+                if v and v.lower() not in ("nan", "none", ""):
+                    empreendimento = v
+                    break
+
+            # formata data sem timestamp
+            raw_date = str(row.get("Data_Contrato", "")).strip()
+            date_only = raw_date.split(" ")[0].split("T")[0]
+
+            negociacoes.append({
+                "id_contrato": str(row.get("Id_Contrato", "")).strip(),
+                "data_contrato": date_only,
+                "empreendimento": empreendimento,
+                "valor_negocio": vn,
+                "valor_total_61": v61,
+                "papel": papel,
+                "valor_corretor": round(valor_corretor, 2),
+                "outros_envolvidos": outros,
+            })
+            total += valor_corretor
+            total_vgv += vn
+            total_vgc_bruto += vgc_bruto_corretor
+            total_vgc_fator += vgc_fator_corretor
+
+        negociacoes.sort(key=lambda x: x["data_contrato"])
+
+        return {
+            "corretor": nome_norm,
+            "kind": kind,
+            "start": start,
+            "end": end,
+            "apply_factor": apply_factor,
+            "total": round(total, 2),
+            "total_vgv": round(total_vgv, 2),
+            "total_vgc_bruto": round(total_vgc_bruto, 2),
+            "total_vgc_fator": round(total_vgc_fator, 2),
+            "negociacoes": negociacoes,
         }
 
     # =========================================================

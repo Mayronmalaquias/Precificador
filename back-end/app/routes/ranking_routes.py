@@ -1,7 +1,8 @@
 # app/routes/ranking_routes.py
-from flask import request
+from flask import request, send_file
 from flask_restx import Namespace, Resource, fields
 from app.services.ranking_service import RankingService
+from app.services.corretor_pdf_service import gerar_pdf_corretor, gerar_pdf_todos
 
 ranking_ns = Namespace("ranking", description="Rankings (VGV, VGC, Captação, Visitas)")
 
@@ -31,7 +32,8 @@ class Rankings(Resource):
         params={
             "start": "Data inicial (YYYY-MM-DD). Opcional.",
             "end": "Data final (YYYY-MM-DD). Opcional.",
-            "include_pending": "Se true, inclui vendas sem divisão de comissão (apenas para VGV/Captação/Visitas; VGC depende da divisão). Padrão: false.",
+            "include_pending": "Se true, inclui vendas sem divisão de comissão. Padrão: false.",
+            "apply_factor": "Se true, divide Valor_Total_61 por 0.06 no VGC. Padrão: false.",
         }
     )
     @ranking_ns.marshal_with(ranking_response)
@@ -39,9 +41,10 @@ class Rankings(Resource):
         start = request.args.get("start")
         end = request.args.get("end")
         include_pending = request.args.get("include_pending", "false").lower() == "true"
+        apply_factor = request.args.get("apply_factor", "false").lower() == "true"
 
         svc = RankingService()
-        result = svc.get_all_rankings(start=start, end=end, include_pending=include_pending)
+        result = svc.get_all_rankings(start=start, end=end, include_pending=include_pending, apply_factor=apply_factor)
         return result, 200
 
 
@@ -52,6 +55,7 @@ class RankingsByKind(Resource):
             "start": "Data inicial (YYYY-MM-DD). Opcional.",
             "end": "Data final (YYYY-MM-DD). Opcional.",
             "include_pending": "Mesma regra do endpoint geral. Padrão: false.",
+            "apply_factor": "Se true, divide Valor_Total_61 por 0.06 no VGC. Padrão: false.",
         }
     )
     @ranking_ns.marshal_list_with(ranking_item)
@@ -63,10 +67,124 @@ class RankingsByKind(Resource):
         start = request.args.get("start")
         end = request.args.get("end")
         include_pending = request.args.get("include_pending", "false").lower() == "true"
+        apply_factor = request.args.get("apply_factor", "false").lower() == "true"
 
         svc = RankingService()
-        ranking = svc.get_ranking(kind=kind, start=start, end=end, include_pending=include_pending)
+        ranking = svc.get_ranking(kind=kind, start=start, end=end, include_pending=include_pending, apply_factor=apply_factor)
         return ranking, 200
+
+
+@ranking_ns.route("/rankings/todos/pdf")
+class TodosPdf(Resource):
+    @ranking_ns.doc(
+        params={
+            "kind": "vgc_geral ou vgv_geral.",
+            "start": "Data inicial (YYYY-MM-DD).",
+            "end": "Data final (YYYY-MM-DD).",
+            "apply_factor": "Divide Valor_Total_61 por 0.06 (só VGC). Padrão: false.",
+        }
+    )
+    def get(self):
+        kind = (request.args.get("kind", "vgc_geral") or "vgc_geral").lower().strip()
+        if kind not in {"vgc_geral", "vgv_geral"}:
+            return {"error": "kind inválido."}, 400
+
+        start = request.args.get("start")
+        end = request.args.get("end")
+        apply_factor = request.args.get("apply_factor", "false").lower() == "true"
+
+        svc = RankingService()
+        corretores = svc.get_ranking(kind=kind, start=start, end=end, apply_factor=apply_factor)
+
+        detalhes = []
+        for item in corretores:
+            nome = item.get("corretor", "")
+            if not nome:
+                continue
+            detalhe = svc.get_corretor_detalhe(
+                nome_corretor=nome,
+                kind=kind,
+                start=start,
+                end=end,
+                apply_factor=apply_factor,
+            )
+            if detalhe.get("negociacoes"):
+                detalhes.append(detalhe)
+
+        if not detalhes:
+            return {"error": "Nenhum dado encontrado para os filtros informados."}, 404
+
+        buf = gerar_pdf_todos(detalhes)
+        kind_label = "vgc" if kind == "vgc_geral" else "vgv"
+        nome_arquivo = f"relatorio_{kind_label}_{start}_{end}.pdf"
+        return send_file(buf, as_attachment=True, download_name=nome_arquivo, mimetype="application/pdf")
+
+
+@ranking_ns.route("/rankings/corretor/detalhe")
+class CorretorDetalhe(Resource):
+    @ranking_ns.doc(
+        params={
+            "nome": "Nome do corretor (exato, case-insensitive).",
+            "kind": "vgc_geral ou vgv_geral.",
+            "start": "Data inicial (YYYY-MM-DD).",
+            "end": "Data final (YYYY-MM-DD).",
+            "apply_factor": "Se true, divide Valor_Total_61 por 0.06 (só VGC). Padrão: false.",
+        }
+    )
+    def get(self):
+        nome = request.args.get("nome", "")
+        kind = (request.args.get("kind", "vgc_geral") or "vgc_geral").lower().strip()
+        if kind not in {"vgc_geral", "vgv_geral"}:
+            return {"error": "kind inválido. Use: vgc_geral, vgv_geral"}, 400
+
+        start = request.args.get("start")
+        end = request.args.get("end")
+        apply_factor = request.args.get("apply_factor", "false").lower() == "true"
+
+        svc = RankingService()
+        resultado = svc.get_corretor_detalhe(
+            nome_corretor=nome,
+            kind=kind,
+            start=start,
+            end=end,
+            apply_factor=apply_factor,
+        )
+        return resultado, 200
+
+
+@ranking_ns.route("/rankings/corretor/pdf")
+class CorretorPdf(Resource):
+    @ranking_ns.doc(
+        params={
+            "nome": "Nome do corretor.",
+            "kind": "vgc_geral ou vgv_geral.",
+            "start": "Data inicial (YYYY-MM-DD).",
+            "end": "Data final (YYYY-MM-DD).",
+            "apply_factor": "Divide Valor_Total_61 por 0.06 (só VGC). Padrão: false.",
+        }
+    )
+    def get(self):
+        nome = request.args.get("nome", "")
+        kind = (request.args.get("kind", "vgc_geral") or "vgc_geral").lower().strip()
+        if kind not in {"vgc_geral", "vgv_geral"}:
+            return {"error": "kind inválido."}, 400
+
+        start = request.args.get("start")
+        end = request.args.get("end")
+        apply_factor = request.args.get("apply_factor", "false").lower() == "true"
+
+        svc = RankingService()
+        detalhe = svc.get_corretor_detalhe(
+            nome_corretor=nome,
+            kind=kind,
+            start=start,
+            end=end,
+            apply_factor=apply_factor,
+        )
+
+        buf = gerar_pdf_corretor(detalhe)
+        nome_arquivo = f"comissoes_{nome.replace(' ', '_').lower()}_{start}_{end}.pdf"
+        return send_file(buf, as_attachment=True, download_name=nome_arquivo, mimetype="application/pdf")
 
 
 # app/routes/meta_gerente_routes.py

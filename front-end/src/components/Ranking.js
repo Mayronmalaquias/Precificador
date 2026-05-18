@@ -49,12 +49,14 @@ function Ranking() {
     start: initialRange.start,
     end: initialRange.end,
     include_pending: false,
+    apply_factor: false,
   });
 
   const [appliedFormData, setAppliedFormData] = useState({
     start: initialRange.start,
     end: initialRange.end,
     include_pending: false,
+    apply_factor: false,
   });
 
   const [metaForm, setMetaForm] = useState({
@@ -73,9 +75,14 @@ function Ranking() {
   const [loading, setLoading] = useState(false);
   const [loadingPdf, setLoadingPdf] = useState(false);
 
+  const [detalheCorretor, setDetalheCorretor] = useState(null);
+  const [loadingDetalhe, setLoadingDetalhe] = useState(false);
+  const [loadingPdfCorretor, setLoadingPdfCorretor] = useState(false);
+  const [loadingPdfTodos, setLoadingPdfTodos] = useState(false);
+
   const activeTab = RANKING_TABS.find((item) => item.id === tab) || RANKING_TABS[0];
   const currentRows = dataByTab[tab] || [];
-  const currentLoadKey = `${appliedFormData.start}|${appliedFormData.end}|${appliedFormData.include_pending}`;
+  const currentLoadKey = `${appliedFormData.start}|${appliedFormData.end}|${appliedFormData.include_pending}|${appliedFormData.apply_factor}`;
 
   const handleChange = (e) => {
     const { name, type, value, checked } = e.target;
@@ -124,6 +131,10 @@ function Ranking() {
 
       params.set('include_pending', appliedFormData.include_pending ? 'true' : 'false');
 
+      if (kind === 'vgc_geral' && appliedFormData.apply_factor) {
+        params.set('apply_factor', 'true');
+      }
+
       return `${API_BASE}/rankings/${kind}?${params.toString()}`;
     },
     [appliedFormData]
@@ -164,6 +175,100 @@ function Ranking() {
     },
     [buildUrl, currentLoadKey, loadedKeyByTab, tab, toast]
   );
+
+  const baixarPdfTodos = async () => {
+    const kindDetalhe = tab === 'vgv_geral' ? 'vgv_geral' : 'vgc_geral';
+    const params = new URLSearchParams({
+      kind: kindDetalhe,
+      ...(appliedFormData.start && { start: appliedFormData.start }),
+      ...(appliedFormData.end && { end: appliedFormData.end }),
+      apply_factor: appliedFormData.apply_factor ? 'true' : 'false',
+    });
+
+    setLoadingPdfTodos(true);
+    try {
+      const res = await fetch(`${API_BASE}/rankings/todos/pdf?${params}`);
+      if (!res.ok) {
+        const json = await res.json().catch(() => ({}));
+        toast(json?.error || 'Erro ao gerar relatório.', 'error');
+        return;
+      }
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `relatorio_${kindDetalhe}_${appliedFormData.start}_${appliedFormData.end}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+    } catch {
+      toast('Erro de conexão ao gerar relatório.', 'error');
+    } finally {
+      setLoadingPdfTodos(false);
+    }
+  };
+
+  const abrirDetalheCorretor = async (nomeCorretor) => {
+    if (!nomeCorretor) return;
+    const kindDetalhe = tab === 'vgv_geral' ? 'vgv_geral' : 'vgc_geral';
+    const params = new URLSearchParams({
+      nome: nomeCorretor,
+      kind: kindDetalhe,
+      ...(appliedFormData.start && { start: appliedFormData.start }),
+      ...(appliedFormData.end && { end: appliedFormData.end }),
+      apply_factor: appliedFormData.apply_factor ? 'true' : 'false',
+    });
+
+    setLoadingDetalhe(true);
+    setDetalheCorretor(null);
+    try {
+      const res = await fetch(`${API_BASE}/rankings/corretor/detalhe?${params}`);
+      const json = await res.json();
+      if (!res.ok) {
+        toast(json?.error || 'Erro ao buscar detalhe do corretor.', 'error');
+        return;
+      }
+      setDetalheCorretor(json);
+    } catch {
+      toast('Erro de conexão ao buscar detalhe.', 'error');
+    } finally {
+      setLoadingDetalhe(false);
+    }
+  };
+
+  const baixarPdfCorretor = async () => {
+    if (!detalheCorretor) return;
+    const params = new URLSearchParams({
+      nome: detalheCorretor.corretor,
+      kind: detalheCorretor.kind,
+      ...(detalheCorretor.start && { start: detalheCorretor.start }),
+      ...(detalheCorretor.end && { end: detalheCorretor.end }),
+      apply_factor: detalheCorretor.apply_factor ? 'true' : 'false',
+    });
+
+    setLoadingPdfCorretor(true);
+    try {
+      const res = await fetch(`${API_BASE}/rankings/corretor/pdf?${params}`);
+      if (!res.ok) {
+        toast('Erro ao gerar PDF.', 'error');
+        return;
+      }
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `comissoes_${detalheCorretor.corretor.replace(/\s+/g, '_').toLowerCase()}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+    } catch {
+      toast('Erro de conexão ao gerar PDF.', 'error');
+    } finally {
+      setLoadingPdfCorretor(false);
+    }
+  };
 
   const gerarPdfMetas = async (e) => {
     e.preventDefault();
@@ -322,6 +427,19 @@ function Ranking() {
                 <span>Incluir pendentes</span>
               </label>
 
+              {tab === 'vgc_geral' && (
+                <label className="ranking__check">
+                  <input
+                    id="apply_factor"
+                    name="apply_factor"
+                    type="checkbox"
+                    checked={formData.apply_factor}
+                    onChange={handleChange}
+                  />
+                  <span>Dividir por 0,06</span>
+                </label>
+              )}
+
               <div className="ranking__filterActions">
                 <button className="ranking__btn ranking__btn--secondary" type="button" onClick={setLastWeek}>
                   Ultima semana
@@ -368,7 +486,19 @@ function Ranking() {
                   <h3 className="ranking__h3">{activeTab.title}</h3>
                   <p className="ranking__hint">Apenas esta categoria e carregada ao abrir a aba.</p>
                 </div>
-                {loading && <span className="ranking__loading">Atualizando</span>}
+                <div className="ranking__tableHeadActions">
+                  {loading && <span className="ranking__loading">Atualizando</span>}
+                  {(tab === 'vgc_geral' || tab === 'vgv_geral') && currentRows.length > 0 && (
+                    <button
+                      type="button"
+                      className="ranking__btn ranking__btn--outline"
+                      onClick={baixarPdfTodos}
+                      disabled={loadingPdfTodos}
+                    >
+                      {loadingPdfTodos ? 'Gerando...' : 'Baixar Relatório'}
+                    </button>
+                  )}
+                </div>
               </div>
 
               <div className="ranking__tableWrap">
@@ -378,12 +508,13 @@ function Ranking() {
                       <th>#</th>
                       <th>Corretor</th>
                       <th>{activeTab.unit === 'currency' ? 'Valor' : 'Total'}</th>
+                      {(tab === 'vgc_geral' || tab === 'vgv_geral') && <th></th>}
                     </tr>
                   </thead>
                   <tbody>
                     {currentRows.length === 0 ? (
                       <tr>
-                        <td colSpan={3} className="ranking__empty">
+                        <td colSpan={tab === 'vgc_geral' || tab === 'vgv_geral' ? 4 : 3} className="ranking__empty">
                           Nenhum dado encontrado para o periodo informado.
                         </td>
                       </tr>
@@ -393,6 +524,17 @@ function Ranking() {
                           <td className="ranking__pos">{row.posicao}</td>
                           <td className="ranking__name">{row.corretor}</td>
                           <td className="ranking__value">{renderTotal(row)}</td>
+                          {(tab === 'vgc_geral' || tab === 'vgv_geral') && (
+                            <td className="ranking__detBtn">
+                              <button
+                                type="button"
+                                className="ranking__btn ranking__btn--ghost"
+                                onClick={() => abrirDetalheCorretor(row.corretor)}
+                              >
+                                Ver
+                              </button>
+                            </td>
+                          )}
                         </tr>
                       ))
                     )}
@@ -507,6 +649,107 @@ function Ranking() {
             </button>
           </div>
         </form>
+      )}
+
+      {(detalheCorretor || loadingDetalhe) && (
+        <div className="ranking__modalOverlay" onClick={() => setDetalheCorretor(null)}>
+          <div className="ranking__modal" onClick={(e) => e.stopPropagation()}>
+            <div className="ranking__modalHeader">
+              <div>
+                <h3 className="ranking__h3">
+                  {loadingDetalhe ? 'Carregando...' : detalheCorretor?.corretor?.toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase())}
+                </h3>
+                {detalheCorretor && (
+                  <p className="ranking__hint">
+                    {detalheCorretor.kind === 'vgc_geral' ? 'VGC' : 'VGV'}
+                    {detalheCorretor.apply_factor ? ' ÷ 0,06' : ''}
+                    {' · '}
+                    {detalheCorretor.start} até {detalheCorretor.end}
+                    {' · '}
+                    {detalheCorretor.negociacoes?.length || 0} negociações
+                  </p>
+                )}
+              </div>
+              <button type="button" className="ranking__modalClose" onClick={() => setDetalheCorretor(null)}>✕</button>
+            </div>
+
+            {!loadingDetalhe && detalheCorretor && (
+              <>
+                <div className="ranking__tableWrap">
+                  <table className="ranking__table">
+                    <thead>
+                      <tr>
+                        <th>Contrato</th>
+                        <th>Data</th>
+                        <th>Papel</th>
+                        <th>V. Negócio</th>
+                        <th>V. Total 61</th>
+                        <th>Comissão</th>
+                        <th>Outros envolvidos</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {detalheCorretor.negociacoes.length === 0 ? (
+                        <tr>
+                          <td colSpan={7} className="ranking__empty">Nenhuma negociação encontrada.</td>
+                        </tr>
+                      ) : (
+                        detalheCorretor.negociacoes.map((neg, i) => (
+                          <tr key={`neg-${i}`}>
+                            <td>{neg.id_contrato}</td>
+                            <td>{neg.data_contrato}</td>
+                            <td>
+                              <span className={`ranking__papel ranking__papel--${neg.papel === 'VENDA + CAPTAÇÃO' ? 'duplo' : neg.papel === 'VENDA' ? 'venda' : 'captacao'}`}>
+                                {neg.papel}
+                              </span>
+                            </td>
+                            <td className="ranking__value">{formatCurrency(neg.valor_negocio)}</td>
+                            <td className="ranking__value">{formatCurrency(neg.valor_total_61)}</td>
+                            <td className="ranking__value ranking__value--destaque">{formatCurrency(neg.valor_corretor)}</td>
+                            <td className="ranking__hint">{neg.outros_envolvidos.join(', ') || '—'}</td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                    <tfoot>
+                      <tr>
+                        <td colSpan={5} className="ranking__totalLabel">TOTAL</td>
+                        <td className="ranking__value ranking__value--destaque">{formatCurrency(detalheCorretor.total)}</td>
+                        <td></td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+
+                <div className="ranking__detalheTotais">
+                  <div className="ranking__detalheTotalItem">
+                    <span>VGV Total (Valor Negócio)</span>
+                    <strong>{formatCurrency(detalheCorretor.total_vgv)}</strong>
+                  </div>
+                  <div className="ranking__detalheTotalItem">
+                    <span>VGC sem ÷0,06</span>
+                    <strong>{formatCurrency(detalheCorretor.total_vgc_bruto)}</strong>
+                  </div>
+                  <div className="ranking__detalheTotalItem ranking__detalheTotalItem--destaque">
+                    <span>VGC com ÷0,06</span>
+                    <strong>{formatCurrency(detalheCorretor.total_vgc_fator)}</strong>
+                  </div>
+                </div>
+
+                <div className="ranking__modalFooter">
+                  <button
+                    type="button"
+                    className="ranking__btn ranking__btn--primary"
+                    onClick={baixarPdfCorretor}
+                    disabled={loadingPdfCorretor}
+                  >
+                    {loadingPdfCorretor ? 'Gerando PDF...' : 'Baixar PDF'}
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
       )}
     </div>
   );
