@@ -31,7 +31,6 @@ class Rankings(Resource):
         params={
             "start": "Data inicial (YYYY-MM-DD). Opcional.",
             "end": "Data final (YYYY-MM-DD). Opcional.",
-            "limit": "Quantidade máxima no ranking. Padrão: 100.",
             "include_pending": "Se true, inclui vendas sem divisão de comissão (apenas para VGV/Captação/Visitas; VGC depende da divisão). Padrão: false.",
         }
     )
@@ -39,11 +38,10 @@ class Rankings(Resource):
     def get(self):
         start = request.args.get("start")
         end = request.args.get("end")
-        limit = int(request.args.get("limit", "100"))
         include_pending = request.args.get("include_pending", "false").lower() == "true"
 
         svc = RankingService()
-        result = svc.get_all_rankings(start=start, end=end, limit=limit, include_pending=include_pending)
+        result = svc.get_all_rankings(start=start, end=end, include_pending=include_pending)
         return result, 200
 
 
@@ -53,7 +51,6 @@ class RankingsByKind(Resource):
         params={
             "start": "Data inicial (YYYY-MM-DD). Opcional.",
             "end": "Data final (YYYY-MM-DD). Opcional.",
-            "limit": "Quantidade máxima no ranking. Padrão: 100.",
             "include_pending": "Mesma regra do endpoint geral. Padrão: false.",
         }
     )
@@ -65,11 +62,10 @@ class RankingsByKind(Resource):
 
         start = request.args.get("start")
         end = request.args.get("end")
-        limit = int(request.args.get("limit", "100"))
         include_pending = request.args.get("include_pending", "false").lower() == "true"
 
         svc = RankingService()
-        ranking = svc.get_ranking(kind=kind, start=start, end=end, limit=limit, include_pending=include_pending)
+        ranking = svc.get_ranking(kind=kind, start=start, end=end, include_pending=include_pending)
         return ranking, 200
 
 

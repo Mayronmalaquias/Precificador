@@ -227,11 +227,11 @@ class RankingService:
         return False
 
     @staticmethod
-    def _rank_list(df: pd.DataFrame, total_col: str, id_col: str, name_col: str, limit: int) -> List[Dict[str, Any]]:
+    def _rank_list(df: pd.DataFrame, total_col: str, id_col: str, name_col: str) -> List[Dict[str, Any]]:
         if df.empty:
             return []
 
-        df = df.sort_values([total_col, name_col], ascending=[False, True]).head(limit).reset_index(drop=True)
+        df = df.sort_values([total_col, name_col], ascending=[False, True]).reset_index(drop=True)
 
         out = []
         for i, row in df.iterrows():
@@ -736,7 +736,6 @@ class RankingService:
         kind: str,
         start: Optional[str],
         end: Optional[str],
-        limit: int = 100,
         include_pending: bool = False
     ) -> List[Dict[str, Any]]:
         kind = (kind or "").lower().strip()
@@ -754,13 +753,12 @@ class RankingService:
         else:
             raise ValueError("kind invalido")
 
-        return self._rank_list(rank_df, "total", "Id_Corretor", "Nome_Corretor", limit)
+        return self._rank_list(rank_df, "total", "Id_Corretor", "Nome_Corretor")
 
     def get_all_rankings(
         self,
         start: Optional[str],
         end: Optional[str],
-        limit: int = 100,
         include_pending: bool = False
     ) -> Dict[str, Any]:
         vendas = self.load_vendas(start, end)
@@ -779,10 +777,10 @@ class RankingService:
         df_capt = self._calc_captacao_rank(start, end)
         df_vis = self._calc_visitas_rank(start, end)
 
-        vgv_list = self._rank_list(df_vgv, "total", "Id_Corretor", "Nome_Corretor", limit)
-        vgc_list = self._rank_list(df_vgc, "total", "Id_Corretor", "Nome_Corretor", limit)
-        capt_list = self._rank_list(df_capt, "total", "Id_Corretor", "Nome_Corretor", limit)
-        vis_list = self._rank_list(df_vis, "total", "Id_Corretor", "Nome_Corretor", limit)
+        vgv_list = self._rank_list(df_vgv, "total", "Id_Corretor", "Nome_Corretor")
+        vgc_list = self._rank_list(df_vgc, "total", "Id_Corretor", "Nome_Corretor")
+        capt_list = self._rank_list(df_capt, "total", "Id_Corretor", "Nome_Corretor")
+        vis_list = self._rank_list(df_vis, "total", "Id_Corretor", "Nome_Corretor")
 
         return {
             "vgv": vgv_list,
@@ -805,7 +803,6 @@ class RankingService:
             "meta": {
                 "start": start,
                 "end": end,
-                "limit": limit,
                 "include_pending": include_pending,
                 "base_counts": {
                     "vendas": int(len(vendas)) if isinstance(vendas, pd.DataFrame) else 0,
