@@ -894,7 +894,9 @@ class RankingService:
                     vgc_fator_corretor += (v61 / 0.06 / n_lados) / len(captadores)
 
             if kind == "vgc_geral":
-                valor_corretor = vgc_fator_corretor if apply_factor else vgc_bruto_corretor
+                # Comissão = parte bruta do V. Total 61 (nunca excede V. Total 61)
+                # O ÷0.06 só afeta o total do ranking, não a coluna de comissão por venda
+                valor_corretor = vgc_bruto_corretor
                 if valor_corretor <= 0:
                     continue
             else:
