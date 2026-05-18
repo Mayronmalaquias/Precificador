@@ -52,6 +52,13 @@ function Ranking() {
     include_pending: false,
   });
 
+  const [appliedFormData, setAppliedFormData] = useState({
+    start: initialRange.start,
+    end: initialRange.end,
+    limit: 30,
+    include_pending: false,
+  });
+
   const [metaForm, setMetaForm] = useState({
     ano_relatorio: new Date().getFullYear(),
     mes_relatorio: Math.max(1, new Date().getMonth()),
@@ -70,7 +77,7 @@ function Ranking() {
 
   const activeTab = RANKING_TABS.find((item) => item.id === tab) || RANKING_TABS[0];
   const currentRows = dataByTab[tab] || [];
-  const currentLoadKey = `${formData.start}|${formData.end}|${formData.limit}|${formData.include_pending}`;
+  const currentLoadKey = `${appliedFormData.start}|${appliedFormData.end}|${appliedFormData.limit}|${appliedFormData.include_pending}`;
 
   const handleChange = (e) => {
     const { name, type, value, checked } = e.target;
@@ -114,19 +121,19 @@ function Ranking() {
     (kind) => {
       const params = new URLSearchParams();
 
-      if (formData.start) params.set('start', formData.start);
-      if (formData.end) params.set('end', formData.end);
+      if (appliedFormData.start) params.set('start', appliedFormData.start);
+      if (appliedFormData.end) params.set('end', appliedFormData.end);
 
-      const limitNum = Number(formData.limit);
+      const limitNum = Number(appliedFormData.limit);
       if (!Number.isNaN(limitNum) && limitNum > 0) {
         params.set('limit', String(limitNum));
       }
 
-      params.set('include_pending', formData.include_pending ? 'true' : 'false');
+      params.set('include_pending', appliedFormData.include_pending ? 'true' : 'false');
 
       return `${API_BASE}/rankings/${kind}?${params.toString()}`;
     },
-    [formData]
+    [appliedFormData]
   );
 
   const fetchRanking = useCallback(
@@ -285,7 +292,7 @@ function Ranking() {
             className="ranking__panel"
             onSubmit={(e) => {
               e.preventDefault();
-              fetchRanking(tab, true);
+              setAppliedFormData({ ...formData });
             }}
           >
             <div className="ranking__filters">

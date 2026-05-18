@@ -59,7 +59,7 @@ DRIVE_GERENTE_REPORTS_SUBFOLDER_NAME = os.getenv(
 _cache_lock = Lock()
 _cache_data: Optional[Dict[str, List[Dict[str, Any]]]] = None
 _cache_expires: float = 0.0
-_CACHE_TTL_SECONDS = 30
+_CACHE_TTL_SECONDS = 300
 
 
 # ---------------------------------------------------------------------------

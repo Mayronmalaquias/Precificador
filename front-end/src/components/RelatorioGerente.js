@@ -289,7 +289,7 @@ function RelatorioGerente() {
     if (filtros.id_gerente) {
       carregarDados();
     }
-  }, [filtros.id_gerente, filtros.start, filtros.end]);
+  }, [filtros.id_gerente]);
 
   const buildQuery = (extra = {}) => {
     const params = new URLSearchParams();
@@ -407,7 +407,7 @@ function RelatorioGerente() {
     setErro("");
 
     try {
-      await carregarListas();
+      await carregarDados();
     } catch (e) {
       setErro(e.message || "Erro ao aplicar filtro.");
     } finally {
