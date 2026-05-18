@@ -201,7 +201,7 @@ def gerar_pdf_corretor(detalhe: Dict[str, Any]) -> BytesIO:
     _render_page(pdf, detalhe)
 
     buf = BytesIO()
-    buf.write(pdf.output(dest="S").encode("latin-1"))
+    buf.write(pdf.output())
     buf.seek(0)
     return buf
 
@@ -219,6 +219,6 @@ def gerar_pdf_todos(detalhes: List[Dict[str, Any]]) -> BytesIO:
         _render_page(pdf, detalhe)
 
     buf = BytesIO()
-    buf.write(pdf.output(dest="S").encode("latin-1"))
+    buf.write(pdf.output())
     buf.seek(0)
     return buf
