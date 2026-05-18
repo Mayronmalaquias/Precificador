@@ -24,9 +24,9 @@ Y_TABLE_HEAD  = 46
 Y_ROWS_START  = 53
 ROW_H         = 5.5
 MAX_ROWS      = 29          # linhas visíveis máximas para caber na página
-Y_SUMMARY     = 242         # início do bloco de resumo
-Y_DECL        = 268
-Y_SIG_LINE    = 276
+# Assinatura e rodapé fixos no rodapé da página
+Y_DECL        = 258
+Y_SIG_LINE    = 268
 Y_FOOTER      = 290
 
 COL_WIDTHS  = [27, 20, 30, 27, 36, 40]   # total = 180mm
@@ -133,19 +133,20 @@ def _render_page(pdf, detalhe: Dict[str, Any]) -> None:
         pdf.set_text_color(*GRAY)
         pdf.cell(0, 4, f"* {truncado} contrato(s) não exibido(s) por limite de espaço.", ln=False)
 
-    # ── Bloco de resumo (posição fixa) ────────────────────────
-    pdf.set_xy(15, Y_SUMMARY)
+    # ── Bloco de resumo (logo após a tabela) ──────────────────
+    y_sum = y_row + (6 if truncado == 0 else 8)
+    pdf.set_xy(15, y_sum)
     pdf.set_font("Arial", "B", 8)
     pdf.set_text_color(*DARK)
-    pdf.cell(0, 5, "Resumo do Período", ln=True)
+    pdf.cell(0, 5, "Resumo do Período", ln=False)
 
     totais = [
-        ("VGV Total (Valor Negócio)",            detalhe.get("total_vgv", 0.0)),
+        ("VGV Total (Valor Negócio)",             detalhe.get("total_vgv", 0.0)),
         ("VGC sem ÷0,06 (porção Valor Total 61)", detalhe.get("total_vgc_bruto", 0.0)),
         ("VGC com ÷0,06",                         detalhe.get("total_vgc_fator", 0.0)),
     ]
     lw, vw = 120, 60
-    y_res = Y_SUMMARY + 6
+    y_res = y_sum + 6
     for label, valor in totais:
         pdf.set_xy(15, y_res)
         pdf.set_font("Arial", "", 8)
@@ -157,7 +158,7 @@ def _render_page(pdf, detalhe: Dict[str, Any]) -> None:
         pdf.cell(vw, 6.5, _fmt_br(valor), border=1, fill=False, align="C")
         y_res += 6.5
 
-    # ── Declaração ────────────────────────────────────────────
+    # ── Declaração (posição fixa no rodapé) ───────────────────
     pdf.set_xy(15, Y_DECL)
     pdf.set_font("Arial", "I", 8)
     pdf.set_text_color(*GRAY)
@@ -190,6 +191,19 @@ def _render_page(pdf, detalhe: Dict[str, Any]) -> None:
 # API pública
 # ─────────────────────────────────────────────────────────────
 
+def _pdf_to_bytes(pdf) -> bytes:
+    """Extrai o conteúdo do PDF como bytes, compatível com fpdf2 2.x e pyfpdf 1.x."""
+    try:
+        out = pdf.output()  # fpdf2 2.x → bytearray
+        if isinstance(out, str):
+            return out.encode("latin-1")
+        return bytes(out)
+    except Exception:
+        # pyfpdf 1.x: output() sem dest tenta print(); usar dest='S' para string
+        out = pdf.output(dest="S")  # type: ignore[call-arg]
+        return out.encode("latin-1") if isinstance(out, str) else bytes(out)
+
+
 def gerar_pdf_corretor(detalhe: Dict[str, Any]) -> BytesIO:
     """PDF de um único corretor (usado pelo modal individual)."""
     from fpdf import FPDF
@@ -200,8 +214,7 @@ def gerar_pdf_corretor(detalhe: Dict[str, Any]) -> BytesIO:
     pdf.add_page()
     _render_page(pdf, detalhe)
 
-    buf = BytesIO()
-    buf.write(pdf.output())
+    buf = BytesIO(_pdf_to_bytes(pdf))
     buf.seek(0)
     return buf
 
@@ -218,7 +231,6 @@ def gerar_pdf_todos(detalhes: List[Dict[str, Any]]) -> BytesIO:
         pdf.add_page()
         _render_page(pdf, detalhe)
 
-    buf = BytesIO()
-    buf.write(pdf.output())
+    buf = BytesIO(_pdf_to_bytes(pdf))
     buf.seek(0)
     return buf

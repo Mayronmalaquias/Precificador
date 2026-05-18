@@ -94,22 +94,7 @@ class TodosPdf(Resource):
         apply_factor = request.args.get("apply_factor", "false").lower() == "true"
 
         svc = RankingService()
-        corretores = svc.get_ranking(kind=kind, start=start, end=end, apply_factor=apply_factor)
-
-        detalhes = []
-        for item in corretores:
-            nome = item.get("corretor", "")
-            if not nome:
-                continue
-            detalhe = svc.get_corretor_detalhe(
-                nome_corretor=nome,
-                kind=kind,
-                start=start,
-                end=end,
-                apply_factor=apply_factor,
-            )
-            if detalhe.get("negociacoes"):
-                detalhes.append(detalhe)
+        detalhes = svc.get_todos_detalhe(kind=kind, start=start, end=end, apply_factor=apply_factor)
 
         if not detalhes:
             return {"error": "Nenhum dado encontrado para os filtros informados."}, 404

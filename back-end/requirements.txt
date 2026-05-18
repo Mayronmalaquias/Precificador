@@ -16,7 +16,7 @@ SQLAlchemy==1.4.49
 folium==0.12.1
 matplotlib
 Pillow          # necessário p/ salvar JPG com o matplotlib
-fpdf2 
+fpdf2==2.8.7
 google-api-python-client
 google-auth
 google-auth-httplib2

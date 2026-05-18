@@ -827,16 +827,17 @@ class RankingService:
     # =========================================================
     # Público: detalhe corretor
     # =========================================================
-    def get_corretor_detalhe(
+    def _detalhe_de_vendas(
         self,
         nome_corretor: str,
         kind: str,
         start: Optional[str],
         end: Optional[str],
-        apply_factor: bool = False,
+        apply_factor: bool,
+        vendas: "pd.DataFrame",
     ) -> Dict[str, Any]:
+        """Calcula o detalhe de um corretor a partir de um DataFrame já carregado."""
         nome_norm = self._limpar_nome(nome_corretor)
-        vendas = self.load_vendas(start, end)
         negociacoes: List[Dict[str, Any]] = []
         total = 0.0
         total_vgv = 0.0
@@ -944,6 +945,45 @@ class RankingService:
             "total_vgc_fator": round(total_vgc_fator, 2),
             "negociacoes": negociacoes,
         }
+
+    def get_corretor_detalhe(
+        self,
+        nome_corretor: str,
+        kind: str,
+        start: Optional[str],
+        end: Optional[str],
+        apply_factor: bool = False,
+    ) -> Dict[str, Any]:
+        vendas = self.load_vendas(start, end)
+        return self._detalhe_de_vendas(nome_corretor, kind, start, end, apply_factor, vendas)
+
+    def get_todos_detalhe(
+        self,
+        kind: str,
+        start: Optional[str],
+        end: Optional[str],
+        apply_factor: bool = False,
+    ) -> List[Dict[str, Any]]:
+        """Carrega a planilha UMA vez e gera detalhe de todos os corretores do ranking."""
+        vendas = self.load_vendas(start, end)
+
+        if kind == "vgc_geral":
+            rank_df = self._calc_vgc_geral_algoritmo(vendas, apply_factor=apply_factor) if not vendas.empty else pd.DataFrame(columns=["Id_Corretor", "Nome_Corretor", "total"])
+        else:
+            rank_df = self._calc_vgv_geral_algoritmo(vendas) if not vendas.empty else pd.DataFrame(columns=["Id_Corretor", "Nome_Corretor", "total"])
+
+        ranking = self._rank_list(rank_df, "total", "Id_Corretor", "Nome_Corretor")
+
+        detalhes = []
+        for item in ranking:
+            nome = item.get("corretor", "")
+            if not nome:
+                continue
+            detalhe = self._detalhe_de_vendas(nome, kind, start, end, apply_factor, vendas)
+            if detalhe.get("negociacoes"):
+                detalhes.append(detalhe)
+
+        return detalhes
 
     # =========================================================
     # Público: contratos 2026
