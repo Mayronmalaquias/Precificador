@@ -776,6 +776,9 @@ def ranking_corretores_do_gerente(
         for c in corretores
     }
 
+    # Para clientes: acumula IDs únicos por corretor (evita contar mesmo cliente N vezes)
+    clientes_unicos: Dict[str, set] = {id_c: set() for id_c in corretores_map}
+
     for visita in fato_visitas:
         id_corretor = _safe_str(visita.get("Id_Corretor"))
         if id_corretor not in corretores_map:
@@ -787,7 +790,14 @@ def ranking_corretores_do_gerente(
             corretores_map[id_corretor]["total"] += 1
         else:
             visita_id = _safe_str(visita.get("Id_Visita"))
-            corretores_map[id_corretor]["total"] += len(clientes_por_visita.get(visita_id, []))
+            for fc in clientes_por_visita.get(visita_id, []):
+                id_cliente = _safe_str(fc.get("Id_Cliente"))
+                if id_cliente:
+                    clientes_unicos[id_corretor].add(id_cliente)
+
+    if tipo != "visitas":
+        for id_c, ids_set in clientes_unicos.items():
+            corretores_map[id_c]["total"] = len(ids_set)
 
     ranking = sorted(
         corretores_map.values(),
@@ -825,6 +835,8 @@ def serie_gerente(
     clientes_por_visita = maps["clientes_por_visita"]
 
     bucket: Dict[Tuple[str, str], int] = defaultdict(int)
+    # Para clientes: acumula IDs únicos por bucket (evita contar mesmo cliente N vezes no período)
+    clientes_por_bucket: Dict[Tuple[str, str], set] = defaultdict(set)
 
     for visita in fato_visitas:
         id_corretor = _safe_str(visita.get("Id_Corretor"))
@@ -851,9 +863,16 @@ def serie_gerente(
 
         if tipo == "clientes":
             visita_id = _safe_str(visita.get("Id_Visita"))
-            bucket[(chave, label)] += len(clientes_por_visita.get(visita_id, []))
+            for fc in clientes_por_visita.get(visita_id, []):
+                id_cliente = _safe_str(fc.get("Id_Cliente"))
+                if id_cliente:
+                    clientes_por_bucket[(chave, label)].add(id_cliente)
         else:
             bucket[(chave, label)] += 1
+
+    if tipo == "clientes":
+        for key, ids_set in clientes_por_bucket.items():
+            bucket[key] = len(ids_set)
 
     ordenado = sorted(bucket.items(), key=lambda x: x[0][0])
     return {
