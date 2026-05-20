@@ -252,6 +252,58 @@ function RelatorioGerente() {
     });
   }, [clientes, filtros.corretor_geral, filtrosClientes]);
 
+  const visaoGeralFiltrada = useMemo(() => {
+    if (!filtros.corretor_geral) return null;
+
+    const parseData = (ddmmyyyy) => {
+      const [d, m, y] = (ddmmyyyy || "").split("/");
+      return d && m && y ? new Date(+y, +m - 1, +d) : null;
+    };
+
+    const visitasBucket = {};
+    visitasFiltradas.forEach((v) => {
+      const raw = v.data_visita || "";
+      if (!raw) return;
+      if (!visitasBucket[raw]) visitasBucket[raw] = { label: raw.slice(0, 5), count: 0 };
+      visitasBucket[raw].count++;
+    });
+
+    const clientesBucket = {};
+    visitasFiltradas.forEach((v) => {
+      const raw = v.data_visita || "";
+      if (!raw) return;
+      if (!clientesBucket[raw]) clientesBucket[raw] = { label: raw.slice(0, 5), nomes: new Set() };
+      (v.clientes || []).forEach((c) => clientesBucket[raw].nomes.add(c));
+    });
+
+    const sort = (obj) =>
+      Object.entries(obj).sort(([a], [b]) => {
+        const da = parseData(a), db = parseData(b);
+        return da && db ? da - db : 0;
+      });
+
+    return {
+      resumo: {
+        total_corretores: 1,
+        corretores_ativos: visitasFiltradas.length > 0 ? 1 : 0,
+        corretores_sem_visita: visitasFiltradas.length > 0 ? 0 : 1,
+        total_visitas: visitasFiltradas.length,
+        total_clientes: clientesFiltrados.length,
+        total_imoveis: imoveisFiltrados.length,
+      },
+      graficos: {
+        visitas_por_dia: {
+          labels: sort(visitasBucket).map(([, v]) => v.label),
+          valores: sort(visitasBucket).map(([, v]) => v.count),
+        },
+        clientes_por_dia: {
+          labels: sort(clientesBucket).map(([, v]) => v.label),
+          valores: sort(clientesBucket).map(([, v]) => v.nomes.size),
+        },
+      },
+    };
+  }, [filtros.corretor_geral, visitasFiltradas, clientesFiltrados, imoveisFiltrados]);
+
   const visitasNaoVisualizadas = useMemo(() => {
     return (visitas || []).filter((v) => {
       const id = obterIdVisita(v);
@@ -1328,9 +1380,10 @@ function RelatorioGerente() {
   );
 
   const renderVisaoGeral = () => {
-    const resumo = dashboard?.resumo || {};
-    const grafVisitas = dashboard?.graficos?.visitas_por_dia || {};
-    const grafClientes = dashboard?.graficos?.clientes_por_dia || {};
+    const fonte = visaoGeralFiltrada || dashboard;
+    const resumo = fonte?.resumo || {};
+    const grafVisitas = fonte?.graficos?.visitas_por_dia || {};
+    const grafClientes = fonte?.graficos?.clientes_por_dia || {};
 
     return (
       <div>
