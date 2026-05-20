@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { BASE } from '../services/api';
 import "../assets/css/RelatorioGerente.css";
 import { useToast } from '../context/ToastContext';
@@ -59,6 +59,12 @@ function RelatorioGerente() {
   const [loadingPdfVisita, setLoadingPdfVisita] = useState(false);
   const [loadingPdfCliente, setLoadingPdfCliente] = useState(false);
   const [loadingPdfImovel, setLoadingPdfImovel] = useState(false);
+
+  const [visitasVisualizadas, setVisitasVisualizadas] = useState(new Set());
+  const [modalViewer, setModalViewer] = useState(null);
+  const [loadingPdfModal, setLoadingPdfModal] = useState(false);
+  const [detalheVisita, setDetalheVisita] = useState(null);
+  const [loadingDetalhe, setLoadingDetalhe] = useState(false);
 
   const opcoes = [
     { id: "visaoGeral", label: "Visão Geral", labelMobile: "Visão Geral" },
@@ -246,6 +252,13 @@ function RelatorioGerente() {
     });
   }, [clientes, filtros.corretor_geral, filtrosClientes]);
 
+  const visitasNaoVisualizadas = useMemo(() => {
+    return (visitas || []).filter((v) => {
+      const id = obterIdVisita(v);
+      return id && !visitasVisualizadas.has(String(id));
+    });
+  }, [visitas, visitasVisualizadas]);
+
   useEffect(() => {
     const userDataString = localStorage.getItem("userData");
 
@@ -284,6 +297,16 @@ function RelatorioGerente() {
       setErro("Erro ao carregar os dados do gerente logado.");
     }
   }, []);
+
+  useEffect(() => {
+    if (!idGerenteLogado) return;
+    const stored = localStorage.getItem(`vv_${idGerenteLogado}`);
+    if (stored) {
+      try {
+        setVisitasVisualizadas(new Set(JSON.parse(stored)));
+      } catch {}
+    }
+  }, [idGerenteLogado]);
 
   useEffect(() => {
     if (filtros.id_gerente) {
@@ -474,6 +497,58 @@ function RelatorioGerente() {
     rolarParaDetalhes();
   };
 
+  const marcarComoVisualizada = useCallback((idVisita) => {
+    if (!idVisita || !idGerenteLogado) return;
+    setVisitasVisualizadas((prev) => {
+      const next = new Set(prev);
+      next.add(String(idVisita));
+      localStorage.setItem(`vv_${idGerenteLogado}`, JSON.stringify([...next]));
+      return next;
+    });
+  }, [idGerenteLogado]);
+
+  const abrirModalViewer = useCallback(async (tipo, item) => {
+    setModalViewer({ tipo, item });
+    setDetalheVisita(null);
+
+    if (tipo === "visita") {
+      const id = obterIdVisita(item);
+      if (id) {
+        marcarComoVisualizada(String(id));
+        setLoadingDetalhe(true);
+        try {
+          const resp = await fetch(`${API_BASE}/visita/detalhe?visita_id=${encodeURIComponent(id)}`);
+          const data = await resp.json().catch(() => ({}));
+          if (resp.ok && data.ok) setDetalheVisita(data);
+        } catch {}
+        finally { setLoadingDetalhe(false); }
+      }
+    }
+  }, [marcarComoVisualizada, API_BASE]);
+
+  const fecharModal = useCallback(() => {
+    setModalViewer(null);
+    setLoadingPdfModal(false);
+    setDetalheVisita(null);
+    setLoadingDetalhe(false);
+  }, []);
+
+  const abrirPdfModal = useCallback(async (pdfUrl) => {
+    if (!pdfUrl) return;
+    setLoadingPdfModal(true);
+    try {
+      const resp = await fetch(pdfUrl);
+      const data = await resp.json().catch(() => ({}));
+      if (!resp.ok || !data.ok) throw new Error(data.error || "Erro ao gerar PDF.");
+      if (!data.drive_url) throw new Error("URL do PDF não retornada.");
+      window.open(data.drive_url, "_blank");
+    } catch (err) {
+      toast(err.message || "Erro ao abrir PDF.", "error");
+    } finally {
+      setLoadingPdfModal(false);
+    }
+  }, [toast]);
+
   async function abrirPdfVisita() {
     if (!itemSelecionado || tipoSelecionado !== "visita") return;
 
@@ -585,6 +660,273 @@ function RelatorioGerente() {
     );
   }
 
+  const renderModalViewer = () => {
+    if (!modalViewer) return null;
+    const { tipo, item } = modalViewer;
+
+    const titulo =
+      tipo === "visita" ? "Detalhes da visita" :
+      tipo === "imovel" ? "Detalhes do imóvel" :
+      "Detalhes do cliente";
+
+    const renderCampos = () => {
+      if (tipo === "visita") {
+        return (
+          <div className="detalhe-grid">
+            <div className="detalhe-box">
+              <span className="detalhe-label">Data da visita</span>
+              <strong>{item.data_visita || "-"}</strong>
+            </div>
+            <div className="detalhe-box">
+              <span className="detalhe-label">Registrado em</span>
+              <strong>{item.created_at || "-"}</strong>
+            </div>
+            <div className="detalhe-box">
+              <span className="detalhe-label">Corretor</span>
+              <strong>{item.corretor || "-"}</strong>
+            </div>
+            <div className="detalhe-box">
+              <span className="detalhe-label">Imóvel</span>
+              <strong>{item.id_imovel || "-"}</strong>
+            </div>
+            {item.endereco_externo && (
+              <div className="detalhe-box detalhe-box-full">
+                <span className="detalhe-label">Endereço externo</span>
+                <strong>{item.endereco_externo}</strong>
+              </div>
+            )}
+            <div className="detalhe-box">
+              <span className="detalhe-label">Tipo de captação</span>
+              <strong>{item.tipo_captacao || "-"}</strong>
+            </div>
+            <div className="detalhe-box">
+              <span className="detalhe-label">Proposta</span>
+              <strong>{item.proposta || "-"}</strong>
+            </div>
+            <div className="detalhe-box">
+              <span className="detalhe-label">Visita com parceiro</span>
+              <strong>{item.visita_com_parceiro ? "Sim" : "Não"}</strong>
+            </div>
+            <div className="detalhe-box">
+              <span className="detalhe-label">Imóvel não captado</span>
+              <strong>{item.imovel_nao_captado ? "Sim" : "Não"}</strong>
+            </div>
+            <div className="detalhe-box detalhe-box-full">
+              <span className="detalhe-label">Clientes</span>
+              <strong>
+                {Array.isArray(item.clientes) && item.clientes.length > 0
+                  ? item.clientes.join(", ")
+                  : "-"}
+              </strong>
+            </div>
+            {Array.isArray(item.parceiros) && item.parceiros.length > 0 && (
+              <div className="detalhe-box detalhe-box-full">
+                <span className="detalhe-label">Parceiros</span>
+                <strong>{item.parceiros.join(", ")}</strong>
+              </div>
+            )}
+            {/* Link da ficha */}
+            {loadingDetalhe && (
+              <div className="detalhe-box detalhe-box-full">
+                <span className="detalhe-label">Ficha e avaliações</span>
+                <span className="texto-avaliacao-info">Carregando...</span>
+              </div>
+            )}
+            {!loadingDetalhe && detalheVisita && (
+              <>
+                {detalheVisita.link_imagem && (
+                  <div className="detalhe-box detalhe-box-full">
+                    <span className="detalhe-label">Link da imagem</span>
+                    <a
+                      href={detalheVisita.link_imagem}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="link-ficha-btn"
+                    >
+                      Ver imagem →
+                    </a>
+                  </div>
+                )}
+{detalheVisita.link_audio && (
+                  <div className="detalhe-box detalhe-box-full">
+                    <span className="detalhe-label">Áudio descrição</span>
+                    <a
+                      href={detalheVisita.link_audio}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="link-ficha-btn"
+                    >
+                      Ouvir áudio →
+                    </a>
+                  </div>
+                )}
+                {detalheVisita.avaliacoes && detalheVisita.avaliacoes.length > 0 && (
+                  <div className="detalhe-box detalhe-box-full">
+                    <span className="detalhe-label">Avaliações</span>
+                    <div className="avaliacoes-lista">
+                      {detalheVisita.avaliacoes.map((av, idx) => (
+                        <div key={idx} className="avaliacao-grupo">
+                          {detalheVisita.avaliacoes.length > 1 && av.nome_cliente && (
+                            <div className="avaliacao-cliente-nome">{av.nome_cliente}</div>
+                          )}
+                          <div className="avaliacao-grid">
+                            {[
+                              ["Localização", av["Localização"]],
+                              ["Tamanho", av["Tamanho"]],
+                              ["Planta", av["Planta"]],
+                              ["Acabamento", av["Acabamento"]],
+                              ["Conservação", av["Conservação"]],
+                              ["Condomínio", av["Condomínio"]],
+                              ["Preço", av["Preço"]],
+                              ["Nota Geral", av["Nota Geral"]],
+                              ["Preço Nota 10", av["Preço Nota 10"]],
+                            ].map(([label, val]) => (
+                              <div key={label} className="avaliacao-item">
+                                <span className="avaliacao-label">{label}</span>
+                                <span className={`avaliacao-nota ${!val ? "avaliacao-vazia" : ""}`}>
+                                  {val || "—"}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {detalheVisita.avaliacoes && detalheVisita.avaliacoes.length === 0 && (
+                  <div className="detalhe-box detalhe-box-full">
+                    <span className="detalhe-label">Avaliações</span>
+                    <span className="texto-avaliacao-info">Nenhuma avaliação registrada.</span>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        );
+      }
+      if (tipo === "imovel") {
+        return (
+          <div className="detalhe-grid">
+            <div className="detalhe-box">
+              <span className="detalhe-label">Imóvel</span>
+              <strong>{item.id_imovel || "-"}</strong>
+            </div>
+            <div className="detalhe-box">
+              <span className="detalhe-label">Endereço</span>
+              <strong>{item.endereco_externo || "-"}</strong>
+            </div>
+            <div className="detalhe-box">
+              <span className="detalhe-label">Total de visitas</span>
+              <strong>{item.qtd_visitas ?? 0}</strong>
+            </div>
+            <div className="detalhe-box">
+              <span className="detalhe-label">Última visita</span>
+              <strong>{item.ultima_data || "-"}</strong>
+            </div>
+            <div className="detalhe-box detalhe-box-full">
+              <span className="detalhe-label">Corretores vinculados</span>
+              <strong>
+                {Array.isArray(item.corretores) && item.corretores.length > 0
+                  ? item.corretores.join(", ")
+                  : "-"}
+              </strong>
+            </div>
+            <div className="detalhe-box detalhe-box-full">
+              <span className="detalhe-label">Clientes vinculados</span>
+              <strong>
+                {Array.isArray(item.clientes) && item.clientes.length > 0
+                  ? item.clientes.join(", ")
+                  : "-"}
+              </strong>
+            </div>
+          </div>
+        );
+      }
+      return (
+        <div className="detalhe-grid">
+          <div className="detalhe-box">
+            <span className="detalhe-label">Cliente</span>
+            <strong>{item.nome || "-"}</strong>
+          </div>
+          <div className="detalhe-box">
+            <span className="detalhe-label">Telefone</span>
+            <strong>{item.telefone || "-"}</strong>
+          </div>
+          <div className="detalhe-box">
+            <span className="detalhe-label">E-mail</span>
+            <strong>{item.email || "-"}</strong>
+          </div>
+          <div className="detalhe-box">
+            <span className="detalhe-label">Qtd. visitas</span>
+            <strong>{item.qtd_visitas ?? 0}</strong>
+          </div>
+          <div className="detalhe-box">
+            <span className="detalhe-label">Última visita</span>
+            <strong>{item.ultima_visita || "-"}</strong>
+          </div>
+          <div className="detalhe-box detalhe-box-full">
+            <span className="detalhe-label">Corretores vinculados</span>
+            <strong>
+              {Array.isArray(item.corretores) && item.corretores.length > 0
+                ? item.corretores.join(", ")
+                : "-"}
+            </strong>
+          </div>
+        </div>
+      );
+    };
+
+    const idParaDownload =
+      tipo === "visita" ? obterIdVisita(item) :
+      tipo === "imovel" ? obterIdImovel(item) :
+      obterIdCliente(item);
+
+    const recursoDownload =
+      tipo === "visita" ? "visitas" :
+      tipo === "imovel" ? "imoveis" :
+      "clientes";
+
+    return (
+      <div className="modal-overlay" onClick={fecharModal}>
+        <div className="modal-container" onClick={(e) => e.stopPropagation()}>
+          <div className="modal-header">
+            <span className="modal-titulo-viewer">{titulo}</span>
+            <button className="modal-fechar" onClick={fecharModal}>✕</button>
+          </div>
+          <div className="modal-body">
+            {renderCampos()}
+          </div>
+          <div className="modal-footer">
+            {tipo === "visita" && item.pdf_url && (
+              <button
+                className="botao-principal"
+                onClick={() => abrirPdfModal(item.pdf_url)}
+                disabled={loadingPdfModal}
+              >
+                {loadingPdfModal ? "Abrindo..." : "Ver PDF completo"}
+              </button>
+            )}
+            <button
+              className="botao-secundario"
+              onClick={() =>
+                abrirUrl(
+                  montarUrlPdf(recursoDownload, idParaDownload, true),
+                  "ID não encontrado para download."
+                )
+              }
+            >
+              Download PDF
+            </button>
+            <button className="botao-secundario" onClick={fecharModal}>
+              Fechar
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   const cardNumero = (titulo, valor) => (
     <div className="card-numero">
       <div className="card-numero-titulo">{titulo}</div>
@@ -693,6 +1035,7 @@ function RelatorioGerente() {
         <table className="tabela-relatorio">
           <thead>
             <tr>
+              <th>Status</th>
               <th>Data</th>
               <th>Corretor</th>
               <th>Imóvel</th>
@@ -705,7 +1048,7 @@ function RelatorioGerente() {
           <tbody>
             {!visitasFiltradas.length ? (
               <tr>
-                <td colSpan="6">Nenhuma visita encontrada.</td>
+                <td colSpan="7">Nenhuma visita encontrada.</td>
               </tr>
             ) : (
               visitasFiltradas.map((item) => (
@@ -718,6 +1061,13 @@ function RelatorioGerente() {
                       : ""
                   }
                 >
+                  <td>
+                    {visitasVisualizadas.has(String(obterIdVisita(item))) ? (
+                      <span className="icone-status icone-visto" title="Visualizada">✓</span>
+                    ) : (
+                      <span className="icone-status icone-pendente" title="Não visualizada">●</span>
+                    )}
+                  </td>
                   <td>{item.data_visita || "-"}</td>
                   <td>{item.corretor || "-"}</td>
                   <td>{item.id_imovel || "-"}</td>
@@ -732,19 +1082,21 @@ function RelatorioGerente() {
                     <div className="acoes-tabela">
                       <button
                         className="botao-secundario"
-                        onClick={() => selecionarVisita(item)}
+                        onClick={() => abrirModalViewer("visita", item)}
                       >
                         Ver
                       </button>
 
                       <button
                         className="botao-secundario"
-                        onClick={() =>
+                        onClick={() => {
+                          const id = obterIdVisita(item);
+                          if (id) marcarComoVisualizada(String(id));
                           abrirUrl(
-                            montarUrlPdf("visitas", obterIdVisita(item), true),
+                            montarUrlPdf("visitas", id, true),
                             "Não foi encontrado o id da visita para download."
-                          )
-                        }
+                          );
+                        }}
                       >
                         Download
                       </button>
@@ -839,7 +1191,7 @@ function RelatorioGerente() {
                     <div className="acoes-tabela">
                       <button
                         className="botao-secundario"
-                        onClick={() => selecionarImovel(item)}
+                        onClick={() => abrirModalViewer("imovel", item)}
                       >
                         Ver
                       </button>
@@ -948,7 +1300,7 @@ function RelatorioGerente() {
                     <div className="acoes-tabela">
                       <button
                         className="botao-secundario"
-                        onClick={() => selecionarCliente(item)}
+                        onClick={() => abrirModalViewer("cliente", item)}
                       >
                         Ver
                       </button>
@@ -1425,6 +1777,18 @@ function RelatorioGerente() {
       {loading && <div className="box-status">Carregando dados...</div>}
       {erro && <div className="box-erro">{erro}</div>}
 
+      {visitasNaoVisualizadas.length > 0 && (
+        <div
+          className="alerta-visitas-nao-vistas"
+          onClick={() => setOpcaoAtiva("visitas")}
+        >
+          <span>
+            Você tem {visitasNaoVisualizadas.length} visita{visitasNaoVisualizadas.length !== 1 ? "s" : ""} não visualizada{visitasNaoVisualizadas.length !== 1 ? "s" : ""}.
+          </span>
+          <span className="alerta-link">Ver visitas →</span>
+        </div>
+      )}
+
       {abaAtiva === "relatoriogerente" && (
         <div className="relatorio-container">
           <div className="menu-lateral">
@@ -1436,6 +1800,9 @@ function RelatorioGerente() {
               >
                 <span className="label-desktop">{opcao.label}</span>
                 <span className="label-mobile">{opcao.labelMobile}</span>
+                {opcao.id === "visitas" && visitasNaoVisualizadas.length > 0 && (
+                  <span className="badge-contador">{visitasNaoVisualizadas.length}</span>
+                )}
               </div>
             ))}
           </div>
@@ -1447,6 +1814,7 @@ function RelatorioGerente() {
           </div>
         </div>
       )}
+      {renderModalViewer()}
     </div>
   );
 }

@@ -12,7 +12,8 @@ from app.services.rela_gerentes_service import (
     gerar_pdf_corretor_download,
     gerar_pdf_gerente_publico,
     gerar_pdf_gerente_download,
-    listar_imoveis_do_gerente
+    listar_imoveis_do_gerente,
+    detalhe_visita_gerente,
 )
 
 gerente_dashboard_ns = Namespace(
@@ -188,6 +189,22 @@ class SerieGerente(Resource):
 
         except Exception as e:
             current_app.logger.exception("Erro ao gerar série do gerente")
+            return {"ok": False, "error": str(e)}, 500
+
+
+@gerente_dashboard_ns.route("/visita/detalhe")
+class DetalheVisitaGerente(Resource):
+    def get(self):
+        try:
+            visita_id = (request.args.get("visita_id") or "").strip()
+            if not visita_id:
+                return {"ok": False, "error": "visita_id é obrigatório"}, 400
+
+            data = detalhe_visita_gerente(visita_id)
+            return data, 200
+
+        except Exception as e:
+            current_app.logger.exception("Erro ao buscar detalhe da visita")
             return {"ok": False, "error": str(e)}, 500
 
 

@@ -881,3 +881,327 @@
   margin-top: 18px;
   scroll-margin-top: 24px;
 }
+
+/* ================================
+   ALERTA VISITAS NÃO VISUALIZADAS
+================================ */
+
+.alerta-visitas-nao-vistas {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 18px;
+  margin-bottom: 18px;
+  background: #fffbeb;
+  border: 1px solid #fcd34d;
+  border-radius: 14px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 600;
+  color: #92400e;
+  transition: background 0.2s ease, box-shadow 0.2s ease;
+  box-shadow: 0 4px 12px rgba(251, 191, 36, 0.14);
+}
+
+.alerta-visitas-nao-vistas:hover {
+  background: #fef3c7;
+  box-shadow: 0 6px 16px rgba(251, 191, 36, 0.22);
+}
+
+.alerta-link {
+  font-weight: 700;
+  color: #b45309;
+  white-space: nowrap;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/* ================================
+   BADGE CONTADOR NO MENU LATERAL
+================================ */
+
+.menu-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.badge-contador {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  background: #f59e0b;
+  color: #ffffff;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+.menu-item.ativo .badge-contador {
+  background: #b45309;
+}
+
+/* ================================
+   ÍCONES DE STATUS NA TABELA
+================================ */
+
+.icone-status {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.icone-visto {
+  background: #dcfce7;
+  color: #16a34a;
+  border: 1px solid #bbf7d0;
+}
+
+.icone-pendente {
+  background: #fef9c3;
+  color: #ca8a04;
+  border: 1px solid #fde68a;
+  font-size: 10px;
+}
+
+/* ================================
+   MODAL VIEWER
+================================ */
+
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 16px;
+  backdrop-filter: blur(2px);
+}
+
+.modal-container {
+  background: #ffffff;
+  border-radius: 20px;
+  box-shadow: 0 24px 60px rgba(15, 23, 42, 0.22);
+  width: 100%;
+  max-width: 600px;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 20px 24px 16px;
+  border-bottom: 1px solid #e8edf4;
+  gap: 12px;
+  flex-shrink: 0;
+}
+
+.modal-titulo-viewer {
+  font-size: 19px;
+  font-weight: 700;
+  color: #0f172a;
+  letter-spacing: -0.01em;
+}
+
+.modal-fechar {
+  width: 34px;
+  height: 34px;
+  border: none;
+  border-radius: 50%;
+  background: #f1f5f9;
+  color: #475569;
+  font-size: 15px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: background 0.2s ease, color 0.2s ease;
+}
+
+.modal-fechar:hover {
+  background: #e2e8f0;
+  color: #0f172a;
+}
+
+.modal-body {
+  padding: 20px 24px;
+  overflow-y: auto;
+  flex: 1;
+}
+
+.modal-footer {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+  padding: 16px 24px 20px;
+  border-top: 1px solid #e8edf4;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+}
+
+.texto-avaliacao-info {
+  color: #64748b;
+  font-size: 13px;
+  font-style: italic;
+  font-weight: 500;
+}
+
+/* ================================
+   LINK DA FICHA
+================================ */
+
+.link-ficha-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: #1d4ed8;
+  font-weight: 600;
+  font-size: 14px;
+  text-decoration: none;
+  border-bottom: 1px solid #bfdbfe;
+  padding-bottom: 1px;
+  transition: color 0.2s ease, border-color 0.2s ease;
+}
+
+.link-ficha-btn:hover {
+  color: #1e40af;
+  border-color: #1e40af;
+}
+
+/* ================================
+   AVALIAÇÕES NO MODAL
+================================ */
+
+.avaliacoes-lista {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-top: 8px;
+}
+
+.avaliacao-grupo {
+  background: #f8fafc;
+  border: 1px solid #e8edf4;
+  border-radius: 12px;
+  padding: 14px;
+}
+
+.avaliacao-cliente-nome {
+  font-size: 13px;
+  font-weight: 700;
+  color: #475569;
+  margin-bottom: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.avaliacao-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+
+.avaliacao-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  background: #ffffff;
+  border: 1px solid #e8edf4;
+  border-radius: 10px;
+  padding: 10px 8px;
+  gap: 6px;
+  text-align: center;
+}
+
+.avaliacao-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  line-height: 1.3;
+}
+
+.avaliacao-nota {
+  font-size: 18px;
+  font-weight: 800;
+  color: #0f172a;
+  line-height: 1;
+  min-width: 32px;
+  min-height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #eff6ff;
+  border-radius: 8px;
+  padding: 4px 8px;
+  color: #1d4ed8;
+}
+
+.avaliacao-nota.avaliacao-vazia {
+  background: #f1f5f9;
+  color: #94a3b8;
+  font-size: 14px;
+}
+
+@media (max-width: 480px) {
+  .avaliacao-grid {
+    grid-template-columns: repeat(3, 1fr);
+    gap: 6px;
+  }
+
+  .avaliacao-nota {
+    font-size: 15px;
+  }
+}
+
+@media (max-width: 600px) {
+  .modal-container {
+    border-radius: 16px;
+    max-height: 95vh;
+  }
+
+  .modal-header {
+    padding: 16px 18px 14px;
+  }
+
+  .modal-body {
+    padding: 16px 18px;
+  }
+
+  .modal-footer {
+    padding: 12px 18px 16px;
+    justify-content: stretch;
+  }
+
+  .modal-footer .botao-principal,
+  .modal-footer .botao-secundario {
+    flex: 1;
+  }
+
+  .alerta-visitas-nao-vistas {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+  }
+}

@@ -747,6 +747,52 @@ def listar_imoveis_do_gerente(
     return lista[: max(1, int(limit or 200))]
 
 
+CRITERIOS_AVALIACAO_MAP = {
+    "Localização": "Localizacao",
+    "Tamanho": "Tamanho",
+    "Planta": "Planta_Imovel",
+    "Acabamento": "Qualidade_Acabamento",
+    "Conservação": "Estado_Conservacao",
+    "Condomínio": "Condominio_AreaComun",
+    "Preço": "Preco",
+    "Nota Geral": "Nota_Geral",
+    "Preço Nota 10": "Preco_N10",
+}
+
+
+def detalhe_visita_gerente(visita_id: str) -> Dict[str, Any]:
+    data = _load_visitas_base()
+    maps = _build_maps(data)
+
+    visita = _find_first_by_key(data.get("Fato_Visitas", []), "Id_Visita", visita_id)
+    if not visita:
+        raise ValueError(f"Visita {visita_id} não encontrada.")
+
+    cliente_map = maps["cliente_map"]
+    avals = maps["avaliacoes_por_visita"].get(visita_id, [])
+
+    avaliacoes = []
+    for a in avals:
+        id_cli = _safe_str(a.get("Id_Cliente"))
+        cli = cliente_map.get(id_cli, {})
+        row: Dict[str, Any] = {
+            "nome_cliente": _safe_str(cli.get("Nome_Cliente")),
+        }
+        for label, key in CRITERIOS_AVALIACAO_MAP.items():
+            row[label] = _safe_str(a.get(key))
+        avaliacoes.append(row)
+
+    return {
+        "ok": True,
+        "visita_id": visita_id,
+        "link_imagem": _safe_str(visita.get("Link_Imagem")),
+        "anexo_ficha": _safe_str(visita.get("Anexo_Ficha_Visita")),
+        "link_audio": _safe_str(visita.get("Link_Audio")),
+        "assinatura": _safe_str(visita.get("Assinatura")),
+        "avaliacoes": avaliacoes,
+    }
+
+
 def ranking_corretores_do_gerente(
     id_gerente: str,
     tipo: str = _TIPO_RANKING_PADRAO,
