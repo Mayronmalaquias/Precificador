@@ -188,33 +188,13 @@ def _metricas_attempts(quartos, nr_cluster, metragem, tipo_imovel):
     metragem_faixa = _metragem_fx(metragem, tipo_imovel)
 
     attempts = []
-    if cluster:
-        attempts.append({
-            "segmento": "CLUSTER_VAGA",
-            "cluster_nome": cluster,
-            "quartos": -1,
-            "metragem_fx": "",
-        })
     if quartos_num > 0:
-        attempts.append({
-            "segmento": "QUARTOS_VAGA",
-            "cluster_nome": "",
-            "quartos": quartos_num,
-            "metragem_fx": "",
-        })
+        attempts.append({"segmento": "QUARTOS_VAGA", "cluster_nome": "", "quartos": quartos_num, "metragem_fx": ""})
+    if cluster:
+        attempts.append({"segmento": "CLUSTER_VAGA", "cluster_nome": cluster, "quartos": -1, "metragem_fx": ""})
     if metragem_faixa:
-        attempts.append({
-            "segmento": "METRAGEM_VAGA",
-            "cluster_nome": "",
-            "quartos": -1,
-            "metragem_fx": metragem_faixa,
-        })
-    attempts.append({
-        "segmento": "GERAL_VAGA",
-        "cluster_nome": "",
-        "quartos": -1,
-        "metragem_fx": "",
-    })
+        attempts.append({"segmento": "METRAGEM_VAGA", "cluster_nome": "", "quartos": -1, "metragem_fx": metragem_faixa})
+    attempts.append({"segmento": "GERAL_VAGA", "cluster_nome": "", "quartos": -1, "metragem_fx": ""})
 
     deduped = []
     seen = set()
@@ -227,13 +207,16 @@ def _metricas_attempts(quartos, nr_cluster, metragem, tipo_imovel):
 
 
 def _fetch_estudo_metricas_row(tipo_imovel, bairro, oferta, vagas, attempt):
+    seg = attempt["segmento"]
+    seg_clause = "AND UPPER(TRIM(segmento)) = :segmento" if seg else ""
+
     query = text(f"""
         SELECT *
         FROM {ESTUDO_METRICAS_TABLE}
         WHERE UPPER(TRIM(tipo)) = :tipo
           AND UPPER(TRIM(oferta)) = :oferta
           AND UPPER(TRIM(bairro)) IN :bairros
-          AND UPPER(TRIM(segmento)) = :segmento
+          {seg_clause}
           AND UPPER(TRIM(vaga_cat)) = :vaga_cat
           AND UPPER(TRIM(COALESCE(cluster_nome, ''))) = :cluster_nome
           AND UPPER(TRIM(COALESCE(metragem_fx, ''))) = :metragem_fx
@@ -249,12 +232,13 @@ def _fetch_estudo_metricas_row(tipo_imovel, bairro, oferta, vagas, attempt):
         "tipo": _tipo_para_metricas(tipo_imovel),
         "oferta": _norm_upper(oferta),
         "bairros": _bairros_para_metricas(bairro),
-        "segmento": attempt["segmento"],
         "vaga_cat": _vaga_cat(vagas),
         "cluster_nome": _norm_upper(attempt["cluster_nome"]),
         "metragem_fx": _norm_upper(attempt["metragem_fx"]),
         "quartos": attempt["quartos"],
     }
+    if seg:
+        params["segmento"] = seg
 
     with engine.connect() as conn:
         return conn.execute(query, params).mappings().first()
@@ -306,7 +290,38 @@ def _build_metricas_response(row, oferta, metragem):
     }
 
 
+def _avg(a, b):
+    fa, fb = _to_float(a), _to_float(b)
+    if fa > 0 and fb > 0:
+        return (fa + fb) / 2
+    return fa or fb
+
+
 def consultar_estudo_metricas(tipo_imovel, bairro, quartos, nr_cluster, oferta, vagas=None, metragem=None):
+    cluster = _cluster_nome(nr_cluster)
+    quartos_num = _to_int(quartos, 0)
+
+    # Quando ambos os filtros estão ativos, busca os dois e retorna a média
+    if cluster and quartos_num > 0:
+        row_q = _fetch_estudo_metricas_row(tipo_imovel, bairro, oferta, vagas,
+            {"segmento": "QUARTOS_VAGA", "cluster_nome": "", "quartos": quartos_num, "metragem_fx": ""})
+        row_c = _fetch_estudo_metricas_row(tipo_imovel, bairro, oferta, vagas,
+            {"segmento": "CLUSTER_VAGA", "cluster_nome": cluster, "quartos": -1, "metragem_fx": ""})
+
+        if row_q and row_c:
+            merged = dict(row_c)
+            merged["m2_medio"]      = _avg(row_q.get("m2_medio"),      row_c.get("m2_medio"))
+            merged["m2_mediana"]    = _avg(row_q.get("m2_mediana"),     row_c.get("m2_mediana"))
+            merged["preco_mediana"] = _avg(row_q.get("preco_mediana"),  row_c.get("preco_mediana"))
+            merged["area_mediana"]  = _avg(row_q.get("area_mediana"),   row_c.get("area_mediana"))
+            merged["amostra"]       = _to_int(row_q.get("amostra"), 0) + _to_int(row_c.get("amostra"), 0)
+            return _build_metricas_response(merged, oferta, metragem)
+        if row_q:
+            return _build_metricas_response(row_q, oferta, metragem)
+        if row_c:
+            return _build_metricas_response(row_c, oferta, metragem)
+
+    # Apenas um filtro ativo ou nenhum — fallback sequencial
     for attempt in _metricas_attempts(quartos, nr_cluster, metragem, tipo_imovel):
         row = _fetch_estudo_metricas_row(tipo_imovel, bairro, oferta, vagas, attempt)
         if row:

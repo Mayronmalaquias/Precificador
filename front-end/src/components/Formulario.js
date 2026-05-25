@@ -290,13 +290,13 @@ const alterarClusterCopy = (valor) => {
             <li><strong>Metragem Média de Venda:</strong>{renderDataOrError(dadosAPI, erroDadosVenda, 'metragemMediaVenda', undefined, ' ', ' m²')}</li>
             <li><strong>Coeficiente de Variação de Venda:</strong>{renderDataOrError(dadosAPI, erroDadosVenda, 'coeficienteVariacaoVenda')}</li>
             <li><strong>Tamanho da Amostra de Venda:</strong>{renderDataOrError(dadosAPI, erroDadosVenda, 'tamanhoAmostraVenda', { minimumFractionDigits: 0, maximumFractionDigits: 0 }, ' ')}</li>
-            
+
             <li><strong>Valor de M² de Locação:</strong>{renderDataOrError(dadosAPI2, erroDadosAluguel, 'valorM2Aluguel', undefined, ' R$ ', ' /m²')}</li>
             <li><strong>Valor de Locação Nominal:</strong>{renderDataOrError(dadosAPI2, erroDadosAluguel, 'valorAluguelNominal', undefined, ' R$ ')}</li>
             <li><strong>Metragem Média de Locação:</strong>{renderDataOrError(dadosAPI2, erroDadosAluguel, 'metragemMediaAluguel', undefined, ' ', ' m²')}</li>
             <li><strong>Coeficiente de Variação de Locação:</strong>{renderDataOrError(dadosAPI2, erroDadosAluguel, 'coeficienteVariacaoAluguel')}</li>
             <li><strong>Tamanho da Amostra de Locação:</strong>{renderDataOrError(dadosAPI2, erroDadosAluguel, 'tamanhoAmostraAluguel', { minimumFractionDigits: 0, maximumFractionDigits: 0 }, ' ')}</li>
-            
+
             <li><strong>Rentabilidade Média: </strong>{renderRentabilidade()}</li>
           </ul>
         )}
