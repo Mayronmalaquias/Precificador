@@ -96,6 +96,9 @@ def get_data_cache_token():
 input_file = "./dados/dados_map.csv"
 
 ESTUDO_METRICAS_TABLE = os.getenv("ESTUDO_METRICAS_TABLE", "analytics.estudo_metricas")
+CSV_METRICAS_PATH = "./dados/estudo_metricasj.csv"
+_CSV_DF = None
+_CSV_MTIME = 0.0
 
 
 def _norm_upper(value):
@@ -121,10 +124,13 @@ def _to_int(value, default=0):
         return default
 
 
+_AGUAS_CLARAS_BAIRROS = ["NORTE", "SUL", "ADE", "AREAL", "ARNIQUEIRA"]
+
+
 def _bairros_para_metricas(bairro):
     bairro_norm = _norm_upper(bairro)
-    if bairro_norm in {"AGUAS CLARAS", "ÁGUAS CLARAS"}:
-        return ["NORTE", "SUL"]
+    if bairro_norm in {"AGUAS CLARAS", "ÁGUAS CLARAS", "AGUAS CLARAS DF", "ÁGUAS CLARAS DF"}:
+        return _AGUAS_CLARAS_BAIRROS
     return [bairro_norm]
 
 
@@ -303,8 +309,68 @@ def _build_metricas_response(row, oferta, metragem):
     }
 
 
+def _get_csv_df():
+    global _CSV_DF, _CSV_MTIME
+    try:
+        mtime = os.stat(CSV_METRICAS_PATH).st_mtime
+        if _CSV_DF is None or mtime != _CSV_MTIME:
+            df = pd.read_csv(CSV_METRICAS_PATH, dtype=str)
+            for col in ["tipo", "oferta", "bairro", "segmento", "vaga_cat", "cluster_nome", "metragem_fx"]:
+                if col in df.columns:
+                    df[col] = df[col].fillna("").str.upper().str.strip()
+            if "quartos" in df.columns:
+                df["quartos"] = df["quartos"].fillna("-1").str.strip()
+            _CSV_DF = df
+            _CSV_MTIME = mtime
+    except FileNotFoundError:
+        _CSV_DF = pd.DataFrame()
+    return _CSV_DF
+
+
+def _fetch_from_csv(tipo_imovel, bairro, oferta, vagas, attempt):
+    df = _get_csv_df()
+    if df is None or df.empty:
+        return None
+
+    bairros = [b.upper() for b in _bairros_para_metricas(bairro)]
+    tipo = _tipo_para_metricas(tipo_imovel)
+    oferta_norm = _norm_upper(oferta)
+    vaga = _vaga_cat(vagas)
+    seg = attempt["segmento"]
+    cluster = attempt["cluster_nome"].upper()
+    metr_fx = attempt["metragem_fx"].upper()
+    q = str(attempt["quartos"])
+
+    mask = (
+        (df["tipo"] == tipo)
+        & (df["oferta"] == oferta_norm)
+        & (df["bairro"].isin(bairros))
+        & (df["segmento"] == seg)
+        & (df["vaga_cat"] == vaga)
+        & (df["cluster_nome"] == cluster)
+        & (df["metragem_fx"] == metr_fx)
+        & (df["quartos"] == q)
+    )
+
+    sub = df[mask]
+    if sub.empty:
+        return None
+
+    try:
+        sub = sub.copy()
+        sub["_amostra_num"] = pd.to_numeric(sub["amostra"], errors="coerce").fillna(0)
+        sub = sub.sort_values("_amostra_num", ascending=False)
+    except Exception:
+        pass
+
+    return sub.iloc[0].to_dict()
+
+
 def consultar_estudo_metricas(tipo_imovel, bairro, quartos, nr_cluster, oferta, vagas=None, metragem=None):
     for attempt in _metricas_attempts(quartos, nr_cluster, metragem, tipo_imovel):
+        row = _fetch_from_csv(tipo_imovel, bairro, oferta, vagas, attempt)
+        if row:
+            return _build_metricas_response(row, oferta, metragem)
         row = _fetch_estudo_metricas_row(tipo_imovel, bairro, oferta, vagas, attempt)
         if row:
             return _build_metricas_response(row, oferta, metragem)
