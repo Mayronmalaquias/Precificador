@@ -274,6 +274,8 @@ export default function VisitaForm() {
       const payload = {
         ...form,
         imovelId: isImovelNaoCaptado ? "0000" : form.imovelId,
+        enderecoExterno: form.enderecoExterno || enderecoQuery,
+        precoNota10: form.precoNota10 ? (Number(form.precoNota10) / 100) : "",
         idCorretor: corretorInfo.id, idCliente: idCliente || "",
         anexoFichaVisita: drivePath, linkImagem: driveLink,
         corretor: corretorInfo.nome || corretorInfo.username,
