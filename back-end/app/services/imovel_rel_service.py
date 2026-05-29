@@ -569,17 +569,15 @@ def _build_pdf_imovel_bytes(ctx: Dict[str, Any]) -> bytes:
 
     if ctx["Clientes"]:
         story.append(Paragraph("Clientes vinculados", style_section))
-        clientes_data = [["Cliente", "Telefone", "E-mail", "Papel"]]
+        clientes_data = [["Cliente", "Papel"]]
         for c in ctx["Clientes"]:
             clientes_data.append(
                 [
                     _display(c.get("Nome_Cliente")),
-                    _display(c.get("Telefone_Cliente")),
-                    _display(c.get("Email_Cliente")),
                     _display(c.get("Papel_na_Visita")),
                 ]
             )
-        story.append(make_grid_table(clientes_data, [52 * mm, 34 * mm, 62 * mm, 26 * mm]))
+        story.append(make_grid_table(clientes_data, [148 * mm, 26 * mm]))
         story.append(Spacer(1, 10))
 
     if ctx["Parceiros"]:
