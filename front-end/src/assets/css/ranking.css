@@ -109,6 +109,37 @@
   background: #101828;
 }
 
+.ranking__viewToggle {
+  display: flex;
+  gap: 0;
+  width: fit-content;
+  margin: 14px 0 0;
+  border: 1px solid #d0d5dd;
+  border-radius: 8px;
+  overflow: hidden;
+  background: #ffffff;
+}
+
+.ranking__viewBtn {
+  padding: 8px 20px;
+  border: 0;
+  background: transparent;
+  color: #667085;
+  font-size: 0.88rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: 0.14s ease;
+}
+
+.ranking__viewBtn + .ranking__viewBtn {
+  border-left: 1px solid #d0d5dd;
+}
+
+.ranking__viewBtn.is-active {
+  background: #101828;
+  color: #ffffff;
+}
+
 .ranking__panel,
 .ranking__summaryCard {
   background: #ffffff;

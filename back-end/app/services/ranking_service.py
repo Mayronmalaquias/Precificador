@@ -20,6 +20,7 @@ class SheetsConfig:
 
     SHEET_CORRETORES_ID: str
     ABA_CORRETORES: str
+    ABA_GERENTES: str
 
 
 class RankingService:
@@ -65,6 +66,7 @@ class RankingService:
                 os.getenv("GSHEET_BASE_INTELIGENCIA_ID", "")
             ),
             ABA_CORRETORES=os.getenv("GSHEET_ABA_CORRETORES", "Dim_Corretor"),
+            ABA_GERENTES=os.getenv("GSHEET_ABA_GERENTES", "Dim_Gerente"),
         )
 
         self.gsa_json_path = "./app/utils/asserts/credenciais.json"
@@ -246,23 +248,37 @@ class RankingService:
     # =========================================================
     # Corretores (mapa ID<->Nome)
     # =========================================================
+    def get_gerentes_df(self) -> pd.DataFrame:
+        df = self.read_sheet_df(self.cfg.SHEET_CORRETORES_ID, self.cfg.ABA_GERENTES)
+        if df.empty:
+            return pd.DataFrame(columns=["Id_Gerente", "Equipe"])
+
+        id_col = next((c for c in ["IdGerente", "Id_Gerente", "id_gerente"] if c in df.columns), None)
+        equipe_col = next((c for c in ["Equipe", "equipe", "Team", "team"] if c in df.columns), None)
+
+        if not id_col or not equipe_col:
+            return pd.DataFrame(columns=["Id_Gerente", "Equipe"])
+
+        out = df[[id_col, equipe_col]].copy()
+        out.columns = ["Id_Gerente", "Equipe"]
+        out["Id_Gerente"] = out["Id_Gerente"].astype(str).str.strip().str.upper()
+        out["Equipe"] = out["Equipe"].astype(str).str.strip()
+        out = out[out["Id_Gerente"].ne("") & out["Id_Gerente"].ne("NAN")]
+        return out.drop_duplicates(subset=["Id_Gerente"])
+
     def get_corretores_df(self) -> pd.DataFrame:
         df = self.read_sheet_df(self.cfg.SHEET_CORRETORES_ID, self.cfg.ABA_CORRETORES)
         if df.empty:
             return pd.DataFrame(columns=["Id_Corretor", "Nome_Corretor", "Team"])
 
-        id_col = None
-        name_col = None
-
-        for c in ["IdCorretor", "Id_Corretor", "id_corretor", "ID_CORRETOR", "ID", "Codigo", "Código", "Cod", "cod"]:
-            if c in df.columns:
-                id_col = c
-                break
-
-        for c in ["Nome_Corretor", "nome_corretor", "Nome", "nome", "Corretor", "corretor"]:
-            if c in df.columns:
-                name_col = c
-                break
+        id_col = next(
+            (c for c in ["IdCorretor", "Id_Corretor", "id_corretor", "ID_CORRETOR", "ID", "Codigo", "Código", "Cod", "cod"] if c in df.columns),
+            None,
+        )
+        name_col = next(
+            (c for c in ["Nome_Corretor", "nome_corretor", "Nome", "nome", "Corretor", "corretor"] if c in df.columns),
+            None,
+        )
 
         if not id_col or not name_col:
             return pd.DataFrame(columns=["Id_Corretor", "Nome_Corretor", "Team"])
@@ -271,11 +287,22 @@ class RankingService:
         out["Id_Corretor"] = out[id_col].astype(str).str.strip().str.upper()
         out["Nome_Corretor"] = out[name_col].astype(str).str.strip().str.upper()
 
+        # Tenta pegar equipe diretamente da Dim_Corretor (coluna Team/Equipe)
         team_col = next((c for c in ["Team", "team", "Equipe", "equipe"] if c in out.columns), None)
         if team_col:
             out["Team"] = out[team_col].astype(str).str.strip()
         else:
             out["Team"] = ""
+
+        # Se não tiver equipe direta mas tiver IdGerente, resolve via Dim_Gerente
+        gerente_col = next((c for c in ["IdGerente", "Id_Gerente", "id_gerente"] if c in out.columns), None)
+        if gerente_col and out["Team"].eq("").all():
+            out["_IdGerente"] = out[gerente_col].astype(str).str.strip().str.upper()
+            gerentes_df = self.get_gerentes_df()
+            if not gerentes_df.empty:
+                gerente_map = dict(zip(gerentes_df["Id_Gerente"], gerentes_df["Equipe"]))
+                out["Team"] = out["_IdGerente"].map(gerente_map).fillna("")
+            out = out.drop(columns=["_IdGerente"])
 
         out = out[out["Id_Corretor"].ne("") & out["Nome_Corretor"].ne("")]
         out = out.drop_duplicates(subset=["Id_Corretor"])
@@ -986,6 +1013,37 @@ class RankingService:
                 detalhes.append(detalhe)
 
         return detalhes
+
+    def get_ranking_equipe(
+        self,
+        kind: str,
+        start: Optional[str],
+        end: Optional[str],
+        include_pending: bool = False,
+        apply_factor: bool = False,
+    ) -> List[Dict[str, Any]]:
+        rank_items = self.get_ranking(kind, start, end, include_pending, apply_factor)
+
+        corretores_df = self.get_corretores_df()
+        nome_to_team: Dict[str, str] = {}
+        if not corretores_df.empty:
+            for _, r in corretores_df.iterrows():
+                nome = str(r["Nome_Corretor"]).strip().upper()
+                team = str(r.get("Team", "")).strip()
+                if nome:
+                    nome_to_team[nome] = team if team and team.lower() not in ("nan", "none", "") else "Sem Equipe"
+
+        team_totals: Dict[str, float] = {}
+        for item in rank_items:
+            nome = str(item.get("corretor", "")).strip().upper()
+            team = nome_to_team.get(nome, "Sem Equipe")
+            team_totals[team] = team_totals.get(team, 0.0) + float(item.get("total", 0.0))
+
+        result = sorted(team_totals.items(), key=lambda x: -x[1])
+        return [
+            {"posicao": i + 1, "id_corretor": "", "corretor": team, "total": round(total, 2)}
+            for i, (team, total) in enumerate(result)
+        ]
 
     # =========================================================
     # Público: contratos 2026

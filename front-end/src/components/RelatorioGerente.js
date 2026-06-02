@@ -50,6 +50,8 @@ function RelatorioGerente() {
 
   const [tipoRankingAtivo, setTipoRankingAtivo] = useState("visitas");
   const [corretorSelecionado, setCorretorSelecionado] = useState("");
+  const [dashboardEquipes, setDashboardEquipes] = useState(null);
+  const [loadingEquipes, setLoadingEquipes] = useState(false);
 
   const [itemSelecionado, setItemSelecionado] = useState(null);
   const [tipoSelecionado, setTipoSelecionado] = useState("");
@@ -59,6 +61,10 @@ function RelatorioGerente() {
   const [loadingPdfVisita, setLoadingPdfVisita] = useState(false);
   const [loadingPdfCliente, setLoadingPdfCliente] = useState(false);
   const [loadingPdfImovel, setLoadingPdfImovel] = useState(false);
+  const [loadingVerGerente, setLoadingVerGerente] = useState(false);
+  const [loadingBaixarGerente, setLoadingBaixarGerente] = useState(false);
+  const [loadingVerCorretor, setLoadingVerCorretor] = useState(false);
+  const [loadingBaixarCorretor, setLoadingBaixarCorretor] = useState(false);
 
   const [visitasVisualizadas, setVisitasVisualizadas] = useState(new Set());
   const [modalViewer, setModalViewer] = useState(null);
@@ -461,6 +467,21 @@ function RelatorioGerente() {
     }
   };
 
+  const carregarEquipes = async () => {
+    setLoadingEquipes(true);
+    try {
+      const params = new URLSearchParams();
+      if (filtros.start) params.set('start', filtros.start);
+      if (filtros.end) params.set('end', filtros.end);
+      const res = await fetchJson(`${API_BASE}/equipes/dashboard?${params.toString()}`);
+      setDashboardEquipes(res);
+    } catch (e) {
+      toast(e.message || 'Erro ao carregar dados de equipes.', 'error');
+    } finally {
+      setLoadingEquipes(false);
+    }
+  };
+
   const handleFiltroChange = (campo, valor) => {
     setFiltros((prev) => ({
       ...prev,
@@ -490,36 +511,83 @@ function RelatorioGerente() {
     }
   };
 
-  const abrirPdfGerente = () => {
-    if (!filtros.id_gerente) return;
-    const url = `${API_BASE}/gerente/pdf?${buildQuery()}`;
-    window.open(url, "_blank");
+  const _downloadViaAnchor = (url, filename) => {
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
   };
 
-  const baixarPdfGerente = () => {
-    if (!filtros.id_gerente) return;
-    const url = `${API_BASE}/gerente/pdf/download?${buildQuery()}`;
-    window.open(url, "_blank");
+  const abrirPdfGerente = async () => {
+    if (!filtros.id_gerente) {
+      toast("Selecione um gerente.", "error");
+      return;
+    }
+    setLoadingVerGerente(true);
+    try {
+      const res = await fetchJson(`${API_BASE}/gerente/pdf?${buildQuery()}`);
+      if (res.drive_url) {
+        window.open(res.drive_url, "_blank");
+      } else {
+        toast("URL do PDF não disponível.", "error");
+      }
+    } catch (e) {
+      toast(e.message || "Erro ao gerar PDF.", "error");
+    } finally {
+      setLoadingVerGerente(false);
+    }
   };
 
-  const abrirPdfCorretor = () => {
+  const baixarPdfGerente = async () => {
+    if (!filtros.id_gerente) {
+      toast("Selecione um gerente.", "error");
+      return;
+    }
+    setLoadingBaixarGerente(true);
+    try {
+      const url = `${API_BASE}/gerente/pdf/download?${buildQuery()}`;
+      _downloadViaAnchor(url, `relatorio_gerente_${filtros.id_gerente}.pdf`);
+    } finally {
+      setLoadingBaixarGerente(false);
+    }
+  };
+
+  const abrirPdfCorretor = async () => {
     if (!corretorSelecionado) {
       toast("Selecione um corretor.", "error");
       return;
     }
-
-    const params = new URLSearchParams({ id_corretor: corretorSelecionado });
-    window.open(`${API_BASE}/corretor/pdf?${params.toString()}`, "_blank");
+    setLoadingVerCorretor(true);
+    try {
+      const params = new URLSearchParams({ id_corretor: corretorSelecionado });
+      const res = await fetchJson(`${API_BASE}/corretor/pdf?${params.toString()}`);
+      if (res.drive_url) {
+        window.open(res.drive_url, "_blank");
+      } else {
+        toast("URL do PDF não disponível.", "error");
+      }
+    } catch (e) {
+      toast(e.message || "Erro ao gerar PDF.", "error");
+    } finally {
+      setLoadingVerCorretor(false);
+    }
   };
 
-  const baixarPdfCorretor = () => {
+  const baixarPdfCorretor = async () => {
     if (!corretorSelecionado) {
       toast("Selecione um corretor.", "error");
       return;
     }
-
-    const params = new URLSearchParams({ id_corretor: corretorSelecionado });
-    window.open(`${API_BASE}/corretor/pdf/download?${params.toString()}`, "_blank");
+    setLoadingBaixarCorretor(true);
+    try {
+      const params = new URLSearchParams({ id_corretor: corretorSelecionado });
+      const url = `${API_BASE}/corretor/pdf/download?${params.toString()}`;
+      _downloadViaAnchor(url, `relatorio_corretor_${corretorSelecionado}.pdf`);
+    } finally {
+      setLoadingBaixarCorretor(false);
+    }
   };
 
   const rolarParaDetalhes = () => {
@@ -1475,12 +1543,20 @@ function RelatorioGerente() {
           </p>
 
           <div className="acoes-pdf">
-            <button className="botao-principal" onClick={abrirPdfGerente}>
-              Ver PDF
+            <button
+              className="botao-principal"
+              onClick={abrirPdfGerente}
+              disabled={loadingVerGerente || loadingBaixarGerente}
+            >
+              {loadingVerGerente ? "Gerando..." : "Ver PDF"}
             </button>
 
-            <button className="botao-secundario" onClick={baixarPdfGerente}>
-              Baixar PDF
+            <button
+              className="botao-secundario"
+              onClick={baixarPdfGerente}
+              disabled={loadingVerGerente || loadingBaixarGerente}
+            >
+              {loadingBaixarGerente ? "Baixando..." : "Baixar PDF"}
             </button>
           </div>
         </div>
@@ -1510,12 +1586,20 @@ function RelatorioGerente() {
           </select>
 
           <div className="acoes-pdf">
-            <button className="botao-principal" onClick={abrirPdfCorretor}>
-              Ver PDF
+            <button
+              className="botao-principal"
+              onClick={abrirPdfCorretor}
+              disabled={loadingVerCorretor || loadingBaixarCorretor}
+            >
+              {loadingVerCorretor ? "Gerando..." : "Ver PDF"}
             </button>
 
-            <button className="botao-secundario" onClick={baixarPdfCorretor}>
-              Baixar PDF
+            <button
+              className="botao-secundario"
+              onClick={baixarPdfCorretor}
+              disabled={loadingVerCorretor || loadingBaixarCorretor}
+            >
+              {loadingBaixarCorretor ? "Baixando..." : "Baixar PDF"}
             </button>
           </div>
         </div>
@@ -1714,6 +1798,84 @@ function RelatorioGerente() {
     );
   };
 
+  const renderGeralEquipes = () => {
+    if (loadingEquipes) {
+      return <div className="box-status">Carregando dados de equipes...</div>;
+    }
+
+    if (!dashboardEquipes) {
+      return (
+        <div className="card-padrao">
+          <p className="card-texto">Clique em <strong>Carregar equipes</strong> para visualizar o relatório consolidado por equipe.</p>
+          <div className="acoes-pdf" style={{ marginTop: 14 }}>
+            <button className="botao-principal" onClick={carregarEquipes}>Carregar equipes</button>
+          </div>
+        </div>
+      );
+    }
+
+    const equipes = dashboardEquipes.equipes || [];
+    const totais = dashboardEquipes.totais || {};
+
+    const baixarPdfEquipes = () => {
+      const params = new URLSearchParams();
+      if (filtros.start) params.set('start', filtros.start);
+      if (filtros.end) params.set('end', filtros.end);
+      window.open(`${API_BASE}/equipes/pdf/download?${params.toString()}`, '_blank');
+    };
+
+    const rankingEquipesVisitas = equipes.map((e) => ({
+      id_corretor: e.equipe,
+      corretor: e.equipe,
+      total: e.total_visitas,
+    }));
+
+    const rankingEquipesClientes = equipes.map((e) => ({
+      id_corretor: e.equipe,
+      corretor: e.equipe,
+      total: e.total_clientes,
+    }));
+
+    return (
+      <div>
+        <div className="secao-titulo">Geral por Equipe</div>
+
+        <div className="grid-cards-quantidades">
+          {cardNumero('Total de visitas', totais.total_visitas)}
+          {cardNumero('Total de clientes únicos', totais.total_clientes)}
+          {cardNumero('Total de corretores', totais.total_corretores)}
+        </div>
+
+        <div className="grid-graficos">
+          {renderBarrasSimples(
+            'Visitas por equipe',
+            equipes.map((e) => e.equipe),
+            equipes.map((e) => e.total_visitas)
+          )}
+          {renderBarrasSimples(
+            'Clientes por equipe',
+            equipes.map((e) => e.equipe),
+            equipes.map((e) => e.total_clientes)
+          )}
+        </div>
+
+        <div className="grid-graficos">
+          {renderRanking('Ranking — visitas', rankingEquipesVisitas, 'visitas')}
+          {renderRanking('Ranking — clientes', rankingEquipesClientes, 'clientes')}
+        </div>
+
+        <div className="acoes-pdf" style={{ marginTop: 18 }}>
+          <button className="botao-secundario" onClick={carregarEquipes} disabled={loadingEquipes}>
+            Atualizar
+          </button>
+          <button className="botao-principal" onClick={baixarPdfEquipes}>
+            Baixar PDF Geral por Equipe
+          </button>
+        </div>
+      </div>
+    );
+  };
+
   const renderizarConteudo = () => {
     switch (opcaoAtiva) {
       case "visaoGeral":
@@ -1733,6 +1895,9 @@ function RelatorioGerente() {
 
       case "pdfs":
         return renderPdfs();
+
+      case "geralEquipes":
+        return renderGeralEquipes();
 
       default:
         return (
@@ -1858,6 +2023,15 @@ function RelatorioGerente() {
                 )}
               </div>
             ))}
+            {podeVerFiltroGerente && (
+              <div
+                onClick={() => setOpcaoAtiva("geralEquipes")}
+                className={`menu-item ${opcaoAtiva === "geralEquipes" ? "ativo" : ""}`}
+              >
+                <span className="label-desktop">Geral Equipes</span>
+                <span className="label-mobile">Equipes</span>
+              </div>
+            )}
           </div>
 
           <div className="conteudo-area">

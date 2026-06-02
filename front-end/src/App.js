@@ -25,6 +25,7 @@ import RelatorioGerente from './components/RelatorioGerente';
 import RecuperarSenha from './components/RecuperarSenha';
 import TrocarSenha from './components/TrocarSenha'
 import ControleCorretor from './components/ControleCorretor'
+import JornadaCaptacao from './components/JornadaCaptacao'
 
 import './assets/css/styles.css';
 import './assets/css/report.css';
@@ -82,6 +83,10 @@ function App() {
                 <Route
                   path="/ControleCorretor"
                   element={<AdminRoute><ControleCorretor /></AdminRoute>}
+                />
+                <Route
+                  path="/JornadaCaptacao"
+                  element={<PrivateRoute><JornadaCaptacao /></PrivateRoute>}
                 />
               </Routes>
             </main>

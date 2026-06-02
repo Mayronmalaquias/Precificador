@@ -33,6 +33,7 @@ def create_app(config_object=Config):
 
     from app.routes.analise_routes import analise_ns
     from app.routes.auth_routes import auth_ns
+    from app.routes.captacao_routes import captacao_ns
     from app.routes.chat_routes import chat_ns
     from app.routes.divisao_comissao_routes import divisao_ns
     from app.routes.gerentes_dash_routes import gerente_dashboard_ns
@@ -58,6 +59,7 @@ def create_app(config_object=Config):
     api.add_namespace(graph_ns, path=api_prefix)
     api.add_namespace(report_ns, path=api_prefix)
     api.add_namespace(visita_ns, path=api_prefix)
+    api.add_namespace(captacao_ns, path=api_prefix)
     api.add_namespace(ranking_ns, path=api_prefix)
     api.add_namespace(chat_ns, path=api_prefix)
     app.register_blueprint(meta_gerente_bp, url_prefix=api_prefix)

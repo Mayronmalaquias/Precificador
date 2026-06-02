@@ -282,114 +282,171 @@ def _build_maps(data: Dict[str, List[Dict[str, Any]]]) -> VisitasMaps:
 
 
 # ---------------------------------------------------------------------------
-# Helpers de PDF compartilhados — sem duplicação entre corretor e gerente
+# Helpers de PDF — fpdf2, padrão visual 61 Imóveis
 # ---------------------------------------------------------------------------
 
-def _pdf_make_info_table(rows: List[List[str]], col_widths: Optional[Tuple] = None):
-    from reportlab.platypus import Table, TableStyle
-    from reportlab.lib import colors
-    from reportlab.lib.units import mm
+_LOGO_PATH_PDF = "./app/utils/asserts/logo_61.png"
+_PINK       = (225, 0, 91)
+_DARK       = (40, 40, 40)
+_GRAY       = (110, 110, 110)
+_LIGHT_GRAY = (248, 248, 248)
+_WHITE      = (255, 255, 255)
 
-    col_widths = col_widths or (46 * mm, 126 * mm)
-    tbl = Table(rows, colWidths=list(col_widths))
-    tbl.setStyle(
-        TableStyle(
-            [
-                ("BACKGROUND", (0, 0), (-1, -1), colors.white),
-                ("GRID", (0, 0), (-1, -1), 0.35, colors.HexColor("#e5e7eb")),
-                ("VALIGN", (0, 0), (-1, -1), "TOP"),
-                ("LEFTPADDING", (0, 0), (-1, -1), 8),
-                ("RIGHTPADDING", (0, 0), (-1, -1), 8),
-                ("TOPPADDING", (0, 0), (-1, -1), 6),
-                ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
-                ("TEXTCOLOR", (0, 0), (0, -1), colors.HexColor("#475569")),
-                ("FONTNAME", (0, 0), (0, -1), "Helvetica-Bold"),
-                ("TEXTCOLOR", (1, 0), (1, -1), colors.HexColor("#111827")),
-            ]
-        )
-    )
-    return tbl
-
-
-def _pdf_make_grid_table(data_rows: List[List[str]], widths: List):
-    from reportlab.platypus import Table, TableStyle
-    from reportlab.lib import colors
-
-    tbl = Table(data_rows, colWidths=widths, repeatRows=1)
-    tbl.setStyle(
-        TableStyle(
-            [
-                ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#0f172a")),
-                ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
-                ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-                ("GRID", (0, 0), (-1, -1), 0.35, colors.HexColor("#e5e7eb")),
-                ("VALIGN", (0, 0), (-1, -1), "TOP"),
-                ("FONTSIZE", (0, 0), (-1, -1), 8.3),
-                ("LEADING", (0, 0), (-1, -1), 10),
-                (
-                    "ROWBACKGROUNDS",
-                    (0, 1),
-                    (-1, -1),
-                    [colors.white, colors.HexColor("#f8fafc")],
-                ),
-                ("LEFTPADDING", (0, 0), (-1, -1), 6),
-                ("RIGHTPADDING", (0, 0), (-1, -1), 6),
-                ("TOPPADDING", (0, 0), (-1, -1), 6),
-                ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
-            ]
-        )
-    )
-    return tbl
+_PDF_CHAR_MAP = {
+    "—": "-",   # em dash —
+    "–": "-",   # en dash –
+    "‘": "'",   # aspas simples esquerda
+    "’": "'",   # aspas simples direita
+    "“": '"',   # aspas duplas esquerda
+    "”": '"',   # aspas duplas direita
+    "…": "...", # reticências
+    "â": "a",   # â
+    "ã": "a",   # ã — fpdf2 com fonte core nao suporta
+    "ç": "c",   # ç
+    "é": "e",   # é
+    "ê": "e",   # ê
+    "í": "i",   # í
+    "ó": "o",   # ó
+    "ô": "o",   # ô
+    "õ": "o",   # õ
+    "ú": "u",   # ú
+    "ü": "u",   # ü
+    "Â": "A",
+    "Ã": "A",
+    "Ç": "C",
+    "É": "E",
+    "Ê": "E",
+    "Ó": "O",
+    "Ô": "O",
+    "Õ": "O",
+    "Ú": "U",
+}
 
 
-def _pdf_base_styles():
-    """Retorna (style_title, style_subtitle, style_section) compartilhados entre relatórios."""
-    from reportlab.lib import colors
-    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-
-    styles = getSampleStyleSheet()
-    title = ParagraphStyle(
-        "rpt_title",
-        parent=styles["Title"],
-        fontName="Helvetica-Bold",
-        fontSize=19,
-        textColor=colors.HexColor("#0f172a"),
-        spaceAfter=4,
-    )
-    subtitle = ParagraphStyle(
-        "rpt_subtitle",
-        parent=styles["BodyText"],
-        fontName="Helvetica",
-        fontSize=9.5,
-        textColor=colors.HexColor("#64748b"),
-        spaceAfter=10,
-    )
-    section = ParagraphStyle(
-        "rpt_section",
-        parent=styles["Heading2"],
-        fontName="Helvetica-Bold",
-        fontSize=11,
-        textColor=colors.HexColor("#0f172a"),
-        spaceBefore=8,
-        spaceAfter=6,
-    )
-    return title, subtitle, section
+def _pt(text: str) -> str:
+    """Converte texto para latin-1 compatível com as fontes core do fpdf2."""
+    for src, dst in _PDF_CHAR_MAP.items():
+        text = text.replace(src, dst)
+    return text.encode("latin-1", errors="replace").decode("latin-1")
 
 
-def _pdf_base_doc(buffer: io.BytesIO, title: str):
-    from reportlab.lib.pagesizes import A4
-    from reportlab.lib.units import mm
-    from reportlab.platypus import SimpleDocTemplate
+class _Pdf61:
+    """Wrapper fino sobre FPDF com cabeçalho/rodapé padrão 61 Imóveis."""
 
-    return SimpleDocTemplate(
-        buffer,
-        pagesize=A4,
-        leftMargin=14 * mm,
-        rightMargin=14 * mm,
-        topMargin=14 * mm,
-        bottomMargin=12 * mm,
-        title=title,
-    )
+    def __init__(self, titulo: str, subtitulo: str = ""):
+        from fpdf import FPDF  # type: ignore
+
+        class _Doc(FPDF):
+            pass
+
+        self._titulo    = titulo
+        self._subtitulo = subtitulo
+        self._fpdf: FPDF = _Doc(orientation="P", unit="mm", format="A4")
+        self._fpdf.set_margins(15, 30, 15)
+        self._fpdf.set_auto_page_break(auto=True, margin=18)
+        # Armazena referência para que o header possa usar self
+        self._fpdf._wrapper = self  # type: ignore[attr-defined]
+        self._setup_callbacks()
+
+    def _setup_callbacks(self):
+        wrapper = self
+
+        def _header(this):
+            if os.path.exists(_LOGO_PATH_PDF):
+                this.image(_LOGO_PATH_PDF, x=15, y=8, h=10)
+
+            this.set_font("Arial", "B", 12)
+            this.set_text_color(*_PINK)
+            this.set_xy(15, 8)
+            this.cell(0, 6, _pt(wrapper._titulo), align="R")
+
+            if wrapper._subtitulo:
+                this.set_font("Arial", "", 8)
+                this.set_text_color(*_GRAY)
+                this.set_xy(15, 15)
+                this.cell(0, 5, _pt(wrapper._subtitulo), align="R")
+
+            this.set_draw_color(*_PINK)
+            this.set_line_width(0.4)
+            this.line(15, 23, 195, 23)
+            this.set_xy(15, 27)
+
+        def _footer(this):
+            this.set_y(-12)
+            this.set_font("Arial", "", 7)
+            this.set_text_color(*_GRAY)
+            this.cell(
+                0, 4,
+                f"61 Imoveis  ·  Gerado em: {date.today().strftime('%d/%m/%Y')}  ·  Pagina {this.page_no()}",
+                align="C",
+            )
+
+        import types
+        self._fpdf.header = types.MethodType(_header, self._fpdf)  # type: ignore[method-assign]
+        self._fpdf.footer = types.MethodType(_footer, self._fpdf)  # type: ignore[method-assign]
+
+    def add_page(self):
+        self._fpdf.add_page()
+
+    def section(self, titulo: str):
+        self._fpdf.ln(2)
+        self._fpdf.set_font("Arial", "B", 9)
+        self._fpdf.set_fill_color(*_PINK)
+        self._fpdf.set_text_color(*_WHITE)
+        self._fpdf.cell(0, 7, _pt(f"  {titulo}"), border=0, fill=True, ln=1)
+        self._fpdf.ln(1)
+
+    def info_rows(self, rows: List[List[str]]):
+        """Tabela de duas colunas: label | valor."""
+        pdf = self._fpdf
+        pdf.set_draw_color(220, 220, 220)
+        pdf.set_line_width(0.2)
+        fill = False
+        for label, valor in rows:
+            pdf.set_font("Arial", "B", 8)
+            pdf.set_fill_color(*_LIGHT_GRAY)
+            pdf.set_text_color(*_GRAY)
+            pdf.cell(55, 6.5, _pt(f"  {label}"), border=1, fill=fill, align="L")
+            pdf.set_font("Arial", "", 8)
+            pdf.set_text_color(*_DARK)
+            pdf.cell(125, 6.5, _pt(f"  {valor}"), border=1, fill=fill, align="L")
+            pdf.ln()
+            fill = not fill
+        pdf.ln(2)
+
+    def table(
+        self,
+        headers: List[str],
+        rows: List[List[str]],
+        col_widths: List[float],
+        row_h: float = 6.0,
+    ):
+        pdf = self._fpdf
+        pdf.set_font("Arial", "B", 7.5)
+        pdf.set_fill_color(*_PINK)
+        pdf.set_text_color(*_WHITE)
+        pdf.set_draw_color(200, 200, 200)
+        pdf.set_line_width(0.2)
+        for h, w in zip(headers, col_widths):
+            pdf.cell(w, 7, _pt(f"  {h}"), border=1, fill=True, align="L")
+        pdf.ln()
+
+        pdf.set_font("Arial", "", 7.5)
+        pdf.set_text_color(*_DARK)
+        fill = False
+        for row in rows:
+            pdf.set_fill_color(*_LIGHT_GRAY)
+            for val, w in zip(row, col_widths):
+                pdf.cell(w, row_h, _pt(f"  {str(val)}"), border=1, fill=fill, align="L")
+            pdf.ln()
+            fill = not fill
+        pdf.ln(2)
+
+    def to_bytes(self) -> bytes:
+        out = self._fpdf.output()
+        if isinstance(out, (bytearray, bytes)):
+            return bytes(out)
+        return out.encode("latin-1")
 
 
 def _pdf_upload_to_drive(
@@ -1111,70 +1168,53 @@ def _montar_contexto_pdf_corretor(
 
 
 def _build_pdf_corretor_bytes(ctx: Dict[str, Any]) -> bytes:
-    try:
-        from reportlab.lib.units import mm
-        from reportlab.platypus import Paragraph, Spacer
-    except ImportError as e:
-        raise RuntimeError("reportlab não instalada. Execute: pip install reportlab") from e
+    subtitulo = _display(ctx.get("Nome_Corretor")) + "  ·  Equipe " + _display(ctx.get("Equipe"))
+    doc = _Pdf61("Relatorio do Corretor", subtitulo)
+    doc.add_page()
 
-    buffer = io.BytesIO()
-    doc = _pdf_base_doc(buffer, f"Relatorio_Corretor_{ctx['Id_Corretor']}")
-    style_title, style_subtitle, style_section = _pdf_base_styles()
-    story = []
-
-    story.append(Paragraph("Relatório do Corretor", style_title))
-    story.append(Paragraph(
-        "Histórico consolidado de visitas, clientes, parceiros e imóveis atendidos.",
-        style_subtitle,
-    ))
-
-    resumo_rows = [
-        ["Id do corretor", _display(ctx.get("Id_Corretor"))],
+    doc.section("Informacoes do corretor")
+    doc.info_rows([
+        ["ID", _display(ctx.get("Id_Corretor"))],
         ["Nome", _display(ctx.get("Nome_Corretor"))],
         ["E-mail", _display(ctx.get("Email"))],
         ["Telefone", _display(ctx.get("Telefone"))],
         ["Instagram", _display(ctx.get("Instagram"))],
         ["Gerente", _display(ctx.get("Nome_Gerente"))],
         ["Equipe", _display(ctx.get("Equipe"))],
-        ["Total de visitas", _display(ctx.get("Total_Visitas"))],
-        ["Total de clientes", _display(ctx.get("Total_Clientes"))],
-        ["Total de parceiros", _display(ctx.get("Total_Parceiros"))],
-        ["Total de imóveis", _display(ctx.get("Total_Imoveis"))],
-        ["Última visita", _display(ctx.get("Ultima_Visita"))],
-    ]
-    story.append(_pdf_make_info_table(resumo_rows))
-    story.append(Spacer(1, 10))
+        ["Total de visitas", str(ctx.get("Total_Visitas", 0))],
+        ["Total de clientes", str(ctx.get("Total_Clientes", 0))],
+        ["Total de parceiros", str(ctx.get("Total_Parceiros", 0))],
+        ["Total de imoveis", str(ctx.get("Total_Imoveis", 0))],
+        ["Ultima visita", _display(ctx.get("Ultima_Visita"))],
+    ])
 
-    if ctx["Clientes"]:
-        story.append(Paragraph("Clientes vinculados", style_section))
-        clientes_data = [["Cliente", "Telefone", "E-mail"]] + [
-            [_display(c.get("Nome_Cliente")), _display(c.get("Telefone_Cliente")), _display(c.get("Email_Cliente"))]
-            for c in ctx["Clientes"]
-        ]
-        story.append(_pdf_make_grid_table(clientes_data, [62 * mm, 42 * mm, 68 * mm]))
-        story.append(Spacer(1, 10))
+    if ctx.get("Clientes"):
+        doc.section("Clientes vinculados")
+        doc.table(
+            ["Cliente", "Telefone", "E-mail"],
+            [[_display(c.get("Nome_Cliente")), _display(c.get("Telefone_Cliente")), _display(c.get("Email_Cliente"))] for c in ctx["Clientes"]],
+            [75, 45, 60],
+        )
 
-    if ctx["Parceiros"]:
-        story.append(Paragraph("Parceiros vinculados", style_section))
-        parceiros_data = [["Parceiro", "Imobiliária"]] + [
-            [_display(p.get("Nome_Parceiro")), _display(p.get("Imobiliaria"))]
-            for p in ctx["Parceiros"]
-        ]
-        story.append(_pdf_make_grid_table(parceiros_data, [82 * mm, 90 * mm]))
-        story.append(Spacer(1, 10))
+    if ctx.get("Parceiros"):
+        doc.section("Parceiros vinculados")
+        doc.table(
+            ["Parceiro", "Imobiliaria"],
+            [[_display(p.get("Nome_Parceiro")), _display(p.get("Imobiliaria"))] for p in ctx["Parceiros"]],
+            [95, 85],
+        )
 
-    story.append(Paragraph("Histórico de visitas", style_section))
-    visitas_data = [["Id da visita", "Data", "Imóvel", "Proposta", "Clientes"]] + [
+    doc.section("Historico de visitas")
+    doc.table(
+        ["ID Visita", "Data", "Imovel", "Proposta", "Clientes"],
         [
-            _display(v.get("Id_Visita")), _display(v.get("Data_Visita")),
-            _display(v.get("Id_Imovel")), _display(v.get("Proposta")), _display(v.get("Clientes")),
-        ]
-        for v in ctx["Visitas"]
-    ]
-    story.append(_pdf_make_grid_table(visitas_data, [28 * mm, 24 * mm, 24 * mm, 28 * mm, 68 * mm]))
+            [_display(v.get("Id_Visita")), _display(v.get("Data_Visita")), _display(v.get("Id_Imovel")), _display(v.get("Proposta")), _display(v.get("Clientes"))]
+            for v in ctx.get("Visitas", [])
+        ],
+        [28, 22, 24, 26, 80],
+    )
 
-    doc.build(story)
-    return buffer.getvalue()
+    return doc.to_bytes()
 
 
 def gerar_pdf_corretor_download(id_corretor: str) -> Tuple[io.BytesIO, str]:
@@ -1220,64 +1260,52 @@ def _montar_contexto_pdf_gerente(
 
 
 def _build_pdf_gerente_bytes(ctx: Dict[str, Any]) -> bytes:
-    try:
-        from reportlab.lib.units import mm
-        from reportlab.platypus import Paragraph, Spacer
-    except ImportError as e:
-        raise RuntimeError("reportlab não instalada. Execute: pip install reportlab") from e
-
-    gerente = ctx["gerente"]
+    gerente  = ctx["gerente"]
     dashboard = ctx["dashboard"]
-    visitas = ctx["visitas"]
-    resumo = dashboard["resumo"]
-    ranking = dashboard["rankings"]["visitas"]
+    visitas  = ctx["visitas"]
+    resumo   = dashboard["resumo"]
+    ranking  = dashboard["rankings"]["visitas"]
 
-    id_gerente = _safe_str(gerente.get("IdGerente"))
-    buffer = io.BytesIO()
-    doc = _pdf_base_doc(buffer, f"Relatorio_Gerente_{id_gerente}")
-    style_title, style_subtitle, style_section = _pdf_base_styles()
-    story = []
+    nome   = _display(gerente.get("Nome"))
+    equipe = _display(gerente.get("Equipe"))
+    doc = _Pdf61("Relatorio Consolidado do Gerente", f"{nome}  ·  Equipe {equipe}")
+    doc.add_page()
 
-    story.append(Paragraph("Relatório Consolidado do Gerente", style_title))
-    story.append(Paragraph(
-        f"{_display(gerente.get('Nome'))} • Equipe {_display(gerente.get('Equipe'))}",
-        style_subtitle,
-    ))
+    doc.section("Resumo executivo")
+    doc.info_rows([
+        ["Total de corretores",    str(resumo["total_corretores"])],
+        ["Corretores ativos",      str(resumo["corretores_ativos"])],
+        ["Corretores sem visita",  str(resumo["corretores_sem_visita"])],
+        ["Total de visitas",       str(resumo["total_visitas"])],
+        ["Total de clientes",      str(resumo["total_clientes"])],
+        ["Total de imoveis",       str(resumo.get("total_imoveis", 0))],
+        ["Media visitas/corretor", str(resumo["media_visitas_por_corretor"])],
+    ])
 
-    resumo_data = [
-        ["Indicador", "Valor"],
-        ["Total de corretores", str(resumo["total_corretores"])],
-        ["Corretores ativos", str(resumo["corretores_ativos"])],
-        ["Corretores sem visita", str(resumo["corretores_sem_visita"])],
-        ["Total de visitas", str(resumo["total_visitas"])],
-        ["Total de clientes", str(resumo["total_clientes"])],
-        ["Total de imóveis", str(resumo.get("total_imoveis", 0))],
-        ["Média visitas/corretor", str(resumo["media_visitas_por_corretor"])],
-    ]
-    story.append(Paragraph("Resumo executivo", style_section))
-    story.append(_pdf_make_grid_table(resumo_data, [85 * mm, 87 * mm]))
-    story.append(Spacer(1, 10))
+    doc.section("Ranking de visitas por corretor")
+    doc.table(
+        ["Pos.", "Corretor", "Total"],
+        [[str(r["posicao"]), r["corretor"], str(r["total"])] for r in ranking],
+        [14, 140, 26],
+    )
 
-    story.append(Paragraph("Ranking de visitas por corretor", style_section))
-    ranking_data = [["Posição", "Corretor", "Total"]] + [
-        [str(r["posicao"]), r["corretor"], str(r["total"])] for r in ranking
-    ]
-    story.append(_pdf_make_grid_table(ranking_data, [24 * mm, 110 * mm, 38 * mm]))
-    story.append(Spacer(1, 10))
-
-    story.append(Paragraph("Visitas do período", style_section))
-    visitas_data = [["Data", "Corretor", "Imóvel", "Proposta", "Clientes"]] + [
+    doc.section("Visitas do periodo")
+    doc.table(
+        ["Data", "Corretor", "Imovel", "Proposta", "Clientes"],
         [
-            _display(v.get("data_visita")), _display(v.get("corretor")),
-            _display(v.get("id_imovel")), _display(v.get("proposta")),
-            ", ".join(v.get("clientes", [])) if v.get("clientes") else "—",
-        ]
-        for v in visitas[:200]
-    ]
-    story.append(_pdf_make_grid_table(visitas_data, [22 * mm, 42 * mm, 24 * mm, 24 * mm, 64 * mm]))
+            [
+                _display(v.get("data_visita")),
+                _display(v.get("corretor")),
+                _display(v.get("id_imovel")),
+                _display(v.get("proposta")),
+                ", ".join(v.get("clientes", [])) if v.get("clientes") else "-",
+            ]
+            for v in visitas[:200]
+        ],
+        [22, 42, 22, 24, 70],
+    )
 
-    doc.build(story)
-    return buffer.getvalue()
+    return doc.to_bytes()
 
 
 def gerar_pdf_gerente_consolidado_bytes(
@@ -1309,3 +1337,122 @@ def gerar_pdf_gerente_publico(
     pdf_bytes = gerar_pdf_gerente_consolidado_bytes(id_gerente, start, end)
     file_name = f"Relatorio_Gerente_{id_gerente}.pdf"
     return _pdf_upload_to_drive(pdf_bytes, file_name, DRIVE_GERENTE_REPORTS_SUBFOLDER_NAME, id_gerente)
+
+
+# ---------------------------------------------------------------------------
+# Dashboard e PDF — Geral por Equipe
+# ---------------------------------------------------------------------------
+
+def dashboard_equipes(
+    start: Optional[str] = None,
+    end: Optional[str] = None,
+) -> Dict[str, Any]:
+    data = _load_visitas_base()
+    maps = _build_maps(data)
+
+    dim_corretor = data.get("Dim_Corretor", [])
+    dim_gerente = data.get("Dim_Gerente", [])
+    fato_visitas = data.get("Fato_Visitas", [])
+    clientes_por_visita = maps["clientes_por_visita"]
+
+    # IdGerente → Equipe
+    gerente_equipe: Dict[str, str] = {}
+    for g in dim_gerente:
+        id_g = _safe_str(g.get("IdGerente"))
+        equipe = _safe_str(g.get("Equipe")).strip()
+        if id_g and equipe:
+            gerente_equipe[id_g] = equipe
+
+    # IdCorretor → Equipe
+    corretor_equipe: Dict[str, str] = {}
+    equipe_corretores: Dict[str, set] = defaultdict(set)
+    for c in dim_corretor:
+        id_c = _safe_str(c.get("IdCorretor"))
+        id_g = _safe_str(c.get("IdGerente"))
+        equipe = gerente_equipe.get(id_g, "")
+        if id_c and equipe:
+            corretor_equipe[id_c] = equipe
+            equipe_corretores[equipe].add(id_c)
+
+    equipe_visitas: Dict[str, int] = defaultdict(int)
+    equipe_ativos: Dict[str, set] = defaultdict(set)
+    equipe_clientes: Dict[str, set] = defaultdict(set)
+
+    for visita in fato_visitas:
+        if not _in_period(visita.get("Data_Visita"), start, end):
+            continue
+        id_c = _safe_str(visita.get("Id_Corretor"))
+        equipe = corretor_equipe.get(id_c)
+        if not equipe:
+            continue
+        visita_id = _safe_str(visita.get("Id_Visita"))
+        equipe_visitas[equipe] += 1
+        equipe_ativos[equipe].add(id_c)
+        for fc in clientes_por_visita.get(visita_id, []):
+            id_cliente = _safe_str(fc.get("Id_Cliente"))
+            if id_cliente:
+                equipe_clientes[equipe].add(id_cliente)
+
+    resultado: List[Dict[str, Any]] = []
+    for equipe in sorted(equipe_corretores.keys()):
+        resultado.append({
+            "equipe": equipe,
+            "total_corretores": len(equipe_corretores[equipe]),
+            "corretores_ativos": len(equipe_ativos.get(equipe, set())),
+            "total_visitas": equipe_visitas.get(equipe, 0),
+            "total_clientes": len(equipe_clientes.get(equipe, set())),
+        })
+
+    resultado.sort(key=lambda x: -x["total_visitas"])
+    for i, r in enumerate(resultado):
+        r["posicao"] = i + 1
+
+    return {
+        "ok": True,
+        "start": start,
+        "end": end,
+        "equipes": resultado,
+        "totais": {
+            "total_visitas": sum(r["total_visitas"] for r in resultado),
+            "total_clientes": sum(r["total_clientes"] for r in resultado),
+            "total_corretores": sum(r["total_corretores"] for r in resultado),
+        },
+    }
+
+
+def _build_pdf_equipes_bytes(ctx: Dict[str, Any]) -> bytes:
+    start  = ctx.get("start") or "-"
+    end    = ctx.get("end") or "-"
+    totais = ctx.get("totais", {})
+
+    doc = _Pdf61("Relatorio Geral por Equipe", f"Periodo: {start} a {end}")
+    doc.add_page()
+
+    doc.section("Totais consolidados")
+    doc.info_rows([
+        ["Total de visitas",       str(totais.get("total_visitas", 0))],
+        ["Total de clientes unicos", str(totais.get("total_clientes", 0))],
+        ["Total de corretores",    str(totais.get("total_corretores", 0))],
+    ])
+
+    doc.section("Ranking por equipe")
+    doc.table(
+        ["Pos.", "Equipe", "Visitas", "Clientes", "Corretores", "Ativos"],
+        [
+            [str(e["posicao"]), e["equipe"], str(e["total_visitas"]), str(e["total_clientes"]), str(e["total_corretores"]), str(e["corretores_ativos"])]
+            for e in ctx.get("equipes", [])
+        ],
+        [12, 68, 24, 24, 28, 24],
+    )
+
+    return doc.to_bytes()
+
+
+def gerar_pdf_equipes_download(
+    start: Optional[str] = None,
+    end: Optional[str] = None,
+) -> Tuple[io.BytesIO, str]:
+    ctx = dashboard_equipes(start, end)
+    pdf_bytes = _build_pdf_equipes_bytes(ctx)
+    file_name = f"Relatorio_Equipes_{start or 'completo'}_{end or 'completo'}.pdf"
+    return io.BytesIO(pdf_bytes), file_name

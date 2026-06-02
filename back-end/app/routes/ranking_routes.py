@@ -74,6 +74,32 @@ class RankingsByKind(Resource):
         return ranking, 200
 
 
+@ranking_ns.route("/rankings/<string:kind>/equipe")
+class RankingsByKindEquipe(Resource):
+    @ranking_ns.doc(
+        params={
+            "start": "Data inicial (YYYY-MM-DD). Opcional.",
+            "end": "Data final (YYYY-MM-DD). Opcional.",
+            "include_pending": "Se true, inclui vendas pendentes. Padrão: false.",
+            "apply_factor": "Se true, divide Valor_Total_61 por 0.06 no VGC. Padrão: false.",
+        }
+    )
+    @ranking_ns.marshal_list_with(ranking_item)
+    def get(self, kind: str):
+        kind = (kind or "").lower().strip()
+        if kind not in {"vgv_geral", "vgc_geral", "captacao", "visitas"}:
+            ranking_ns.abort(400, "kind inválido. Use: vgv_geral, vgc_geral, captacao, visitas")
+
+        start = request.args.get("start")
+        end = request.args.get("end")
+        include_pending = request.args.get("include_pending", "false").lower() == "true"
+        apply_factor = request.args.get("apply_factor", "false").lower() == "true"
+
+        svc = RankingService()
+        ranking = svc.get_ranking_equipe(kind=kind, start=start, end=end, include_pending=include_pending, apply_factor=apply_factor)
+        return ranking, 200
+
+
 @ranking_ns.route("/rankings/todos/pdf")
 class TodosPdf(Resource):
     @ranking_ns.doc(

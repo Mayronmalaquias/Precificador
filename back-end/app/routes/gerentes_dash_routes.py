@@ -14,6 +14,8 @@ from app.services.rela_gerentes_service import (
     gerar_pdf_gerente_download,
     listar_imoveis_do_gerente,
     detalhe_visita_gerente,
+    dashboard_equipes,
+    gerar_pdf_equipes_download,
 )
 
 gerente_dashboard_ns = Namespace(
@@ -305,4 +307,36 @@ class PdfGerenteDownload(Resource):
 
         except Exception as e:
             current_app.logger.exception("Erro ao baixar PDF do gerente")
+            return {"ok": False, "error": str(e)}, 500
+
+
+@gerente_dashboard_ns.route("/equipes/dashboard")
+class DashboardEquipes(Resource):
+    def get(self):
+        try:
+            start = (request.args.get("start") or "").strip() or None
+            end = (request.args.get("end") or "").strip() or None
+            data = dashboard_equipes(start=start, end=end)
+            return data, 200
+        except Exception as e:
+            current_app.logger.exception("Erro ao gerar dashboard de equipes")
+            return {"ok": False, "error": str(e)}, 500
+
+
+@gerente_dashboard_ns.route("/equipes/pdf/download")
+class PdfEquipesDownload(Resource):
+    def get(self):
+        try:
+            start = (request.args.get("start") or "").strip() or None
+            end = (request.args.get("end") or "").strip() or None
+            buffer_pdf, filename = gerar_pdf_equipes_download(start=start, end=end)
+            buffer_pdf.seek(0)
+            return send_file(
+                buffer_pdf,
+                mimetype="application/pdf",
+                as_attachment=True,
+                download_name=filename,
+            )
+        except Exception as e:
+            current_app.logger.exception("Erro ao baixar PDF de equipes")
             return {"ok": False, "error": str(e)}, 500

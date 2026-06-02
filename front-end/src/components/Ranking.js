@@ -70,8 +70,11 @@ function Ranking() {
 
   const [section, setSection] = useState('rankings');
   const [tab, setTab] = useState('vgc_geral');
+  const [viewMode, setViewMode] = useState('corretor'); // 'corretor' | 'equipe'
   const [dataByTab, setDataByTab] = useState({});
   const [loadedKeyByTab, setLoadedKeyByTab] = useState({});
+  const [dataByTabEquipe, setDataByTabEquipe] = useState({});
+  const [loadedKeyByTabEquipe, setLoadedKeyByTabEquipe] = useState({});
   const [loading, setLoading] = useState(false);
   const [loadingPdf, setLoadingPdf] = useState(false);
 
@@ -81,7 +84,7 @@ function Ranking() {
   const [loadingPdfTodos, setLoadingPdfTodos] = useState(false);
 
   const activeTab = RANKING_TABS.find((item) => item.id === tab) || RANKING_TABS[0];
-  const currentRows = dataByTab[tab] || [];
+  const currentRows = viewMode === 'equipe' ? (dataByTabEquipe[tab] || []) : (dataByTab[tab] || []);
   const currentLoadKey = `${appliedFormData.start}|${appliedFormData.end}|${appliedFormData.include_pending}|${appliedFormData.apply_factor}`;
 
   const handleChange = (e) => {
@@ -174,6 +177,42 @@ function Ranking() {
       }
     },
     [buildUrl, currentLoadKey, loadedKeyByTab, tab, toast]
+  );
+
+  const fetchRankingEquipe = useCallback(
+    async (kind = tab, force = false) => {
+      if (!force && loadedKeyByTabEquipe[kind] === currentLoadKey) return;
+
+      setLoading(true);
+      try {
+        const params = new URLSearchParams();
+        if (appliedFormData.start) params.set('start', appliedFormData.start);
+        if (appliedFormData.end) params.set('end', appliedFormData.end);
+        params.set('include_pending', appliedFormData.include_pending ? 'true' : 'false');
+        if (kind === 'vgc_geral' && appliedFormData.apply_factor) params.set('apply_factor', 'true');
+
+        const response = await fetch(`${API_BASE}/rankings/${kind}/equipe?${params.toString()}`, {
+          method: 'GET',
+          headers: { 'Content-Type': 'application/json' },
+        });
+
+        const json = await response.json();
+
+        if (!response.ok) {
+          toast(json?.message || json?.error || 'Erro ao buscar ranking por equipe', 'error');
+          return;
+        }
+
+        setDataByTabEquipe((prev) => ({ ...prev, [kind]: Array.isArray(json) ? json : [] }));
+        setLoadedKeyByTabEquipe((prev) => ({ ...prev, [kind]: currentLoadKey }));
+      } catch (err) {
+        console.error('Erro na requisicao equipe:', err);
+        toast('Erro de conexao com o servidor.', 'error');
+      } finally {
+        setLoading(false);
+      }
+    },
+    [appliedFormData, currentLoadKey, loadedKeyByTabEquipe, tab, toast]
   );
 
   const baixarPdfTodos = async () => {
@@ -328,8 +367,12 @@ function Ranking() {
 
   useEffect(() => {
     if (section !== 'rankings') return;
-    fetchRanking(tab);
-  }, [fetchRanking, section, tab]);
+    if (viewMode === 'equipe') {
+      fetchRankingEquipe(tab);
+    } else {
+      fetchRanking(tab);
+    }
+  }, [fetchRanking, fetchRankingEquipe, section, tab, viewMode]);
 
   const formatCurrency = (n) => {
     const num = Number(n);
@@ -464,6 +507,23 @@ function Ranking() {
             ))}
           </div>
 
+          <div className="ranking__viewToggle">
+            <button
+              type="button"
+              className={`ranking__viewBtn ${viewMode === 'corretor' ? 'is-active' : ''}`}
+              onClick={() => setViewMode('corretor')}
+            >
+              Corretor
+            </button>
+            <button
+              type="button"
+              className={`ranking__viewBtn ${viewMode === 'equipe' ? 'is-active' : ''}`}
+              onClick={() => setViewMode('equipe')}
+            >
+              Equipe
+            </button>
+          </div>
+
           <div className="ranking__summary">
             <div className="ranking__summaryCard">
               <span>Categoria</span>
@@ -488,7 +548,7 @@ function Ranking() {
                 </div>
                 <div className="ranking__tableHeadActions">
                   {loading && <span className="ranking__loading">Atualizando</span>}
-                  {(tab === 'vgc_geral' || tab === 'vgv_geral') && currentRows.length > 0 && (
+                  {viewMode === 'corretor' && (tab === 'vgc_geral' || tab === 'vgv_geral') && currentRows.length > 0 && (
                     <button
                       type="button"
                       className="ranking__btn ranking__btn--outline"
@@ -506,15 +566,15 @@ function Ranking() {
                   <thead>
                     <tr>
                       <th>#</th>
-                      <th>Corretor</th>
+                      <th>{viewMode === 'equipe' ? 'Equipe' : 'Corretor'}</th>
                       <th>{activeTab.unit === 'currency' ? 'Valor' : 'Total'}</th>
-                      {(tab === 'vgc_geral' || tab === 'vgv_geral') && <th></th>}
+                      {viewMode === 'corretor' && (tab === 'vgc_geral' || tab === 'vgv_geral') && <th></th>}
                     </tr>
                   </thead>
                   <tbody>
                     {currentRows.length === 0 ? (
                       <tr>
-                        <td colSpan={tab === 'vgc_geral' || tab === 'vgv_geral' ? 4 : 3} className="ranking__empty">
+                        <td colSpan={viewMode === 'corretor' && (tab === 'vgc_geral' || tab === 'vgv_geral') ? 4 : 3} className="ranking__empty">
                           Nenhum dado encontrado para o periodo informado.
                         </td>
                       </tr>
@@ -524,7 +584,7 @@ function Ranking() {
                           <td className="ranking__pos">{row.posicao}</td>
                           <td className="ranking__name">{row.corretor}</td>
                           <td className="ranking__value">{renderTotal(row)}</td>
-                          {(tab === 'vgc_geral' || tab === 'vgv_geral') && (
+                          {viewMode === 'corretor' && (tab === 'vgc_geral' || tab === 'vgv_geral') && (
                             <td className="ranking__detBtn">
                               <button
                                 type="button"
