@@ -44,13 +44,15 @@ function corIdade(str) {
 }
 
 function corretorColor(nome, lista) {
+  if (!nome) return "#94a3b8";
   const idx = lista.indexOf(nome);
-  return CORRETOR_PALETTE[Math.max(idx, 0) % CORRETOR_PALETTE.length];
+  if (idx === -1) return "#94a3b8";
+  return CORRETOR_PALETTE[idx % CORRETOR_PALETTE.length];
 }
 
 function extrairEventos(captacoes) {
   const evts = [];
-  captacoes.filter(c => c.status !== "fechado").forEach(c => {
+  captacoes.filter(c => c.status !== "fechado" && c.status !== "captado").forEach(c => {
     const add = (data, acao, etapa) => {
       if (data) evts.push({ data: data.split("T")[0], acao: acao || "", etapa, captacao: c });
     };
@@ -205,6 +207,23 @@ function BotaoResposta({ resp, onResp }) {
 // ── Histórico timeline ───────────────────────────────────────────────────────
 const MAP_REALIZADA = {
   escolha:      "acao_escolha_realizada",
+  prospeccao:   "acao_interacao_realizada",
+  interacao:    "acao_interacao_realizada",
+  apresentacao: "acao_apresentacao_realizada",
+  captacao:     "acao_captacao_realizada",
+};
+
+// Lookup para badge de ação pendente no KanbanCard (módulo-level para não realocar a cada render)
+const CAMP_ACAO_KANBAN = {
+  escolha:      "acao_sem_numero",
+  prospeccao:   "proxima_acao_interacao",
+  interacao:    "proxima_acao_interacao",
+  apresentacao: "proxima_acao_apresentacao",
+  captacao:     "proxima_acao_captacao",
+};
+const CAMP_REAL_KANBAN = {
+  escolha:      "acao_escolha_realizada",
+  prospeccao:   "acao_interacao_realizada",
   interacao:    "acao_interacao_realizada",
   apresentacao: "acao_apresentacao_realizada",
   captacao:     "acao_captacao_realizada",
@@ -339,7 +358,10 @@ function CalendarioView({ captacoes, isAdmin, onCardClick }) {
                   ? evts.slice(0,5).map((e,ei) => <span key={ei} className="cap-cal-pip" style={{ background: corretorColor(e.captacao.nome_corretor, corretores) }} />)
                   : evts.slice(0,4).map((e,ei) => <span key={ei} className="cap-cal-pip" style={{ background: ETAPA_INFO[e.etapa]?.color }} />)
                 }
-                {evts.length > 5 && <span className="cap-cal-mais-pip">+{evts.length-5}</span>}
+                {isAdmin
+                  ? evts.length > 5 && <span className="cap-cal-mais-pip">+{evts.length-5}</span>
+                  : evts.length > 4 && <span className="cap-cal-mais-pip">+{evts.length-4}</span>
+                }
               </div>
             </div>
           );
@@ -589,11 +611,8 @@ function KanbanCard({ c, onClick, isAdmin }) {
   const ageColor  = corIdade(c.data_entrada_etapa);
   const ageLabel  = diasDesde(c.data_entrada_etapa);
 
-  // Ação pendente = tem ação agendada e não foi realizada
-  const CAMP_ACAO = { escolha: "acao_sem_numero", interacao: "proxima_acao_interacao", apresentacao: "proxima_acao_apresentacao", captacao: "proxima_acao_captacao" };
-  const CAMP_REAL = { escolha: "acao_escolha_realizada", interacao: "acao_interacao_realizada", apresentacao: "acao_apresentacao_realizada", captacao: "acao_captacao_realizada" };
-  const temAcao     = !!c[CAMP_ACAO[c.etapa_atual]];
-  const acaoFeita   = c[CAMP_REAL[c.etapa_atual]] === true;
+  const temAcao   = !!c[CAMP_ACAO_KANBAN[c.etapa_atual]];
+  const acaoFeita = c[CAMP_REAL_KANBAN[c.etapa_atual]] === true;
   const acaoStatus  = temAcao ? (acaoFeita ? "feita" : "pendente") : null;
 
   return (
@@ -675,22 +694,28 @@ function ModalDetalhe({ captacao, onClose, onAvancar, onSave, avancarLoading, on
 
   const salvarEndereco = async () => {
     setSalvandoEnd(true);
-    await onSave({
-      bairro: editBairro || null,
-      bloco:  editBloco  || null,
-      ...(!emEscolha && { numero_imovel: editNumero || null, link_anuncio: editLink || null }),
-    });
-    setSalvandoEnd(false);
+    try {
+      await onSave({
+        bairro: editBairro || null,
+        bloco:  editBloco  || null,
+        ...(!emEscolha && { numero_imovel: editNumero || null, link_anuncio: editLink || null }),
+      });
+    } finally {
+      setSalvandoEnd(false);
+    }
   };
 
   const salvarProprietario = async () => {
     setSalvandoProp(true);
-    await onSave({
-      nome_cliente:     editNome || null,
-      telefone_cliente: editTel  || null,
-      book_enviado:     editBook,
-    });
-    setSalvandoProp(false);
+    try {
+      await onSave({
+        nome_cliente:     editNome || null,
+        telefone_cliente: editTel  || null,
+        book_enviado:     editBook,
+      });
+    } finally {
+      setSalvandoProp(false);
+    }
   };
 
   // Confirmação de encerramento inline
@@ -992,7 +1017,7 @@ function ModalNovoImovel({ onSalvar, onCancelar, loading, isAdmin, corretores })
               <button className="cap-ghost-btn" onClick={() => { setStep(1); setTemNum(null); }}>← Voltar</button>
               <button
                 className="cap-primary-btn"
-                disabled={loading || temNum === null}
+                disabled={loading || temNum === null || (temNum === true && !extra.numero_imovel.trim())}
                 onClick={() => onSalvar({
                   ...form, temNum, extra,
                   corretorId:   corretorSel?.id_usuarios,
