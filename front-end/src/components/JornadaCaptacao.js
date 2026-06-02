@@ -645,6 +645,17 @@ function ModalDetalhe({ captacao, onClose, onAvancar, onSave, avancarLoading, on
   const [editBook,  setEditBook]  = useState(captacao.book_enviado);
   const [salvandoProp, setSalvandoProp] = useState(false);
 
+  // Sincroniza campos ao trocar de captação ou de etapa (ex: escolha → prospecção)
+  useEffect(() => {
+    setEditBairro(captacao.bairro || "");
+    setEditBloco(captacao.bloco || "");
+    setEditNumero(captacao.numero_imovel || "");
+    setEditLink(captacao.link_anuncio || "");
+    setEditNome(captacao.nome_cliente || "");
+    setEditTel(captacao.telefone_cliente || "");
+    setEditBook(captacao.book_enviado);
+  }, [captacao.id, captacao.etapa_atual]);
+
   const etapa    = ETAPA_INFO[captacao.etapa_atual] || {};
   const etapaIdx = ETAPAS.findIndex(e => e.key === captacao.etapa_atual);
   const ETAPAS_PROP = ["prospeccao","interacao","apresentacao","captacao"];
@@ -695,7 +706,10 @@ function ModalDetalhe({ captacao, onClose, onAvancar, onSave, avancarLoading, on
             <div className="cap-modal-etapa-tag" style={{ background: etapa.light, color: etapa.color }}>
               {etapa.icon} {etapa.label}
             </div>
-            <h2 className="cap-modal-titulo">{captacao.endereco}</h2>
+            <h2 className="cap-modal-titulo">
+              {captacao.endereco}
+              {captacao.numero_imovel && <span className="cap-modal-num"> — Nº {captacao.numero_imovel}</span>}
+            </h2>
             {(captacao.bairro || captacao.bloco) && (
               <p className="cap-modal-sub">{[captacao.bairro, captacao.bloco].filter(Boolean).join(" · ")}</p>
             )}
