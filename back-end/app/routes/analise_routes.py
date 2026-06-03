@@ -49,7 +49,7 @@ class AnalisarImovelVenda(Resource):
         "vagas": {"description": "Vagas de garagem", "required": True, "type": "integer"},
         "metragem": {"description": "Area do imovel em m2", "required": True, "type": "integer"},
     })
-    # @cache.cached(timeout=3600, key_prefix=_make_cache_key)
+    @cache.cached(timeout=3600, key_prefix=_make_cache_key)
     def get(self):
         return _consultar_metricas("Venda")
 
@@ -64,6 +64,6 @@ class AnalisarImovelAluguel(Resource):
         "vagas": {"description": "Vagas de garagem", "required": True, "type": "integer"},
         "metragem": {"description": "Area do imovel em m2", "required": True, "type": "integer"},
     })
-    # @cache.cached(timeout=3600, key_prefix=_make_cache_key)
+    @cache.cached(timeout=3600, key_prefix=_make_cache_key)
     def get(self):
         return _consultar_metricas("Aluguel")
