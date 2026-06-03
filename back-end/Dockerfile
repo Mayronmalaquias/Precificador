@@ -19,4 +19,4 @@ ENV FLASK_ENV=production
 EXPOSE 5000
 
 # Define o comando padrão para rodar a aplicação
-CMD ["gunicorn", "--bind", "0.0.0.0:5000", "--timeout", "240", "--workers", "1", "--preload", "--max-requests", "200", "--max-requests-jitter", "20", "run:app"]
+CMD ["gunicorn", "--bind", "0.0.0.0:5000", "--timeout", "240", "--workers", "5", "--worker-class", "gevent", "--worker-connections", "100", "--preload", "--max-requests", "200", "--max-requests-jitter", "20", "run:app"]
