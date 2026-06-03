@@ -1312,8 +1312,6 @@ export default function JornadaCaptacao() {
   const [fecharLoading, setFecharLoading] = useState(false);
 
   const [filtroCorretor, setFiltroCorretor] = useState("");
-  const [filtroDataDe,   setFiltroDataDe]   = useState("");
-  const [filtroDataAte,  setFiltroDataAte]  = useState("");
   const [abaGerente, setAbaGerente]         = useState("ativo");
 
   const isAdmin = userInfo.permissao === "admin";
@@ -1377,10 +1375,8 @@ export default function JornadaCaptacao() {
   // Filtros
   const captacoesFiltradas = useMemo(() => captacoes.filter(c => {
     if (filtroCorretor && !((c.nome_corretor || "").toLowerCase().includes(filtroCorretor.toLowerCase()))) return false;
-    if (filtroDataDe  && toDateStr(c.created_at) < filtroDataDe)  return false;
-    if (filtroDataAte && toDateStr(c.created_at) > filtroDataAte) return false;
     return true;
-  }), [captacoes, filtroCorretor, filtroDataDe, filtroDataAte]);
+  }), [captacoes, filtroCorretor]);
 
   const captacoesAtivas   = useMemo(() => captacoesFiltradas.filter(c => c.status !== "fechado"), [captacoesFiltradas]);
   const captacoesFechadas = useMemo(() => captacoesFiltradas.filter(c => c.status === "fechado"),  [captacoesFiltradas]);
@@ -1470,16 +1466,7 @@ export default function JornadaCaptacao() {
           {isAdmin && (
             <input className="cap-search-input" placeholder="Filtrar corretor…" value={filtroCorretor} onChange={e => setFiltroCorretor(e.target.value)} />
           )}
-          <div className="cap-filtro-data">
-            <label className="cap-filtro-data-label">De</label>
-            <input className="cap-filtro-data-input" type="date" value={filtroDataDe}  onChange={e => setFiltroDataDe(e.target.value)}  />
-            <label className="cap-filtro-data-label">Até</label>
-            <input className="cap-filtro-data-input" type="date" value={filtroDataAte} onChange={e => setFiltroDataAte(e.target.value)} />
-            {(filtroDataDe || filtroDataAte) && (
-              <button className="cap-filtro-limpar" onClick={() => { setFiltroDataDe(""); setFiltroDataAte(""); }} title="Limpar filtro">✕</button>
-            )}
-          </div>
-          {!isAdmin && <button className="cap-primary-btn" onClick={() => setShowNovo(true)}>+ Novo imóvel</button>}
+{!isAdmin && <button className="cap-primary-btn" onClick={() => setShowNovo(true)}>+ Novo imóvel</button>}
           {isAdmin  && <button className="cap-primary-btn" onClick={() => setShowNovo(true)}>+ Novo imóvel</button>}
           <button className="cap-refresh-btn" onClick={carregarCaptacoes} title="Atualizar">↻</button>
         </div>

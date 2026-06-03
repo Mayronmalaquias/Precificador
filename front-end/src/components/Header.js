@@ -69,6 +69,7 @@ function Header() {
     { to: '/ranking', label: 'Ranking', show: isLogado && isAdmin },
     { to: '/ControleCorretor', label: 'Controle de usuarios', show: isLogado && isAdmin },
     { to: '/register', label: 'Registrar Usuário', show: isLogado && isAdmin },
+    { to: '/JornadaCaptacao', label: 'Jornada Captação', show: isLogado },
   ].filter((item) => item.show);
 
   return (
