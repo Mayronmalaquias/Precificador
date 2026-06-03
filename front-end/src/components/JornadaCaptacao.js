@@ -511,7 +511,7 @@ function SecaoAvanco({ captacao, onSalvar, loading, onFecharModal }) {
   if (etapa === "interacao") {
     if (resp === null) return (
       <div className="cap-avanco-box">
-        <p className="cap-avanco-pergunta">Você apresentou ao proprietário?</p>
+        <p className="cap-avanco-pergunta">Você fez apresentação ao proprietário?</p>
         <BotaoResposta resp={resp} onResp={setResp} />
       </div>
     );
