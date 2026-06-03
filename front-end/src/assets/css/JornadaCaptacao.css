@@ -658,23 +658,21 @@
   flex-shrink: 0;
 }
 
-.cap-encerrar-btn {
-  padding: 5px 11px;
-  background: #fff1f2;
-  color: #be123c;
-  border: 1px solid #fecdd3;
-  border-radius: 6px;
+.cap-encerrar-link {
+  display: block;
+  margin-top: 18px;
+  padding: 0;
+  background: none;
+  border: none;
   font-size: 0.78rem;
-  font-weight: 600;
+  font-weight: 500;
+  color: #94a3b8;
   cursor: pointer;
-  transition: all .15s;
-  white-space: nowrap;
+  text-align: left;
+  transition: color .15s;
+  letter-spacing: .01em;
 }
-.cap-encerrar-btn:hover {
-  background: #ef4444;
-  color: #fff;
-  border-color: #ef4444;
-}
+.cap-encerrar-link:hover { color: #ef4444; }
 
 .cap-modal-close {
   background: none;
@@ -1523,20 +1521,402 @@
   flex-shrink: 0;
 }
 
+/* ── Accordion ── */
+.cap-accordion {
+  border: 1px solid var(--cap-border);
+  border-radius: var(--cap-radius-sm);
+  margin-bottom: 8px;
+  overflow: hidden;
+}
+.cap-accordion-hdr {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  background: var(--cap-surface);
+  border: none;
+  cursor: pointer;
+  text-align: left;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--cap-text);
+  transition: background .15s;
+}
+.cap-accordion-hdr:hover { background: #f8fafc; }
+.cap-accordion-preview {
+  flex: 1;
+  font-size: 0.78rem;
+  font-weight: 400;
+  color: var(--cap-text-3);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cap-accordion-toggle {
+  font-size: 1rem;
+  color: var(--cap-text-3);
+  flex-shrink: 0;
+}
+.cap-accordion-corpo {
+  padding: 10px 14px 12px;
+  border-top: 1px solid var(--cap-border);
+  background: #fafbfc;
+}
+
+/* ── Book row ── */
+.cap-book-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 0 10px;
+  border-bottom: 1px solid var(--cap-border);
+  margin-bottom: 10px;
+  flex-wrap: wrap;
+}
+.cap-book-label {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--cap-text-2);
+  white-space: nowrap;
+}
+.cap-book-saving {
+  font-size: 0.8rem;
+  color: var(--cap-text-3);
+}
+
+/* ── Última ação ── */
+.cap-secao-label {
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  color: var(--cap-text-3);
+  margin-bottom: 6px;
+}
+.cap-ultima-acao {
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  border-radius: var(--cap-radius-sm);
+  padding: 10px 12px;
+  margin-bottom: 10px;
+}
+.cap-ultima-acao--feita {
+  background: #f0fdf4;
+  border-color: #bbf7d0;
+}
+.cap-ultima-desc {
+  font-size: 0.85rem;
+  color: var(--cap-text);
+  font-weight: 500;
+  margin-bottom: 3px;
+}
+.cap-ultima-data {
+  font-size: 0.77rem;
+  color: var(--cap-text-3);
+  margin-bottom: 8px;
+}
+.cap-ultima-btns {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.cap-ultima-feita-btn {
+  font-size: 0.78rem;
+  padding: 3px 10px;
+  border-radius: 4px;
+  border: 1px solid #16a34a;
+  background: #dcfce7;
+  color: #15803d;
+  cursor: pointer;
+  font-weight: 600;
+  transition: background .15s;
+}
+.cap-ultima-feita-btn:hover:not(:disabled) { background: #bbf7d0; }
+.cap-ultima-feita-btn:disabled { opacity: .5; cursor: default; }
+.cap-ultima-editar-btn {
+  font-size: 0.78rem;
+  padding: 3px 10px;
+  border-radius: 4px;
+  border: 1px solid var(--cap-border-lg);
+  background: var(--cap-surface);
+  color: var(--cap-text-2);
+  cursor: pointer;
+  transition: background .15s;
+}
+.cap-ultima-editar-btn:hover { background: #f1f5f9; }
+.cap-ultima-ok {
+  font-size: 0.78rem;
+  color: #16a34a;
+  font-weight: 600;
+}
+.cap-ultima-vazio {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.82rem;
+  color: var(--cap-text-3);
+  padding: 8px 0;
+  margin-bottom: 10px;
+}
+.cap-ultima-add-btn {
+  font-size: 0.78rem;
+  padding: 3px 10px;
+  border-radius: 4px;
+  border: 1px dashed var(--cap-border-lg);
+  background: transparent;
+  color: var(--cap-primary);
+  cursor: pointer;
+}
+.cap-ultima-edit {
+  background: var(--cap-surface);
+  border: 1px solid var(--cap-border);
+  border-radius: var(--cap-radius-sm);
+  padding: 10px 12px;
+  margin-bottom: 10px;
+}
+.cap-ultima-edit-btns {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+  justify-content: flex-end;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Responsivo — Tablet (≤ 768px)
+   ═══════════════════════════════════════════════════════════════════════════ */
 @media (max-width: 768px) {
-  .cap-page { padding: 14px; }
-  .cap-topbar { flex-direction: column; align-items: flex-start; }
-  .cap-board { flex-direction: column; }
-  .cap-coluna { flex: unset; width: 100%; max-height: none; }
-  .cap-modal { max-height: 100svh; border-radius: 0; }
-  .cap-modal-cols { flex-direction: column; }
-  .cap-modal-col-info   { border-right: none; border-bottom: 1px solid var(--cap-border); }
-  .cap-modal-col-avanco { width: 100%; }
-  .cap-overlay { padding: 0; align-items: flex-end; }
-  .cap-cal-celula { min-height: 68px; }
-  .cap-stats-bar { gap: 6px; }
-  .cap-stat-chip { padding: 6px 10px; }
+  .cap-page { padding: 16px 16px 40px; }
+  .cap-topbar { margin-bottom: 14px; flex-wrap: wrap; }
+  .cap-topbar-left { flex-wrap: wrap; gap: 10px; }
+  .cap-topbar-right { flex-wrap: wrap; gap: 8px; }
+  .cap-stats-bar { flex-wrap: wrap; gap: 6px; margin-bottom: 14px; }
+  .cap-stat-chip { padding: 7px 11px; }
   .dash-grid { grid-template-columns: 1fr; }
-  .dash-kpi { min-width: 120px; }
+  .dash-kpi { min-width: 110px; }
   .dash-funil-label { min-width: 80px; }
+  .cap-cal-celula { min-height: 72px; }
+  .cap-modal-cols { flex-direction: column; }
+  .cap-modal-col-info   { border-right: none; border-bottom: 2px solid var(--cap-border); overflow-y: visible; }
+  .cap-modal-col-avanco { width: 100%; order: -1; }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Responsivo — Mobile (≤ 640px)
+   ═══════════════════════════════════════════════════════════════════════════ */
+@media (max-width: 640px) {
+
+  /* ── Página ── */
+  .cap-page { padding: 0 0 64px; }
+
+  /* ── Top bar — sticky, compacto ── */
+  .cap-topbar {
+    position: sticky;
+    top: 0;
+    z-index: 200;
+    background: var(--cap-surface);
+    border-bottom: 1px solid var(--cap-border);
+    box-shadow: 0 1px 6px rgba(0,0,0,.07);
+    margin-bottom: 0;
+    padding: 10px 14px 8px;
+    gap: 8px;
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .cap-topbar-left {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: nowrap;
+  }
+  .cap-page-titulo { font-size: 1rem; white-space: nowrap; }
+  .cap-abas-inline { flex: 1; justify-content: center; }
+  .cap-aba-btn { padding: 5px 10px; font-size: 0.76rem; }
+  .cap-topbar-right {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+  .cap-topbar-right .cap-primary-btn { flex: 1; justify-content: center; font-size: 0.82rem; padding: 8px 12px; }
+  .cap-search-input { width: 100%; font-size: 0.82rem; }
+  .cap-filtro-data { flex: 1; padding: 4px 8px; }
+  .cap-filtro-data-input { width: 88px; font-size: 0.75rem; }
+  .cap-refresh-btn { padding: 7px 9px; }
+
+  /* ── Stats bar — scroll horizontal sem barra ── */
+  .cap-stats-bar {
+    display: flex;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    padding: 8px 14px;
+    gap: 6px;
+    margin-bottom: 0;
+    background: var(--cap-surface);
+    border-bottom: 1px solid var(--cap-border);
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+  .cap-stats-bar::-webkit-scrollbar { display: none; }
+  .cap-stat-chip { flex-shrink: 0; padding: 5px 10px; gap: 4px; }
+  .cap-stat-icon  { font-size: 0.9rem; }
+  .cap-stat-label { font-size: 0.68rem; }
+  .cap-stat-num   { font-size: 0.95rem; }
+
+  /* ── Gerente abas — scroll ── */
+  .cap-gerente-abas {
+    overflow-x: auto;
+    padding: 0 14px;
+    margin: 0 0 0;
+    border-bottom: 2px solid var(--cap-border);
+    scrollbar-width: none;
+  }
+  .cap-gerente-abas::-webkit-scrollbar { display: none; }
+  .cap-gaba { white-space: nowrap; padding: 8px 18px; }
+
+  /* ── Kanban — scroll horizontal com snap ── */
+  .cap-board {
+    flex-direction: row;
+    overflow-x: auto;
+    padding: 12px 14px 24px;
+    gap: 10px;
+    scroll-snap-type: x proximity;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    align-items: flex-start;
+  }
+  .cap-board::-webkit-scrollbar { display: none; }
+  .cap-coluna {
+    flex: 0 0 80vw;
+    max-width: 290px;
+    max-height: 62svh;
+    scroll-snap-align: start;
+  }
+
+  /* ── Modal → bottom sheet ── */
+  .cap-overlay {
+    align-items: flex-end;
+    padding: 0;
+    backdrop-filter: blur(3px);
+  }
+  .cap-modal {
+    border-radius: 20px 20px 0 0;
+    max-height: 96svh;
+    max-width: 100%;
+    animation: cap-slide-up .22s cubic-bezier(.25,.46,.45,.94);
+  }
+  .cap-modal--sm { border-radius: 20px 20px 0 0; max-height: 96svh; max-width: 100%; }
+
+  /* Handle bar (drag indicator) */
+  .cap-modal::before {
+    content: "";
+    display: block;
+    width: 40px;
+    height: 4px;
+    background: #cbd5e1;
+    border-radius: 2px;
+    margin: 10px auto 0;
+    flex-shrink: 0;
+  }
+
+  /* Modal header compacto */
+  .cap-modal-header { padding: 10px 16px 10px; }
+  .cap-modal-titulo { font-size: 0.93rem; }
+  .cap-modal-etapa-tag { font-size: 0.7rem; margin-bottom: 5px; }
+
+  /* Progress bar — colorido mas sem texto */
+  .cap-progress-bar { flex-shrink: 0; }
+  .cap-progress-step { padding: 6px 2px; }
+  .cap-progress-label { font-size: 0.58rem; letter-spacing: 0; }
+
+  /* Colunas do modal empilhadas — avanco PRIMEIRO */
+  .cap-modal-cols {
+    flex-direction: column;
+    overflow-y: auto;
+    flex: 1;
+    overflow-x: hidden;
+  }
+  .cap-modal-col-avanco {
+    width: 100%;
+    order: -1;
+    border-right: none;
+    border-bottom: 2px solid var(--cap-border);
+    padding: 14px 16px 16px;
+    overflow-y: visible;
+  }
+  .cap-modal-col-info {
+    flex: unset;
+    padding: 12px 16px 20px;
+    overflow-y: visible;
+    border-right: none;
+  }
+
+  /* Accordion: tap targets maiores */
+  .cap-accordion-hdr { padding: 13px 14px; }
+  .cap-secao-label { margin-bottom: 4px; }
+
+  /* Confirm encerrar */
+  .cap-confirm-encerrar { flex-direction: column; padding: 12px 14px; gap: 10px; }
+  .cap-confirm-encerrar-acoes { width: 100%; }
+  .cap-confirm-encerrar-acoes > * { flex: 1; text-align: center; }
+
+  /* Modal footer: botões full width */
+  .cap-modal-footer { padding: 12px 16px; gap: 8px; }
+  .cap-modal-footer > button { flex: 1; justify-content: center; text-align: center; }
+  .cap-modal-body { padding: 14px 16px; }
+
+  /* Formulários: inputs maiores */
+  .cap-field-input { padding: 10px 12px; font-size: 0.9rem; }
+  .cap-textarea { min-height: 80px; }
+  .cap-end-input { padding: 8px 10px; font-size: 0.88rem; }
+  .cap-end-save-btn { padding: 10px; font-size: 0.82rem; }
+
+  /* Botões de resposta: full width e tap-friendly */
+  .cap-resp-btns { gap: 10px; }
+  .cap-resp-btn  { flex: 1; padding: 12px 16px; font-size: 0.9rem; text-align: center; justify-content: center; }
+  .cap-action-btn { padding: 12px 16px; font-size: 0.9rem; }
+  .cap-primary-btn, .cap-ghost-btn, .cap-danger-btn { padding: 10px 14px; }
+
+  /* Última ação */
+  .cap-ultima-btns { flex-wrap: wrap; gap: 6px; }
+  .cap-ultima-feita-btn, .cap-ultima-editar-btn { padding: 7px 14px; font-size: 0.82rem; }
+  .cap-ultima-edit-btns { justify-content: stretch; gap: 8px; }
+  .cap-ultima-edit-btns > * { flex: 1; text-align: center; }
+
+  /* Book row */
+  .cap-book-row { flex-wrap: wrap; }
+
+  /* Calendar */
+  .cap-cal-celula { min-height: 54px; padding: 4px 3px; }
+  .cap-cal-dia-num { font-size: 0.75rem; }
+  .cap-cal-nav { padding: 10px 12px; gap: 8px; }
+  .cap-cal-mes-titulo { font-size: 0.92rem; }
+  .cap-cal-panel { padding: 12px 14px; }
+  .cap-cal-panel-lista { gap: 8px; }
+
+  /* Dashboard */
+  .dash-wrap { padding: 10px 14px; }
+  .dash-kpis { gap: 6px; flex-wrap: wrap; }
+  .dash-kpi  { flex: 1 1 calc(50% - 6px); min-width: 0; padding: 10px 12px; }
+  .dash-kpi-num { font-size: 1.5rem; }
+  .dash-grid { grid-template-columns: 1fr; gap: 12px; }
+  .dash-card { padding: 12px 14px; }
+  .dash-funil-label { min-width: 70px; font-size: 0.72rem; }
+  .dash-table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .dash-table { min-width: 480px; }
+  .dash-acao-item { flex-wrap: wrap; gap: 4px; }
+
+  /* Fechados lista */
+  .cap-fechados-lista { padding: 10px 14px; gap: 8px; }
+  .cap-fechado-card { padding: 12px 14px; }
+
+  /* Novo imóvel preview */
+  .cap-novo-preview { padding: 10px 12px; }
+  .cap-novo-preview-linha { flex-wrap: wrap; gap: 2px; }
+}
+
+/* ── Animação do modal ── */
+@keyframes cap-slide-up {
+  from { transform: translateY(60px); opacity: 0.5; }
+  to   { transform: translateY(0);    opacity: 1; }
 }

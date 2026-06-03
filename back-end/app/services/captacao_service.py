@@ -8,7 +8,7 @@ def _d(val):
     if val is None:
         return None
     if isinstance(val, (date, datetime)):
-        return str(val)
+        return val.isoformat()
     return val
 
 

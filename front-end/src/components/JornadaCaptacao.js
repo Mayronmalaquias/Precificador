@@ -22,15 +22,28 @@ const MESES      = ["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho
 const DIAS_SEM   = ["Dom","Seg","Ter","Qua","Qui","Sex","Sáb"];
 
 // ── Utilitários ──────────────────────────────────────────────────────────────
+function toDateStr(str) {
+  if (!str) return null;
+  // Normaliza "2024-01-15 10:30:00" (Python str) e "2024-01-15T10:30:00" (isoformat) → "2024-01-15"
+  return str.replace(" ", "T").split("T")[0];
+}
+
 function fmt(str) {
   if (!str) return "-";
-  const p = str.split("T")[0].split("-");
+  const d = toDateStr(str);
+  if (!d) return "-";
+  const p = d.split("-");
   return `${p[2]}/${p[1]}/${p[0]}`;
 }
 
 function diasDesde(str) {
   if (!str) return null;
-  return Math.floor((Date.now() - new Date(str)) / 86400000);
+  const d = toDateStr(str);
+  if (!d) return null;
+  // Interpreta como local evitando o off-by-one do UTC midnight
+  const [y, m, day] = d.split("-").map(Number);
+  const dt = new Date(y, m - 1, day);
+  return Math.floor((Date.now() - dt) / 86400000);
 }
 
 function corIdade(str) {
@@ -54,7 +67,7 @@ function extrairEventos(captacoes) {
   const evts = [];
   captacoes.filter(c => c.status !== "fechado" && c.status !== "captado").forEach(c => {
     const add = (data, acao, etapa) => {
-      if (data) evts.push({ data: data.split("T")[0], acao: acao || "", etapa, captacao: c });
+      if (data) evts.push({ data: toDateStr(data), acao: acao || "", etapa, captacao: c });
     };
     add(c.data_acao_sem_numero,           c.acao_sem_numero,           "escolha");
     add(c.data_proxima_acao_interacao,    c.proxima_acao_interacao,    "interacao");
@@ -70,7 +83,7 @@ function buildHistorico(c) {
   const push = (data, desc, etapa, realizada, tipo = "acao") =>
     items.push({ data, desc, etapa, realizada, tipo });
 
-  push(c.created_at?.split("T")[0], "Imóvel lançado na jornada", "escolha", true, "inicio");
+  push(toDateStr(c.created_at), "Imóvel lançado na jornada", "escolha", true, "inicio");
 
   if (c.acao_sem_numero)
     push(c.data_acao_sem_numero, c.acao_sem_numero, "escolha", c.acao_escolha_realizada);
@@ -398,31 +411,30 @@ function CalendarioView({ captacoes, isAdmin, onCardClick }) {
 }
 
 // ── Seção de avanço de etapa ─────────────────────────────────────────────────
-function SecaoAvanco({ captacao, onSalvar, loading }) {
+function SecaoAvanco({ captacao, onSalvar, loading, onFecharModal }) {
   const [form, setForm] = useState({});
   const [resp, setResp] = useState(null);
   const etapa = captacao.etapa_atual;
 
-  // Inicializa resp com o valor já salvo na captação para cada etapa
   useEffect(() => {
     setForm({});
-    const boolSalvo =
-      etapa === "interacao"    ? (captacao.falou_proprietario ?? null) :
-      etapa === "apresentacao" ? (captacao.visitou_imovel     ?? null) :
-      etapa === "captacao"     ? (captacao.captou_imovel      ?? null) :
-      null;
-    setResp(boolSalvo);
+    setResp(null);
   }, [captacao.id, captacao.etapa_atual]);
 
   const upStr = (k) => (e) => setForm(p => ({ ...p, [k]: e.target.value }));
 
-  // Salva a ação e volta para a pergunta (Sim/Não)
   const salvarAcao = async (data) => {
     await onSalvar(data);
-    setResp(null);
+    if (onFecharModal) onFecharModal();
   };
 
   if (captacao.status === "fechado" || captacao.status === "captado") return null;
+
+  const BtnAlterar = () => (
+    <button type="button" className="cap-alterar-resp-btn" onClick={() => setResp(null)}>
+      ↩ Alterar resposta
+    </button>
+  );
 
   // ── Escolha ──
   if (etapa === "escolha") {
@@ -448,43 +460,33 @@ function SecaoAvanco({ captacao, onSalvar, loading }) {
           onClick={() => onSalvar({ tem_numero: true, numero_imovel: form.numero_imovel || "", etapa_atual: "prospeccao" })}>
           {loading ? "…" : "Salvar e ir para Prospecção →"}
         </button>
+        <BtnAlterar />
       </div>
     );
     return (
       <div className="cap-avanco-box">
-        <CampoArea label="Objeção" value={form.acao_sem_numero} onChange={upStr("acao_sem_numero")} placeholder="Descreva o motivo ou próxima ação" />
-        <CampoTexto label="Data da ação" value={form.data_acao_sem_numero} onChange={upStr("data_acao_sem_numero")} type="date" />
+        <CampoTexto label="Próxima ação" value={form.acao_sem_numero} onChange={upStr("acao_sem_numero")} placeholder="O que vai fazer?" />
+        <CampoTexto label="Data" value={form.data_acao_sem_numero} onChange={upStr("data_acao_sem_numero")} type="date" />
         <button className="cap-action-btn cap-action-btn--secondary" disabled={loading}
-          onClick={() => salvarAcao({ tem_numero: false, acao_sem_numero: form.acao_sem_numero || "", data_acao_sem_numero: form.data_acao_sem_numero || null })}>
+          onClick={() => salvarAcao({ tem_numero: false, acao_sem_numero: form.acao_sem_numero || "", data_acao_sem_numero: form.data_acao_sem_numero || null, acao_escolha_realizada: false })}>
           {loading ? "…" : "Salvar ação"}
         </button>
+        <BtnAlterar />
       </div>
     );
   }
 
-  // Botão discreto para alterar resposta já dada
-  const BtnAlterar = () => (
-    <button type="button" className="cap-alterar-resp-btn" onClick={() => setResp(null)}>
-      ↩ Alterar resposta
-    </button>
-  );
-
   // ── Prospecção ──
-  // Dados do proprietário (nome, telefone, book, número, link) ficam no painel lateral.
-  // Aqui só gerenciamos o avanço de etapa: confirmação de contato com o proprietário.
   if (etapa === "prospeccao") {
     if (resp === null) return (
       <div className="cap-avanco-box">
-        <p className="cap-avanco-info" style={{ fontSize: 13, color: "#64748b", marginBottom: 10 }}>
-          Preencha os dados do proprietário no painel ao lado, depois responda:
-        </p>
-        <p className="cap-avanco-pergunta">Você já falou com o proprietário?</p>
+        <p className="cap-avanco-pergunta">Você interagiu com o proprietário?</p>
         <BotaoResposta resp={resp} onResp={setResp} />
       </div>
     );
     if (resp === true) return (
       <div className="cap-avanco-box">
-        <p className="cap-avanco-info">✓ Ótimo! Avançar para a fase de Interação.</p>
+        <p className="cap-avanco-info">✓ Ótimo! Vamos para a Interação.</p>
         <button className="cap-action-btn cap-action-btn--primary" disabled={loading}
           onClick={() => onSalvar({ etapa_atual: "interacao" })}>
           {loading ? "…" : "Ir para Interação →"}
@@ -494,11 +496,10 @@ function SecaoAvanco({ captacao, onSalvar, loading }) {
     );
     return (
       <div className="cap-avanco-box">
-        <CampoArea label="Objeção" value={form.motivo_nao_interacao} onChange={upStr("motivo_nao_interacao")} placeholder="Por que não conseguiu falar?" />
-        <CampoTexto label="Próxima tentativa" value={form.proxima_acao_interacao} onChange={upStr("proxima_acao_interacao")} placeholder="O que vai fazer?" />
+        <CampoTexto label="Próxima ação" value={form.proxima_acao_interacao} onChange={upStr("proxima_acao_interacao")} placeholder="O que vai fazer?" />
         <CampoTexto label="Data" value={form.data_proxima_acao_interacao} onChange={upStr("data_proxima_acao_interacao")} type="date" />
         <button className="cap-action-btn cap-action-btn--secondary" disabled={loading}
-          onClick={() => salvarAcao({ motivo_nao_interacao: form.motivo_nao_interacao || "", proxima_acao_interacao: form.proxima_acao_interacao || "", data_proxima_acao_interacao: form.data_proxima_acao_interacao || null })}>
+          onClick={() => salvarAcao({ proxima_acao_interacao: form.proxima_acao_interacao || "", data_proxima_acao_interacao: form.data_proxima_acao_interacao || null, acao_interacao_realizada: false })}>
           {loading ? "…" : "Salvar ação"}
         </button>
         <BtnAlterar />
@@ -510,27 +511,27 @@ function SecaoAvanco({ captacao, onSalvar, loading }) {
   if (etapa === "interacao") {
     if (resp === null) return (
       <div className="cap-avanco-box">
-        <p className="cap-avanco-pergunta">Você falou com o proprietário?</p>
+        <p className="cap-avanco-pergunta">Você apresentou ao proprietário?</p>
         <BotaoResposta resp={resp} onResp={setResp} />
       </div>
     );
     if (resp === true) return (
       <div className="cap-avanco-box">
-        <p className="cap-avanco-info">✓ Proprietário contatado.</p>
+        <p className="cap-avanco-info">✓ Ótimo! Vamos para a Apresentação.</p>
         <button className="cap-action-btn cap-action-btn--primary" disabled={loading}
           onClick={() => onSalvar({ falou_proprietario: true, etapa_atual: "apresentacao" })}>
-          {loading ? "…" : "Avançar para Apresentação →"}
+          {loading ? "…" : "Ir para Apresentação →"}
         </button>
         <BtnAlterar />
       </div>
     );
     return (
       <div className="cap-avanco-box">
-        <CampoArea label="Objeção" value={form.motivo_nao_interacao} onChange={upStr("motivo_nao_interacao")} placeholder="Por que não conseguiu falar?" />
-        <CampoTexto label="Próxima ação" value={form.proxima_acao_interacao} onChange={upStr("proxima_acao_interacao")} placeholder="O que vai fazer?" />
-        <CampoTexto label="Data" value={form.data_proxima_acao_interacao} onChange={upStr("data_proxima_acao_interacao")} type="date" />
+        <CampoArea label="Objeção" value={form.motivo_nao_apresentacao} onChange={upStr("motivo_nao_apresentacao")} placeholder="Qual foi a objeção?" />
+        <CampoTexto label="Próxima ação" value={form.proxima_acao_apresentacao} onChange={upStr("proxima_acao_apresentacao")} placeholder="O que vai fazer?" />
+        <CampoTexto label="Data" value={form.data_proxima_acao_apresentacao} onChange={upStr("data_proxima_acao_apresentacao")} type="date" />
         <button className="cap-action-btn cap-action-btn--secondary" disabled={loading}
-          onClick={() => salvarAcao({ falou_proprietario: false, motivo_nao_interacao: form.motivo_nao_interacao || "", proxima_acao_interacao: form.proxima_acao_interacao || "", data_proxima_acao_interacao: form.data_proxima_acao_interacao || null })}>
+          onClick={() => salvarAcao({ falou_proprietario: false, motivo_nao_apresentacao: form.motivo_nao_apresentacao || "", proxima_acao_apresentacao: form.proxima_acao_apresentacao || "", data_proxima_acao_apresentacao: form.data_proxima_acao_apresentacao || null, acao_apresentacao_realizada: false })}>
           {loading ? "…" : "Salvar ação"}
         </button>
         <BtnAlterar />
@@ -542,27 +543,27 @@ function SecaoAvanco({ captacao, onSalvar, loading }) {
   if (etapa === "apresentacao") {
     if (resp === null) return (
       <div className="cap-avanco-box">
-        <p className="cap-avanco-pergunta">Você visitou o imóvel?</p>
+        <p className="cap-avanco-pergunta">Você captou o imóvel?</p>
         <BotaoResposta resp={resp} onResp={setResp} />
       </div>
     );
     if (resp === true) return (
       <div className="cap-avanco-box">
-        <p className="cap-avanco-info">✓ Imóvel visitado!</p>
+        <p className="cap-avanco-info">✓ Ótimo! Vamos confirmar a Captação.</p>
         <button className="cap-action-btn cap-action-btn--primary" disabled={loading}
           onClick={() => onSalvar({ visitou_imovel: true, etapa_atual: "captacao" })}>
-          {loading ? "…" : "Avançar para Captação →"}
+          {loading ? "…" : "Ir para Captação →"}
         </button>
         <BtnAlterar />
       </div>
     );
     return (
       <div className="cap-avanco-box">
-        <CampoArea label="Objeção" value={form.motivo_nao_apresentacao} onChange={upStr("motivo_nao_apresentacao")} placeholder="Por que não visitou?" />
-        <CampoTexto label="Próxima ação" value={form.proxima_acao_apresentacao} onChange={upStr("proxima_acao_apresentacao")} placeholder="O que vai fazer?" />
-        <CampoTexto label="Data" value={form.data_proxima_acao_apresentacao} onChange={upStr("data_proxima_acao_apresentacao")} type="date" />
+        <CampoArea label="Objeção" value={form.objecao_captacao} onChange={upStr("objecao_captacao")} placeholder="Qual foi a objeção?" />
+        <CampoTexto label="Próxima ação" value={form.proxima_acao_captacao} onChange={upStr("proxima_acao_captacao")} placeholder="O que vai fazer?" />
+        <CampoTexto label="Data" value={form.data_proxima_acao_captacao} onChange={upStr("data_proxima_acao_captacao")} type="date" />
         <button className="cap-action-btn cap-action-btn--secondary" disabled={loading}
-          onClick={() => salvarAcao({ visitou_imovel: false, motivo_nao_apresentacao: form.motivo_nao_apresentacao || "", proxima_acao_apresentacao: form.proxima_acao_apresentacao || "", data_proxima_acao_apresentacao: form.data_proxima_acao_apresentacao || null })}>
+          onClick={() => salvarAcao({ visitou_imovel: false, objecao_captacao: form.objecao_captacao || "", proxima_acao_captacao: form.proxima_acao_captacao || "", data_proxima_acao_captacao: form.data_proxima_acao_captacao || null, acao_captacao_realizada: false })}>
           {loading ? "…" : "Salvar ação"}
         </button>
         <BtnAlterar />
@@ -572,36 +573,101 @@ function SecaoAvanco({ captacao, onSalvar, loading }) {
 
   // ── Captação ──
   if (etapa === "captacao") {
-    if (resp === null) return (
+    return (
       <div className="cap-avanco-box">
-        <p className="cap-avanco-pergunta">Você captou o imóvel?</p>
-        <BotaoResposta resp={resp} onResp={setResp} />
-      </div>
-    );
-    if (resp === true) return (
-      <div className="cap-avanco-box">
-        <p className="cap-avanco-info cap-success">Parabéns! Registrar como captado.</p>
+        <p className="cap-avanco-info cap-success">🏆 Confirme para registrar o imóvel como captado.</p>
         <button className="cap-action-btn cap-action-btn--captado" disabled={loading}
           onClick={() => onSalvar({ captou_imovel: true, status: "captado" })}>
           {loading ? "…" : "✓ Confirmar Captação"}
         </button>
-        <BtnAlterar />
-      </div>
-    );
-    return (
-      <div className="cap-avanco-box">
-        <CampoArea label="Objeção" value={form.objecao_captacao} onChange={upStr("objecao_captacao")} placeholder="Qual foi a objeção?" />
-        <CampoTexto label="Próxima ação" value={form.proxima_acao_captacao} onChange={upStr("proxima_acao_captacao")} placeholder="O que vai tentar?" />
-        <CampoTexto label="Data" value={form.data_proxima_acao_captacao} onChange={upStr("data_proxima_acao_captacao")} type="date" />
-        <button className="cap-action-btn cap-action-btn--secondary" disabled={loading}
-          onClick={() => salvarAcao({ captou_imovel: false, objecao_captacao: form.objecao_captacao || "", proxima_acao_captacao: form.proxima_acao_captacao || "", data_proxima_acao_captacao: form.data_proxima_acao_captacao || null })}>
-          {loading ? "…" : "Salvar ação"}
-        </button>
-        <BtnAlterar />
       </div>
     );
   }
   return null;
+}
+
+// ── Última Ação ──────────────────────────────────────────────────────────────
+const ULTIMA_ACAO_MAP = {
+  escolha:      { acao: "acao_sem_numero",           data: "data_acao_sem_numero",           real: "acao_escolha_realizada" },
+  prospeccao:   { acao: "proxima_acao_interacao",    data: "data_proxima_acao_interacao",    real: "acao_interacao_realizada" },
+  interacao:    { acao: "proxima_acao_apresentacao", data: "data_proxima_acao_apresentacao", real: "acao_apresentacao_realizada" },
+  apresentacao: { acao: "proxima_acao_captacao",     data: "data_proxima_acao_captacao",     real: "acao_captacao_realizada" },
+  captacao:     { acao: "proxima_acao_captacao",     data: "data_proxima_acao_captacao",     real: "acao_captacao_realizada" },
+};
+
+function UltimaAcao({ captacao, onSave }) {
+  const campos = ULTIMA_ACAO_MAP[captacao.etapa_atual];
+  const [editando, setEditando]   = useState(false);
+  const [editAcao, setEditAcao]   = useState("");
+  const [editData, setEditData]   = useState("");
+  const [salvando, setSalvando]   = useState(false);
+
+  useEffect(() => { setEditando(false); }, [captacao.id, captacao.etapa_atual]);
+
+  if (!campos) return null;
+
+  const acaoTexto = captacao[campos.acao];
+  const acaoData  = captacao[campos.data];
+  const realizada = captacao[campos.real];
+
+  const entrarEdicao = () => {
+    setEditAcao(captacao[campos.acao] || "");
+    setEditData(captacao[campos.data] || "");
+    setEditando(true);
+  };
+
+  const marcarFeita = async () => {
+    setSalvando(true);
+    try { await onSave({ [campos.real]: true }); }
+    finally { setSalvando(false); }
+  };
+
+  const salvarEdicao = async () => {
+    setSalvando(true);
+    try {
+      await onSave({ [campos.acao]: editAcao || null, [campos.data]: editData || null });
+      setEditando(false);
+    } finally { setSalvando(false); }
+  };
+
+  if (editando) return (
+    <div className="cap-ultima-edit">
+      <input className="cap-end-input" value={editAcao} onChange={e => setEditAcao(e.target.value)}
+        placeholder="Descrição da ação" autoFocus />
+      <input className="cap-end-input" type="date" value={editData} onChange={e => setEditData(e.target.value)} style={{ marginTop: 6 }} />
+      <div className="cap-ultima-edit-btns">
+        <button className="cap-ghost-btn" onClick={() => setEditando(false)}>Cancelar</button>
+        <button className="cap-primary-btn" disabled={salvando} onClick={salvarEdicao}>
+          {salvando ? "…" : "Salvar"}
+        </button>
+      </div>
+    </div>
+  );
+
+  if (!acaoTexto) return (
+    <div className="cap-ultima-vazio">
+      <span>Nenhuma ação agendada</span>
+      {captacao.status !== "fechado" && captacao.status !== "captado" && (
+        <button className="cap-ultima-add-btn" onClick={entrarEdicao}>+ Adicionar</button>
+      )}
+    </div>
+  );
+
+  return (
+    <div className={`cap-ultima-acao${realizada ? " cap-ultima-acao--feita" : ""}`}>
+      <div className="cap-ultima-desc">{acaoTexto}</div>
+      {acaoData && <div className="cap-ultima-data">{fmt(acaoData)}</div>}
+      <div className="cap-ultima-btns">
+        {!realizada
+          ? <button className="cap-ultima-feita-btn" disabled={salvando} onClick={marcarFeita}>✓ Feita</button>
+          : <span className="cap-ultima-ok">Realizada ✓</span>
+        }
+        {captacao.status !== "fechado" && captacao.status !== "captado" && (
+          <button className="cap-ultima-editar-btn" onClick={entrarEdicao}>✎ Editar</button>
+        )}
+      </div>
+    </div>
+  );
 }
 
 // ── Kanban Card ──────────────────────────────────────────────────────────────
@@ -661,10 +727,18 @@ function ModalDetalhe({ captacao, onClose, onAvancar, onSave, avancarLoading, on
   // ── Estados de edição de proprietário ──
   const [editNome,  setEditNome]  = useState(captacao.nome_cliente    || "");
   const [editTel,   setEditTel]   = useState(captacao.telefone_cliente || "");
-  const [editBook,  setEditBook]  = useState(captacao.book_enviado);
   const [salvandoProp, setSalvandoProp] = useState(false);
 
-  // Sincroniza campos ao trocar de captação ou de etapa (ex: escolha → prospecção)
+  // ── Book — auto-save independente ──
+  const [editBook,     setEditBook]     = useState(captacao.book_enviado);
+  const [salvandoBook, setSalvandoBook] = useState(false);
+
+  // ── Accordions ──
+  const [abrirEndereco,     setAbrirEndereco]     = useState(false);
+  const [abrirProprietario, setAbrirProprietario] = useState(false);
+  const [abrirHistorico,    setAbrirHistorico]    = useState(false);
+
+  // Sincroniza campos ao trocar de captação ou de etapa
   useEffect(() => {
     setEditBairro(captacao.bairro || "");
     setEditBloco(captacao.bloco || "");
@@ -673,24 +747,24 @@ function ModalDetalhe({ captacao, onClose, onAvancar, onSave, avancarLoading, on
     setEditNome(captacao.nome_cliente || "");
     setEditTel(captacao.telefone_cliente || "");
     setEditBook(captacao.book_enviado);
+    setAbrirEndereco(false);
+    setAbrirProprietario(false);
+    setAbrirHistorico(false);
   }, [captacao.id, captacao.etapa_atual]);
 
   const etapa    = ETAPA_INFO[captacao.etapa_atual] || {};
   const etapaIdx = ETAPAS.findIndex(e => e.key === captacao.etapa_atual);
   const ETAPAS_PROP = ["prospeccao","interacao","apresentacao","captacao"];
   const mostraProp  = ETAPAS_PROP.includes(captacao.etapa_atual);
+  const emEscolha   = captacao.etapa_atual === "escolha";
 
-  const emEscolha = captacao.etapa_atual === "escolha";
+  const endAlterado  = editBairro !== (captacao.bairro || "")
+                    || editBloco  !== (captacao.bloco  || "")
+                    || (!emEscolha && editNumero !== (captacao.numero_imovel || ""))
+                    || (!emEscolha && editLink   !== (captacao.link_anuncio  || ""));
 
-  // Detecta mudanças
-  const endAlterado  = editBairro !== (captacao.bairro         || "")
-                    || editBloco  !== (captacao.bloco          || "")
-                    || (!emEscolha && editNumero !== (captacao.numero_imovel  || ""))
-                    || (!emEscolha && editLink   !== (captacao.link_anuncio   || ""));
-
-  const propAlterada = editNome  !== (captacao.nome_cliente    || "")
-                    || editTel   !== (captacao.telefone_cliente || "")
-                    || editBook  !== captacao.book_enviado;
+  const propAlterada = editNome !== (captacao.nome_cliente    || "")
+                    || editTel  !== (captacao.telefone_cliente || "");
 
   const salvarEndereco = async () => {
     setSalvandoEnd(true);
@@ -700,22 +774,24 @@ function ModalDetalhe({ captacao, onClose, onAvancar, onSave, avancarLoading, on
         bloco:  editBloco  || null,
         ...(!emEscolha && { numero_imovel: editNumero || null, link_anuncio: editLink || null }),
       });
-    } finally {
-      setSalvandoEnd(false);
-    }
+      setAbrirEndereco(false);
+    } finally { setSalvandoEnd(false); }
   };
 
   const salvarProprietario = async () => {
     setSalvandoProp(true);
     try {
-      await onSave({
-        nome_cliente:     editNome || null,
-        telefone_cliente: editTel  || null,
-        book_enviado:     editBook,
-      });
-    } finally {
-      setSalvandoProp(false);
-    }
+      await onSave({ nome_cliente: editNome || null, telefone_cliente: editTel || null });
+      setAbrirProprietario(false);
+    } finally { setSalvandoProp(false); }
+  };
+
+  const salvarBook = async (val) => {
+    if (val === captacao.book_enviado) return;
+    setEditBook(val);
+    setSalvandoBook(true);
+    try { await onSave({ book_enviado: val }); }
+    finally { setSalvandoBook(false); }
   };
 
   // Confirmação de encerramento inline
@@ -740,20 +816,10 @@ function ModalDetalhe({ captacao, onClose, onAvancar, onSave, avancarLoading, on
             )}
           </div>
           <div className="cap-modal-header-actions">
-            {podeEncerrar && (
-              <button
-                className="cap-encerrar-btn"
-                title="Encerrar captação"
-                onClick={() => setConfirmEncerrar(true)}
-              >
-                ✕ Encerrar
-              </button>
-            )}
             <button className="cap-modal-close" onClick={onClose}>✕</button>
           </div>
         </div>
 
-        {/* Confirmação de encerramento (inline, aparece abaixo do header) */}
         {confirmEncerrar && (
           <div className="cap-confirm-encerrar">
             <div className="cap-confirm-encerrar-icon">⚠️</div>
@@ -770,7 +836,6 @@ function ModalDetalhe({ captacao, onClose, onAvancar, onSave, avancarLoading, on
           </div>
         )}
 
-        {/* Progress */}
         <div className="cap-progress-bar">
           {ETAPAS.map((e, i) => (
             <div key={e.key}
@@ -783,93 +848,136 @@ function ModalDetalhe({ captacao, onClose, onAvancar, onSave, avancarLoading, on
 
         <div className="cap-modal-cols">
 
-          {/* ── Coluna esquerda: endereço + proprietário + histórico ── */}
+          {/* ── Coluna esquerda ── */}
           <div className="cap-modal-col-info">
 
-            {/* Endereço — sempre editável */}
-            <h3 className="cap-section-h">Endereço</h3>
-            <div className="cap-endereco-bloco">
-              <div className="cap-end-row">
-                <span className="cap-end-label">Endereço</span>
-                <span className="cap-end-val">{captacao.endereco}</span>
-              </div>
-              <div className="cap-end-row cap-end-row--edit">
-                <span className="cap-end-label">Bairro</span>
-                <input className="cap-end-input" value={editBairro} onChange={e => setEditBairro(e.target.value)} placeholder="Adicionar bairro" />
-              </div>
-              <div className="cap-end-row cap-end-row--edit">
-                <span className="cap-end-label">Bloco</span>
-                <input className="cap-end-input" value={editBloco} onChange={e => setEditBloco(e.target.value)} placeholder="Adicionar bloco" />
-              </div>
-              {!emEscolha && (
-                <>
-                  <div className="cap-end-row cap-end-row--edit">
-                    <span className="cap-end-label">Número</span>
-                    <input className="cap-end-input" value={editNumero} onChange={e => setEditNumero(e.target.value)} placeholder="Nº / ap." />
-                  </div>
-                  <div className="cap-end-row cap-end-row--edit">
-                    <span className="cap-end-label">Anúncio</span>
-                    <input className="cap-end-input" value={editLink} onChange={e => setEditLink(e.target.value)} placeholder="https://..." />
-                  </div>
-                  {editLink && (
-                    <div className="cap-end-row">
-                      <span className="cap-end-label" />
-                      <a href={editLink} target="_blank" rel="noreferrer" className="cap-end-link">🔗 Abrir anúncio</a>
-                    </div>
-                  )}
-                </>
-              )}
-              <button className="cap-end-save-btn" disabled={salvandoEnd || !endAlterado} onClick={salvarEndereco}>
-                {salvandoEnd ? "Salvando…" : "Salvar endereço"}
-              </button>
-            </div>
-
-            {/* Proprietário — sempre editável (prospeccao em diante) */}
+            {/* Book — visível a partir de prospecção, fora do accordion */}
             {mostraProp && (
-              <>
-                <h3 className="cap-section-h" style={{ marginTop: 16 }}>Proprietário</h3>
-                <div className="cap-endereco-bloco">
-                  <div className="cap-end-row cap-end-row--edit">
-                    <span className="cap-end-label">Nome</span>
-                    <input className="cap-end-input" value={editNome} onChange={e => setEditNome(e.target.value)} placeholder="Nome do proprietário" />
-                  </div>
-                  <div className="cap-end-row cap-end-row--edit">
-                    <span className="cap-end-label">Telefone</span>
-                    <input className="cap-end-input" value={editTel} onChange={e => setEditTel(e.target.value)} placeholder="(61) 9 0000-0000" />
-                  </div>
-                  <div className="cap-end-row cap-end-row--book">
-                    <span className="cap-end-label">Book</span>
-                    <div className="cap-end-book-toggle">
-                      <button
-                        className={`cap-end-book-btn cap-end-book-btn--sim${editBook === true ? " active" : ""}`}
-                        onClick={() => setEditBook(true)}
-                      >Sim</button>
-                      <button
-                        className={`cap-end-book-btn cap-end-book-btn--nao${editBook === false ? " active" : ""}`}
-                        onClick={() => setEditBook(false)}
-                      >Não</button>
-                      <a href={bookPdf} target="_blank" rel="noreferrer" className="cap-ver-book-btn" style={{ marginLeft: 6 }}>
-                        📄 Ver book
-                      </a>
-                    </div>
-                  </div>
-                  <button className="cap-end-save-btn" disabled={salvandoProp || !propAlterada} onClick={salvarProprietario}>
-                    {salvandoProp ? "Salvando…" : "Salvar proprietário"}
-                  </button>
+              <div className="cap-book-row">
+                <span className="cap-book-label">Book enviado?</span>
+                <div className="cap-end-book-toggle">
+                  <button
+                    className={`cap-end-book-btn cap-end-book-btn--sim${editBook === true ? " active" : ""}`}
+                    disabled={salvandoBook} onClick={() => salvarBook(true)}>Sim</button>
+                  <button
+                    className={`cap-end-book-btn cap-end-book-btn--nao${editBook === false ? " active" : ""}`}
+                    disabled={salvandoBook} onClick={() => salvarBook(false)}>Não</button>
+                  <a href={bookPdf} target="_blank" rel="noreferrer" className="cap-ver-book-btn" style={{ marginLeft: 6 }}>
+                    📄 Ver book
+                  </a>
                 </div>
-              </>
+                {salvandoBook && <span className="cap-book-saving">…</span>}
+              </div>
             )}
 
-            {/* Histórico */}
-            <h3 className="cap-section-h" style={{ marginTop: 20 }}>Histórico de ações</h3>
-            <HistoricoTimeline captacao={captacao} onMarcarRealizada={onSave} />
+            {/* Última ação — sempre visível */}
+            <div className="cap-secao-label">Última ação</div>
+            <UltimaAcao captacao={captacao} onSave={onSave} />
+
+            {/* Endereço — accordion */}
+            <div className="cap-accordion">
+              <button className="cap-accordion-hdr" onClick={() => setAbrirEndereco(v => !v)}>
+                <span>📍 Endereço</span>
+                <span className="cap-accordion-preview">
+                  {[captacao.bairro, captacao.bloco, captacao.numero_imovel ? `Nº ${captacao.numero_imovel}` : null].filter(Boolean).join(" · ") || captacao.endereco}
+                </span>
+                <span className="cap-accordion-toggle">{abrirEndereco ? "−" : "+"}</span>
+              </button>
+              {abrirEndereco && (
+                <div className="cap-accordion-corpo">
+                  <div className="cap-end-row">
+                    <span className="cap-end-label">Rua</span>
+                    <span className="cap-end-val">{captacao.endereco}</span>
+                  </div>
+                  <div className="cap-end-row cap-end-row--edit">
+                    <span className="cap-end-label">Bairro</span>
+                    <input className="cap-end-input" value={editBairro} onChange={e => setEditBairro(e.target.value)} placeholder="Adicionar bairro" />
+                  </div>
+                  <div className="cap-end-row cap-end-row--edit">
+                    <span className="cap-end-label">Bloco</span>
+                    <input className="cap-end-input" value={editBloco} onChange={e => setEditBloco(e.target.value)} placeholder="Adicionar bloco" />
+                  </div>
+                  {!emEscolha && (
+                    <>
+                      <div className="cap-end-row cap-end-row--edit">
+                        <span className="cap-end-label">Número</span>
+                        <input className="cap-end-input" value={editNumero} onChange={e => setEditNumero(e.target.value)} placeholder="Nº / ap." />
+                      </div>
+                      <div className="cap-end-row cap-end-row--edit">
+                        <span className="cap-end-label">Anúncio</span>
+                        <input className="cap-end-input" value={editLink} onChange={e => setEditLink(e.target.value)} placeholder="https://..." />
+                      </div>
+                      {editLink && (
+                        <div className="cap-end-row">
+                          <span className="cap-end-label" />
+                          <a href={editLink} target="_blank" rel="noreferrer" className="cap-end-link">🔗 Abrir anúncio</a>
+                        </div>
+                      )}
+                    </>
+                  )}
+                  <button className="cap-end-save-btn" disabled={salvandoEnd || !endAlterado} onClick={salvarEndereco}>
+                    {salvandoEnd ? "Salvando…" : "Salvar endereço"}
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* Proprietário — accordion, prospecção em diante */}
+            {mostraProp && (
+              <div className="cap-accordion">
+                <button className="cap-accordion-hdr" onClick={() => setAbrirProprietario(v => !v)}>
+                  <span>👤 Proprietário</span>
+                  <span className="cap-accordion-preview">
+                    {captacao.nome_cliente
+                      ? `${captacao.nome_cliente}${captacao.telefone_cliente ? "  ·  " + captacao.telefone_cliente : ""}`
+                      : "Não informado"}
+                  </span>
+                  <span className="cap-accordion-toggle">{abrirProprietario ? "−" : "+"}</span>
+                </button>
+                {abrirProprietario && (
+                  <div className="cap-accordion-corpo">
+                    <div className="cap-end-row cap-end-row--edit">
+                      <span className="cap-end-label">Nome</span>
+                      <input className="cap-end-input" value={editNome} onChange={e => setEditNome(e.target.value)} placeholder="Nome do proprietário" />
+                    </div>
+                    <div className="cap-end-row cap-end-row--edit">
+                      <span className="cap-end-label">Telefone</span>
+                      <input className="cap-end-input" value={editTel} onChange={e => setEditTel(e.target.value)} placeholder="(61) 9 0000-0000" />
+                    </div>
+                    <button className="cap-end-save-btn" disabled={salvandoProp || !propAlterada} onClick={salvarProprietario}>
+                      {salvandoProp ? "Salvando…" : "Salvar proprietário"}
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Histórico — accordion */}
+            <div className="cap-accordion">
+              <button className="cap-accordion-hdr" onClick={() => setAbrirHistorico(v => !v)}>
+                <span>📋 Histórico</span>
+                <span className="cap-accordion-toggle">{abrirHistorico ? "−" : "+"}</span>
+              </button>
+              {abrirHistorico && (
+                <div className="cap-accordion-corpo">
+                  <HistoricoTimeline captacao={captacao} onMarcarRealizada={onSave} />
+                </div>
+              )}
+            </div>
 
             {captacao.status === "fechado" && (
-              <div className="cap-fechado-box" style={{ marginTop: 16 }}>
+              <div className="cap-fechado-box" style={{ marginTop: 12 }}>
                 <h3 className="cap-section-h">Encerramento</h3>
                 <p className="cap-fechado-motivo">{captacao.motivo_fechamento}</p>
                 <p className="cap-fechado-data">Encerrado em {fmt(captacao.data_fechamento)}</p>
               </div>
+            )}
+
+            {/* Encerrar — ação destrutiva no rodapé da coluna */}
+            {podeEncerrar && !confirmEncerrar && (
+              <button className="cap-encerrar-link" onClick={() => setConfirmEncerrar(true)}>
+                ⊘ Encerrar processo
+              </button>
             )}
           </div>
 
@@ -877,7 +985,7 @@ function ModalDetalhe({ captacao, onClose, onAvancar, onSave, avancarLoading, on
           {captacao.status !== "fechado" && captacao.status !== "captado" && (
             <div className="cap-modal-col-avanco">
               <h3 className="cap-section-h">Próximo passo</h3>
-              <SecaoAvanco captacao={captacao} onSalvar={onAvancar} loading={avancarLoading} />
+              <SecaoAvanco captacao={captacao} onSalvar={onAvancar} loading={avancarLoading} onFecharModal={onClose} />
             </div>
           )}
         </div>
@@ -991,7 +1099,7 @@ function ModalNovoImovel({ onSalvar, onCancelar, loading, isAdmin, corretores })
               {temNum === false && (
                 <>
                   <p className="cap-avanco-info">Registre a próxima ação para descobrir o número.</p>
-                  <CampoArea label="Objeção / próxima ação" value={extra.acao_sem_numero} onChange={upExtra("acao_sem_numero")} placeholder="O que vai fazer?" />
+                  <CampoArea label="Próxima ação" value={extra.acao_sem_numero} onChange={upExtra("acao_sem_numero")} placeholder="O que vai fazer?" />
                   <CampoTexto label="Data da ação" value={extra.data_acao_sem_numero} onChange={upExtra("data_acao_sem_numero")} type="date" />
                 </>
               )}
@@ -1269,8 +1377,8 @@ export default function JornadaCaptacao() {
   // Filtros
   const captacoesFiltradas = useMemo(() => captacoes.filter(c => {
     if (filtroCorretor && !((c.nome_corretor || "").toLowerCase().includes(filtroCorretor.toLowerCase()))) return false;
-    if (filtroDataDe  && c.created_at < filtroDataDe)  return false;
-    if (filtroDataAte && c.created_at > filtroDataAte + "T23:59:59") return false;
+    if (filtroDataDe  && toDateStr(c.created_at) < filtroDataDe)  return false;
+    if (filtroDataAte && toDateStr(c.created_at) > filtroDataAte) return false;
     return true;
   }), [captacoes, filtroCorretor, filtroDataDe, filtroDataAte]);
 
