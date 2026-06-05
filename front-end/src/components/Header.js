@@ -5,7 +5,7 @@ import '../assets/css/Header.css';
 
 function Header() {
   const navigate = useNavigate();
-  const { isLogado, isAdmin, nomeUsuario, idCorretor, logout } = useAuth();
+  const { isLogado, isAdmin, isAdministrador, nomeUsuario, idCorretor, logout } = useAuth();
   const profileRef = useRef(null);
   const servicosRef = useRef(null);
 
@@ -67,8 +67,8 @@ function Header() {
     { to: '/AppVisita', label: 'Relatório de Visita', show: isLogado },
     { to: '/RelatorioGerente', label: 'Relatório Gerente', show: isLogado && isAdmin },
     { to: '/ranking', label: 'Ranking', show: isLogado && isAdmin },
-    { to: '/ControleCorretor', label: 'Controle de usuarios', show: isLogado && isAdmin },
-    { to: '/register', label: 'Registrar Usuário', show: isLogado && isAdmin },
+    { to: '/ControleCorretor', label: 'Controle de usuarios', show: isLogado && isAdministrador },
+    { to: '/register', label: 'Registrar Usuário', show: isLogado && isAdministrador },
     { to: '/JornadaCaptacao', label: 'Jornada Captação', show: isLogado },
   ].filter((item) => item.show);
 

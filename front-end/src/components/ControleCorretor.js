@@ -64,9 +64,8 @@ function ControleCorretores() {
     }
   }, []);
 
-  const isAdmin = usuario?.team === "administrativo";
   const isAdministrativo = String(usuario?.team || "").toLowerCase() === "administrativo";
-  const podeGerenciarTodasEquipes = isAdmin || isAdministrativo;
+  const podeGerenciarTodasEquipes = ['administrador', 'diretor'].includes(usuario?.permissao) || isAdministrativo;
   const isGerente = usuario?.permissao === "gerente";
 
   const carregarCorretores = useCallback(async (usuarioAtual) => {
@@ -75,10 +74,9 @@ function ControleCorretores() {
     setLoading(true);
 
     try {
-      const usuarioEhAdmin = usuarioAtual.permissao === "admin";
       const usuarioEhAdministrativo =
         String(usuarioAtual.team || "").toLowerCase() === "administrativo";
-      const podeVerTodas = usuarioEhAdmin || usuarioEhAdministrativo;
+      const podeVerTodas = ['administrador', 'diretor'].includes(usuarioAtual.permissao) || usuarioEhAdministrativo;
 
       const params = new URLSearchParams();
 

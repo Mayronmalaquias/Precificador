@@ -1314,7 +1314,7 @@ export default function JornadaCaptacao() {
   const [filtroCorretor, setFiltroCorretor] = useState("");
   const [abaGerente, setAbaGerente]         = useState("ativo");
 
-  const isAdmin = userInfo.permissao === "admin";
+  const isAdmin = ["gerente", "administrador", "diretor"].includes(userInfo.permissao);
 
   useEffect(() => {
     const raw = localStorage.getItem("userData");
@@ -1354,7 +1354,7 @@ export default function JornadaCaptacao() {
       .then(r => r.json())
       .then(d => {
         if (d.ok) {
-          const lista = (d.lista || []).filter(c => c.permissao !== "admin");
+          const lista = (d.lista || []).filter(c => c.permissao === "corretor");
           setCorretoresAtivos(lista);
         }
       })

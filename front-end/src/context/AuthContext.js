@@ -28,10 +28,15 @@ export function AuthProvider({ children }) {
     setUserData({});
   }, []);
 
-  const isAdmin = useMemo(
-    () => userData.grant === 'admin' || userData.permissao === 'admin',
-    [userData]
-  );
+  const permissao = useMemo(() => userData.permissao || '', [userData]);
+
+  // Hierarquia: corretor < gerente < administrador < diretor
+  const isGerente      = useMemo(() => ['gerente', 'administrador', 'diretor'].includes(permissao), [permissao]);
+  const isAdministrador = useMemo(() => ['administrador', 'diretor'].includes(permissao), [permissao]);
+  const isDiretor      = useMemo(() => permissao === 'diretor', [permissao]);
+
+  // Mantém isAdmin como alias de isGerente para compatibilidade interna
+  const isAdmin = isGerente;
 
   const nomeUsuario = useMemo(
     () => userData.nome || userData.name || userData.nomeCorretor || userData.usuario || 'Usuário',
@@ -44,8 +49,8 @@ export function AuthProvider({ children }) {
   );
 
   const value = useMemo(
-    () => ({ isLogado, userData, isAdmin, nomeUsuario, idCorretor, login, logout }),
-    [isLogado, userData, isAdmin, nomeUsuario, idCorretor, login, logout]
+    () => ({ isLogado, userData, permissao, isAdmin, isGerente, isAdministrador, isDiretor, nomeUsuario, idCorretor, login, logout }),
+    [isLogado, userData, permissao, isAdmin, isGerente, isAdministrador, isDiretor, nomeUsuario, idCorretor, login, logout]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

@@ -13,6 +13,7 @@ import Register from './components/Register';
 import ReporteImovel from './components/ReporteImovelWidget';
 import PrivateRoute from './auth/PrivateRoute';
 import AdminRoute from './auth/AdminRoute';
+import AdministradorRoute from './auth/AdministradorRoute';
 import PaginaPublica from './components/FormularioPublico';
 import FormVisita from './components/FormVisita';
 import AppVisita from './components/FormVisitaApp';
@@ -74,7 +75,7 @@ function App() {
                 />
                 <Route
                   path="/register"
-                  element={<AdminRoute><Register /></AdminRoute>}
+                  element={<AdministradorRoute><Register /></AdministradorRoute>}
                 />
                 <Route
                   path="/RelatorioGerente"
@@ -82,7 +83,7 @@ function App() {
                 />
                 <Route
                   path="/ControleCorretor"
-                  element={<AdminRoute><ControleCorretor /></AdminRoute>}
+                  element={<AdministradorRoute><ControleCorretor /></AdministradorRoute>}
                 />
                 <Route
                   path="/JornadaCaptacao"

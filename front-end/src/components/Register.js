@@ -125,8 +125,10 @@ function Cadastro() {
               <select id="reg-perm" className="ds-input ds-select" name="permissao"
                 value={formData.permissao} onChange={handleChange} required disabled={loading}>
                 <option value="">Selecione...</option>
-                <option value="user">Usuário</option>
-                <option value="admin">Administrador</option>
+                <option value="corretor">Corretor</option>
+                <option value="gerente">Gerente</option>
+                <option value="administrador">Administrador</option>
+                <option value="diretor">Diretor</option>
               </select>
             </div>
           </div>
