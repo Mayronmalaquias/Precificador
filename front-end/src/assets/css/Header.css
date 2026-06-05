@@ -14,7 +14,7 @@
   justify-content: space-between;
   gap: 18px;
   position: relative;
-  z-index: 100;
+  z-index: 300;
 }
 
 /* marca */

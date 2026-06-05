@@ -504,6 +504,9 @@ function RelatorioGerente() {
 
     try {
       await carregarDados();
+      if (dashboardEquipes !== null) {
+        await carregarEquipes();
+      }
     } catch (e) {
       setErro(e.message || "Erro ao aplicar filtro.");
     } finally {
