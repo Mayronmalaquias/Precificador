@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import { BASE } from "../services/api";
 import { useToast } from "../context/ToastContext";
 import "../assets/css/JornadaCaptacao.css";
@@ -20,6 +21,11 @@ const CORRETOR_PALETTE = [
 ];
 const MESES      = ["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
 const DIAS_SEM   = ["Dom","Seg","Ter","Qua","Qui","Sex","Sáb"];
+const EQUIPES_MAP = {
+  G61001: "AGEF", G61002: "AGUIA", G61003: "PRIME",
+  G61010: "LOTUS", G61014: "NOVA UNIÃO", G61015: "SENNA", G61016: "LIDER",
+};
+function nomeEquipe(teamId) { return EQUIPES_MAP[String(teamId)] || String(teamId || "—"); }
 
 // ── Utilitários ──────────────────────────────────────────────────────────────
 function toDateStr(str) {
@@ -671,7 +677,7 @@ function UltimaAcao({ captacao, onSave }) {
 }
 
 // ── Kanban Card ──────────────────────────────────────────────────────────────
-function KanbanCard({ c, onClick, isAdmin }) {
+function KanbanCard({ c, onClick, isAdmin, isDiretor }) {
   const etapa    = ETAPA_INFO[c.etapa_atual] || {};
   const isCaptado = c.status === "captado";
   const ageColor  = corIdade(c.data_entrada_etapa);
@@ -706,6 +712,9 @@ function KanbanCard({ c, onClick, isAdmin }) {
       {c.numero_imovel && <div className="cap-kcard-num">Nº {c.numero_imovel}</div>}
       {c.nome_cliente  && <div className="cap-kcard-cliente">👤 {c.nome_cliente}</div>}
 
+      {isDiretor && c.team && (
+        <div className="cap-kcard-team-badge">{nomeEquipe(c.team)}</div>
+      )}
       <div className="cap-kcard-footer">
         {isAdmin && c.nome_corretor && <span className="cap-kcard-corretor">{c.nome_corretor}</span>}
         <span className="cap-kcard-data">{fmt(c.updated_at)}</span>
@@ -716,7 +725,7 @@ function KanbanCard({ c, onClick, isAdmin }) {
 }
 
 // ── Modal detalhe ────────────────────────────────────────────────────────────
-function ModalDetalhe({ captacao, onClose, onAvancar, onSave, avancarLoading, onFechar }) {
+function ModalDetalhe({ captacao, onClose, onAvancar, onSave, avancarLoading, onFechar, isDiretor }) {
   // ── Estados de edição de endereço ──
   const [editBairro,  setEditBairro]  = useState(captacao.bairro          || "");
   const [editBloco,   setEditBloco]   = useState(captacao.bloco           || "");
@@ -813,6 +822,9 @@ function ModalDetalhe({ captacao, onClose, onAvancar, onSave, avancarLoading, on
             </h2>
             {(captacao.bairro || captacao.bloco) && (
               <p className="cap-modal-sub">{[captacao.bairro, captacao.bloco].filter(Boolean).join(" · ")}</p>
+            )}
+            {isDiretor && captacao.team && (
+              <p className="cap-modal-equipe-tag">{nomeEquipe(captacao.team)}</p>
             )}
           </div>
           <div className="cap-modal-header-actions">
@@ -1153,7 +1165,7 @@ function BarraHorizontal({ valor, max, color }) {
   );
 }
 
-function DashboardGerente({ captacoes }) {
+function DashboardGerente({ captacoes, isDiretor }) {
   const agora   = new Date();
   const hojeStr = `${agora.getFullYear()}-${String(agora.getMonth()+1).padStart(2,"0")}-${String(agora.getDate()).padStart(2,"0")}`;
   const em7     = new Date(agora); em7.setDate(em7.getDate() + 7);
@@ -1268,6 +1280,46 @@ function DashboardGerente({ captacoes }) {
           }
         </div>
 
+        {isDiretor && (() => {
+          const equipesMap = {};
+          captacoes.forEach(c => {
+            const key = c.team || "sem-equipe";
+            if (!equipesMap[key]) equipesMap[key] = { team: key, ativos: 0, captados: 0, fechados: 0, total: 0 };
+            equipesMap[key].total++;
+            if (c.status === "captado") equipesMap[key].captados++;
+            else if (c.status === "fechado") equipesMap[key].fechados++;
+            else equipesMap[key].ativos++;
+          });
+          const equipesLista = Object.values(equipesMap)
+            .map(e => ({ ...e, taxa: e.total > 0 ? Math.round((e.captados / e.total) * 100) : 0 }))
+            .sort((a, b) => b.captados - a.captados || b.ativos - a.ativos);
+          return (
+            <div className="dash-card dash-card--full">
+              <h3 className="dash-card-titulo">Desempenho por equipe</h3>
+              {equipesLista.length === 0
+                ? <p className="dash-vazio">Sem dados.</p>
+                : <div className="dash-table-wrap">
+                    <table className="dash-table">
+                      <thead><tr><th>Equipe</th><th>Total</th><th>Ativos</th><th>Captados</th><th>Encerrados</th><th>Conversão</th></tr></thead>
+                      <tbody>
+                        {equipesLista.map((e, i) => (
+                          <tr key={e.team}>
+                            <td><span className="dash-corretor-dot" style={{ background: CORRETOR_PALETTE[i % CORRETOR_PALETTE.length] }} />{nomeEquipe(e.team)}</td>
+                            <td className="dash-td-num">{e.total}</td>
+                            <td className="dash-td-num dash-td--blue">{e.ativos}</td>
+                            <td className="dash-td-num dash-td--green">{e.captados}</td>
+                            <td className="dash-td-num dash-td--red">{e.fechados}</td>
+                            <td><span className={`dash-taxa-badge${e.taxa>=50?" dash-taxa--alta":e.taxa>=20?" dash-taxa--media":" dash-taxa--baixa"}`}>{e.taxa}%</span></td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+              }
+            </div>
+          );
+        })()}
+
         <div className="dash-card dash-card--full">
           <h3 className="dash-card-titulo">Próximas ações — 7 dias</h3>
           {proximasAcoes.length === 0
@@ -1297,6 +1349,8 @@ function DashboardGerente({ captacoes }) {
 // ── Componente principal ─────────────────────────────────────────────────────
 export default function JornadaCaptacao() {
   const toast = useToast();
+  const location = useLocation();
+  const navigate = useNavigate();
   const [userInfo, setUserInfo] = useState({ id: "", nome: "", team: "", permissao: "" });
   const [captacoes, setCaptacoes] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -1314,7 +1368,8 @@ export default function JornadaCaptacao() {
   const [filtroCorretor, setFiltroCorretor] = useState("");
   const [abaGerente, setAbaGerente]         = useState("ativo");
 
-  const isAdmin = ["gerente", "administrador", "diretor"].includes(userInfo.permissao);
+  const isAdmin   = ["gerente", "administrador", "diretor"].includes(userInfo.permissao);
+  const isDiretor = userInfo.permissao === "diretor";
 
   useEffect(() => {
     const raw = localStorage.getItem("userData");
@@ -1334,23 +1389,37 @@ export default function JornadaCaptacao() {
     if (!userInfo.id) return;
     setLoading(true);
     try {
-      const url = isAdmin
-        ? `${BASE}/captacoes?gerente=true${userInfo.team ? `&team=${encodeURIComponent(userInfo.team)}` : ""}`
-        : `${BASE}/captacoes?id_corretor=${encodeURIComponent(userInfo.id)}`;
+      const url = isDiretor
+        ? `${BASE}/captacoes?gerente=true`
+        : isAdmin
+          ? `${BASE}/captacoes?gerente=true&team=${encodeURIComponent(userInfo.team)}`
+          : `${BASE}/captacoes?id_corretor=${encodeURIComponent(userInfo.id)}`;
       const r = await fetch(url);
       const d = await r.json().catch(() => ({}));
       if (r.ok && d.ok) setCaptacoes(d.captacoes || []);
       else toast(d.error || "Erro ao carregar", "error");
     } catch { toast("Erro ao carregar captações", "error"); }
     finally { setLoading(false); }
-  }, [userInfo.id, userInfo.team, isAdmin, toast]);
+  }, [userInfo.id, userInfo.team, isAdmin, isDiretor, toast]);
 
   useEffect(() => { if (userInfo.id) carregarCaptacoes(); }, [userInfo.id, carregarCaptacoes]);
+
+  // Abre modal de novo imóvel quando vem do header com ?novo=1
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    if (params.get("novo") === "1") {
+      setShowNovo(true);
+      navigate("/JornadaCaptacao", { replace: true });
+    }
+  }, [location.search, navigate]);
 
   // Carrega corretores ativos (apenas para admin, ao montar)
   useEffect(() => {
     if (!isAdmin || !userInfo.id) return;
-    fetch(`${BASE}/corretor/retornar-lista?ativo=true&gerente=${encodeURIComponent(userInfo.id)}`)
+    const url = isDiretor
+      ? `${BASE}/corretor/retornar-lista?ativo=true`
+      : `${BASE}/corretor/retornar-lista?ativo=true&gerente=${encodeURIComponent(userInfo.id)}`;
+    fetch(url)
       .then(r => r.json())
       .then(d => {
         if (d.ok) {
@@ -1359,7 +1428,7 @@ export default function JornadaCaptacao() {
         }
       })
       .catch(() => {});
-  }, [isAdmin, userInfo.id]);
+  }, [isAdmin, isDiretor, userInfo.id]);
 
   // Stats
   const stats = useMemo(() => {
@@ -1518,7 +1587,7 @@ export default function JornadaCaptacao() {
                     {(porEtapa[etapa.key] || []).length === 0
                       ? <div className="cap-empty-col">Nenhum imóvel</div>
                       : (porEtapa[etapa.key] || []).map(c => (
-                          <KanbanCard key={c.id} c={c} onClick={setSelecionada} isAdmin={isAdmin} />
+                          <KanbanCard key={c.id} c={c} onClick={setSelecionada} isAdmin={isAdmin} isDiretor={isDiretor} />
                         ))
                     }
                   </div>
@@ -1541,6 +1610,7 @@ export default function JornadaCaptacao() {
                       </div>
                       <div className="cap-fechado-card-mid">
                         {c.nome_corretor && <span className="cap-fechado-corretor">👤 {c.nome_corretor}</span>}
+                        {isDiretor && c.team && <span className="cap-fechado-team">{nomeEquipe(c.team)}</span>}
                         <span className="cap-fechado-data">Encerrado em {fmt(c.data_fechamento)}</span>
                       </div>
                       <div className="cap-fechado-motivo">"{c.motivo_fechamento}"</div>
@@ -1557,7 +1627,7 @@ export default function JornadaCaptacao() {
       )}
 
       {aba === "dashboard" && isAdmin && (
-        <DashboardGerente captacoes={captacoesFiltradas} />
+        <DashboardGerente captacoes={captacoesFiltradas} isDiretor={isDiretor} />
       )}
 
       {showNovo && (
@@ -1577,6 +1647,7 @@ export default function JornadaCaptacao() {
           onSave={handleSave}
           avancarLoading={avancarLoading}
           onFechar={() => setShowFechar(true)}
+          isDiretor={isDiretor}
         />
       )}
       {selecionada && showFechar && (

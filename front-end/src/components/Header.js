@@ -64,6 +64,7 @@ function Header() {
     { to: '/Experts', label: 'Experts', show: true },
     { to: '/61Financiamento', label: '61Financeiro', show: true },
     { to: '/NovaVisita', label: 'Criar Visita', show: isLogado },
+    { to: '/JornadaCaptacao?novo=1', label: 'Novo Imóvel', subtitle: 'captação', show: isLogado },
     { to: '/AppVisita', label: 'Relatório de Visita', show: isLogado },
     { to: '/RelatorioGerente', label: 'Relatório Gerente', show: isLogado && isAdmin },
     { to: '/ranking', label: 'Ranking', show: isLogado && isAdmin },
@@ -138,6 +139,9 @@ function Header() {
                     onClick={() => setServicosAberto(false)}
                   >
                     {item.label}
+                    {item.subtitle && (
+                      <span className="services-menu-subtitle">{item.subtitle}</span>
+                    )}
                   </NavLink>
                 ))}
               </div>

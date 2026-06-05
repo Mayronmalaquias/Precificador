@@ -177,6 +177,17 @@
   border: 1px solid transparent;
   border-radius: 12px;
   padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.services-menu-subtitle {
+  font-size: 0.7rem;
+  font-weight: 500;
+  color: #e1005b;
+  opacity: 0.8;
+  line-height: 1;
 }
 
 .services-menu .nav-link:hover {
@@ -312,49 +323,17 @@
 }
 
 /* responsividade */
-@media (max-width: 992px) {
-  .app-header {
-    flex-direction: column;
-    align-items: stretch;
-  }
-
-  .header-right {
-    width: 100%;
-    justify-content: space-between;
-  }
-}
-
 @media (max-width: 768px) {
   .app-header {
-    padding: 12px 14px;
-    gap: 12px;
-  }
-
-  .brand-area {
-    width: 100%;
+    padding: 10px 14px;
+    gap: 10px;
   }
 
   .brand-text h1 {
     font-size: 1.08rem;
   }
 
-  .brand-kicker {
-    font-size: 0.72rem;
-  }
-
-  .header-right {
-    width: 100%;
-    justify-content: space-between;
-    align-items: flex-start;
-  }
-
-  .main-nav {
-    flex-wrap: wrap;
-    gap: 8px;
-  }
-
   .services-menu {
-    position: absolute;
     left: 0;
     right: auto;
     min-width: 220px;
@@ -367,32 +346,82 @@
 
   .profile-dropdown {
     min-width: 220px;
+    right: 0;
   }
 }
 
-@media (max-width: 480px) {
+@media (max-width: 640px) {
+  .app-header {
+    padding: 8px 12px;
+    gap: 8px;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    align-items: center;
+  }
+
+  .brand-area {
+    gap: 8px;
+    min-width: 0;
+    flex-shrink: 1;
+  }
+
   .brand-icon {
-    width: 40px;
-    height: 40px;
-    border-radius: 12px;
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+    flex-shrink: 0;
   }
 
   .brand-icon-svg {
-    width: 22px;
-    height: 22px;
+    width: 20px;
+    height: 20px;
+  }
+
+  .brand-kicker {
+    display: none;
   }
 
   .brand-text h1 {
-    font-size: 1rem;
+    font-size: 0.95rem;
+  }
+
+  .header-right {
+    flex: 1;
+    justify-content: flex-end;
+    gap: 8px;
+    min-width: 0;
   }
 
   .services-button {
-    padding: 7px 12px;
-    font-size: 0.88rem;
+    padding: 7px 11px;
+    font-size: 0.85rem;
+    gap: 5px;
   }
 
-  .profile-dropdown,
   .services-menu {
-    min-width: 200px;
+    position: fixed;
+    top: 58px;
+    left: 8px;
+    right: 8px;
+    min-width: unset;
+    width: auto;
+    max-height: 70vh;
+    overflow-y: auto;
+    border-radius: 14px;
+  }
+
+  .profile-avatar {
+    width: 36px;
+    height: 36px;
+    font-size: 0.82rem;
+  }
+
+  .profile-dropdown {
+    position: fixed;
+    top: 58px;
+    right: 8px;
+    left: auto;
+    min-width: 220px;
+    max-width: calc(100vw - 16px);
   }
 }
