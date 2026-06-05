@@ -1021,15 +1021,6 @@ function RelatorioGerente() {
             {renderCampos()}
           </div>
           <div className="modal-footer">
-            {tipo === "visita" && item.pdf_url && (
-              <button
-                className="botao-principal"
-                onClick={() => abrirPdfModal(item.pdf_url)}
-                disabled={loadingPdfModal}
-              >
-                {loadingPdfModal ? "Abrindo..." : "Ver PDF completo"}
-              </button>
-            )}
             <button
               className="botao-secundario"
               onClick={() =>
