@@ -234,10 +234,15 @@ def atualizar_captacao(captacao_id: int, data: dict) -> dict:
                          "Book enviado ao cliente" if data["book_enviado"] else "Book não enviado",
                          None))
 
-        # ── Interação ──
+        # ── Prospecção (motivo_nao_interacao vem do SecaoAvanco de prospecção) ──
         novo_motivo_int = data.get("motivo_nao_interacao")
         if novo_motivo_int and novo_motivo_int != c.motivo_nao_interacao:
-            hist.append(("interacao", "objecao", novo_motivo_int, None))
+            hist.append(("prospeccao", "objecao", novo_motivo_int, None))
+
+        # ── Interação (proxima_acao_apresentacao + motivo_nao_apresentacao vêm do SecaoAvanco de interação) ──
+        novo_motivo_apr = data.get("motivo_nao_apresentacao")
+        if novo_motivo_apr and novo_motivo_apr != c.motivo_nao_apresentacao:
+            hist.append(("interacao", "objecao", novo_motivo_apr, None))
 
         nova_acao_apr = data.get("proxima_acao_apresentacao")
         if nova_acao_apr and nova_acao_apr != c.proxima_acao_apresentacao:
@@ -248,11 +253,7 @@ def atualizar_captacao(captacao_id: int, data: dict) -> dict:
             hist.append(("interacao", "realizada",
                          f"Ação realizada: {c.proxima_acao_apresentacao or ''}", None))
 
-        # ── Apresentação ──
-        novo_motivo_apr = data.get("motivo_nao_apresentacao")
-        if novo_motivo_apr and novo_motivo_apr != c.motivo_nao_apresentacao:
-            hist.append(("apresentacao", "objecao", novo_motivo_apr, None))
-
+        # ── Apresentação / Captação (proxima_acao_captacao e objecao_captacao) ──
         nova_acao_cap = data.get("proxima_acao_captacao")
         if nova_acao_cap and nova_acao_cap != c.proxima_acao_captacao:
             etapa_acao = etapa_anterior if etapa_anterior in ("apresentacao", "captacao") else "apresentacao"
@@ -264,10 +265,10 @@ def atualizar_captacao(captacao_id: int, data: dict) -> dict:
             hist.append((etapa_real, "realizada",
                          f"Ação realizada: {c.proxima_acao_captacao or ''}", None))
 
-        # ── Captação ──
         novo_obj_cap = data.get("objecao_captacao")
         if novo_obj_cap and novo_obj_cap != c.objecao_captacao:
-            hist.append(("captacao", "objecao", novo_obj_cap, None))
+            etapa_obj = etapa_anterior if etapa_anterior in ("apresentacao", "captacao") else "apresentacao"
+            hist.append((etapa_obj, "objecao", novo_obj_cap, None))
 
         if data.get("captou_imovel") is True and c.captou_imovel is not True:
             hist.append(("captacao", "captado", "Imóvel captado com sucesso!", None))

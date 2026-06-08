@@ -247,10 +247,15 @@ const CAMP_REAL_KANBAN = {
   apresentacao: "acao_captacao_realizada",
   captacao:     "acao_captacao_realizada",
 };
-// Campo de objeção por etapa — badge também aparece quando há objeção sem proxima_acao
+// Campo de objeção por etapa — badge também aparece quando há objeção sem proxima_acao.
+// Cada etapa guarda a razão pela qual NÃO avançou para a etapa seguinte:
+//   prospeccao → motivo_nao_interacao   (não interagiu com o proprietário)
+//   interacao  → motivo_nao_apresentacao (não fez a apresentação)
+//   apresentacao/captacao → objecao_captacao (não captou)
 const CAMP_OBJE_KANBAN = {
-  interacao:    "motivo_nao_interacao",
-  apresentacao: "motivo_nao_apresentacao",
+  prospeccao:   "motivo_nao_interacao",
+  interacao:    "motivo_nao_apresentacao",
+  apresentacao: "objecao_captacao",
   captacao:     "objecao_captacao",
 };
 
@@ -857,8 +862,8 @@ function ModalDetalhe({ captacao, onClose, onAvancar, onSave, avancarLoading, on
 
   const endAlterado  = editBairro !== (captacao.bairro || "")
                     || editBloco  !== (captacao.bloco  || "")
-                    || (!emEscolha && editNumero !== (captacao.numero_imovel || ""))
-                    || (!emEscolha && editLink   !== (captacao.link_anuncio  || ""));
+                    || editLink   !== (captacao.link_anuncio  || "")
+                    || (!emEscolha && editNumero !== (captacao.numero_imovel || ""));
 
   const propAlterada = editNome !== (captacao.nome_cliente    || "")
                     || editTel  !== (captacao.telefone_cliente || "");
@@ -867,9 +872,10 @@ function ModalDetalhe({ captacao, onClose, onAvancar, onSave, avancarLoading, on
     setSalvandoEnd(true);
     try {
       await onSave({
-        bairro: editBairro || null,
-        bloco:  editBloco  || null,
-        ...(!emEscolha && { numero_imovel: editNumero || null, link_anuncio: editLink || null }),
+        bairro:       editBairro  || null,
+        bloco:        editBloco   || null,
+        link_anuncio: editLink    || null,
+        ...(!emEscolha && { numero_imovel: editNumero || null }),
       });
       setAbrirEndereco(false);
     } finally { setSalvandoEnd(false); }
@@ -997,23 +1003,21 @@ function ModalDetalhe({ captacao, onClose, onAvancar, onSave, avancarLoading, on
                     <span className="cap-end-label">Bloco</span>
                     <input className="cap-end-input" value={editBloco} onChange={e => setEditBloco(e.target.value)} placeholder="Adicionar bloco" />
                   </div>
+                  <div className="cap-end-row cap-end-row--edit">
+                    <span className="cap-end-label">Anúncio</span>
+                    <input className="cap-end-input" value={editLink} onChange={e => setEditLink(e.target.value)} placeholder="https://..." />
+                  </div>
+                  {editLink && (
+                    <div className="cap-end-row">
+                      <span className="cap-end-label" />
+                      <a href={editLink} target="_blank" rel="noreferrer" className="cap-end-link">🔗 Abrir anúncio</a>
+                    </div>
+                  )}
                   {!emEscolha && (
-                    <>
-                      <div className="cap-end-row cap-end-row--edit">
-                        <span className="cap-end-label">Número</span>
-                        <input className="cap-end-input" value={editNumero} onChange={e => setEditNumero(e.target.value)} placeholder="Nº / ap." />
-                      </div>
-                      <div className="cap-end-row cap-end-row--edit">
-                        <span className="cap-end-label">Anúncio</span>
-                        <input className="cap-end-input" value={editLink} onChange={e => setEditLink(e.target.value)} placeholder="https://..." />
-                      </div>
-                      {editLink && (
-                        <div className="cap-end-row">
-                          <span className="cap-end-label" />
-                          <a href={editLink} target="_blank" rel="noreferrer" className="cap-end-link">🔗 Abrir anúncio</a>
-                        </div>
-                      )}
-                    </>
+                    <div className="cap-end-row cap-end-row--edit">
+                      <span className="cap-end-label">Número</span>
+                      <input className="cap-end-input" value={editNumero} onChange={e => setEditNumero(e.target.value)} placeholder="Nº / ap." />
+                    </div>
                   )}
                   <button className="cap-end-save-btn" disabled={salvandoEnd || !endAlterado} onClick={salvarEndereco}>
                     {salvandoEnd ? "Salvando…" : "Salvar endereço"}
