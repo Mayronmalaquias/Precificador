@@ -236,48 +236,113 @@ const MAP_REALIZADA = {
 const CAMP_ACAO_KANBAN = {
   escolha:      "acao_sem_numero",
   prospeccao:   "proxima_acao_interacao",
-  interacao:    "proxima_acao_interacao",
-  apresentacao: "proxima_acao_apresentacao",
+  interacao:    "proxima_acao_apresentacao",
+  apresentacao: "proxima_acao_captacao",
   captacao:     "proxima_acao_captacao",
 };
 const CAMP_REAL_KANBAN = {
   escolha:      "acao_escolha_realizada",
   prospeccao:   "acao_interacao_realizada",
-  interacao:    "acao_interacao_realizada",
-  apresentacao: "acao_apresentacao_realizada",
+  interacao:    "acao_apresentacao_realizada",
+  apresentacao: "acao_captacao_realizada",
   captacao:     "acao_captacao_realizada",
 };
+// Campo de objeção por etapa — badge também aparece quando há objeção sem proxima_acao
+const CAMP_OBJE_KANBAN = {
+  interacao:    "motivo_nao_interacao",
+  apresentacao: "motivo_nao_apresentacao",
+  captacao:     "objecao_captacao",
+};
 
-function HistoricoTimeline({ captacao, onMarcarRealizada }) {
-  // Estado local para esconder o botão imediatamente ao clicar, sem esperar prop update
+function HistoricoTimeline({ captacao, onMarcarRealizada, historicoAPI }) {
+  // Hooks sempre no topo, sem condicional
   const [marcadosLocal, setMarcadosLocal] = useState({});
-
-  // Reseta ao abrir outro imóvel
   useEffect(() => { setMarcadosLocal({}); }, [captacao.id]);
 
-  const items = buildHistorico(captacao);
-  if (items.length === 0) return <p className="cap-hist-vazio">Nenhuma ação registrada.</p>;
-
   const icone = (tipo, realizada) => {
-    if (tipo === "inicio")    return "🚀";
-    if (tipo === "dado")      return "👤";
-    if (tipo === "book")      return realizada ? "📗" : "📕";
-    if (tipo === "objecao")   return "⚠️";
+    if (tipo === "inicio")     return "🚀";
+    if (tipo === "avanco")     return "➡️";
+    if (tipo === "dado")       return "👤";
+    if (tipo === "book")       return realizada ? "📗" : "📕";
+    if (tipo === "objecao")    return "⚠️";
     if (tipo === "fechamento") return "🔴";
-    if (tipo === "captado")   return "🏆";
-    if (realizada === true)   return "✅";
-    if (realizada === false)  return "❌";
+    if (tipo === "realizada")  return "✅";
+    if (tipo === "captado")    return "🏆";
+    if (realizada === true)    return "✅";
+    if (realizada === false)   return "❌";
     return "⏳";
   };
+
+  // Se tem dados da API, exibe histórico completo
+  if (historicoAPI && historicoAPI.length > 0) {
+    // Para cada campo realizada único, encontra o índice do último item pendente
+    // (tipo "acao" ou "objecao") cujo campo ainda não está marcado como realizado.
+    // Isso garante: (1) botão aparece em objeções também; (2) apresentacao+captacao que
+    // compartilham acao_captacao_realizada exibem apenas um botão — no item mais recente.
+    const TIPOS_PENDENTES = new Set(["acao", "objecao"]);
+    const podeAtuar = !!(onMarcarRealizada
+      && captacao.status !== "fechado"
+      && captacao.status !== "captado");
+
+    const ultimoPorCampoReal = {};
+    if (podeAtuar) {
+      historicoAPI.forEach((h, i) => {
+        if (!TIPOS_PENDENTES.has(h.tipo)) return;
+        const campoReal = CAMP_REAL_KANBAN[h.etapa];
+        if (campoReal && captacao[campoReal] !== true) {
+          ultimoPorCampoReal[campoReal] = i;
+        }
+      });
+    }
+
+    return (
+      <div className="cap-hist">
+        {historicoAPI.map((h, i) => {
+          const cor       = ETAPA_INFO[h.etapa]?.color || "#94a3b8";
+          const campoReal = CAMP_REAL_KANBAN[h.etapa];
+          const podeMarcar = podeAtuar
+            && TIPOS_PENDENTES.has(h.tipo)
+            && campoReal
+            && ultimoPorCampoReal[campoReal] === i;
+          return (
+            <div key={h.id || i} className={`cap-hist-item${podeMarcar ? " cap-hist-item--pendente" : ""}`}>
+              <div className="cap-hist-linha" style={{ borderColor: cor }}>
+                <span className="cap-hist-icone">{icone(h.tipo, null)}</span>
+              </div>
+              <div className="cap-hist-corpo">
+                <div className="cap-hist-etapa" style={{ color: cor }}>{ETAPA_INFO[h.etapa]?.label || h.etapa}</div>
+                <div className="cap-hist-desc">{h.descricao}</div>
+                {h.data_acao && <div className="cap-hist-data">{fmt(h.data_acao)}</div>}
+                {h.created_at && (
+                  <div className="cap-hist-registrado">
+                    {new Date(h.created_at).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })}
+                  </div>
+                )}
+                {podeMarcar && (
+                  <button className="cap-hist-marcar-btn"
+                    onClick={() => onMarcarRealizada({ [campoReal]: true })}>
+                    Marcar como realizada
+                  </button>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    );
+  }
+
+  // Fallback: sem dados da API, usa buildHistorico (captações criadas antes da tabela de histórico)
+  const items = buildHistorico(captacao);
+  if (items.length === 0) return <p className="cap-hist-vazio">Nenhuma ação registrada.</p>;
 
   return (
     <div className="cap-hist">
       {items.map((it, i) => {
-        const cor          = ETAPA_INFO[it.etapa]?.color || "#94a3b8";
-        const campoReal    = MAP_REALIZADA[it.etapa];
-        // realizada = vem da prop OU foi marcado localmente agora
-        const realizada    = it.realizada === true || marcadosLocal[i] === true;
-        const podeMarcar   = it.tipo === "acao" && !realizada && onMarcarRealizada;
+        const cor        = ETAPA_INFO[it.etapa]?.color || "#94a3b8";
+        const campoReal  = MAP_REALIZADA[it.etapa];
+        const realizada  = it.realizada === true || marcadosLocal[i] === true;
+        const podeMarcar = it.tipo === "acao" && !realizada && onMarcarRealizada;
 
         const handleMarcar = () => {
           setMarcadosLocal(p => ({ ...p, [i]: true }));
@@ -650,7 +715,11 @@ function UltimaAcao({ captacao, onSave }) {
     </div>
   );
 
-  if (!acaoTexto) return (
+  // Se não há ação mas há objeção registrada, exibe a objeção como pendência
+  const objeField = CAMP_OBJE_KANBAN[captacao.etapa_atual];
+  const objeTexto = objeField ? captacao[objeField] : null;
+
+  if (!acaoTexto && !objeTexto) return (
     <div className="cap-ultima-vazio">
       <span>Nenhuma ação agendada</span>
       {captacao.status !== "fechado" && captacao.status !== "captado" && (
@@ -659,9 +728,11 @@ function UltimaAcao({ captacao, onSave }) {
     </div>
   );
 
+  const textoExibido = acaoTexto || `⚠️ ${objeTexto}`;
+
   return (
     <div className={`cap-ultima-acao${realizada ? " cap-ultima-acao--feita" : ""}`}>
-      <div className="cap-ultima-desc">{acaoTexto}</div>
+      <div className="cap-ultima-desc">{textoExibido}</div>
       {acaoData && <div className="cap-ultima-data">{fmt(acaoData)}</div>}
       <div className="cap-ultima-btns">
         {!realizada
@@ -683,7 +754,8 @@ function KanbanCard({ c, onClick, isAdmin, isDiretor }) {
   const ageColor  = corIdade(c.data_entrada_etapa);
   const ageLabel  = diasDesde(c.data_entrada_etapa);
 
-  const temAcao   = !!c[CAMP_ACAO_KANBAN[c.etapa_atual]];
+  const campoObje = CAMP_OBJE_KANBAN[c.etapa_atual];
+  const temAcao   = !!(c[CAMP_ACAO_KANBAN[c.etapa_atual]] || (campoObje && c[campoObje]));
   const acaoFeita = c[CAMP_REAL_KANBAN[c.etapa_atual]] === true;
   const acaoStatus  = temAcao ? (acaoFeita ? "feita" : "pendente") : null;
 
@@ -747,6 +819,10 @@ function ModalDetalhe({ captacao, onClose, onAvancar, onSave, avancarLoading, on
   const [abrirProprietario, setAbrirProprietario] = useState(false);
   const [abrirHistorico,    setAbrirHistorico]    = useState(false);
 
+  // ── Histórico da API ──
+  const [historicoAPI,      setHistoricoAPI]      = useState(null);
+  const [loadingHistorico,  setLoadingHistorico]  = useState(false);
+
   // Sincroniza campos ao trocar de captação ou de etapa
   useEffect(() => {
     setEditBairro(captacao.bairro || "");
@@ -759,7 +835,19 @@ function ModalDetalhe({ captacao, onClose, onAvancar, onSave, avancarLoading, on
     setAbrirEndereco(false);
     setAbrirProprietario(false);
     setAbrirHistorico(false);
+    setHistoricoAPI(null);
   }, [captacao.id, captacao.etapa_atual]);
+
+  // Busca histórico da API ao abrir o accordion
+  useEffect(() => {
+    if (!abrirHistorico || historicoAPI !== null) return;
+    setLoadingHistorico(true);
+    fetch(`${BASE}/captacoes/${captacao.id}/historico`)
+      .then(r => r.json())
+      .then(d => { if (d.ok) setHistoricoAPI(d.historico || []); })
+      .catch(() => setHistoricoAPI([]))
+      .finally(() => setLoadingHistorico(false));
+  }, [abrirHistorico, captacao.id, historicoAPI]);
 
   const etapa    = ETAPA_INFO[captacao.etapa_atual] || {};
   const etapaIdx = ETAPAS.findIndex(e => e.key === captacao.etapa_atual);
@@ -972,7 +1060,14 @@ function ModalDetalhe({ captacao, onClose, onAvancar, onSave, avancarLoading, on
               </button>
               {abrirHistorico && (
                 <div className="cap-accordion-corpo">
-                  <HistoricoTimeline captacao={captacao} onMarcarRealizada={onSave} />
+                  {loadingHistorico
+                    ? <p className="cap-hist-vazio">Carregando histórico…</p>
+                    : <HistoricoTimeline
+                        captacao={captacao}
+                        onMarcarRealizada={onSave}
+                        historicoAPI={historicoAPI}
+                      />
+                  }
                 </div>
               )}
             </div>
@@ -1038,7 +1133,7 @@ function ModalFechar({ onConfirmar, onCancelar, loading }) {
 // ── Modal novo imóvel ─────────────────────────────────────────────────────────
 function ModalNovoImovel({ onSalvar, onCancelar, loading, isAdmin, corretores }) {
   const [step, setStep] = useState(1);
-  const [form, setForm] = useState({ endereco: "", bairro: "", bloco: "" });
+  const [form, setForm] = useState({ endereco: "", bairro: "", bloco: "", link_anuncio: "" });
   const [temNum, setTemNum] = useState(null);
   const [extra, setExtra] = useState({ numero_imovel: "", acao_sem_numero: "", data_acao_sem_numero: "" });
   const [corretorSel, setCorretorSel] = useState(null); // { id_usuarios, nome, team }
@@ -1082,6 +1177,7 @@ function ModalNovoImovel({ onSalvar, onCancelar, loading, isAdmin, corretores })
               <CampoTexto label="Endereço *" value={form.endereco} onChange={upForm("endereco")} placeholder="Ex: SQN 308 Bloco A" autoFocus={!isAdmin} />
               <CampoTexto label="Bairro"     value={form.bairro}   onChange={upForm("bairro")}   placeholder="Ex: Asa Norte" />
               <CampoTexto label="Bloco / Complemento" value={form.bloco} onChange={upForm("bloco")} placeholder="Ex: Bloco B" />
+              <CampoTexto label="Link do anúncio" value={form.link_anuncio} onChange={upForm("link_anuncio")} placeholder="https://..." />
             </>
           )}
 
@@ -1455,14 +1551,14 @@ export default function JornadaCaptacao() {
   }, {}), [captacoesAtivas]);
 
   // Handlers
-  const handleNovoSalvar = async ({ endereco, bairro, bloco, temNum, extra, corretorId, corretorNome, corretorTeam }) => {
+  const handleNovoSalvar = async ({ endereco, bairro, bloco, link_anuncio, temNum, extra, corretorId, corretorNome, corretorTeam }) => {
     setNovoLoading(true);
     try {
       const payload = {
         id_corretor:   corretorId   || userInfo.id,
         nome_corretor: corretorNome || userInfo.nome,
         team:          corretorTeam || userInfo.team,
-        endereco, bairro: bairro || null, bloco: bloco || null,
+        endereco, bairro: bairro || null, bloco: bloco || null, link_anuncio: link_anuncio || null,
         etapa_atual: temNum ? "prospeccao" : "escolha", tem_numero: temNum,
         ...(temNum
           ? { numero_imovel: extra.numero_imovel || null }

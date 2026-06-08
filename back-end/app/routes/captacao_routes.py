@@ -8,6 +8,7 @@ from app.services.captacao_service import (
     obter_captacao,
     atualizar_captacao,
     fechar_captacao,
+    listar_historico,
 )
 
 captacao_ns = Namespace("captacao", description="Jornada de captacao de imoveis")
@@ -62,6 +63,16 @@ class CaptacaoDetalhe(Resource):
             return result, 200 if result.get("ok") else 404
         except Exception as e:
             current_app.logger.exception("Erro ao atualizar captacao")
+            return {"ok": False, "error": str(e)}, 500
+
+
+@captacao_ns.route("/captacoes/<int:captacao_id>/historico")
+class HistoricoCaptacao(Resource):
+    def get(self, captacao_id):
+        try:
+            return listar_historico(captacao_id), 200
+        except Exception as e:
+            current_app.logger.exception("Erro ao listar historico")
             return {"ok": False, "error": str(e)}, 500
 
 

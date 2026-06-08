@@ -1205,7 +1205,8 @@
 .cap-hist-corpo { flex: 1; min-width: 0; }
 .cap-hist-etapa { font-size: 0.68rem; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; margin-bottom: 2px; }
 .cap-hist-desc  { font-size: 0.82rem; color: var(--cap-text); line-height: 1.35; }
-.cap-hist-data  { font-size: 0.72rem; color: var(--cap-text-3); margin-top: 2px; }
+.cap-hist-data       { font-size: 0.72rem; color: var(--cap-text-3); margin-top: 2px; }
+.cap-hist-registrado { font-size: 0.68rem; color: #9ca3af; margin-top: 2px; font-style: italic; }
 
 .cap-hist-marcar-btn {
   margin-top: 5px;
