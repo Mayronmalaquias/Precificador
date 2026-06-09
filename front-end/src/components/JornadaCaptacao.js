@@ -802,7 +802,9 @@ function KanbanCard({ c, onClick, isAdmin, isDiretor }) {
 }
 
 // ── Modal detalhe ────────────────────────────────────────────────────────────
-function ModalDetalhe({ captacao, onClose, onAvancar, onSave, avancarLoading, onFechar, isDiretor }) {
+const ETAPAS_ORDEM = ["escolha", "prospeccao", "interacao", "apresentacao", "captacao"];
+
+function ModalDetalhe({ captacao, onClose, onAvancar, onSave, avancarLoading, onFechar, isDiretor, isAdmin }) {
   // ── Estados de edição de endereço ──
   const [editBairro,  setEditBairro]  = useState(captacao.bairro          || "");
   const [editBloco,   setEditBloco]   = useState(captacao.bloco           || "");
@@ -900,6 +902,21 @@ function ModalDetalhe({ captacao, onClose, onAvancar, onSave, avancarLoading, on
   // Confirmação de encerramento inline
   const [confirmEncerrar, setConfirmEncerrar] = useState(false);
   const podeEncerrar = captacao.status !== "fechado" && captacao.status !== "captado";
+
+  // Voltar etapa
+  const [confirmVoltar, setConfirmVoltar] = useState(false);
+  const [voltarLoading, setVoltarLoading] = useState(false);
+  const idxEtapaAtual   = ETAPAS_ORDEM.indexOf(captacao.etapa_atual);
+  const etapaAnteriorKey = idxEtapaAtual > 0 ? ETAPAS_ORDEM[idxEtapaAtual - 1] : null;
+  const podeVoltar = isAdmin && etapaAnteriorKey && podeEncerrar;
+
+  const handleVoltarEtapa = async () => {
+    setVoltarLoading(true);
+    try {
+      await onSave({ etapa_atual: etapaAnteriorKey });
+      setConfirmVoltar(false);
+    } finally { setVoltarLoading(false); }
+  };
 
   return (
     <div className="cap-overlay" onClick={onClose}>
@@ -1084,8 +1101,29 @@ function ModalDetalhe({ captacao, onClose, onAvancar, onSave, avancarLoading, on
               </div>
             )}
 
+            {/* Voltar etapa */}
+            {podeVoltar && !confirmVoltar && !confirmEncerrar && (
+              <button className="cap-voltar-etapa-link" onClick={() => setConfirmVoltar(true)}>
+                ← Voltar para {ETAPA_INFO[etapaAnteriorKey]?.label}
+              </button>
+            )}
+            {confirmVoltar && (
+              <div className="cap-confirm-voltar">
+                <p className="cap-confirm-voltar-txt">
+                  Voltar para <strong>{ETAPA_INFO[etapaAnteriorKey]?.label}</strong>?<br />
+                  <small>O progresso da etapa atual será mantido no histórico.</small>
+                </p>
+                <div className="cap-confirm-voltar-btns">
+                  <button className="cap-ghost-btn" onClick={() => setConfirmVoltar(false)}>Cancelar</button>
+                  <button className="cap-action-btn cap-action-btn--secondary" disabled={voltarLoading} onClick={handleVoltarEtapa}>
+                    {voltarLoading ? "…" : "Confirmar"}
+                  </button>
+                </div>
+              </div>
+            )}
+
             {/* Encerrar — ação destrutiva no rodapé da coluna */}
-            {podeEncerrar && !confirmEncerrar && (
+            {podeEncerrar && !confirmEncerrar && !confirmVoltar && (
               <button className="cap-encerrar-link" onClick={() => setConfirmEncerrar(true)}>
                 ⊘ Encerrar processo
               </button>
@@ -1466,6 +1504,7 @@ export default function JornadaCaptacao() {
   const [fecharLoading, setFecharLoading] = useState(false);
 
   const [filtroCorretor, setFiltroCorretor] = useState("");
+  const [filtroEquipe,   setFiltroEquipe]   = useState("");
   const [abaGerente, setAbaGerente]         = useState("ativo");
 
   const isAdmin   = ["gerente", "administrador", "diretor"].includes(userInfo.permissao);
@@ -1541,11 +1580,18 @@ export default function JornadaCaptacao() {
     };
   }, [captacoes]);
 
+  // Equipes únicas disponíveis (para diretores que vêem tudo)
+  const equipesDisponiveis = useMemo(() => {
+    const teams = [...new Set(captacoes.map(c => c.team).filter(Boolean))];
+    return teams.sort((a, b) => nomeEquipe(a).localeCompare(nomeEquipe(b)));
+  }, [captacoes]);
+
   // Filtros
   const captacoesFiltradas = useMemo(() => captacoes.filter(c => {
     if (filtroCorretor && !((c.nome_corretor || "").toLowerCase().includes(filtroCorretor.toLowerCase()))) return false;
+    if (filtroEquipe && c.team !== filtroEquipe) return false;
     return true;
-  }), [captacoes, filtroCorretor]);
+  }), [captacoes, filtroCorretor, filtroEquipe]);
 
   const captacoesAtivas   = useMemo(() => captacoesFiltradas.filter(c => c.status !== "fechado"), [captacoesFiltradas]);
   const captacoesFechadas = useMemo(() => captacoesFiltradas.filter(c => c.status === "fechado"),  [captacoesFiltradas]);
@@ -1632,6 +1678,14 @@ export default function JornadaCaptacao() {
           </div>
         </div>
         <div className="cap-topbar-right">
+          {isAdmin && equipesDisponiveis.length > 1 && (
+            <select className="cap-search-input cap-filtro-equipe" value={filtroEquipe} onChange={e => setFiltroEquipe(e.target.value)}>
+              <option value="">Todas as equipes</option>
+              {equipesDisponiveis.map(t => (
+                <option key={t} value={t}>{nomeEquipe(t)}</option>
+              ))}
+            </select>
+          )}
           {isAdmin && (
             <input className="cap-search-input" placeholder="Filtrar corretor…" value={filtroCorretor} onChange={e => setFiltroCorretor(e.target.value)} />
           )}
@@ -1748,6 +1802,7 @@ export default function JornadaCaptacao() {
           avancarLoading={avancarLoading}
           onFechar={() => setShowFechar(true)}
           isDiretor={isDiretor}
+          isAdmin={isAdmin}
         />
       )}
       {selecionada && showFechar && (

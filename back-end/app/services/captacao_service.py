@@ -294,8 +294,15 @@ def atualizar_captacao(captacao_id: int, data: dict) -> dict:
             _set_val(c, "etapa_atual", nova_etapa)
             if nova_etapa != etapa_anterior:
                 c.data_entrada_etapa = datetime.now()
-                hist.append((nova_etapa, "avanco",
-                             f"Avançou para {ETAPA_LABELS.get(nova_etapa, nova_etapa)}", None))
+                _etapas_ordem = ["escolha", "prospeccao", "interacao", "apresentacao", "captacao"]
+                idx_novo = _etapas_ordem.index(nova_etapa) if nova_etapa in _etapas_ordem else 99
+                idx_ant  = _etapas_ordem.index(etapa_anterior) if etapa_anterior in _etapas_ordem else 0
+                if idx_novo < idx_ant:
+                    hist.append((etapa_anterior, "avanco",
+                                 f"Voltou para {ETAPA_LABELS.get(nova_etapa, nova_etapa)}", None))
+                else:
+                    hist.append((nova_etapa, "avanco",
+                                 f"Avançou para {ETAPA_LABELS.get(nova_etapa, nova_etapa)}", None))
 
         c.updated_at = datetime.now()
         session.commit()

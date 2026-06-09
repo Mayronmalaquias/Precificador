@@ -683,6 +683,44 @@
   flex-shrink: 0;
 }
 
+/* Voltar etapa */
+.cap-voltar-etapa-link {
+  display: block;
+  margin-top: 14px;
+  padding: 0;
+  background: none;
+  border: none;
+  font-size: 0.78rem;
+  font-weight: 500;
+  color: #94a3b8;
+  cursor: pointer;
+  text-align: left;
+  transition: color .15s;
+  letter-spacing: .01em;
+}
+.cap-voltar-etapa-link:hover { color: #2563eb; }
+
+.cap-confirm-voltar {
+  margin-top: 14px;
+  padding: 12px 14px;
+  border-radius: 8px;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+}
+.cap-confirm-voltar-txt {
+  font-size: 0.82rem;
+  color: #1e40af;
+  margin: 0 0 10px;
+  line-height: 1.4;
+}
+.cap-confirm-voltar-txt small { color: #3b82f6; font-size: 0.75rem; }
+.cap-confirm-voltar-btns { display: flex; gap: 8px; }
+
+/* Filtro equipe no topbar */
+.cap-filtro-equipe {
+  min-width: 130px;
+}
+
 .cap-encerrar-link {
   display: block;
   margin-top: 18px;
