@@ -3,6 +3,56 @@ import { BASE } from '../services/api';
 import "../assets/css/RelatorioGerente.css";
 import { useToast } from '../context/ToastContext';
 
+const CRITERIOS_AV = [
+  { key: "localizacao", label: "Localização" },
+  { key: "tamanho", label: "Tamanho" },
+  { key: "planta", label: "Planta" },
+  { key: "acabamento", label: "Acabamento" },
+  { key: "conservacao", label: "Conservação" },
+  { key: "condominio", label: "Condomínio" },
+  { key: "preco", label: "Preço" },
+  { key: "notaGeral", label: "Nota Geral" },
+];
+
+function AvaliacaoEditorG({ av, onChange }) {
+  return (
+    <div className="ev-card">
+      {av.cliente && <div className="ev-card-cliente">{av.cliente}</div>}
+      <div className="ev-grid">
+        {CRITERIOS_AV.map(({ key, label }) => {
+          const val = Number(av[key]) || 0;
+          return (
+            <div key={key} className="ev-item">
+              <div className="ev-item-head">
+                <span className="ev-item-label">{label}</span>
+                <span className="ev-item-val" style={{ color: val >= 8 ? "#16a34a" : val >= 5 ? "#2563eb" : "#ef4444" }}>
+                  {val}
+                </span>
+              </div>
+              <input
+                type="range" min={0} max={10} step={1}
+                value={val}
+                className="ev-slider"
+                onChange={(e) => onChange(key, e.target.value)}
+              />
+            </div>
+          );
+        })}
+        <div className="ev-item ev-item--full">
+          <label className="ev-item-label">Preço Nota 10</label>
+          <input
+            type="text"
+            className="ev-preco-input"
+            value={av.precoNota10 || ""}
+            placeholder="Ex: 450000"
+            onChange={(e) => onChange("precoNota10", e.target.value.replace(/\D/g, ""))}
+          />
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function RelatorioGerente() {
   const toast = useToast();
   const API_BASE = `${BASE}/gerente-dashboard`;
@@ -71,6 +121,12 @@ function RelatorioGerente() {
   const [loadingPdfModal, setLoadingPdfModal] = useState(false);
   const [detalheVisita, setDetalheVisita] = useState(null);
   const [loadingDetalhe, setLoadingDetalhe] = useState(false);
+
+  const [editVisitaModal, setEditVisitaModal] = useState(null);
+  const [editVisitaForm, setEditVisitaForm] = useState({});
+  const [savingEditVisita, setSavingEditVisita] = useState(false);
+  const [deleteVisitaConfirm, setDeleteVisitaConfirm] = useState(null);
+  const [deletingVisita, setDeletingVisita] = useState(false);
 
   const opcoes = [
     { id: "visaoGeral", label: "Visão Geral", labelMobile: "Visão Geral" },
@@ -311,11 +367,11 @@ function RelatorioGerente() {
   }, [filtros.corretor_geral, visitasFiltradas, clientesFiltrados, imoveisFiltrados]);
 
   const visitasNaoVisualizadas = useMemo(() => {
-    return (visitas || []).filter((v) => {
+    return (visitasFiltradas || []).filter((v) => {
       const id = obterIdVisita(v);
       return id && !visitasVisualizadas.has(String(id));
     });
-  }, [visitas, visitasVisualizadas]);
+  }, [visitasFiltradas, visitasVisualizadas]);
 
   useEffect(() => {
     const userDataString = localStorage.getItem("userData");
@@ -358,12 +414,13 @@ function RelatorioGerente() {
 
   useEffect(() => {
     if (!idGerenteLogado) return;
-    const stored = localStorage.getItem(`vv_${idGerenteLogado}`);
-    if (stored) {
-      try {
-        setVisitasVisualizadas(new Set(JSON.parse(stored)));
-      } catch {}
-    }
+    fetch(`${BASE}/visitas/vistas?id_gerente=${encodeURIComponent(idGerenteLogado)}`)
+      .then(r => r.json())
+      .then(d => {
+        if (d.ok) setVisitasVisualizadas(new Set(d.ids));
+        else console.error("[vistas GET] erro:", d);
+      })
+      .catch(e => console.error("[vistas GET] fetch falhou:", e));
   }, [idGerenteLogado]);
 
   useEffect(() => {
@@ -514,6 +571,80 @@ function RelatorioGerente() {
     }
   };
 
+  const abrirEditVisita = (item) => {
+    const ddmmyyyy = item.data_visita || "";
+    let isoDate = "";
+    if (ddmmyyyy && ddmmyyyy.includes("/")) {
+      const [dd, mm, yyyy] = ddmmyyyy.split("/");
+      isoDate = `${yyyy}-${mm}-${dd}`;
+    }
+    let situacao = "CAPTACAO_PROPRIA";
+    if ((item.imovel_nao_captado || "").toUpperCase() === "TRUE") situacao = "IMOVEL_NAO_CAPTADO";
+    else if (item.tipo_captacao) situacao = "CAPTACAO_61";
+
+    const avaliacoes = (item.avaliacoes || []).map((av) => ({
+      id_avaliacao: av.id_avaliacao || "",
+      cliente: av.cliente || "",
+      localizacao: av.localizacao || "10",
+      tamanho: av.tamanho || "10",
+      planta: av.planta || "10",
+      acabamento: av.acabamento || "10",
+      conservacao: av.conservacao || "10",
+      condominio: av.condominio || "10",
+      preco: av.preco || "10",
+      notaGeral: av.notaGeral || "10",
+      precoNota10: av.precoNota10 || "",
+    }));
+
+    setEditVisitaForm({
+      dataVisita: isoDate,
+      enderecoExterno: item.endereco_externo || "",
+      proposta: item.proposta || "",
+      situacaoImovel: situacao,
+      avaliacoes,
+    });
+    setEditVisitaModal(item);
+  };
+
+  const salvarEdicaoVisita = async () => {
+    if (!editVisitaModal) return;
+    setSavingEditVisita(true);
+    try {
+      const id = obterIdVisita(editVisitaModal);
+      const resp = await fetch(`${BASE}/visitas/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(editVisitaForm),
+      });
+      const data = await resp.json();
+      if (!resp.ok || !data.ok) throw new Error(data.error || "Erro ao salvar.");
+      setEditVisitaModal(null);
+      await carregarListas();
+    } catch (err) {
+      toast(err.message || "Erro ao salvar edição.", "error");
+    } finally {
+      setSavingEditVisita(false);
+    }
+  };
+
+  const confirmarExclusaoVisita = async () => {
+    if (!deleteVisitaConfirm) return;
+    setDeletingVisita(true);
+    try {
+      const id = obterIdVisita(deleteVisitaConfirm);
+      const resp = await fetch(`${BASE}/visitas/${id}`, { method: "DELETE" });
+      const data = await resp.json();
+      if (!resp.ok || !data.ok) throw new Error(data.error || "Erro ao excluir.");
+      setDeleteVisitaConfirm(null);
+      if (itemSelecionado && obterIdVisita(itemSelecionado) === id) setItemSelecionado(null);
+      await carregarListas();
+    } catch (err) {
+      toast(err.message || "Erro ao excluir visita.", "error");
+    } finally {
+      setDeletingVisita(false);
+    }
+  };
+
   const _downloadViaAnchor = (url, filename) => {
     const a = document.createElement("a");
     a.href = url;
@@ -623,11 +754,19 @@ function RelatorioGerente() {
   const marcarComoVisualizada = useCallback((idVisita) => {
     if (!idVisita || !idGerenteLogado) return;
     setVisitasVisualizadas((prev) => {
+      if (prev.has(String(idVisita))) return prev;
       const next = new Set(prev);
       next.add(String(idVisita));
-      localStorage.setItem(`vv_${idGerenteLogado}`, JSON.stringify([...next]));
       return next;
     });
+    fetch(`${BASE}/visitas/vistas`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id_gerente: idGerenteLogado, id_visita: String(idVisita) }),
+    })
+      .then(r => r.json())
+      .then(d => { if (!d.ok) console.error("[vistas POST] erro:", d); })
+      .catch(e => console.error("[vistas POST] fetch falhou:", e));
   }, [idGerenteLogado]);
 
   const abrirModalViewer = useCallback(async (tipo, item) => {
@@ -1194,6 +1333,20 @@ function RelatorioGerente() {
 
                   <td>
                     <div className="acoes-tabela">
+                      <button
+                        className="botao-secundario botao-editar"
+                        onClick={() => abrirEditVisita(item)}
+                        title="Editar visita"
+                      >
+                        Editar
+                      </button>
+                      <button
+                        className="botao-excluir"
+                        onClick={() => setDeleteVisitaConfirm(item)}
+                        title="Excluir visita"
+                      >
+                        Excluir
+                      </button>
                       <button
                         className="botao-secundario"
                         onClick={() => abrirModalViewer("visita", item)}
@@ -2036,6 +2189,137 @@ function RelatorioGerente() {
         </div>
       )}
       {renderModalViewer()}
+
+      {/* Modal editar visita (gerente) */}
+      {editVisitaModal && (
+        <div className="ranking__modal-backdrop" onClick={() => !savingEditVisita && setEditVisitaModal(null)}>
+          <div
+            className="ranking__modal"
+            style={{ width: "min(560px,96vw)", padding: "24px 28px", maxHeight: "92vh", overflowY: "auto" }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 style={{ margin: "0 0 4px", fontSize: "1.1rem" }}>Editar Visita</h3>
+            <p style={{ margin: "0 0 16px", fontSize: "0.85rem", color: "#64748b" }}>
+              ID: {obterIdVisita(editVisitaModal)} · {editVisitaModal.corretor || ""}
+            </p>
+
+            <div className="relatorios-edit-form">
+              <label>
+                Data da visita
+                <input
+                  type="date"
+                  value={editVisitaForm.dataVisita}
+                  onChange={(e) => setEditVisitaForm((f) => ({ ...f, dataVisita: e.target.value }))}
+                />
+              </label>
+
+              <label>
+                Situação do imóvel
+                <select
+                  value={editVisitaForm.situacaoImovel}
+                  onChange={(e) => setEditVisitaForm((f) => ({ ...f, situacaoImovel: e.target.value }))}
+                >
+                  <option value="CAPTACAO_61">Captação 61</option>
+                  <option value="CAPTACAO_PROPRIA">Captação Própria</option>
+                  <option value="CAPTACAO_PARCEIRO">Captação Parceiro</option>
+                  <option value="IMOVEL_NAO_CAPTADO">Imóvel não captado</option>
+                </select>
+              </label>
+
+              <label>
+                Endereço externo
+                <input
+                  type="text"
+                  value={editVisitaForm.enderecoExterno}
+                  onChange={(e) => setEditVisitaForm((f) => ({ ...f, enderecoExterno: e.target.value }))}
+                />
+              </label>
+
+              <label>
+                Proposta
+                <input
+                  type="text"
+                  value={editVisitaForm.proposta}
+                  onChange={(e) => setEditVisitaForm((f) => ({ ...f, proposta: e.target.value }))}
+                />
+              </label>
+            </div>
+
+            {(editVisitaForm.avaliacoes || []).length > 0 && (
+              <div className="ev-section">
+                <div className="ev-section-title">Avaliações</div>
+                {editVisitaForm.avaliacoes.map((av, idx) => (
+                  <AvaliacaoEditorG
+                    key={av.id_avaliacao || idx}
+                    av={av}
+                    onChange={(campo, valor) =>
+                      setEditVisitaForm((f) => {
+                        const avs = [...f.avaliacoes];
+                        avs[idx] = { ...avs[idx], [campo]: valor };
+                        return { ...f, avaliacoes: avs };
+                      })
+                    }
+                  />
+                ))}
+              </div>
+            )}
+
+            <div className="relatorios-modal-actions">
+              <button
+                className="botao-secundario"
+                onClick={() => setEditVisitaModal(null)}
+                disabled={savingEditVisita}
+              >
+                Cancelar
+              </button>
+              <button
+                className="botao-principal"
+                onClick={salvarEdicaoVisita}
+                disabled={savingEditVisita}
+              >
+                {savingEditVisita ? "Salvando..." : "Salvar"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal confirmar exclusão visita (gerente) */}
+      {deleteVisitaConfirm && (
+        <div className="ranking__modal-backdrop" onClick={() => !deletingVisita && setDeleteVisitaConfirm(null)}>
+          <div
+            className="ranking__modal"
+            style={{ width: "min(480px,96vw)", padding: "24px 28px" }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 style={{ margin: "0 0 8px", fontSize: "1.1rem", color: "#dc2626" }}>Confirmar exclusão</h3>
+            <p style={{ margin: "0 0 8px" }}>
+              Excluir visita de{" "}
+              <strong>{deleteVisitaConfirm.corretor || obterIdVisita(deleteVisitaConfirm)}</strong>{" "}
+              em <strong>{deleteVisitaConfirm.data_visita}</strong>?
+            </p>
+            <p style={{ margin: "0 0 20px", fontSize: "0.85rem", color: "#64748b" }}>
+              Todos os registros relacionados (avaliações, clientes, parceiros) serão removidos permanentemente.
+            </p>
+            <div className="relatorios-modal-actions">
+              <button
+                className="botao-secundario"
+                onClick={() => setDeleteVisitaConfirm(null)}
+                disabled={deletingVisita}
+              >
+                Cancelar
+              </button>
+              <button
+                className="botao-excluir"
+                onClick={confirmarExclusaoVisita}
+                disabled={deletingVisita}
+              >
+                {deletingVisita ? "Excluindo..." : "Excluir"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

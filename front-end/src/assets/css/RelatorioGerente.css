@@ -134,6 +134,113 @@
   transform: none;
 }
 
+.botao-editar {
+  background: #eff6ff;
+  color: #2563eb;
+  border-color: #bfdbfe;
+}
+.botao-editar:hover { background: #dbeafe; }
+
+.botao-excluir {
+  height: 36px;
+  padding: 0 14px;
+  background: #fef2f2;
+  color: #dc2626;
+  border: 1px solid #fecaca;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.botao-excluir:hover { background: #fee2e2; }
+.botao-excluir:disabled { opacity: 0.6; cursor: not-allowed; }
+
+/* reutiliza estilos do AppVisita para os modais de edição/exclusão do gerente */
+.relatorios-edit-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-bottom: 22px;
+}
+.relatorios-edit-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: #374151;
+}
+.relatorios-edit-form input,
+.relatorios-edit-form select {
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-size: 0.95rem;
+  color: #111827;
+  background: #f9fafb;
+  outline: none;
+  transition: border 0.15s;
+}
+.relatorios-edit-form input:focus,
+.relatorios-edit-form select:focus {
+  border-color: #2563eb;
+  background: #fff;
+}
+.relatorios-modal-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+}
+
+/* ---- AvaliacaoEditorG (mesmo padrão do AppVisita) ---- */
+.ev-section { margin-bottom: 20px; }
+.ev-section-title {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #374151;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 10px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid #e5e7eb;
+}
+.ev-card {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 12px 14px;
+  margin-bottom: 10px;
+}
+.ev-card-cliente { font-size: 0.85rem; font-weight: 700; color: #1e293b; margin-bottom: 10px; }
+.ev-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 16px; }
+.ev-item { display: flex; flex-direction: column; gap: 4px; }
+.ev-item--full { grid-column: 1 / -1; }
+.ev-item-head { display: flex; justify-content: space-between; align-items: center; }
+.ev-item-label { font-size: 0.82rem; color: #64748b; font-weight: 600; }
+.ev-item-val { font-size: 0.9rem; font-weight: 700; min-width: 20px; text-align: right; }
+.ev-slider {
+  -webkit-appearance: none; appearance: none;
+  width: 100%; height: 4px;
+  background: #cbd5e1; border-radius: 4px; outline: none; cursor: pointer;
+}
+.ev-slider::-webkit-slider-thumb {
+  -webkit-appearance: none; appearance: none;
+  width: 16px; height: 16px; border-radius: 50%;
+  background: #2563eb; cursor: pointer;
+  border: 2px solid #fff; box-shadow: 0 0 0 1px #2563eb;
+}
+.ev-slider::-moz-range-thumb {
+  width: 16px; height: 16px; border-radius: 50%;
+  background: #2563eb; cursor: pointer; border: 2px solid #fff;
+}
+.ev-preco-input {
+  border: 1px solid #d1d5db; border-radius: 8px;
+  padding: 6px 10px; font-size: 0.9rem; color: #111827;
+  background: #fff; outline: none; transition: border 0.15s;
+}
+.ev-preco-input:focus { border-color: #2563eb; }
+
 .box-status,
 .box-erro {
   margin-bottom: 16px;

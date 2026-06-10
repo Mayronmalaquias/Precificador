@@ -218,6 +218,14 @@ def _load_visitas_base(force_refresh: bool = False) -> Dict[str, List[Dict[str, 
         return data
 
 
+def invalidar_cache_visitas() -> None:
+    """Força recarregamento do cache na próxima requisição."""
+    global _cache_data, _cache_expires
+    with _cache_lock:
+        _cache_data = None
+        _cache_expires = 0.0
+
+
 # ---------------------------------------------------------------------------
 # Construção dos mapas — chamada única por fluxo
 # ---------------------------------------------------------------------------
@@ -540,6 +548,7 @@ def listar_visitas_do_gerente(
     parceiro_map = maps["parceiro_map"]
     clientes_por_visita = maps["clientes_por_visita"]
     parceiros_por_visita = maps["parceiros_por_visita"]
+    avaliacoes_por_visita = maps.get("avaliacoes_por_visita", {})
 
     qn = _norm_key(q)
     lista = []
@@ -570,6 +579,25 @@ def listar_visitas_do_gerente(
             if nome and nome not in nomes_parceiros:
                 nomes_parceiros.append(nome)
 
+        avaliacoes = []
+        for av in avaliacoes_por_visita.get(visita_id, []):
+            cid = _safe_str(av.get("Id_Cliente"))
+            cli = cliente_map.get(cid)
+            avaliacoes.append({
+                "id_avaliacao": _safe_str(av.get("Id_Avaliacao")),
+                "id_cliente": cid,
+                "cliente": _safe_str((cli or {}).get("Nome_Cliente")),
+                "localizacao": _safe_str(av.get("Localizacao")),
+                "tamanho": _safe_str(av.get("Tamanho")),
+                "planta": _safe_str(av.get("Planta_Imovel")),
+                "acabamento": _safe_str(av.get("Qualidade_Acabamento")),
+                "conservacao": _safe_str(av.get("Estado_Conservacao")),
+                "condominio": _safe_str(av.get("Condominio_AreaComun")),
+                "preco": _safe_str(av.get("Preco")),
+                "notaGeral": _safe_str(av.get("Nota_Geral")),
+                "precoNota10": _safe_str(av.get("Preco_N10")),
+            })
+
         item = {
             "id_visita": visita_id,
             "id_imovel": _safe_str(visita.get("Id_Imovel")),
@@ -584,6 +612,7 @@ def listar_visitas_do_gerente(
             "proposta": _safe_str(visita.get("Proposta")),
             "visita_com_parceiro": bool(_safe_str(visita.get("Visita_Com_Parceiro"))),
             "imovel_nao_captado": bool(_safe_str(visita.get("Imovel_Nao_Captado"))),
+            "avaliacoes": avaliacoes,
             "pdf_url": f"{API_BASE}/visitas/pdf?visita_id={visita_id}",
             "pdf_download_url": f"{API_BASE}/visitas/pdf/download?visita_id={visita_id}",
         }

@@ -200,6 +200,7 @@ class CorretorPdf(Resource):
 
 # app/routes/meta_gerente_routes.py
 # app/routes/meta_gerente_routes.py# app/routes/meta_gerente_routes.py
+import os
 from flask import Blueprint, request, send_file
 from app.services.meta_service import MetaGerenteConfig, MetaGerenteService
 from datetime import datetime
@@ -211,16 +212,21 @@ def gerar_relatorio_metas_gerentes():
     body = request.get_json() or {}
     hoje = datetime.today()
 
-    if hoje.month == 1:
-        mes_relatorio_padrao = 12
-    else:
-        mes_relatorio_padrao = hoje.month - 1
-
     config = MetaGerenteConfig(
-        ano_relatorio=body.get("ano_relatorio", 2026),
-        mes_relatorio=body.get("mes_relatorio", mes_relatorio_padrao),
-        sheet_id_contratos=body.get("sheet_id_contratos", "1I9Lnbf3Be6oz9YPlHFiA9PkFFb9svDWvDtIcHH5I2QY"),
-        sheet_id_base_inteligencia=body.get("sheet_id_base_inteligencia", "1_GA3LfjgQDTR_oly9fw5-XwHHTMWaUJixdVZ4PIHPB8"),
+        ano_relatorio=body.get("ano_relatorio", hoje.year),
+        mes_relatorio=body.get("mes_relatorio", hoje.month),
+        sheet_id_contratos=body.get(
+            "sheet_id_contratos",
+            os.environ.get("GSHEET_VENDAS_ID", "1GLYIVuOG0heAXKxL5MdtjNxlR7o9N8BaWuvwHF9Jb0Y")
+        ),
+        sheet_id_base_inteligencia=body.get(
+            "sheet_id_base_inteligencia",
+            os.environ.get("GSHEET_BASE_INTELIGENCIA_ID", "1HQDdcbUMj276hnIbPs-WwdWHiUPzMhPRWt4HHRyYGnw")
+        ),
+        sheet_id_visitas=body.get(
+            "sheet_id_visitas",
+            os.environ.get("GSHEET_VISITAS_ID", "1we1qAVRBqAWaXmOfnLnFJzCi8WPt-ZEhxKb0Ab9DiQU")
+        ),
         caminho_credencial=body.get("caminho_credencial", "./app/utils/asserts/credenciais.json")
     )
 
@@ -235,3 +241,39 @@ def gerar_relatorio_metas_gerentes():
         download_name=config.nome_arquivo_pdf,
         mimetype="application/pdf"
     )
+
+
+@meta_gerente_bp.route("/relatorio/metas-gerentes/preview", methods=["POST"])
+def preview_relatorio_metas_gerentes():
+    from flask import jsonify
+    body = request.get_json() or {}
+    hoje = datetime.today()
+
+    config = MetaGerenteConfig(
+        ano_relatorio=body.get("ano_relatorio", hoje.year),
+        mes_relatorio=body.get("mes_relatorio", hoje.month),
+        sheet_id_contratos=body.get(
+            "sheet_id_contratos",
+            os.environ.get("GSHEET_VENDAS_ID", "1GLYIVuOG0heAXKxL5MdtjNxlR7o9N8BaWuvwHF9Jb0Y")
+        ),
+        sheet_id_base_inteligencia=body.get(
+            "sheet_id_base_inteligencia",
+            os.environ.get("GSHEET_BASE_INTELIGENCIA_ID", "1HQDdcbUMj276hnIbPs-WwdWHiUPzMhPRWt4HHRyYGnw")
+        ),
+        sheet_id_visitas=body.get(
+            "sheet_id_visitas",
+            os.environ.get("GSHEET_VISITAS_ID", "1we1qAVRBqAWaXmOfnLnFJzCi8WPt-ZEhxKb0Ab9DiQU")
+        ),
+        caminho_credencial=body.get("caminho_credencial", "./app/utils/asserts/credenciais.json")
+    )
+
+    service = MetaGerenteService(config)
+    metas_mensais = body.get("metas_mensais", {})
+
+    try:
+        df = service.calcular_dados_relatorio(metas_mensais)
+        return jsonify(df.to_dict(orient="records"))
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
+    except Exception as e:
+        return jsonify({"error": f"Erro interno: {str(e)}"}), 500

@@ -20,6 +20,7 @@ class Captacao(Base):
     status = Column(String(20), nullable=False, default="ativo")
     motivo_fechamento = Column(Text, nullable=True)
     data_fechamento = Column(Date, nullable=True)
+    exclusividade_ate = Column(Date, nullable=True)
     data_entrada_etapa = Column(DateTime, nullable=True)
 
     # Etapa: Escolha

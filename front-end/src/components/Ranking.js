@@ -1,7 +1,98 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { BASE as API_BASE } from '../services/api';
 import '../assets/css/ranking.css';
 import { useToast } from '../context/ToastContext';
+
+const LOCAL_KEY = '61e_metas_form';
+
+const MESES = [
+  'Janeiro','Fevereiro','Março','Abril','Maio','Junho',
+  'Julho','Agosto','Setembro','Outubro','Novembro','Dezembro',
+];
+
+function MetaBar({ label, realizado, meta, moeda }) {
+  const hasMeta = meta > 0;
+  const pct = hasMeta ? (realizado / meta) * 100 : 0;
+  // Track representa 0 a 150% da meta; marcador fica em 66.67%
+  const SCALE = 1.5;
+  const fillPct = hasMeta ? Math.min((realizado / meta) / SCALE * 100, 100) : 0;
+  const markPct = hasMeta ? (1 / SCALE) * 100 : 0; // 66.67%
+
+  const cor = !hasMeta
+    ? '#94a3b8'
+    : realizado >= meta
+    ? '#16a34a'
+    : pct >= 60
+    ? '#2563eb'
+    : '#ef4444';
+
+  const fmt = (v) => {
+    if (!moeda) return Math.round(v).toLocaleString('pt-BR');
+    if (v >= 1e6) return `R$ ${(v / 1e6).toFixed(1)}M`;
+    if (v >= 1e3) return `R$ ${(v / 1e3).toFixed(0)}k`;
+    return `R$ ${Math.round(v)}`;
+  };
+
+  return (
+    <div className="mp-bar">
+      <div className="mp-bar__head">
+        <span className="mp-bar__label">{label}</span>
+        <b className="mp-bar__pct" style={{ color: cor }}>
+          {hasMeta ? `${pct.toFixed(0)}%` : 'sem meta'}
+        </b>
+      </div>
+      <div className="mp-bar__track">
+        <div className="mp-bar__fill" style={{ width: `${fillPct}%`, background: cor }} />
+        {hasMeta && (
+          <div className="mp-bar__meta-mark" style={{ left: `${markPct}%` }} />
+        )}
+      </div>
+      <div className="mp-bar__vals">
+        <span style={{ color: cor, fontWeight: 700 }}>{fmt(realizado)}</span>
+        {hasMeta && <span className="mp-bar__sep"> / {fmt(meta)}</span>}
+      </div>
+    </div>
+  );
+}
+
+function MetaCard({ row, ano, mes }) {
+  const p = String(mes).padStart(2, '0');
+  const colVGV = `VGV_Realizado_${ano}_${p}`;
+  const colCap = `Cap_Realizada_${ano}_${p}`;
+  const colVGC = `VGC_Realizado_${ano}_${p}`;
+  const colVis = `Vis_Realizada_${ano}_${p}`;
+
+  const metasKeys = [
+    ['VGV', 'Meta_VGV_Mes'],
+    ['Cap', 'Meta_Cap_Mes'],
+    ['VGC', 'Meta_VGC_Mes'],
+    ['Vis', 'Meta_Vis_Mes'],
+  ];
+  const algumMetaSet = metasKeys.some(([, col]) => (row[col] || 0) > 0);
+  const todasBateram = algumMetaSet && metasKeys.every(
+    ([status, col]) => !(row[col] > 0) || row[`Status_${status}`] === 'BATEU'
+  );
+
+  const nomeTratado = String(row.Gerente || '')
+    .split(' ')
+    .map((w) => w[0]?.toUpperCase() + w.slice(1).toLowerCase())
+    .join(' ');
+
+  return (
+    <div className="mp-card">
+      <div className="mp-card__header">
+        <span>{nomeTratado}</span>
+        {todasBateram && <span className="mp-badge mp-badge--ok">✓ TODAS</span>}
+      </div>
+      <div className="mp-card__body">
+        <MetaBar label="VGV"       realizado={row[colVGV] || 0} meta={row.Meta_VGV_Mes || 0} moeda />
+        <MetaBar label="Captações" realizado={row[colCap] || 0} meta={row.Meta_Cap_Mes || 0} />
+        <MetaBar label="VGC"       realizado={row[colVGC] || 0} meta={row.Meta_VGC_Mes || 0} moeda />
+        <MetaBar label="Visitas"   realizado={row[colVis] || 0} meta={row.Meta_Vis_Mes || 0} />
+      </div>
+    </div>
+  );
+}
 
 const RANKING_TABS = [
   { id: 'vgc_geral', label: 'VGC', title: 'Ranking VGC', unit: 'currency' },
@@ -59,14 +150,35 @@ function Ranking() {
     apply_factor: false,
   });
 
-  const [metaForm, setMetaForm] = useState({
-    ano_relatorio: new Date().getFullYear(),
-    mes_relatorio: Math.max(1, new Date().getMonth()),
-    metas_mensais: GERENTES.reduce((acc, gerente) => {
-      acc[gerente] = { Meta_VGV_Mes: '', Meta_Cap_Mes: '' };
-      return acc;
-    }, {}),
+  const defaultMetas = useMemo(() => GERENTES.reduce((acc, g) => {
+    acc[g] = { Meta_VGV_Mes: '', Meta_Cap_Mes: '', Meta_VGC_Mes: '', Meta_Vis_Mes: '' };
+    return acc;
+  }, {}), [GERENTES]);
+
+  const [metaForm, setMetaForm] = useState(() => {
+    const base = {
+      ano_relatorio: new Date().getFullYear(),
+      mes_relatorio: new Date().getMonth() + 1,
+      metas_mensais: defaultMetas,
+    };
+    try {
+      const saved = localStorage.getItem(LOCAL_KEY);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        return {
+          ...base,
+          ...parsed,
+          metas_mensais: { ...base.metas_mensais, ...(parsed.metas_mensais || {}) },
+        };
+      }
+    } catch {}
+    return base;
   });
+
+  const [previewData, setPreviewData] = useState(null);
+  const [showPreview, setShowPreview] = useState(false);
+  const [loadingPreview, setLoadingPreview] = useState(false);
+  const metasSavedRef = useRef(false);
 
   const [section, setSection] = useState('rankings');
   const [tab, setTab] = useState('vgc_geral');
@@ -75,6 +187,7 @@ function Ranking() {
   const [loadedKeyByTab, setLoadedKeyByTab] = useState({});
   const [dataByTabEquipe, setDataByTabEquipe] = useState({});
   const [loadedKeyByTabEquipe, setLoadedKeyByTabEquipe] = useState({});
+  const [hasApplied, setHasApplied] = useState(false);
   const [loading, setLoading] = useState(false);
   const [loadingPdf, setLoadingPdf] = useState(false);
 
@@ -111,6 +224,56 @@ function Ranking() {
       [name]: value,
     }));
   };
+
+  useEffect(() => {
+    if (metasSavedRef.current) {
+      localStorage.setItem(LOCAL_KEY, JSON.stringify(metaForm));
+    }
+    metasSavedRef.current = true;
+  }, [metaForm]);
+
+  const buildMetasPayload = useCallback(() => {
+    const payload = {
+      ano_relatorio: Number(metaForm.ano_relatorio),
+      mes_relatorio: Number(metaForm.mes_relatorio),
+      metas_mensais: {},
+    };
+    GERENTES.forEach((gerente) => {
+      payload.metas_mensais[gerente.toUpperCase()] = {
+        Meta_VGV_Mes: Number(metaForm.metas_mensais[gerente]?.Meta_VGV_Mes || 0),
+        Meta_Cap_Mes: Number(metaForm.metas_mensais[gerente]?.Meta_Cap_Mes || 0),
+        Meta_VGC_Mes: Number(metaForm.metas_mensais[gerente]?.Meta_VGC_Mes || 0),
+        Meta_Vis_Mes: Number(metaForm.metas_mensais[gerente]?.Meta_Vis_Mes || 0),
+      };
+    });
+    return payload;
+  }, [metaForm, GERENTES]);
+
+  const visualizarMetas = useCallback(async (e) => {
+    e.preventDefault();
+    setLoadingPreview(true);
+    setPreviewData(null);
+    setShowPreview(true);
+    try {
+      const response = await fetch(`${API_BASE}/relatorio/metas-gerentes/preview`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(buildMetasPayload()),
+      });
+      const json = await response.json();
+      if (!response.ok) {
+        toast(json?.error || json?.message || 'Erro ao carregar preview', 'error');
+        setShowPreview(false);
+        return;
+      }
+      setPreviewData(json);
+    } catch {
+      toast('Erro de conexão ao carregar preview.', 'error');
+      setShowPreview(false);
+    } finally {
+      setLoadingPreview(false);
+    }
+  }, [buildMetasPayload, toast]);
 
   const handleMetaGerenteChange = (gerente, campo, valor) => {
     setMetaForm((prev) => ({
@@ -309,23 +472,12 @@ function Ranking() {
     }
   };
 
-  const gerarPdfMetas = async (e) => {
-    e.preventDefault();
+  const gerarPdfMetas = useCallback(async (e) => {
+    if (e) e.preventDefault();
     setLoadingPdf(true);
 
     try {
-      const payload = {
-        ano_relatorio: Number(metaForm.ano_relatorio),
-        mes_relatorio: Number(metaForm.mes_relatorio),
-        metas_mensais: {},
-      };
-
-      GERENTES.forEach((gerente) => {
-        payload.metas_mensais[gerente.toUpperCase()] = {
-          Meta_VGV_Mes: Number(metaForm.metas_mensais[gerente]?.Meta_VGV_Mes || 0),
-          Meta_Cap_Mes: Number(metaForm.metas_mensais[gerente]?.Meta_Cap_Mes || 0),
-        };
-      });
+      const payload = buildMetasPayload();
 
       const response = await fetch(`${API_BASE}/relatorio/metas-gerentes`, {
         method: 'POST',
@@ -363,16 +515,17 @@ function Ranking() {
     } finally {
       setLoadingPdf(false);
     }
-  };
+  }, [buildMetasPayload, metaForm, toast]);
 
   useEffect(() => {
+    if (!hasApplied) return;
     if (section !== 'rankings') return;
     if (viewMode === 'equipe') {
       fetchRankingEquipe(tab);
     } else {
       fetchRanking(tab);
     }
-  }, [fetchRanking, fetchRankingEquipe, section, tab, viewMode]);
+  }, [fetchRanking, fetchRankingEquipe, hasApplied, section, tab, viewMode]);
 
   const formatCurrency = (n) => {
     const num = Number(n);
@@ -434,6 +587,7 @@ function Ranking() {
             onSubmit={(e) => {
               e.preventDefault();
               setAppliedFormData({ ...formData });
+              setHasApplied(true);
             }}
           >
             <div className="ranking__filters">
@@ -624,17 +778,32 @@ function Ranking() {
           </div>
         </>
       ) : (
-        <form className="ranking__panel ranking__panel--metas" onSubmit={gerarPdfMetas}>
+        <form className="ranking__panel ranking__panel--metas" onSubmit={visualizarMetas}>
           <div className="ranking__tableHead">
             <div>
-              <h3 className="ranking__h3">Relatorio de Metas dos Gerentes</h3>
-              <p className="ranking__hint">Preencha as metas mensais e gere o PDF consolidado.</p>
+              <h3 className="ranking__h3">Metas dos Gerentes</h3>
+              <p className="ranking__hint">Preencha as metas e visualize ou baixe o relatório em PDF.</p>
             </div>
+            <span className="ranking__autosave">Salvo automaticamente</span>
           </div>
 
           <div className="ranking__filters ranking__filters--metas">
             <div className="ranking__field">
-              <label className="ranking__label">Ano do relatorio</label>
+              <label className="ranking__label">Mês</label>
+              <select
+                className="ranking__input"
+                name="mes_relatorio"
+                value={metaForm.mes_relatorio}
+                onChange={handleMetaHeaderChange}
+              >
+                {MESES.map((nome, i) => (
+                  <option key={i + 1} value={i + 1}>{nome}</option>
+                ))}
+              </select>
+            </div>
+
+            <div className="ranking__field">
+              <label className="ranking__label">Ano</label>
               <input
                 className="ranking__input"
                 type="number"
@@ -643,28 +812,17 @@ function Ranking() {
                 onChange={handleMetaHeaderChange}
               />
             </div>
-
-            <div className="ranking__field">
-              <label className="ranking__label">Mes do relatorio</label>
-              <input
-                className="ranking__input"
-                type="number"
-                min="1"
-                max="12"
-                name="mes_relatorio"
-                value={metaForm.mes_relatorio}
-                onChange={handleMetaHeaderChange}
-              />
-            </div>
           </div>
 
           <div className="ranking__tableWrap">
-            <table className="ranking__table">
+            <table className="ranking__table ranking__table--metas">
               <thead>
                 <tr>
                   <th>Gerente</th>
-                  <th>Meta VGV do mes</th>
-                  <th>Meta de captacao do mes</th>
+                  <th>VGV</th>
+                  <th>Captações</th>
+                  <th>VGC</th>
+                  <th>Visitas</th>
                 </tr>
               </thead>
               <tbody>
@@ -673,28 +831,46 @@ function Ranking() {
                     <td className="ranking__name">{gerente}</td>
                     <td>
                       <input
-                        className="ranking__input"
+                        className="ranking__input ranking__input--meta"
                         type="number"
                         min="0"
                         step="0.01"
-                        placeholder="Ex: 8500000"
+                        placeholder="Ex: 8.500.000"
                         value={metaForm.metas_mensais[gerente]?.Meta_VGV_Mes ?? ''}
-                        onChange={(e) =>
-                          handleMetaGerenteChange(gerente, 'Meta_VGV_Mes', e.target.value)
-                        }
+                        onChange={(e) => handleMetaGerenteChange(gerente, 'Meta_VGV_Mes', e.target.value)}
                       />
                     </td>
                     <td>
                       <input
-                        className="ranking__input"
+                        className="ranking__input ranking__input--meta"
                         type="number"
                         min="0"
                         step="1"
                         placeholder="Ex: 12"
                         value={metaForm.metas_mensais[gerente]?.Meta_Cap_Mes ?? ''}
-                        onChange={(e) =>
-                          handleMetaGerenteChange(gerente, 'Meta_Cap_Mes', e.target.value)
-                        }
+                        onChange={(e) => handleMetaGerenteChange(gerente, 'Meta_Cap_Mes', e.target.value)}
+                      />
+                    </td>
+                    <td>
+                      <input
+                        className="ranking__input ranking__input--meta"
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        placeholder="Ex: 50.000"
+                        value={metaForm.metas_mensais[gerente]?.Meta_VGC_Mes ?? ''}
+                        onChange={(e) => handleMetaGerenteChange(gerente, 'Meta_VGC_Mes', e.target.value)}
+                      />
+                    </td>
+                    <td>
+                      <input
+                        className="ranking__input ranking__input--meta"
+                        type="number"
+                        min="0"
+                        step="1"
+                        placeholder="Ex: 30"
+                        value={metaForm.metas_mensais[gerente]?.Meta_Vis_Mes ?? ''}
+                        onChange={(e) => handleMetaGerenteChange(gerente, 'Meta_Vis_Mes', e.target.value)}
                       />
                     </td>
                   </tr>
@@ -704,11 +880,83 @@ function Ranking() {
           </div>
 
           <div className="ranking__footerActions">
-            <button className="ranking__btn ranking__btn--primary" type="submit" disabled={loadingPdf}>
-              {loadingPdf ? 'Gerando PDF...' : 'Gerar PDF de Metas'}
+            <button
+              type="button"
+              className="ranking__btn ranking__btn--secondary"
+              disabled={loadingPdf}
+              onClick={gerarPdfMetas}
+            >
+              {loadingPdf ? 'Gerando…' : 'Baixar PDF'}
+            </button>
+            <button className="ranking__btn ranking__btn--primary" type="submit" disabled={loadingPreview}>
+              {loadingPreview ? 'Carregando…' : 'Visualizar Metas'}
             </button>
           </div>
         </form>
+      )}
+
+      {showPreview && (
+        <div className="ranking__modalOverlay" onClick={() => setShowPreview(false)}>
+          <div className="ranking__modal ranking__modal--wide" onClick={(e) => e.stopPropagation()}>
+            <div className="ranking__modalHeader">
+              <div>
+                <h3 className="ranking__h3">
+                  Metas · {MESES[metaForm.mes_relatorio - 1]} {metaForm.ano_relatorio}
+                </h3>
+                {previewData && (
+                  <p className="ranking__hint">
+                    {previewData.length} gerentes · {previewData.filter(r => r.Status_VGV === 'BATEU').length} bateram VGV
+                  </p>
+                )}
+              </div>
+              <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+                <button
+                  type="button"
+                  className="ranking__btn ranking__btn--outline"
+                  onClick={gerarPdfMetas}
+                  disabled={loadingPdf}
+                >
+                  {loadingPdf ? 'Gerando…' : 'Baixar PDF'}
+                </button>
+                <button type="button" className="ranking__modalClose" onClick={() => setShowPreview(false)}>✕</button>
+              </div>
+            </div>
+
+            {loadingPreview ? (
+              <div style={{ padding: 40, textAlign: 'center', color: '#64748b' }}>
+                Carregando dados das planilhas…
+              </div>
+            ) : previewData ? (
+              <>
+                {previewData.every(r =>
+                  !r.Meta_VGV_Mes && !r.Meta_Cap_Mes && !r.Meta_VGC_Mes && !r.Meta_Vis_Mes
+                ) && (
+                  <div style={{
+                    margin: '16px 24px 0',
+                    padding: '12px 16px',
+                    borderRadius: 8,
+                    background: '#fef9c3',
+                    border: '1px solid #fde047',
+                    color: '#854d0e',
+                    fontSize: '0.85rem',
+                  }}>
+                    Nenhuma meta foi configurada ainda. Preencha os valores no formulário e clique em "Visualizar Metas" novamente.
+                  </div>
+                )}
+                <div className="mp-grid">
+                  {previewData.map((row) => (
+                    <MetaCard
+                      key={row.Gerente}
+                      row={row}
+                      ano={metaForm.ano_relatorio}
+                      mes={metaForm.mes_relatorio}
+                    />
+                  ))}
+                </div>
+              </>
+            ) : null}
+          </div>
+        </div>
       )}
 
       {(detalheCorretor || loadingDetalhe) && (

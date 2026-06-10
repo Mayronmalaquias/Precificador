@@ -10,6 +10,8 @@ from app.services.visita_service import (
     buscar_clientes_do_corretor_com_historico,
     gerar_pdf_cliente_publico,
     gerar_pdf_cliente_download,
+    editar_visita,
+    excluir_visita,
     #gerar_pdf_imovel_publico,
     #gerar_pdf_imovel_download,
 )
@@ -21,6 +23,7 @@ from app.services.imoview_service import buscar_imoveis_por_endereco
 
 
 from app.services.gerente_visitas_service import gerar_json_corretores
+from app.services.rela_gerentes_service import invalidar_cache_visitas
 
 visita_ns = Namespace("visitas", description="Lançamento de visitas")
 
@@ -34,6 +37,61 @@ class LancaVisita(Resource):
             return {"ok": True, "id_visita": id_visita}, 201
         except Exception as e:
             current_app.logger.exception("Erro ao registrar visita")
+            return {"ok": False, "error": str(e)}, 500
+
+
+@visita_ns.route("/visitas/vistas")
+class VisitasVistas(Resource):
+    def get(self):
+        id_gerente = (request.args.get("id_gerente") or "").strip()
+        if not id_gerente:
+            return {"ok": False, "error": "id_gerente e obrigatorio"}, 400
+        try:
+            from app.services.visita_vistas_service import listar_visitas_vistas
+            ids = listar_visitas_vistas(id_gerente)
+            return {"ok": True, "ids": ids}, 200
+        except Exception as e:
+            current_app.logger.exception("Erro ao listar visitas vistas")
+            return {"ok": False, "error": str(e)}, 500
+
+    def post(self):
+        payload = request.get_json() or {}
+        id_gerente = (payload.get("id_gerente") or "").strip()
+        id_visita = (payload.get("id_visita") or "").strip()
+        if not id_gerente or not id_visita:
+            return {"ok": False, "error": "id_gerente e id_visita sao obrigatorios"}, 400
+        try:
+            from app.services.visita_vistas_service import marcar_visita_vista
+            marcar_visita_vista(id_gerente, id_visita)
+            return {"ok": True}, 200
+        except Exception as e:
+            current_app.logger.exception("Erro ao marcar visita como vista")
+            return {"ok": False, "error": str(e)}, 500
+
+
+@visita_ns.route("/visitas/<string:id_visita>")
+class VisitaDetalhe(Resource):
+    def put(self, id_visita):
+        payload = request.get_json() or {}
+        try:
+            editar_visita(id_visita, payload)
+            invalidar_cache_visitas()
+            return {"ok": True}, 200
+        except ValueError as e:
+            return {"ok": False, "error": str(e)}, 404
+        except Exception as e:
+            current_app.logger.exception("Erro ao editar visita")
+            return {"ok": False, "error": str(e)}, 500
+
+    def delete(self, id_visita):
+        try:
+            excluir_visita(id_visita)
+            invalidar_cache_visitas()
+            return {"ok": True}, 200
+        except ValueError as e:
+            return {"ok": False, "error": str(e)}, 404
+        except Exception as e:
+            current_app.logger.exception("Erro ao excluir visita")
             return {"ok": False, "error": str(e)}, 500
 
 

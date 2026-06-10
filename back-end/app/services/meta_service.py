@@ -12,6 +12,7 @@ import pandas as pd
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
+from matplotlib.gridspec import GridSpec, GridSpecFromSubplotSpec
 
 # Tenta importar gspread, mas permite execução local sem ele
 try:
@@ -31,10 +32,12 @@ class MetaGerenteConfig:
     mes_relatorio: int
     sheet_id_contratos: str = "1cw4mB_fx-8YmnmLByx4au5ytpbQMV-OY1btOIoYAufg"
     sheet_id_base_inteligencia: str = "1HQDdcbUMj276hnIbPs-WwdWHiUPzMhPRWt4HHRyYGnw"
+    sheet_id_visitas: str = "1we1qAVRBqAWaXmOfnLnFJzCi8WPt-ZEhxKb0Ab9DiQU"
     aba_contratos: str = "Vendas"
     aba_dim_corretor: str = "Dim_Corretor"
     aba_dim_gerente: str = "Dim_Gerente"
     aba_fato_captacao: str = "Fato_Captacao"
+    aba_fato_visitas: str = "Fato_Visitas"
     caminho_credencial: str = "../cred.json"
     gerentes_por_pagina_painel: int = 3
 
@@ -164,7 +167,6 @@ class MetaGerenteService:
     # CARREGAMENTO DAS BASES
     # ==========================================================
     def carregar_contratos(self):
-        print(self.config.sheet_id_contratos)
         return self.carregar_aba_por_id(
             self.config.sheet_id_contratos,
             self.config.aba_contratos
@@ -428,6 +430,50 @@ class MetaGerenteService:
 
         return cap_qtd
 
+    def processar_visitas_por_gerente(
+        self,
+        df_visitas: pd.DataFrame,
+        mapa_id_corretor_para_gerente_nome: Dict[str, str]
+    ) -> Dict[str, int]:
+        vis_qtd: Dict[str, int] = {}
+        if df_visitas.empty:
+            return vis_qtd
+
+        dfv = df_visitas.copy()
+        dfv.columns = [str(c).strip() for c in dfv.columns]
+
+        id_col = None
+        for c in ["Id_Corretor", "IdCorretor", "id_corretor", "ID_CORRETOR"]:
+            if c in dfv.columns:
+                id_col = c
+                break
+        if not id_col:
+            return vis_qtd
+
+        date_col = None
+        for c in ["Data_Visita", "DataVisita", "Data", "data", "CreatedAt"]:
+            if c in dfv.columns:
+                date_col = c
+                break
+        if not date_col:
+            return vis_qtd
+
+        dfv[date_col] = pd.to_datetime(dfv[date_col], dayfirst=True, errors="coerce")
+        dfv = dfv[
+            (dfv[date_col].dt.year == self.config.ano_relatorio) &
+            (dfv[date_col].dt.month == self.config.mes_relatorio)
+        ].copy()
+
+        dfv["IdCorretor_norm"] = dfv[id_col].astype(str).str.strip().str.upper()
+
+        for _, row in dfv.iterrows():
+            id_corretor = row.get("IdCorretor_norm", "")
+            gerente = mapa_id_corretor_para_gerente_nome.get(id_corretor, "")
+            if gerente:
+                vis_qtd[gerente] = vis_qtd.get(gerente, 0) + 1
+
+        return vis_qtd
+
     # ==========================================================
     # NORMALIZAÇÃO DAS METAS
     # ==========================================================
@@ -452,10 +498,14 @@ class MetaGerenteService:
             meta_raw = metas_mensais.get(gerente, {})
             meta_vgv = self._to_float_br(meta_raw.get("Meta_VGV_Mes", 0))
             meta_cap = int(self._to_float_br(meta_raw.get("Meta_Cap_Mes", 0)))
+            meta_vgc = self._to_float_br(meta_raw.get("Meta_VGC_Mes", 0))
+            meta_vis = int(self._to_float_br(meta_raw.get("Meta_Vis_Mes", 0)))
 
             metas_normalizadas[gerente] = {
                 "Meta_VGV_Mes": meta_vgv,
                 "Meta_Cap_Mes": meta_cap,
+                "Meta_VGC_Mes": meta_vgc,
+                "Meta_Vis_Mes": meta_vis,
             }
 
         return metas_normalizadas
@@ -468,7 +518,8 @@ class MetaGerenteService:
         df_dim_gerente: pd.DataFrame,
         res_gerentes: Dict[str, Any],
         cap_qtd_por_gerente: Dict[str, int],
-        metas_mensais: Dict[str, Dict[str, Any]]
+        metas_mensais: Dict[str, Dict[str, Any]],
+        vis_qtd_por_gerente: Optional[Dict[str, int]] = None
     ) -> pd.DataFrame:
         dfg = df_dim_gerente.copy()
         dfg.columns = [str(c).strip() for c in dfg.columns]
@@ -481,17 +532,24 @@ class MetaGerenteService:
 
         todos_gerentes = sorted(gerentes_base | gerentes_resultado | gerentes_cap | gerentes_meta)
 
+        vis_por_gerente = vis_qtd_por_gerente or {}
         linhas = []
 
         for gerente in todos_gerentes:
             meta_vgv = metas_mensais.get(gerente, {}).get("Meta_VGV_Mes", 0.0)
             meta_cap = metas_mensais.get(gerente, {}).get("Meta_Cap_Mes", 0)
+            meta_vgc = metas_mensais.get(gerente, {}).get("Meta_VGC_Mes", 0.0)
+            meta_vis = metas_mensais.get(gerente, {}).get("Meta_Vis_Mes", 0)
 
             vgv_realizado = res_gerentes["VGV_GERAL"].get(gerente, 0.0)
             cap_realizada = cap_qtd_por_gerente.get(gerente, 0)
+            vgc_realizado = res_gerentes["VGC_GERAL"].get(gerente, 0.0)
+            vis_realizada = vis_por_gerente.get(gerente, 0)
 
             perc_vgv = (vgv_realizado / meta_vgv * 100) if meta_vgv > 0 else 0.0
             perc_cap = (cap_realizada / meta_cap * 100) if meta_cap > 0 else 0.0
+            perc_vgc = (vgc_realizado / meta_vgc * 100) if meta_vgc > 0 else 0.0
+            perc_vis = (vis_realizada / meta_vis * 100) if meta_vis > 0 else 0.0
 
             linhas.append({
                 "Gerente": gerente,
@@ -503,9 +561,16 @@ class MetaGerenteService:
                 f"Cap_Realizada_{self.config.ano_relatorio}_{self.config.mes_relatorio:02d}": cap_realizada,
                 "%_Atingido_Cap": perc_cap,
                 "Status_Cap": "BATEU" if meta_cap > 0 and cap_realizada >= meta_cap else "NAO BATEU",
+                "Meta_VGC_Mes": meta_vgc,
+                f"VGC_Realizado_{self.config.ano_relatorio}_{self.config.mes_relatorio:02d}": vgc_realizado,
+                "%_Atingido_VGC": perc_vgc,
+                "Status_VGC": "BATEU" if meta_vgc > 0 and vgc_realizado >= meta_vgc else "NAO BATEU",
+                "Meta_Vis_Mes": meta_vis,
+                f"Vis_Realizada_{self.config.ano_relatorio}_{self.config.mes_relatorio:02d}": vis_realizada,
+                "%_Atingido_Vis": perc_vis,
+                "Status_Vis": "BATEU" if meta_vis > 0 and vis_realizada >= meta_vis else "NAO BATEU",
                 f"VGV_Cap_{self.config.ano_relatorio}_{self.config.mes_relatorio:02d}": res_gerentes["VGV_CAP"].get(gerente, 0.0),
                 f"VGV_Venda_{self.config.ano_relatorio}_{self.config.mes_relatorio:02d}": res_gerentes["VGV_VEND"].get(gerente, 0.0),
-                f"VGC_Geral_{self.config.ano_relatorio}_{self.config.mes_relatorio:02d}": res_gerentes["VGC_GERAL"].get(gerente, 0.0),
                 f"Qtd_Vendas_{self.config.ano_relatorio}_{self.config.mes_relatorio:02d}": res_gerentes["VEND_QTD"].get(gerente, 0),
                 f"Qtd_Geral_{self.config.ano_relatorio}_{self.config.mes_relatorio:02d}": res_gerentes["GERAL_QTD"].get(gerente, 0),
             })
@@ -540,145 +605,61 @@ class MetaGerenteService:
     # ==========================================================
     # GRÁFICOS
     # ==========================================================
-    def _desenhar_barra_progresso(
-        self,
-        ax,
-        realizado,
-        meta,
-        titulo,
-        usar_moeda=False,
-        cor_bateu="#3cb44b",
-        cor_nao_bateu="#e91e63",
-        cor_fundo="#d9d9d9",
-        cor_meta="#ff4f8b",
-        cor_super_meta="#666666"
-    ):
+    def _desenhar_barra_progresso(self, ax, realizado, meta, titulo, usar_moeda=False):
         realizado = float(realizado or 0)
         meta = float(meta or 0)
+        pct = (realizado / meta * 100) if meta > 0 else 0.0
 
-        percentual = (realizado / meta * 100) if meta > 0 else 0.0
+        eixo_max = max(meta * 1.4, realizado * 1.1, 1.0) if meta > 0 else max(realizado * 1.3, 1.0)
+        real_norm = min(realizado / eixo_max, 1.0)
+        meta_norm = (meta / eixo_max) if (meta > 0 and meta <= eixo_max) else None
 
-        if meta > 0:
-            super_meta = meta * 1.5
-            eixo_max = super_meta
-            largura_fundo = super_meta
-            largura_preenchida = min(realizado, super_meta)
-            cor_barra = cor_bateu if realizado >= meta else cor_nao_bateu
+        if meta <= 0:
+            cor = "#94a3b8"
+        elif realizado >= meta:
+            cor = "#16a34a"
+        elif pct >= 60:
+            cor = "#2563eb"
         else:
-            super_meta = 0
-            eixo_max = max(realizado, 1)
-            largura_fundo = eixo_max
-            largura_preenchida = realizado
-            cor_barra = cor_nao_bateu
+            cor = "#ef4444"
 
-        ax.set_xlim(0, eixo_max * 1.05 if eixo_max > 0 else 1)
+        ax.set_xlim(0, 1)
         ax.set_ylim(0, 1)
         ax.axis("off")
+        ax.patch.set_facecolor("#ffffff")
 
-        ax.text(
-            0, 0.92, titulo,
-            ha="left", va="top",
-            fontsize=8, color="black"
-        )
+        ax.text(0.02, 0.93, titulo, ha="left", va="top", fontsize=8.0,
+                color="#64748b", transform=ax.transAxes, clip_on=False)
+        pct_str = f"{pct:.0f}%" if meta > 0 else "—"
+        ax.text(0.98, 0.93, pct_str, ha="right", va="top", fontsize=9.5,
+                color=cor, fontweight="bold", transform=ax.transAxes, clip_on=False)
 
-        ax.barh(
-            y=0.42,
-            width=largura_fundo if largura_fundo > 0 else 1,
-            left=0,
-            height=0.34,
-            color=cor_fundo,
-            edgecolor="none",
-            zorder=1
-        )
+        BAR_Y, BAR_H = 0.46, 0.30
+        ax.barh(BAR_Y, 1.0, left=0, height=BAR_H, color="#e2e8f0", edgecolor="none", zorder=1)
 
-        if largura_fundo > 0:
-            for frac in [0.166, 0.333, 0.5, 0.666, 0.833]:
-                ax.axvline(
-                    largura_fundo * frac,
-                    ymin=0.23,
-                    ymax=0.60,
-                    color="white",
-                    lw=0.8,
-                    alpha=0.28,
-                    zorder=2
-                )
+        if real_norm > 0:
+            ax.barh(BAR_Y, real_norm, left=0, height=BAR_H, color=cor, edgecolor="none", zorder=2)
 
-        if largura_preenchida > 0:
-            ax.barh(
-                y=0.42,
-                width=largura_preenchida,
-                left=0,
-                height=0.34,
-                color=cor_barra,
-                edgecolor="none",
-                zorder=3
-            )
+        if meta_norm and 0 < meta_norm < 1.0:
+            ax.axvline(meta_norm, ymin=0.26, ymax=0.82, color="#f97316", lw=2.5, zorder=3)
 
-        if meta > 0:
-            ax.axvline(
-                meta,
-                ymin=0.18,
-                ymax=0.72,
-                color=cor_meta,
-                linestyle="--",
-                lw=1.2,
-                zorder=4
-            )
-
-            texto_meta = self.formatar_moeda_br(meta) if usar_moeda else self.formatar_numero_br_sem_moeda(meta)
-            ax.text(
-                meta,
-                0.83,
-                texto_meta,
-                rotation=45,
-                ha="center",
-                va="bottom",
-                fontsize=7,
-                color=cor_meta
-            )
-
-        if super_meta > 0:
-            texto_super_meta = self.formatar_moeda_br(super_meta) if usar_moeda else self.formatar_numero_br_sem_moeda(super_meta)
-            ax.text(
-                super_meta,
-                0.10,
-                texto_super_meta,
-                ha="center",
-                va="top",
-                fontsize=7,
-                color=cor_super_meta
-            )
+        def _fmt(v):
+            return self.formatar_moeda_br(v) if usar_moeda else self.formatar_numero_br_sem_moeda(v)
 
         if realizado > 0:
-            x_real = min(realizado, super_meta) if super_meta > 0 else realizado
-            texto_real = self.formatar_moeda_br(realizado) if usar_moeda else self.formatar_numero_br_sem_moeda(realizado)
+            lbl = _fmt(realizado)
+            if real_norm > 0.32:
+                ax.text(real_norm / 2, BAR_Y, lbl, ha="center", va="center",
+                        fontsize=6.5, color="white", fontweight="bold", zorder=4)
+            else:
+                ax.text(real_norm + 0.02, BAR_Y, lbl, ha="left", va="center",
+                        fontsize=6.5, color=cor, fontweight="bold", zorder=4)
 
-            ax.text(
-                x_real,
-                0.70,
-                texto_real,
-                rotation=45,
-                ha="center",
-                va="bottom",
-                fontsize=7,
-                color="black"
-            )
+        if meta_norm and meta > 0:
+            ax.text(meta_norm, 0.11, _fmt(meta),
+                    ha="center", va="bottom", fontsize=5.5, color="#f97316", fontweight="bold")
 
-        if largura_preenchida > 0:
-            x_pct = largura_preenchida / 2
-            cor_texto = "white" if largura_preenchida >= (largura_fundo * 0.18 if largura_fundo > 0 else 0) else "black"
-
-            ax.text(
-                x_pct,
-                0.42,
-                f"{percentual:.1f}%",
-                ha="center",
-                va="center",
-                fontsize=8,
-                color=cor_texto,
-                fontweight="bold",
-                zorder=5
-            )
+        ax.axhline(0.02, color="#f1f5f9", lw=1.0)
 
     def gerar_paineis_metas_estilo_imagem(
         self,
@@ -690,85 +671,63 @@ class MetaGerenteService:
             raise ValueError("df_relatorio está vazio. Não há dados para gerar o painel.")
 
         gerentes_por_pagina = gerentes_por_pagina or self.config.gerentes_por_pagina_painel
+        ano, mes = self.config.ano_relatorio, self.config.mes_relatorio
 
-        col_vgv_real = f"VGV_Realizado_{self.config.ano_relatorio}_{self.config.mes_relatorio:02d}"
-        col_cap_real = f"Cap_Realizada_{self.config.ano_relatorio}_{self.config.mes_relatorio:02d}"
+        col_vgv_real = f"VGV_Realizado_{ano}_{mes:02d}"
+        col_cap_real = f"Cap_Realizada_{ano}_{mes:02d}"
+        col_vgc_real = f"VGC_Realizado_{ano}_{mes:02d}"
+        col_vis_real = f"Vis_Realizada_{ano}_{mes:02d}"
 
-        df_plot = df_relatorio.copy().sort_values(by=col_vgv_real, ascending=False).reset_index(drop=True)
+        METRICAS = [
+            (col_vgv_real, "Meta_VGV_Mes",  "VGV",       True),
+            (col_cap_real, "Meta_Cap_Mes",   "Captações", False),
+            (col_vgc_real, "Meta_VGC_Mes",   "VGC",       True),
+            (col_vis_real, "Meta_Vis_Mes",   "Visitas",   False),
+        ]
 
-        caminhos = []
+        df_plot = df_relatorio.copy().sort_values(col_vgv_real, ascending=False).reset_index(drop=True)
         registros = df_plot.to_dict("records")
+        caminhos = []
 
         for pagina_idx, bloco in enumerate(self.dividir_em_blocos(registros, gerentes_por_pagina), start=1):
             n = len(bloco)
 
-            fig, axes = plt.subplots(
-                nrows=n * 3,
-                ncols=1,
-                figsize=(12, max(4.5, n * 2.3)),
-                gridspec_kw={"height_ratios": [0.20, 1.0, 1.0] * n}
-            )
+            fig = plt.figure(figsize=(13.0, max(9.0, n * 5.8)), facecolor="#f1f5f9")
+            gs_main = GridSpec(n, 1, figure=fig, hspace=0.045,
+                               top=0.975, bottom=0.015, left=0.015, right=0.985)
 
-            try:
-                axes = axes.flatten().tolist()
-            except Exception:
-                axes = [axes]
-
-            fig.patch.set_facecolor("#f2f2f2")
-
-            idx = 0
-            for row in bloco:
+            for i, row in enumerate(bloco):
                 gerente = row["Gerente"]
-
-                ax_header = axes[idx]
-                idx += 1
-                ax_header.set_facecolor("#9e9e9e")
-                ax_header.set_xticks([])
-                ax_header.set_yticks([])
-                for spine in ax_header.spines.values():
-                    spine.set_visible(False)
-
-                ax_header.text(
-                    0.5, 0.5,
-                    f"Metas Equipe {gerente} - {self.config.mes_relatorio:02d}/{self.config.ano_relatorio}",
-                    ha="center",
-                    va="center",
-                    fontsize=12,
-                    color="#222222"
+                gs_card = GridSpecFromSubplotSpec(
+                    5, 1, subplot_spec=gs_main[i],
+                    hspace=0.0,
+                    height_ratios=[0.30, 1.0, 1.0, 1.0, 1.0]
                 )
 
-                ax_vgv = axes[idx]
-                idx += 1
-                ax_vgv.set_facecolor("#f2f2f2")
-                self._desenhar_barra_progresso(
-                    ax=ax_vgv,
-                    realizado=row[col_vgv_real],
-                    meta=row["Meta_VGV_Mes"],
-                    titulo="Meta Mensal VGV",
-                    usar_moeda=True
-                )
+                ax_h = fig.add_subplot(gs_card[0])
+                ax_h.axis("off")
+                ax_h.patch.set_facecolor("#1e293b")
+                ax_h.text(0.02, 0.5, gerente.title(), ha="left", va="center",
+                          fontsize=12, color="#f8fafc", fontweight="bold",
+                          transform=ax_h.transAxes)
+                ax_h.text(0.98, 0.5, f"{mes:02d}/{ano}",
+                          ha="right", va="center", fontsize=9, color="#94a3b8",
+                          transform=ax_h.transAxes)
 
-                ax_cap = axes[idx]
-                idx += 1
-                ax_cap.set_facecolor("#f2f2f2")
-                self._desenhar_barra_progresso(
-                    ax=ax_cap,
-                    realizado=row[col_cap_real],
-                    meta=row["Meta_Cap_Mes"],
-                    titulo="Meta Mensal Captações",
-                    usar_moeda=False
-                )
+                for j, (col_r, col_m, titulo, usar_moeda) in enumerate(METRICAS):
+                    ax = fig.add_subplot(gs_card[j + 1])
+                    ax.patch.set_facecolor("#ffffff")
+                    self._desenhar_barra_progresso(
+                        ax,
+                        realizado=row.get(col_r, 0),
+                        meta=row.get(col_m, 0),
+                        titulo=titulo,
+                        usar_moeda=usar_moeda
+                    )
 
-            plt.tight_layout(h_pad=1.0)
-
-            caminho = os.path.join(
-                pasta_temp,
-                f"painel_metas_gerentes_{self.config.ano_relatorio}_{self.config.mes_relatorio:02d}_parte_{pagina_idx}.png"
-            )
-
-            plt.savefig(caminho, dpi=220, bbox_inches="tight", facecolor=fig.get_facecolor())
+            caminho = os.path.join(pasta_temp, f"painel_metas_{ano}_{mes:02d}_p{pagina_idx}.png")
+            plt.savefig(caminho, dpi=180, bbox_inches="tight", facecolor=fig.get_facecolor())
             plt.close(fig)
-
             caminhos.append(caminho)
 
         return caminhos
@@ -779,97 +738,151 @@ class MetaGerenteService:
     def gerar_pdf_relatorio_buffer(self, df_relatorio: pd.DataFrame, caminhos_paineis: List[str]) -> BytesIO:
         from reportlab.lib.pagesizes import A4, landscape
         from reportlab.platypus import (
-            SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image, PageBreak
+            SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image, PageBreak, HRFlowable
         )
-        from reportlab.lib.styles import getSampleStyleSheet
+        from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
         from reportlab.lib import colors
+        from reportlab.lib.units import mm
         from reportlab.lib.utils import ImageReader
 
-        col_vgv_real = f"VGV_Realizado_{self.config.ano_relatorio}_{self.config.mes_relatorio:02d}"
-        col_cap_real = f"Cap_Realizada_{self.config.ano_relatorio}_{self.config.mes_relatorio:02d}"
+        ano, mes = self.config.ano_relatorio, self.config.mes_relatorio
+        col_vgv_real = f"VGV_Realizado_{ano}_{mes:02d}"
+        col_cap_real = f"Cap_Realizada_{ano}_{mes:02d}"
+        col_vgc_real = f"VGC_Realizado_{ano}_{mes:02d}"
+        col_vis_real = f"Vis_Realizada_{ano}_{mes:02d}"
+
+        COR_HEADER   = colors.HexColor("#1e293b")
+        COR_VERDE    = colors.HexColor("#dcfce7")
+        COR_VERDE_TXT= colors.HexColor("#15803d")
+        COR_VERMELHO = colors.HexColor("#fee2e2")
+        COR_VERM_TXT = colors.HexColor("#dc2626")
+        COR_ZEBRA    = colors.HexColor("#f8fafc")
+
+        NOMES_MESES = {1:"Janeiro",2:"Fevereiro",3:"Março",4:"Abril",5:"Maio",6:"Junho",
+                       7:"Julho",8:"Agosto",9:"Setembro",10:"Outubro",11:"Novembro",12:"Dezembro"}
 
         pdf_buffer = BytesIO()
-
-        largura_pagina, altura_pagina = landscape(A4)
-
-        margem_esq = 25
-        margem_dir = 25
-        margem_top = 25
-        margem_bottom = 25
+        larg_pag, alt_pag = landscape(A4)
+        MG = 20 * mm
 
         doc = SimpleDocTemplate(
             pdf_buffer,
             pagesize=landscape(A4),
-            rightMargin=margem_dir,
-            leftMargin=margem_esq,
-            topMargin=margem_top,
-            bottomMargin=margem_bottom
+            rightMargin=MG, leftMargin=MG,
+            topMargin=MG, bottomMargin=MG
         )
 
         styles = getSampleStyleSheet()
+        s_titulo = ParagraphStyle("titulo", parent=styles["Normal"],
+                                  fontSize=18, fontName="Helvetica-Bold",
+                                  textColor=colors.HexColor("#0f172a"), spaceAfter=2)
+        s_sub    = ParagraphStyle("sub", parent=styles["Normal"],
+                                  fontSize=9, textColor=colors.HexColor("#64748b"), spaceAfter=8)
+        s_h2     = ParagraphStyle("h2", parent=styles["Normal"],
+                                  fontSize=12, fontName="Helvetica-Bold",
+                                  textColor=colors.HexColor("#1e293b"), spaceBefore=12, spaceAfter=6)
+
         story = []
 
+        # ── Cabeçalho do relatório ─────────────────────────────────
         story.append(Paragraph(
-            f"Relatório de Metas de Gerentes - {self.config.mes_relatorio:02d}/{self.config.ano_relatorio}",
-            styles["Title"]
+            f"Relatório de Metas · {NOMES_MESES.get(mes, str(mes))} {ano}", s_titulo
         ))
         story.append(Paragraph(
-            f"Gerado em: {datetime.now().strftime('%d/%m/%Y %H:%M')}",
-            styles["Normal"]
+            f"Gerado em {datetime.now().strftime('%d/%m/%Y às %H:%M')}  •  {len(df_relatorio)} gerentes",
+            s_sub
         ))
-        story.append(Spacer(1, 12))
+        story.append(HRFlowable(width="100%", thickness=1, color=colors.HexColor("#e2e8f0"), spaceAfter=10))
 
-        tabela = [[
+        # ── Tabela resumo ──────────────────────────────────────────
+        # Colunas: Gerente | VGV Real | %VGV | Cap | %Cap | VGC Real | %VGC | Vis | %Vis
+        header = [
             "Gerente",
-            "Meta VGV Mês",
-            "VGV Realizado",
-            "% VGV",
-            "Meta Cap Mês",
-            "Cap Realizada",
-            "% Cap"
-        ]]
+            "VGV Meta → Real", "% VGV",
+            "Cap Meta → Real", "% Cap",
+            "VGC Meta → Real", "% VGC",
+            "Vis Meta → Real", "% Vis",
+        ]
+        tabela = [header]
+        style_cmds = [
+            ("BACKGROUND",    (0, 0), (-1, 0),  COR_HEADER),
+            ("TEXTCOLOR",     (0, 0), (-1, 0),  colors.white),
+            ("FONTNAME",      (0, 0), (-1, 0),  "Helvetica-Bold"),
+            ("FONTSIZE",      (0, 0), (-1, -1), 7.5),
+            ("ALIGN",         (1, 0), (-1, -1), "CENTER"),
+            ("ALIGN",         (0, 0), (0,  -1), "LEFT"),
+            ("VALIGN",        (0, 0), (-1, -1), "MIDDLE"),
+            ("TOPPADDING",    (0, 0), (-1, -1), 6),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+            ("LEFTPADDING",   (0, 0), (-1, -1), 8),
+            ("RIGHTPADDING",  (0, 0), (-1, -1), 8),
+            ("GRID",          (0, 0), (-1, -1), 0.3, colors.HexColor("#e2e8f0")),
+            ("LINEBELOW",     (0, 0), (-1, 0),  1.5, colors.HexColor("#334155")),
+        ]
 
-        for _, row in df_relatorio.iterrows():
+        pct_cols = [2, 4, 6, 8]
+
+        def _pct_style_cmd(col_idx, r_idx, bateu):
+            if bateu:
+                return [
+                    ("BACKGROUND", (col_idx, r_idx), (col_idx, r_idx), COR_VERDE),
+                    ("TEXTCOLOR",  (col_idx, r_idx), (col_idx, r_idx), COR_VERDE_TXT),
+                    ("FONTNAME",   (col_idx, r_idx), (col_idx, r_idx), "Helvetica-Bold"),
+                ]
+            return [
+                ("BACKGROUND", (col_idx, r_idx), (col_idx, r_idx), COR_VERMELHO),
+                ("TEXTCOLOR",  (col_idx, r_idx), (col_idx, r_idx), COR_VERM_TXT),
+                ("FONTNAME",   (col_idx, r_idx), (col_idx, r_idx), "Helvetica-Bold"),
+            ]
+
+        def _seta(meta_v, real_v, moeda=True):
+            m = self.formatar_moeda_br(meta_v) if moeda else self.formatar_numero_br_sem_moeda(meta_v)
+            r = self.formatar_moeda_br(real_v) if moeda else self.formatar_numero_br_sem_moeda(real_v)
+            return f"{m} → {r}"
+
+        for r_idx, row in enumerate(df_relatorio.to_dict("records"), start=1):
+            if r_idx % 2 == 0:
+                style_cmds.append(("BACKGROUND", (0, r_idx), (-1, r_idx), COR_ZEBRA))
+
+            for cmd in _pct_style_cmd(2, r_idx, row.get("Status_VGV", "") == "BATEU"):
+                style_cmds.append(cmd)
+            for cmd in _pct_style_cmd(4, r_idx, row.get("Status_Cap", "") == "BATEU"):
+                style_cmds.append(cmd)
+            for cmd in _pct_style_cmd(6, r_idx, row.get("Status_VGC", "") == "BATEU"):
+                style_cmds.append(cmd)
+            for cmd in _pct_style_cmd(8, r_idx, row.get("Status_Vis", "") == "BATEU"):
+                style_cmds.append(cmd)
+
             tabela.append([
-                row["Gerente"],
-                self.formatar_moeda_br(row["Meta_VGV_Mes"]),
-                self.formatar_moeda_br(row[col_vgv_real]),
-                f'{row["%_Atingido_VGV"]:.1f}%',
-                int(row["Meta_Cap_Mes"]),
-                int(row[col_cap_real]),
-                f'{row["%_Atingido_Cap"]:.1f}%'
+                str(row.get("Gerente", "")).title(),
+                _seta(row.get("Meta_VGV_Mes", 0), row.get(col_vgv_real, 0), True),
+                f"{row.get('%_Atingido_VGV', 0):.0f}%",
+                _seta(row.get("Meta_Cap_Mes", 0), row.get(col_cap_real, 0), False),
+                f"{row.get('%_Atingido_Cap', 0):.0f}%",
+                _seta(row.get("Meta_VGC_Mes", 0), row.get(col_vgc_real, 0), True),
+                f"{row.get('%_Atingido_VGC', 0):.0f}%",
+                _seta(row.get("Meta_Vis_Mes", 0), row.get(col_vis_real, 0), False),
+                f"{row.get('%_Atingido_Vis', 0):.0f}%",
             ])
 
-        tb = Table(tabela, repeatRows=1)
-        tb.setStyle(TableStyle([
-            ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#1f2937")),
-            ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
-            ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-            ("GRID", (0, 0), (-1, -1), 0.25, colors.grey),
-            ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.whitesmoke, colors.lightgrey]),
-            ("FONTSIZE", (0, 0), (-1, -1), 8),
-        ]))
+        larg_disp = larg_pag - 2 * MG
+        col_widths = [larg_disp * w for w in [0.17, 0.14, 0.07, 0.10, 0.07, 0.14, 0.07, 0.10, 0.07]]
 
+        tb = Table(tabela, colWidths=col_widths, repeatRows=1)
+        tb.setStyle(TableStyle(style_cmds))
         story.append(tb)
 
+        # ── Painéis gráficos ────────────────────────────────────────
         if caminhos_paineis:
             story.append(PageBreak())
 
-        largura_disp = largura_pagina - margem_esq - margem_dir
-        altura_disp = altura_pagina - margem_top - margem_bottom - 40
-
+        alt_disp = alt_pag - 2 * MG - 30
         for i, caminho_img in enumerate(caminhos_paineis, start=1):
-            story.append(Paragraph(f"Painel de Metas - Parte {i}", styles["Heading2"]))
-            story.append(Spacer(1, 8))
-
+            story.append(Paragraph(f"Painel de Metas — Parte {i} de {len(caminhos_paineis)}", s_h2))
             img_reader = ImageReader(caminho_img)
             img_w, img_h = img_reader.getSize()
-
-            escala = min(largura_disp / img_w, altura_disp / img_h)
-            img = Image(caminho_img, width=img_w * escala, height=img_h * escala)
-
-            story.append(img)
-
+            escala = min(larg_disp / img_w, alt_disp / img_h)
+            story.append(Image(caminho_img, width=img_w * escala, height=img_h * escala))
             if i < len(caminhos_paineis):
                 story.append(PageBreak())
 
@@ -880,17 +893,7 @@ class MetaGerenteService:
     # ==========================================================
     # ORQUESTRAÇÃO
     # ==========================================================
-    def gerar_relatorio_pdf(self, metas_mensais: Dict[str, Dict[str, Any]]) -> BytesIO:
-        """
-        Exemplo de metas_mensais:
-        {
-            "GERENTE A": {"Meta_VGV_Mes": 8500000, "Meta_Cap_Mes": 10},
-            "GERENTE B": {"Meta_VGV_Mes": 4300000, "Meta_Cap_Mes": 7}
-        }
-
-        Retorna:
-            BytesIO com o PDF final
-        """
+    def calcular_dados_relatorio(self, metas_mensais: Dict[str, Dict[str, Any]]) -> pd.DataFrame:
         df_vendas = self.carregar_contratos()
         df_vendas["Data_Contrato"] = pd.to_datetime(df_vendas["Data_Contrato"], errors="coerce")
         df_dim_corretor, df_dim_gerente, df_captacao = self.carregar_base_inteligencia()
@@ -904,12 +907,8 @@ class MetaGerenteService:
         if df_captacao.empty:
             raise ValueError("A aba Fato_Captacao está vazia.")
 
-        (
-            mapa_corretor_gerente,
-            _,
-            mapa_id_corretor_para_gerente_nome,
-            _
-        ) = self.montar_mapas_dim_corretor(df_dim_corretor, df_dim_gerente)
+        (mapa_corretor_gerente, _, mapa_id_corretor_para_gerente_nome, _) = \
+            self.montar_mapas_dim_corretor(df_dim_corretor, df_dim_gerente)
 
         for col in ["Valor_Negocio", "Valor_Total_61"]:
             if col in df_vendas.columns:
@@ -920,7 +919,6 @@ class MetaGerenteService:
         if "Data_Contrato" not in df_vendas.columns:
             raise ValueError("Coluna obrigatória não encontrada na aba Vendas: Data_Contrato")
 
-        df_vendas["Data_Contrato"] = pd.to_datetime(df_vendas["Data_Contrato"], errors="coerce")
         df_vendas_mes = df_vendas[
             (df_vendas["Data_Contrato"].dt.year == self.config.ano_relatorio) &
             (df_vendas["Data_Contrato"].dt.month == self.config.mes_relatorio)
@@ -933,26 +931,27 @@ class MetaGerenteService:
             )
 
         res_gerentes = self.processar_gerentes_via_dim_corretor(df_vendas_mes, mapa_corretor_gerente)
+        cap_qtd_por_gerente = self.processar_captacoes_por_gerente(df_captacao, mapa_id_corretor_para_gerente_nome)
 
-        cap_qtd_por_gerente = self.processar_captacoes_por_gerente(
-            df_captacao,
-            mapa_id_corretor_para_gerente_nome
-        )
+        try:
+            df_visitas = self.carregar_aba_por_id(self.config.sheet_id_visitas, self.config.aba_fato_visitas)
+        except Exception:
+            df_visitas = pd.DataFrame()
+        vis_qtd_por_gerente = self.processar_visitas_por_gerente(df_visitas, mapa_id_corretor_para_gerente_nome)
 
         lista_gerentes = sorted(set(
             list(res_gerentes["VGV_GERAL"].keys()) +
             list(cap_qtd_por_gerente.keys()) +
             [self.limpar_nome(x) for x in df_dim_gerente["Nome"].tolist() if self.limpar_nome(x)]
         ))
+        metas_normalizadas = self.normalizar_metas_mensais(lista_gerentes, metas_mensais)
 
-        metas_mensais_normalizadas = self.normalizar_metas_mensais(lista_gerentes, metas_mensais)
-
-        df_relatorio = self.montar_relatorio_final(
-            df_dim_gerente,
-            res_gerentes,
-            cap_qtd_por_gerente,
-            metas_mensais_normalizadas
+        return self.montar_relatorio_final(
+            df_dim_gerente, res_gerentes, cap_qtd_por_gerente, metas_normalizadas, vis_qtd_por_gerente
         )
+
+    def gerar_relatorio_pdf(self, metas_mensais: Dict[str, Dict[str, Any]]) -> BytesIO:
+        df_relatorio = self.calcular_dados_relatorio(metas_mensais)
 
         with tempfile.TemporaryDirectory() as pasta_temp:
             caminhos_paineis = self.gerar_paineis_metas_estilo_imagem(
@@ -960,7 +959,6 @@ class MetaGerenteService:
                 pasta_temp=pasta_temp,
                 gerentes_por_pagina=self.config.gerentes_por_pagina_painel
             )
-
             pdf_buffer = self.gerar_pdf_relatorio_buffer(df_relatorio, caminhos_paineis)
 
         return pdf_buffer

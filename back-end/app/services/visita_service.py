@@ -890,6 +890,8 @@ def buscar_visitas_do_corretor(id_corretor: str, q: str = "", limit: int = 30) -
         if not vid:
             continue
         avaliacoes_por_visita.setdefault(vid, []).append({
+            "id_avaliacao": _safe_str(r.get("Id_Avaliacao")),
+            "id_cliente": cid,
             "cliente": cliente_map.get(cid, {}).get("nome", ""),
             "localizacao": _safe_str(r.get("Localizacao")),
             "tamanho": _safe_str(r.get("Tamanho")),
@@ -1678,3 +1680,147 @@ def gerar_pdf_cliente_publico(id_cliente: str) -> Dict[str, str]:
         pdf_bytes, file_name,
         [DRIVE_PARENT_FOLDER_NAME, DRIVE_CLIENTE_REPORTS_SUBFOLDER_NAME, id_cliente],
     )
+
+
+# ---------------------------------------------------------------------------
+# Editar e excluir visita
+# ---------------------------------------------------------------------------
+def _find_row_by_id_in_col(sheets: Resource, sheet_name: str, id_value: str, col_letter: str = "A") -> Optional[int]:
+    """Retorna o número de linha 1-indexed que tem id_value na coluna col_letter, ou None."""
+    res = _with_retry(lambda: sheets.values().get(
+        spreadsheetId=SPREADSHEET_ID,
+        range=f"{sheet_name}!{col_letter}:{col_letter}",
+    ).execute())
+    for i, row in enumerate(res.get("values", [])):
+        if row and _safe_str(row[0]) == id_value:
+            return i + 1  # 1-indexed
+    return None
+
+
+def _find_all_rows_by_id_in_col(sheets: Resource, sheet_name: str, id_value: str, col_letter: str = "B") -> List[int]:
+    """Retorna lista de índices 0-indexed de todas as linhas que têm id_value na coluna."""
+    res = _with_retry(lambda: sheets.values().get(
+        spreadsheetId=SPREADSHEET_ID,
+        range=f"{sheet_name}!{col_letter}:{col_letter}",
+    ).execute())
+    return [i for i, row in enumerate(res.get("values", [])) if row and _safe_str(row[0]) == id_value]
+
+
+def _get_sheet_ids(sheets: Resource, sheet_names: List[str]) -> Dict[str, int]:
+    """Retorna dict sheet_name → sheetId (numérico) para as sheets listadas."""
+    result = _with_retry(lambda: sheets.get(
+        spreadsheetId=SPREADSHEET_ID,
+        fields="sheets(properties(title,sheetId))",
+    ).execute())
+    return {
+        s["properties"]["title"]: s["properties"]["sheetId"]
+        for s in result.get("sheets", [])
+        if s["properties"]["title"] in sheet_names
+    }
+
+
+def editar_visita(id_visita: str, payload: Dict[str, Any]) -> None:
+    """Atualiza campos editáveis de uma visita na sheet Fato_Visitas."""
+    sheets, _, _ = _get_services()
+
+    row_num = _find_row_by_id_in_col(sheets, "Fato_Visitas", id_visita, "A")
+    if row_num is None:
+        raise ValueError(f"Visita '{id_visita}' não encontrada.")
+
+    updates: List[Tuple[str, Any]] = []
+
+    if "dataVisita" in payload:
+        updates.append((f"Fato_Visitas!C{row_num}", _to_ddmmyyyy(payload["dataVisita"])))
+
+    if "situacaoImovel" in payload:
+        sit = payload["situacaoImovel"]
+        if sit in {"CAPTACAO_61", "CAPTACAO_PROPRIA", "CAPTACAO_PARCEIRO"}:
+            updates.append((f"Fato_Visitas!J{row_num}", "Captação 61"))
+            updates.append((f"Fato_Visitas!R{row_num}", ""))
+        elif sit == "IMOVEL_NAO_CAPTADO":
+            updates.append((f"Fato_Visitas!J{row_num}", ""))
+            updates.append((f"Fato_Visitas!R{row_num}", "TRUE"))
+
+    if "enderecoExterno" in payload:
+        updates.append((f"Fato_Visitas!K{row_num}", _safe_str(payload["enderecoExterno"])))
+
+    if "proposta" in payload:
+        updates.append((f"Fato_Visitas!L{row_num}", _safe_str(payload["proposta"])))
+
+    for range_str, value in updates:
+        _with_retry(lambda r=range_str, v=value: sheets.values().update(
+            spreadsheetId=SPREADSHEET_ID,
+            range=r,
+            valueInputOption="USER_ENTERED",
+            body={"values": [[v]]},
+        ).execute())
+
+    # Atualiza avaliações (Fato_Avaliacao colunas D:L)
+    for av in payload.get("avaliacoes", []):
+        id_av = _safe_str(av.get("id_avaliacao"))
+        if not id_av:
+            continue
+        av_row = _find_row_by_id_in_col(sheets, "Fato_Avaliacao", id_av, "A")
+        if av_row is None:
+            continue
+        scores = [
+            _safe_str(av.get("localizacao", "")),
+            _safe_str(av.get("tamanho", "")),
+            _safe_str(av.get("planta", "")),
+            _safe_str(av.get("acabamento", "")),
+            _safe_str(av.get("conservacao", "")),
+            _safe_str(av.get("condominio", "")),
+            _safe_str(av.get("preco", "")),
+            _safe_str(av.get("notaGeral", "")),
+            _safe_str(av.get("precoNota10", "")),
+        ]
+        _with_retry(lambda r=f"Fato_Avaliacao!D{av_row}:L{av_row}", v=[scores]: sheets.values().update(
+            spreadsheetId=SPREADSHEET_ID,
+            range=r,
+            valueInputOption="USER_ENTERED",
+            body={"values": v},
+        ).execute())
+
+
+def excluir_visita(id_visita: str) -> None:
+    """Remove a visita e todos os registros relacionados das sheets do Google Sheets."""
+    sheets, _, _ = _get_services()
+
+    related_sheets = ["Fato_Visitas", "Fato_Avaliacao", "Fato_Cliente_Visita", "Fato_Parceiro_Visita"]
+    sheet_ids = _get_sheet_ids(sheets, related_sheets)
+
+    fato_rows = _find_all_rows_by_id_in_col(sheets, "Fato_Visitas", id_visita, "A")
+    if not fato_rows:
+        raise ValueError(f"Visita '{id_visita}' não encontrada.")
+
+    aval_rows = _find_all_rows_by_id_in_col(sheets, "Fato_Avaliacao", id_visita, "B")
+    cliente_rows = _find_all_rows_by_id_in_col(sheets, "Fato_Cliente_Visita", id_visita, "B")
+    parceiro_rows = _find_all_rows_by_id_in_col(sheets, "Fato_Parceiro_Visita", id_visita, "B")
+
+    requests = []
+    for sheet_name, row_indices in [
+        ("Fato_Visitas", fato_rows),
+        ("Fato_Avaliacao", aval_rows),
+        ("Fato_Cliente_Visita", cliente_rows),
+        ("Fato_Parceiro_Visita", parceiro_rows),
+    ]:
+        sid = sheet_ids.get(sheet_name)
+        if sid is None:
+            continue
+        for row_idx in sorted(row_indices, reverse=True):
+            requests.append({
+                "deleteDimension": {
+                    "range": {
+                        "sheetId": sid,
+                        "dimension": "ROWS",
+                        "startIndex": row_idx,
+                        "endIndex": row_idx + 1,
+                    }
+                }
+            })
+
+    if requests:
+        _with_retry(lambda: sheets.batchUpdate(
+            spreadsheetId=SPREADSHEET_ID,
+            body={"requests": requests},
+        ).execute())

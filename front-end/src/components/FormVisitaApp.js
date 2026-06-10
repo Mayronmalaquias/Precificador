@@ -3,6 +3,57 @@ import "../assets/css/AppVisita.css";
 
 import { BASE } from "../services/api";
 
+const CRITERIOS_AVALIACAO = [
+  { key: "localizacao", label: "Localização" },
+  { key: "tamanho", label: "Tamanho" },
+  { key: "planta", label: "Planta" },
+  { key: "acabamento", label: "Acabamento" },
+  { key: "conservacao", label: "Conservação" },
+  { key: "condominio", label: "Condomínio" },
+  { key: "preco", label: "Preço" },
+  { key: "notaGeral", label: "Nota Geral" },
+];
+
+function AvaliacaoEditor({ av, onChange }) {
+  return (
+    <div className="ev-card">
+      {av.cliente && <div className="ev-card-cliente">{av.cliente}</div>}
+      <div className="ev-grid">
+        {CRITERIOS_AVALIACAO.map(({ key, label }) => {
+          const val = Number(av[key]) || 0;
+          return (
+            <div key={key} className="ev-item">
+              <div className="ev-item-head">
+                <span className="ev-item-label">{label}</span>
+                <span className="ev-item-val" style={{ color: val >= 8 ? "#16a34a" : val >= 5 ? "#2563eb" : "#ef4444" }}>
+                  {val}
+                </span>
+              </div>
+              <input
+                type="range"
+                min={0} max={10} step={1}
+                value={val}
+                className="ev-slider"
+                onChange={(e) => onChange(key, e.target.value)}
+              />
+            </div>
+          );
+        })}
+        <div className="ev-item ev-item--full">
+          <label className="ev-item-label">Preço Nota 10</label>
+          <input
+            type="text"
+            className="ev-preco-input"
+            value={av.precoNota10 || ""}
+            placeholder="Ex: 450000"
+            onChange={(e) => onChange("precoNota10", e.target.value.replace(/\D/g, ""))}
+          />
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function parseBrDate(dateStr) {
   if (!dateStr) return null;
   const parts = String(dateStr).split("/");
@@ -24,6 +75,12 @@ export default function ApiForms() {
   const [imoveis, setImoveis] = useState([]);
   const [clientes, setClientes] = useState([]);
   const [visitaSelecionadaId, setVisitaSelecionadaId] = useState("");
+
+  const [editModal, setEditModal] = useState(null);
+  const [editForm, setEditForm] = useState({});
+  const [savingEdit, setSavingEdit] = useState(false);
+  const [deleteConfirm, setDeleteConfirm] = useState(null);
+  const [deletingVisita, setDeletingVisita] = useState(false);
 
   useEffect(() => {
     const userDataString = localStorage.getItem("userData");
@@ -153,6 +210,78 @@ export default function ApiForms() {
     );
   }, [visitas, visitaSelecionadaId]);
 
+  const abrirEditModal = (visita) => {
+    const ddmmyyyy = visita.dataVisita || "";
+    let isoDate = "";
+    if (ddmmyyyy && ddmmyyyy.includes("/")) {
+      const [dd, mm, yyyy] = ddmmyyyy.split("/");
+      isoDate = `${yyyy}-${mm}-${dd}`;
+    }
+    let situacao = "CAPTACAO_PROPRIA";
+    if (visita.imovelNaoCaptado === "TRUE") situacao = "IMOVEL_NAO_CAPTADO";
+    else if (visita.tipoCaptacao) situacao = "CAPTACAO_61";
+
+    const avaliacoes = (visita.avaliacoes || []).map((av) => ({
+      id_avaliacao: av.id_avaliacao || "",
+      cliente: av.cliente || "",
+      localizacao: av.localizacao || "10",
+      tamanho: av.tamanho || "10",
+      planta: av.planta || "10",
+      acabamento: av.acabamento || "10",
+      conservacao: av.conservacao || "10",
+      condominio: av.condominio || "10",
+      preco: av.preco || "10",
+      notaGeral: av.notaGeral || "10",
+      precoNota10: av.precoNota10 || "",
+    }));
+
+    setEditForm({
+      dataVisita: isoDate,
+      enderecoExterno: visita.enderecoExterno || "",
+      proposta: visita.proposta || "",
+      situacaoImovel: situacao,
+      avaliacoes,
+    });
+    setEditModal(visita);
+  };
+
+  const salvarEdicao = async () => {
+    if (!editModal) return;
+    setSavingEdit(true);
+    try {
+      const resp = await fetch(`${BASE}/visitas/${editModal.id_visita}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(editForm),
+      });
+      const data = await resp.json();
+      if (!resp.ok || !data.ok) throw new Error(data.error || "Erro ao salvar.");
+      setEditModal(null);
+      await carregarTudo();
+    } catch (err) {
+      alert(err.message || "Erro ao salvar edição.");
+    } finally {
+      setSavingEdit(false);
+    }
+  };
+
+  const confirmarExclusao = async () => {
+    if (!deleteConfirm) return;
+    setDeletingVisita(true);
+    try {
+      const resp = await fetch(`${BASE}/visitas/${deleteConfirm.id_visita}`, { method: "DELETE" });
+      const data = await resp.json();
+      if (!resp.ok || !data.ok) throw new Error(data.error || "Erro ao excluir.");
+      setDeleteConfirm(null);
+      if (visitaSelecionadaId === deleteConfirm.id_visita) setVisitaSelecionadaId("");
+      await carregarTudo();
+    } catch (err) {
+      alert(err.message || "Erro ao excluir visita.");
+    } finally {
+      setDeletingVisita(false);
+    }
+  };
+
   const texto = (valor) => {
     const limpo = String(valor || "").trim();
     return limpo || "-";
@@ -164,6 +293,7 @@ export default function ApiForms() {
   };
 
   return (
+    <>
     <div className="relatorios-page">
       <div className="relatorios-header">
         <div>
@@ -351,11 +481,151 @@ export default function ApiForms() {
                     Abrir audio
                   </a>
                 )}
+                <button
+                  type="button"
+                  className="relatorios-secondary-btn"
+                  onClick={() => abrirEditModal(visitaSelecionada)}
+                >
+                  Editar
+                </button>
+                <button
+                  type="button"
+                  className="relatorios-delete-btn"
+                  onClick={() => setDeleteConfirm(visitaSelecionada)}
+                >
+                  Excluir
+                </button>
               </div>
             </>
           )}
         </section>
       </div>
     </div>
+
+      {/* Modal de edição */}
+      {editModal && (
+        <div className="relatorios-modal-overlay" onClick={() => !savingEdit && setEditModal(null)}>
+          <div className="relatorios-modal" onClick={(e) => e.stopPropagation()}>
+            <h3 className="relatorios-modal-title">Editar Visita</h3>
+            <p className="relatorios-modal-sub">ID: {editModal.id_visita}</p>
+
+            <div className="relatorios-edit-form">
+              <label>
+                Data da visita
+                <input
+                  type="date"
+                  value={editForm.dataVisita}
+                  onChange={(e) => setEditForm((f) => ({ ...f, dataVisita: e.target.value }))}
+                />
+              </label>
+
+              <label>
+                Situação do imóvel
+                <select
+                  value={editForm.situacaoImovel}
+                  onChange={(e) => setEditForm((f) => ({ ...f, situacaoImovel: e.target.value }))}
+                >
+                  <option value="CAPTACAO_61">Captação 61</option>
+                  <option value="CAPTACAO_PROPRIA">Captação Própria</option>
+                  <option value="CAPTACAO_PARCEIRO">Captação Parceiro</option>
+                  <option value="IMOVEL_NAO_CAPTADO">Imóvel não captado</option>
+                </select>
+              </label>
+
+              <label>
+                Endereço externo
+                <input
+                  type="text"
+                  value={editForm.enderecoExterno}
+                  onChange={(e) => setEditForm((f) => ({ ...f, enderecoExterno: e.target.value }))}
+                />
+              </label>
+
+              <label>
+                Proposta
+                <input
+                  type="text"
+                  value={editForm.proposta}
+                  onChange={(e) => setEditForm((f) => ({ ...f, proposta: e.target.value }))}
+                />
+              </label>
+            </div>
+
+            {(editForm.avaliacoes || []).length > 0 && (
+              <div className="ev-section">
+                <div className="ev-section-title">Avaliações</div>
+                {editForm.avaliacoes.map((av, idx) => (
+                  <AvaliacaoEditor
+                    key={av.id_avaliacao || idx}
+                    av={av}
+                    onChange={(campo, valor) =>
+                      setEditForm((f) => {
+                        const avs = [...f.avaliacoes];
+                        avs[idx] = { ...avs[idx], [campo]: valor };
+                        return { ...f, avaliacoes: avs };
+                      })
+                    }
+                  />
+                ))}
+              </div>
+            )}
+
+            <div className="relatorios-modal-actions">
+              <button
+                type="button"
+                className="relatorios-secondary-btn"
+                onClick={() => setEditModal(null)}
+                disabled={savingEdit}
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                className="relatorios-primary-btn"
+                onClick={salvarEdicao}
+                disabled={savingEdit}
+              >
+                {savingEdit ? "Salvando..." : "Salvar"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de confirmação de exclusão */}
+      {deleteConfirm && (
+        <div className="relatorios-modal-overlay" onClick={() => !deletingVisita && setDeleteConfirm(null)}>
+          <div className="relatorios-modal relatorios-modal--danger" onClick={(e) => e.stopPropagation()}>
+            <h3 className="relatorios-modal-title">Confirmar exclusão</h3>
+            <p className="relatorios-modal-sub">
+              Tem certeza que deseja excluir a visita de{" "}
+              <strong>{deleteConfirm.cliente || deleteConfirm.id_visita}</strong> em{" "}
+              <strong>{deleteConfirm.dataVisita}</strong>?
+            </p>
+            <p className="relatorios-modal-warn">
+              Esta ação não pode ser desfeita. Todos os dados relacionados (avaliações, clientes, parceiros) serão removidos.
+            </p>
+            <div className="relatorios-modal-actions">
+              <button
+                type="button"
+                className="relatorios-secondary-btn"
+                onClick={() => setDeleteConfirm(null)}
+                disabled={deletingVisita}
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                className="relatorios-delete-btn"
+                onClick={confirmarExclusao}
+                disabled={deletingVisita}
+              >
+                {deletingVisita ? "Excluindo..." : "Excluir visita"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   );
 }

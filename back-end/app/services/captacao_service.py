@@ -47,6 +47,7 @@ def _to_dict(c: Captacao) -> dict:
         "status": c.status,
         "motivo_fechamento": c.motivo_fechamento,
         "data_fechamento": _d(c.data_fechamento),
+        "exclusividade_ate": _d(c.exclusividade_ate),
         "data_entrada_etapa": _d(c.data_entrada_etapa),
         "tem_numero": c.tem_numero,
         "acao_sem_numero": c.acao_sem_numero,
@@ -336,6 +337,30 @@ def fechar_captacao(captacao_id: int, motivo: str) -> dict:
 
         _add_hist(session, captacao_id, c.etapa_atual, "fechamento",
                   f"Encerrado: {motivo}", c.data_fechamento)
+        session.commit()
+
+        return {"ok": True, "captacao": _to_dict(c)}
+    except Exception:
+        session.rollback()
+        raise
+    finally:
+        session.close()
+
+
+def marcar_exclusividade(captacao_id: int, data_exclusividade: str) -> dict:
+    session = SessionLocal()
+    try:
+        c = session.query(Captacao).filter_by(id=captacao_id).first()
+        if not c:
+            return {"ok": False, "error": "Captacao nao encontrada"}
+        c.status = "exclusividade"
+        c.exclusividade_ate = _parse_date(data_exclusividade)
+        c.updated_at = datetime.now()
+        session.commit()
+        session.refresh(c)
+
+        _add_hist(session, captacao_id, c.etapa_atual, "exclusividade",
+                  f"Exclusividade até: {data_exclusividade}", _parse_date(data_exclusividade))
         session.commit()
 
         return {"ok": True, "captacao": _to_dict(c)}

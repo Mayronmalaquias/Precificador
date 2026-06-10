@@ -8,6 +8,7 @@ from app.services.captacao_service import (
     obter_captacao,
     atualizar_captacao,
     fechar_captacao,
+    marcar_exclusividade,
     listar_historico,
 )
 
@@ -88,4 +89,19 @@ class FecharCaptacao(Resource):
             return result, 200 if result.get("ok") else 404
         except Exception as e:
             current_app.logger.exception("Erro ao fechar captacao")
+            return {"ok": False, "error": str(e)}, 500
+
+
+@captacao_ns.route("/captacoes/<int:captacao_id>/exclusividade")
+class ExclusividadeCaptacao(Resource):
+    def post(self, captacao_id):
+        data = request.get_json() or {}
+        data_exclusividade = (data.get("data_exclusividade") or "").strip()
+        if not data_exclusividade:
+            return {"ok": False, "error": "data_exclusividade e obrigatoria"}, 400
+        try:
+            result = marcar_exclusividade(captacao_id, data_exclusividade)
+            return result, 200 if result.get("ok") else 404
+        except Exception as e:
+            current_app.logger.exception("Erro ao marcar exclusividade")
             return {"ok": False, "error": str(e)}, 500

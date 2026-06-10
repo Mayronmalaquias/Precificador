@@ -7,13 +7,14 @@ import bookPdf from "../assets/pdf/Book Digital - Plano Piloto.pdf";
 
 // ── Constantes ───────────────────────────────────────────────────────────────
 const ETAPA_INFO = {
-  escolha:      { label: "Escolha",      color: "#7c3aed", light: "#ede9fe", icon: "🔍" },
-  prospeccao:   { label: "Prospecção",   color: "#2563eb", light: "#dbeafe", icon: "📍" },
-  interacao:    { label: "Interação",    color: "#d97706", light: "#fef3c7", icon: "📞" },
-  apresentacao: { label: "Apresentação", color: "#0d9488", light: "#ccfbf1", icon: "🏠" },
-  captacao:     { label: "Captação",     color: "#16a34a", light: "#dcfce7", icon: "✅" },
+  escolha:       { label: "Escolha",       color: "#7c3aed", light: "#ede9fe", icon: "🔍" },
+  prospeccao:    { label: "Prospecção",    color: "#2563eb", light: "#dbeafe", icon: "📍" },
+  interacao:     { label: "Interação",     color: "#d97706", light: "#fef3c7", icon: "📞" },
+  apresentacao:  { label: "Apresentação",  color: "#0d9488", light: "#ccfbf1", icon: "🏠" },
+  captacao:      { label: "Captação",      color: "#16a34a", light: "#dcfce7", icon: "✅" },
+  exclusividade: { label: "Exclusividade", color: "#7c3aed", light: "#ede9fe", icon: "🔒" },
 };
-const ETAPAS = Object.entries(ETAPA_INFO).map(([key, v]) => ({ key, ...v }));
+const ETAPAS = Object.entries(ETAPA_INFO).filter(([k]) => k !== "exclusividade").map(([key, v]) => ({ key, ...v }));
 
 const CORRETOR_PALETTE = [
   "#2563eb","#7c3aed","#16a34a","#d97706","#dc2626",
@@ -71,7 +72,7 @@ function corretorColor(nome, lista) {
 
 function extrairEventos(captacoes) {
   const evts = [];
-  captacoes.filter(c => c.status !== "fechado" && c.status !== "captado").forEach(c => {
+  captacoes.filter(c => c.status !== "fechado" && c.status !== "captado" && c.status !== "exclusividade").forEach(c => {
     const add = (data, acao, etapa) => {
       if (data) evts.push({ data: toDateStr(data), acao: acao || "", etapa, captacao: c });
     };
@@ -79,6 +80,9 @@ function extrairEventos(captacoes) {
     add(c.data_proxima_acao_interacao,    c.proxima_acao_interacao,    "interacao");
     add(c.data_proxima_acao_apresentacao, c.proxima_acao_apresentacao, "apresentacao");
     add(c.data_proxima_acao_captacao,     c.proxima_acao_captacao,     "captacao");
+  });
+  captacoes.filter(c => c.status === "exclusividade" && c.exclusividade_ate).forEach(c => {
+    evts.push({ data: toDateStr(c.exclusividade_ate), acao: "Exclusividade expira", etapa: "exclusividade", captacao: c });
   });
   return evts;
 }
@@ -120,6 +124,9 @@ function buildHistorico(c) {
 
   if (c.status === "fechado")
     push(c.data_fechamento, `Encerrado: ${c.motivo_fechamento}`, c.etapa_atual, false, "fechamento");
+
+  if (c.status === "exclusividade")
+    push(c.exclusividade_ate, `Exclusividade até: ${fmt(c.exclusividade_ate)}`, c.etapa_atual, false, "exclusividade");
 
   if (c.status === "captado")
     push(null, "Imóvel captado com sucesso!", "captacao", true, "captado");
@@ -1145,28 +1152,96 @@ function ModalDetalhe({ captacao, onClose, onAvancar, onSave, avancarLoading, on
 }
 
 // ── Modal fechar ─────────────────────────────────────────────────────────────
-function ModalFechar({ onConfirmar, onCancelar, loading }) {
+function ModalFechar({ onConfirmarEncerrar, onConfirmarExclusividade, onCancelar, loading }) {
+  const [passo, setPasso] = useState("escolha"); // "escolha" | "encerrar" | "exclusividade"
   const [motivo, setMotivo] = useState("");
+  const [dataExclusividade, setDataExclusividade] = useState("");
+
+  const voltarEscolha = () => { setPasso("escolha"); setMotivo(""); setDataExclusividade(""); };
+
   return (
     <div className="cap-overlay" onClick={onCancelar}>
       <div className="cap-modal cap-modal--sm" onClick={e => e.stopPropagation()}>
-        <div className="cap-modal-header" style={{ borderTopColor: "#ef4444" }}>
-          <div className="cap-modal-header-main">
-            <div className="cap-modal-etapa-tag" style={{ background: "#fee2e2", color: "#ef4444" }}>Encerrar captação</div>
-            <h2 className="cap-modal-titulo">Motivo do encerramento</h2>
-            <p className="cap-modal-sub">O registro não será apagado — aparece no relatório do gerente.</p>
-          </div>
-          <button className="cap-modal-close" onClick={onCancelar}>✕</button>
-        </div>
-        <div className="cap-modal-body">
-          <CampoArea label="Motivo *" value={motivo} onChange={e => setMotivo(e.target.value)} placeholder="Explique por que está encerrando esta captação..." rows={4} />
-        </div>
-        <div className="cap-modal-footer">
-          <button className="cap-ghost-btn" onClick={onCancelar}>Cancelar</button>
-          <button className="cap-danger-btn" disabled={loading || !motivo.trim()} onClick={() => onConfirmar(motivo)}>
-            {loading ? "Encerrando…" : "Confirmar encerramento"}
-          </button>
-        </div>
+
+        {/* Passo 1: Escolha */}
+        {passo === "escolha" && (
+          <>
+            <div className="cap-modal-header" style={{ borderTopColor: "#64748b" }}>
+              <div className="cap-modal-header-main">
+                <div className="cap-modal-etapa-tag" style={{ background: "#f1f5f9", color: "#64748b" }}>Encerrar processo</div>
+                <h2 className="cap-modal-titulo">O que aconteceu com este imóvel?</h2>
+              </div>
+              <button className="cap-modal-close" onClick={onCancelar}>✕</button>
+            </div>
+            <div className="cap-modal-body">
+              <div className="cap-fechar-opcoes">
+                <button className="cap-fechar-opcao cap-fechar-opcao--encerrar" onClick={() => setPasso("encerrar")}>
+                  <span className="cap-fechar-opcao-icon">✖</span>
+                  <span className="cap-fechar-opcao-titulo">Encerrar</span>
+                  <span className="cap-fechar-opcao-desc">O imóvel não tem mais potencial ou o proprietário desistiu.</span>
+                </button>
+                <button className="cap-fechar-opcao cap-fechar-opcao--exclusividade" onClick={() => setPasso("exclusividade")}>
+                  <span className="cap-fechar-opcao-icon">🔒</span>
+                  <span className="cap-fechar-opcao-titulo">Exclusividade</span>
+                  <span className="cap-fechar-opcao-desc">O imóvel está com exclusividade em outra imobiliária por tempo limitado.</span>
+                </button>
+              </div>
+            </div>
+            <div className="cap-modal-footer">
+              <button className="cap-ghost-btn" onClick={onCancelar}>Cancelar</button>
+            </div>
+          </>
+        )}
+
+        {/* Passo 2a: Encerrar */}
+        {passo === "encerrar" && (
+          <>
+            <div className="cap-modal-header" style={{ borderTopColor: "#ef4444" }}>
+              <div className="cap-modal-header-main">
+                <div className="cap-modal-etapa-tag" style={{ background: "#fee2e2", color: "#ef4444" }}>Encerrar captação</div>
+                <h2 className="cap-modal-titulo">Motivo do encerramento</h2>
+                <p className="cap-modal-sub">O registro não será apagado — aparece no relatório do gerente.</p>
+              </div>
+              <button className="cap-modal-close" onClick={onCancelar}>✕</button>
+            </div>
+            <div className="cap-modal-body">
+              <CampoArea label="Motivo *" value={motivo} onChange={e => setMotivo(e.target.value)} placeholder="Explique por que está encerrando esta captação..." rows={4} />
+            </div>
+            <div className="cap-modal-footer">
+              <button className="cap-ghost-btn" onClick={voltarEscolha}>Voltar</button>
+              <button className="cap-danger-btn" disabled={loading || !motivo.trim()} onClick={() => onConfirmarEncerrar(motivo)}>
+                {loading ? "Encerrando…" : "Confirmar encerramento"}
+              </button>
+            </div>
+          </>
+        )}
+
+        {/* Passo 2b: Exclusividade */}
+        {passo === "exclusividade" && (
+          <>
+            <div className="cap-modal-header" style={{ borderTopColor: "#7c3aed" }}>
+              <div className="cap-modal-header-main">
+                <div className="cap-modal-etapa-tag" style={{ background: "#ede9fe", color: "#7c3aed" }}>Exclusividade</div>
+                <h2 className="cap-modal-titulo">Até quando dura a exclusividade?</h2>
+                <p className="cap-modal-sub">O imóvel ficará na aba Exclusividade e a data aparecerá no seu calendário.</p>
+              </div>
+              <button className="cap-modal-close" onClick={onCancelar}>✕</button>
+            </div>
+            <div className="cap-modal-body">
+              <div className="cap-field">
+                <label className="cap-field-label">Data de término da exclusividade *</label>
+                <input className="cap-field-input" type="date" value={dataExclusividade} onChange={e => setDataExclusividade(e.target.value)} />
+              </div>
+            </div>
+            <div className="cap-modal-footer">
+              <button className="cap-ghost-btn" onClick={voltarEscolha}>Voltar</button>
+              <button className="cap-exclusividade-btn" disabled={loading || !dataExclusividade} onClick={() => onConfirmarExclusividade(dataExclusividade)}>
+                {loading ? "Salvando…" : "Confirmar exclusividade"}
+              </button>
+            </div>
+          </>
+        )}
+
       </div>
     </div>
   );
@@ -1571,11 +1646,12 @@ export default function JornadaCaptacao() {
 
   // Stats
   const stats = useMemo(() => {
-    const ativas = captacoes.filter(c => c.status !== "fechado");
+    const ativas = captacoes.filter(c => c.status !== "fechado" && c.status !== "exclusividade");
     return {
       total: captacoes.length,
       captadas: captacoes.filter(c => c.status === "captado").length,
       fechadas: captacoes.filter(c => c.status === "fechado").length,
+      exclusividades: captacoes.filter(c => c.status === "exclusividade").length,
       porEtapa: ETAPAS.reduce((acc, e) => { acc[e.key] = ativas.filter(c => c.etapa_atual === e.key).length; return acc; }, {}),
     };
   }, [captacoes]);
@@ -1593,8 +1669,9 @@ export default function JornadaCaptacao() {
     return true;
   }), [captacoes, filtroCorretor, filtroEquipe]);
 
-  const captacoesAtivas   = useMemo(() => captacoesFiltradas.filter(c => c.status !== "fechado"), [captacoesFiltradas]);
-  const captacoesFechadas = useMemo(() => captacoesFiltradas.filter(c => c.status === "fechado"),  [captacoesFiltradas]);
+  const captacoesAtivas        = useMemo(() => captacoesFiltradas.filter(c => c.status !== "fechado" && c.status !== "exclusividade"), [captacoesFiltradas]);
+  const captacoesFechadas      = useMemo(() => captacoesFiltradas.filter(c => c.status === "fechado"),      [captacoesFiltradas]);
+  const captacoesExclusividade = useMemo(() => captacoesFiltradas.filter(c => c.status === "exclusividade"), [captacoesFiltradas]);
   const porEtapa = useMemo(() => ETAPAS.reduce((acc, e) => {
     acc[e.key] = captacoesAtivas.filter(c => c.etapa_atual === e.key);
     return acc;
@@ -1664,6 +1741,20 @@ export default function JornadaCaptacao() {
     finally { setFecharLoading(false); }
   };
 
+  const handleExclusividadeConfirmar = async (dataExclusividade) => {
+    if (!selecionada) return;
+    setFecharLoading(true);
+    try {
+      const r = await fetch(`${BASE}/captacoes/${selecionada.id}/exclusividade`, {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ data_exclusividade: dataExclusividade }),
+      });
+      const d = await r.json().catch(() => ({}));
+      if (r.ok && d.ok) { toast("Exclusividade registrada", "success"); setShowFechar(false); setSelecionada(null); carregarCaptacoes(); }
+      else toast(d.error || "Erro", "error");
+    } catch { toast("Erro ao registrar exclusividade", "error"); }
+    finally { setFecharLoading(false); }
+  };
+
   return (
     <div className="cap-page">
 
@@ -1714,6 +1805,11 @@ export default function JornadaCaptacao() {
           <span className="cap-stat-label">Encerrados</span>
           <span className="cap-stat-num">{stats.fechadas}</span>
         </div>
+        <div className="cap-stat-chip cap-stat-chip--exclusividade">
+          <span className="cap-stat-icon">🔒</span>
+          <span className="cap-stat-label">Exclusividade</span>
+          <span className="cap-stat-num">{stats.exclusividades}</span>
+        </div>
       </div>
 
       {loading && <div className="cap-loading-bar"><div className="cap-loading-bar-inner" /></div>}
@@ -1725,10 +1821,13 @@ export default function JornadaCaptacao() {
             <div className="cap-gerente-abas">
               <button className={`cap-gaba${abaGerente==="ativo"?" cap-gaba--ativa":""}`} onClick={() => setAbaGerente("ativo")}>Ativos</button>
               <button className={`cap-gaba${abaGerente==="fechado"?" cap-gaba--ativa":""}`} onClick={() => setAbaGerente("fechado")}>Encerrados</button>
+              <button className={`cap-gaba cap-gaba--exclusividade${abaGerente==="exclusividade"?" cap-gaba--ativa":""}`} onClick={() => setAbaGerente("exclusividade")}>
+                🔒 Exclusividade {captacoesExclusividade.length > 0 && <span className="cap-gaba-badge">{captacoesExclusividade.length}</span>}
+              </button>
             </div>
           )}
 
-          {(!isAdmin || abaGerente === "ativo") && (
+          {(!isAdmin || abaGerente === "ativo") && abaGerente !== "exclusividade" && (
             <div className="cap-board">
               {ETAPAS.map(etapa => (
                 <div key={etapa.key} className="cap-coluna">
@@ -1773,6 +1872,31 @@ export default function JornadaCaptacao() {
               }
             </div>
           )}
+
+          {isAdmin && abaGerente === "exclusividade" && (
+            <div className="cap-fechados-lista">
+              {captacoesExclusividade.length === 0
+                ? <div className="cap-empty-state">Nenhum imóvel com exclusividade.</div>
+                : captacoesExclusividade.map(c => (
+                    <div key={c.id} className="cap-fechado-card cap-exclusividade-card" onClick={() => setSelecionada(c)}>
+                      <div className="cap-fechado-card-top">
+                        <span className="cap-fechado-endereco">{c.endereco}</span>
+                        <span className="cap-fechado-etapa-tag" style={{ color: "#7c3aed" }}>
+                          🔒 Exclusividade
+                        </span>
+                      </div>
+                      <div className="cap-fechado-card-mid">
+                        {c.nome_corretor && <span className="cap-fechado-corretor">👤 {c.nome_corretor}</span>}
+                        {isDiretor && c.team && <span className="cap-fechado-team">{nomeEquipe(c.team)}</span>}
+                        <span className="cap-exclusividade-data">
+                          Exclusividade até {fmt(c.exclusividade_ate)}
+                        </span>
+                      </div>
+                    </div>
+                  ))
+              }
+            </div>
+          )}
         </>
       )}
 
@@ -1806,7 +1930,12 @@ export default function JornadaCaptacao() {
         />
       )}
       {selecionada && showFechar && (
-        <ModalFechar onConfirmar={handleFecharConfirmar} onCancelar={() => setShowFechar(false)} loading={fecharLoading} />
+        <ModalFechar
+          onConfirmarEncerrar={handleFecharConfirmar}
+          onConfirmarExclusividade={handleExclusividadeConfirmar}
+          onCancelar={() => setShowFechar(false)}
+          loading={fecharLoading}
+        />
       )}
     </div>
   );

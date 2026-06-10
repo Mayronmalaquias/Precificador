@@ -170,6 +170,8 @@
 .cap-stat-chip--captado .cap-stat-num { color: #16a34a; }
 .cap-stat-chip--fechado { border-left-color: #94a3b8; }
 .cap-stat-chip--fechado .cap-stat-num { color: #64748b; }
+.cap-stat-chip--exclusividade { border-left-color: #7c3aed; }
+.cap-stat-chip--exclusividade .cap-stat-num { color: #7c3aed; }
 
 /* ── Loading bar ── */
 .cap-loading-bar {
@@ -213,6 +215,21 @@
   transition: all .15s;
 }
 .cap-gaba--ativa { color: var(--cap-primary); border-bottom-color: var(--cap-primary); font-weight: 600; }
+.cap-gaba--exclusividade { color: #7c3aed; }
+.cap-gaba--exclusividade.cap-gaba--ativa { color: #7c3aed; border-bottom-color: #7c3aed; }
+.cap-gaba-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #7c3aed;
+  color: #fff;
+  font-size: 0.7rem;
+  font-weight: 700;
+  border-radius: 999px;
+  padding: 1px 6px;
+  margin-left: 4px;
+  min-width: 18px;
+}
 
 /* ═══════════════════════════════════════════════════════════════════════════
    Kanban Board
@@ -395,6 +412,48 @@
 .cap-fechado-team     { font-size: 0.75rem; font-weight: 700; color: #6d28d9; background: #ede9fe; border-radius: 4px; padding: 1px 7px; }
 .cap-fechado-data     { font-size: 0.78rem; color: var(--cap-text-3); }
 .cap-fechado-motivo   { font-size: 0.85rem; color: #991b1b; font-style: italic; }
+.cap-exclusividade-card { border-color: #ddd6fe; border-left-color: #7c3aed; }
+.cap-exclusividade-data { font-size: 0.78rem; color: #7c3aed; font-weight: 600; }
+
+/* ── Fechar modal: escolha de opção ── */
+.cap-fechar-opcoes {
+  display: flex;
+  gap: 12px;
+  flex-direction: column;
+}
+.cap-fechar-opcao {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  text-align: left;
+  padding: 16px 18px;
+  border-radius: var(--cap-radius);
+  border: 2px solid var(--cap-border);
+  background: var(--cap-surface);
+  cursor: pointer;
+  transition: border-color .15s, box-shadow .15s;
+}
+.cap-fechar-opcao:hover { box-shadow: var(--cap-shadow-md); }
+.cap-fechar-opcao-icon { font-size: 1.4rem; margin-bottom: 4px; }
+.cap-fechar-opcao-titulo { font-size: 1rem; font-weight: 700; color: var(--cap-text); }
+.cap-fechar-opcao-desc { font-size: 0.82rem; color: var(--cap-text-2); }
+.cap-fechar-opcao--encerrar:hover { border-color: #ef4444; }
+.cap-fechar-opcao--exclusividade:hover { border-color: #7c3aed; }
+
+/* ── Botão exclusividade ── */
+.cap-exclusividade-btn {
+  padding: 9px 22px;
+  background: #7c3aed;
+  color: #fff;
+  border: none;
+  border-radius: var(--cap-radius);
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background .15s;
+}
+.cap-exclusividade-btn:hover:not(:disabled) { background: #6d28d9; }
+.cap-exclusividade-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 
 /* ═══════════════════════════════════════════════════════════════════════════
    Calendário

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Navigate, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { api } from '../services/api';
@@ -11,8 +11,10 @@ function Login() {
   const [erro, setErro] = useState('');
 
   const navigate = useNavigate();
-  const { login } = useAuth();
+  const { login, isLogado } = useAuth();
   const toast = useToast();
+
+  if (isLogado) return <Navigate to="/" replace />;
 
   const handleSubmit = async (e) => {
     e.preventDefault();
