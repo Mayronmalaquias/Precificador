@@ -413,15 +413,17 @@ function RelatorioGerente() {
   }, []);
 
   useEffect(() => {
-    if (!idGerenteLogado) return;
-    fetch(`${BASE}/visitas/vistas?id_gerente=${encodeURIComponent(idGerenteLogado)}`)
+    if (!visitas || visitas.length === 0) return;
+    const ids = [...new Set(visitas.map(v => v.id_gerente_corretor).filter(Boolean))];
+    if (ids.length === 0) return;
+    fetch(`${BASE}/visitas/vistas?id_gerente=${encodeURIComponent(ids.join(","))}`)
       .then(r => r.json())
       .then(d => {
         if (d.ok) setVisitasVisualizadas(new Set(d.ids));
         else console.error("[vistas GET] erro:", d);
       })
       .catch(e => console.error("[vistas GET] fetch falhou:", e));
-  }, [idGerenteLogado]);
+  }, [visitas]);
 
   useEffect(() => {
     if (filtros.id_gerente) {
@@ -751,8 +753,10 @@ function RelatorioGerente() {
     rolarParaDetalhes();
   };
 
-  const marcarComoVisualizada = useCallback((idVisita) => {
-    if (!idVisita || !idGerenteLogado) return;
+  const marcarComoVisualizada = useCallback((idVisita, idGerenteVisita) => {
+    if (!idVisita) return;
+    const gerenteKey = idGerenteVisita || idGerenteLogado;
+    if (!gerenteKey) return;
     setVisitasVisualizadas((prev) => {
       if (prev.has(String(idVisita))) return prev;
       const next = new Set(prev);
@@ -762,7 +766,7 @@ function RelatorioGerente() {
     fetch(`${BASE}/visitas/vistas`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id_gerente: idGerenteLogado, id_visita: String(idVisita) }),
+      body: JSON.stringify({ id_gerente: gerenteKey, id_visita: String(idVisita) }),
     })
       .then(r => r.json())
       .then(d => { if (!d.ok) console.error("[vistas POST] erro:", d); })
@@ -776,7 +780,7 @@ function RelatorioGerente() {
     if (tipo === "visita") {
       const id = obterIdVisita(item);
       if (id) {
-        marcarComoVisualizada(String(id));
+        marcarComoVisualizada(String(id), item?.id_gerente_corretor);
         setLoadingDetalhe(true);
         try {
           const resp = await fetch(`${API_BASE}/visita/detalhe?visita_id=${encodeURIComponent(id)}`);
@@ -1358,7 +1362,7 @@ function RelatorioGerente() {
                         className="botao-secundario"
                         onClick={() => {
                           const id = obterIdVisita(item);
-                          if (id) marcarComoVisualizada(String(id));
+                          if (id) marcarComoVisualizada(String(id), item?.id_gerente_corretor);
                           abrirUrl(
                             montarUrlPdf("visitas", id, true),
                             "Não foi encontrado o id da visita para download."

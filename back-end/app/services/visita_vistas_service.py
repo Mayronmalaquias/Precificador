@@ -18,14 +18,14 @@ def marcar_visita_vista(id_gerente: str, id_visita: str) -> None:
         session.close()
 
 
-def listar_visitas_vistas(id_gerente: str) -> list:
+def listar_visitas_vistas(ids_gerente: list) -> list:
     session = SessionLocal()
     try:
         rows = (
             session.query(GerenteVisitaVisualizada.id_visita)
-            .filter_by(id_gerente=id_gerente)
+            .filter(GerenteVisitaVisualizada.id_gerente.in_(ids_gerente))
             .all()
         )
-        return [r.id_visita for r in rows]
+        return list({r.id_visita for r in rows})
     finally:
         session.close()

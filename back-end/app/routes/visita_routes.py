@@ -43,12 +43,13 @@ class LancaVisita(Resource):
 @visita_ns.route("/visitas/vistas")
 class VisitasVistas(Resource):
     def get(self):
-        id_gerente = (request.args.get("id_gerente") or "").strip()
-        if not id_gerente:
+        raw = (request.args.get("id_gerente") or "").strip()
+        if not raw:
             return {"ok": False, "error": "id_gerente e obrigatorio"}, 400
+        ids_gerente = [i.strip() for i in raw.split(",") if i.strip()]
         try:
             from app.services.visita_vistas_service import listar_visitas_vistas
-            ids = listar_visitas_vistas(id_gerente)
+            ids = listar_visitas_vistas(ids_gerente)
             return {"ok": True, "ids": ids}, 200
         except Exception as e:
             current_app.logger.exception("Erro ao listar visitas vistas")

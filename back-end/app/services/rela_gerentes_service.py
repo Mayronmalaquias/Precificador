@@ -605,6 +605,7 @@ def listar_visitas_do_gerente(
             "created_at": _fmt_datetime(visita.get("CreatedAt")),
             "corretor": _safe_str(corretor.get("Nome")),
             "id_corretor": id_corretor,
+            "id_gerente_corretor": _safe_str(corretor.get("IdGerente")),
             "clientes": nomes_clientes,
             "parceiros": nomes_parceiros,
             "endereco_externo": _safe_str(visita.get("Endereco_Externo")),
