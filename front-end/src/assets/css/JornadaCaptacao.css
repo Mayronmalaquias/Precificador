@@ -439,6 +439,7 @@
 .cap-fechar-opcao-desc { font-size: 0.82rem; color: var(--cap-text-2); }
 .cap-fechar-opcao--encerrar:hover { border-color: #ef4444; }
 .cap-fechar-opcao--exclusividade:hover { border-color: #7c3aed; }
+.cap-fechar-opcao--excluir:hover { border-color: #dc2626; background: #fff5f5; }
 
 /* ── Botão exclusividade ── */
 .cap-exclusividade-btn {

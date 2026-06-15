@@ -813,6 +813,7 @@ const ETAPAS_ORDEM = ["escolha", "prospeccao", "interacao", "apresentacao", "cap
 
 function ModalDetalhe({ captacao, onClose, onAvancar, onSave, avancarLoading, onFechar, isDiretor, isAdmin }) {
   // ── Estados de edição de endereço ──
+  const [editEndereco, setEditEndereco] = useState(captacao.endereco        || "");
   const [editBairro,  setEditBairro]  = useState(captacao.bairro          || "");
   const [editBloco,   setEditBloco]   = useState(captacao.bloco           || "");
   const [editNumero,  setEditNumero]  = useState(captacao.numero_imovel   || "");
@@ -839,6 +840,7 @@ function ModalDetalhe({ captacao, onClose, onAvancar, onSave, avancarLoading, on
 
   // Sincroniza campos ao trocar de captação ou de etapa
   useEffect(() => {
+    setEditEndereco(captacao.endereco || "");
     setEditBairro(captacao.bairro || "");
     setEditBloco(captacao.bloco || "");
     setEditNumero(captacao.numero_imovel || "");
@@ -869,7 +871,8 @@ function ModalDetalhe({ captacao, onClose, onAvancar, onSave, avancarLoading, on
   const mostraProp  = ETAPAS_PROP.includes(captacao.etapa_atual);
   const emEscolha   = captacao.etapa_atual === "escolha";
 
-  const endAlterado  = editBairro !== (captacao.bairro || "")
+  const endAlterado  = editEndereco !== (captacao.endereco || "")
+                    || editBairro !== (captacao.bairro || "")
                     || editBloco  !== (captacao.bloco  || "")
                     || editLink   !== (captacao.link_anuncio  || "")
                     || (!emEscolha && editNumero !== (captacao.numero_imovel || ""));
@@ -881,6 +884,7 @@ function ModalDetalhe({ captacao, onClose, onAvancar, onSave, avancarLoading, on
     setSalvandoEnd(true);
     try {
       await onSave({
+        endereco:     editEndereco || captacao.endereco,
         bairro:       editBairro  || null,
         bloco:        editBloco   || null,
         link_anuncio: editLink    || null,
@@ -1015,9 +1019,9 @@ function ModalDetalhe({ captacao, onClose, onAvancar, onSave, avancarLoading, on
               </button>
               {abrirEndereco && (
                 <div className="cap-accordion-corpo">
-                  <div className="cap-end-row">
+                  <div className="cap-end-row cap-end-row--edit">
                     <span className="cap-end-label">Rua</span>
-                    <span className="cap-end-val">{captacao.endereco}</span>
+                    <input className="cap-end-input" value={editEndereco} onChange={e => setEditEndereco(e.target.value)} placeholder="Endereço" />
                   </div>
                   <div className="cap-end-row cap-end-row--edit">
                     <span className="cap-end-label">Bairro</span>
@@ -1034,7 +1038,7 @@ function ModalDetalhe({ captacao, onClose, onAvancar, onSave, avancarLoading, on
                   {editLink && (
                     <div className="cap-end-row">
                       <span className="cap-end-label" />
-                      <a href={editLink} target="_blank" rel="noreferrer" className="cap-end-link">🔗 Abrir anúncio</a>
+                      <a href={/^https?:\/\//i.test(editLink) ? editLink : `https://${editLink}`} target="_blank" rel="noreferrer" className="cap-end-link">🔗 Abrir anúncio</a>
                     </div>
                   )}
                   {!emEscolha && (
@@ -1152,8 +1156,8 @@ function ModalDetalhe({ captacao, onClose, onAvancar, onSave, avancarLoading, on
 }
 
 // ── Modal fechar ─────────────────────────────────────────────────────────────
-function ModalFechar({ onConfirmarEncerrar, onConfirmarExclusividade, onCancelar, loading }) {
-  const [passo, setPasso] = useState("escolha"); // "escolha" | "encerrar" | "exclusividade"
+function ModalFechar({ onConfirmarEncerrar, onConfirmarExclusividade, onConfirmarExcluir, onCancelar, loading, isAdmin }) {
+  const [passo, setPasso] = useState("escolha"); // "escolha" | "encerrar" | "exclusividade" | "excluir"
   const [motivo, setMotivo] = useState("");
   const [dataExclusividade, setDataExclusividade] = useState("");
 
@@ -1185,6 +1189,13 @@ function ModalFechar({ onConfirmarEncerrar, onConfirmarExclusividade, onCancelar
                   <span className="cap-fechar-opcao-titulo">Exclusividade</span>
                   <span className="cap-fechar-opcao-desc">O imóvel está com exclusividade em outra imobiliária por tempo limitado.</span>
                 </button>
+                {isAdmin && (
+                  <button className="cap-fechar-opcao cap-fechar-opcao--excluir" onClick={() => setPasso("excluir")}>
+                    <span className="cap-fechar-opcao-icon">🗑️</span>
+                    <span className="cap-fechar-opcao-titulo">Apagar registro</span>
+                    <span className="cap-fechar-opcao-desc">Remove completamente — use para lançamentos errados.</span>
+                  </button>
+                )}
               </div>
             </div>
             <div className="cap-modal-footer">
@@ -1237,6 +1248,26 @@ function ModalFechar({ onConfirmarEncerrar, onConfirmarExclusividade, onCancelar
               <button className="cap-ghost-btn" onClick={voltarEscolha}>Voltar</button>
               <button className="cap-exclusividade-btn" disabled={loading || !dataExclusividade} onClick={() => onConfirmarExclusividade(dataExclusividade)}>
                 {loading ? "Salvando…" : "Confirmar exclusividade"}
+              </button>
+            </div>
+          </>
+        )}
+
+        {/* Passo 2c: Apagar registro */}
+        {passo === "excluir" && (
+          <>
+            <div className="cap-modal-header" style={{ borderTopColor: "#dc2626" }}>
+              <div className="cap-modal-header-main">
+                <div className="cap-modal-etapa-tag" style={{ background: "#fee2e2", color: "#dc2626" }}>Apagar registro</div>
+                <h2 className="cap-modal-titulo">Tem certeza?</h2>
+                <p className="cap-modal-sub">O registro será <strong>removido permanentemente</strong> do sistema. Use apenas para lançamentos incorretos.</p>
+              </div>
+              <button className="cap-modal-close" onClick={onCancelar}>✕</button>
+            </div>
+            <div className="cap-modal-footer">
+              <button className="cap-ghost-btn" onClick={voltarEscolha}>Voltar</button>
+              <button className="cap-danger-btn" disabled={loading} onClick={onConfirmarExcluir}>
+                {loading ? "Apagando…" : "Apagar permanentemente"}
               </button>
             </div>
           </>
@@ -1755,6 +1786,18 @@ export default function JornadaCaptacao() {
     finally { setFecharLoading(false); }
   };
 
+  const handleExcluirCaptacao = async () => {
+    if (!selecionada) return;
+    setFecharLoading(true);
+    try {
+      const r = await fetch(`${BASE}/captacoes/${selecionada.id}/excluir`, { method: "DELETE" });
+      const d = await r.json().catch(() => ({}));
+      if (r.ok && d.ok) { toast("Registro apagado", "success"); setShowFechar(false); setSelecionada(null); carregarCaptacoes(); }
+      else toast(d.error || "Erro ao apagar", "error");
+    } catch { toast("Erro ao apagar registro", "error"); }
+    finally { setFecharLoading(false); }
+  };
+
   return (
     <div className="cap-page">
 
@@ -1933,8 +1976,10 @@ export default function JornadaCaptacao() {
         <ModalFechar
           onConfirmarEncerrar={handleFecharConfirmar}
           onConfirmarExclusividade={handleExclusividadeConfirmar}
+          onConfirmarExcluir={handleExcluirCaptacao}
           onCancelar={() => setShowFechar(false)}
           loading={fecharLoading}
+          isAdmin={isAdmin}
         />
       )}
     </div>

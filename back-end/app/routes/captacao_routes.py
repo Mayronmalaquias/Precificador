@@ -9,6 +9,7 @@ from app.services.captacao_service import (
     atualizar_captacao,
     fechar_captacao,
     marcar_exclusividade,
+    excluir_captacao,
     listar_historico,
 )
 
@@ -89,6 +90,17 @@ class FecharCaptacao(Resource):
             return result, 200 if result.get("ok") else 404
         except Exception as e:
             current_app.logger.exception("Erro ao fechar captacao")
+            return {"ok": False, "error": str(e)}, 500
+
+
+@captacao_ns.route("/captacoes/<int:captacao_id>/excluir")
+class ExcluirCaptacao(Resource):
+    def delete(self, captacao_id):
+        try:
+            result = excluir_captacao(captacao_id)
+            return result, 200 if result.get("ok") else 404
+        except Exception as e:
+            current_app.logger.exception("Erro ao excluir captacao")
             return {"ok": False, "error": str(e)}, 500
 
 

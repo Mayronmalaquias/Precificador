@@ -347,6 +347,23 @@ def fechar_captacao(captacao_id: int, motivo: str) -> dict:
         session.close()
 
 
+def excluir_captacao(captacao_id: int) -> dict:
+    session = SessionLocal()
+    try:
+        c = session.query(Captacao).filter_by(id=captacao_id).first()
+        if not c:
+            return {"ok": False, "error": "Captacao nao encontrada"}
+        session.query(CaptacaoHistorico).filter_by(captacao_id=captacao_id).delete()
+        session.delete(c)
+        session.commit()
+        return {"ok": True}
+    except Exception:
+        session.rollback()
+        raise
+    finally:
+        session.close()
+
+
 def marcar_exclusividade(captacao_id: int, data_exclusividade: str) -> dict:
     session = SessionLocal()
     try:
