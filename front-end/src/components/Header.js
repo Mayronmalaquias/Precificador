@@ -66,6 +66,7 @@ function Header() {
     { to: '/NovaVisita', label: 'Criar Visita', show: isLogado },
     { to: '/JornadaCaptacao?novo=1', label: 'Novo Imóvel', subtitle: 'captação', show: isLogado },
     { to: '/AppVisita', label: 'Relatório de Visita', show: isLogado },
+    { to: '/GestaoClientes', label: 'Gestao de Clientes', show: isLogado },
     { to: '/RelatorioGerente', label: 'Relatório Gerente', show: isLogado && isAdmin },
     { to: '/ranking', label: 'Ranking', show: isLogado && isAdmin },
     { to: '/ControleCorretor', label: 'Controle de usuarios', show: isLogado && isAdministrador },

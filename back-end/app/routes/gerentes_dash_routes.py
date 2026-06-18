@@ -16,6 +16,11 @@ from app.services.rela_gerentes_service import (
     detalhe_visita_gerente,
     dashboard_equipes,
     gerar_pdf_equipes_download,
+    gestao_clientes_visitas,
+)
+from app.services.cliente_acao_service import (
+    atualizar_acao_cliente,
+    criar_acao_cliente,
 )
 
 gerente_dashboard_ns = Namespace(
@@ -339,4 +344,71 @@ class PdfEquipesDownload(Resource):
             )
         except Exception as e:
             current_app.logger.exception("Erro ao baixar PDF de equipes")
+            return {"ok": False, "error": str(e)}, 500
+
+
+@gerente_dashboard_ns.route("/gestao-clientes")
+class GestaoClientesVisitas(Resource):
+    def get(self):
+        try:
+            usuario_id = (request.args.get("usuario_id") or "").strip()
+            permissao = (request.args.get("permissao") or "").strip()
+            team = (request.args.get("team") or "").strip()
+            escopo = (request.args.get("escopo") or "").strip()
+            id_corretor = (request.args.get("id_corretor") or "").strip()
+            id_gerente = (request.args.get("id_gerente") or "").strip()
+            q = (request.args.get("q") or "").strip()
+            start = (request.args.get("start") or "").strip() or None
+            end = (request.args.get("end") or "").strip() or None
+            limit = int(request.args.get("limit") or 500)
+
+            if not usuario_id or not permissao:
+                return {"ok": False, "error": "usuario_id e permissao sao obrigatorios"}, 400
+
+            data = gestao_clientes_visitas(
+                usuario_id=usuario_id,
+                permissao=permissao,
+                team=team,
+                escopo=escopo,
+                id_corretor=id_corretor,
+                id_gerente=id_gerente,
+                q=q,
+                start=start,
+                end=end,
+                limit=limit,
+            )
+            return data, 200
+
+        except Exception as e:
+            current_app.logger.exception("Erro ao montar gestao de clientes")
+            return {"ok": False, "error": str(e)}, 500
+
+
+@gerente_dashboard_ns.route("/gestao-clientes/acoes")
+class GestaoClientesAcoes(Resource):
+    def post(self):
+        try:
+            data = request.get_json(silent=True) or {}
+            acao = criar_acao_cliente(data)
+            return {"ok": True, "acao": acao}, 201
+        except ValueError as e:
+            return {"ok": False, "error": str(e)}, 400
+        except Exception as e:
+            current_app.logger.exception("Erro ao criar acao do cliente")
+            return {"ok": False, "error": str(e)}, 500
+
+
+@gerente_dashboard_ns.route("/gestao-clientes/acoes/<int:acao_id>")
+class GestaoClientesAcaoDetalhe(Resource):
+    def patch(self, acao_id):
+        try:
+            data = request.get_json(silent=True) or {}
+            acao = atualizar_acao_cliente(acao_id, data)
+            if not acao:
+                return {"ok": False, "error": "acao nao encontrada"}, 404
+            return {"ok": True, "acao": acao}, 200
+        except ValueError as e:
+            return {"ok": False, "error": str(e)}, 400
+        except Exception as e:
+            current_app.logger.exception("Erro ao atualizar acao do cliente")
             return {"ok": False, "error": str(e)}, 500

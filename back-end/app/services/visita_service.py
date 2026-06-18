@@ -103,6 +103,7 @@ class VisitaRow:
     tipo_captacao: str = ""
     endereco_externo: str = ""
     proposta: str = ""
+    motivo_talvez: str = ""
     created_at: str = ""
     created_by: str = ""
     assinatura: str = ""
@@ -117,6 +118,7 @@ class VisitaRow:
             self.visita_com_parceiro, self.tipo_captacao, self.endereco_externo,
             self.proposta, self.created_at, self.created_by, self.assinatura,
             self.id_cliente_assinante, self.id_parceiro, self.imovel_nao_captado,
+            self.motivo_talvez,
         ]
 
 
@@ -693,6 +695,7 @@ def registrar_visita(payload: Dict[str, Any]) -> str:
         tipo_captacao=tipo_captacao,
         endereco_externo=_safe_str(payload.get("enderecoExterno")),
         proposta=_safe_str(payload.get("proposta")),
+        motivo_talvez=_safe_str(payload.get("motivoTalvez")),
         created_at=created_at,
         created_by=created_by,
         assinatura=_safe_str(payload.get("assinatura")),
@@ -710,7 +713,7 @@ def registrar_visita(payload: Dict[str, Any]) -> str:
 
     _with_retry(lambda: sheets.values().update(
         spreadsheetId=SPREADSHEET_ID,
-        range=f"Fato_Visitas!A{next_row}:R{next_row}",
+        range=f"Fato_Visitas!A{next_row}:S{next_row}",
         valueInputOption="USER_ENTERED",
         body={"values": [visita.to_list()]},
     ).execute())
@@ -761,7 +764,7 @@ def _buscar_visitas_do_corretor_resumo(id_corretor: str, q: str = "", limit: int
 
     qn = _norm_key(q)
     data = _batch_get_sheet_rows([
-        "Fato_Visitas!A1:R",
+        "Fato_Visitas!A1:S",
         "Fato_Cliente_Visita!A1:D",
         "Dim_Cliente_Visita!A1:B",
     ])
@@ -826,7 +829,7 @@ def buscar_visitas_do_corretor(id_corretor: str, q: str = "", limit: int = 30) -
 
     qn = _norm_key(q)
     data = _batch_get_sheet_rows([
-        "Fato_Visitas!A1:R",
+        "Fato_Visitas!A1:S",
         "Fato_Cliente_Visita!A1:D",
         "Dim_Cliente_Visita!A1:F",
         "Fato_Avaliacao!A1:N",
@@ -940,6 +943,7 @@ def buscar_visitas_do_corretor(id_corretor: str, q: str = "", limit: int = 30) -
             label,
             _safe_str(r.get("Endereco_Externo")),
             _safe_str(r.get("Proposta")),
+            _safe_str(r.get("Motivo_Talvez")),
             _safe_str(r.get("Tipo_Captacao")),
             " ".join(p.get("nome", "") for p in parceiros),
         ])
@@ -954,6 +958,7 @@ def buscar_visitas_do_corretor(id_corretor: str, q: str = "", limit: int = 30) -
             "dataVisita": data_visita,
             "imovelId": id_imovel,
             "proposta": _safe_str(r.get("Proposta")),
+            "motivoTalvez": _safe_str(r.get("Motivo_Talvez")),
             "tipoCaptacao": _safe_str(r.get("Tipo_Captacao")),
             "enderecoExterno": _safe_str(r.get("Endereco_Externo")),
             "visitaComParceiro": _safe_str(r.get("Visita_Com_Parceiro")),
@@ -1019,7 +1024,7 @@ def buscar_clientes_do_corretor_com_historico(id_corretor: str, q: str = "", lim
     data = _batch_get_sheet_rows([
         "Dim_Cliente_Visita!A1:F",
         "Fato_Cliente_Visita!A1:D",
-        "Fato_Visitas!A1:R",
+        "Fato_Visitas!A1:S",
     ])
 
     cliente_dim_map = {
@@ -1137,7 +1142,7 @@ def _avg_scores(avaliacoes: List[Dict[str, Any]]) -> Dict[str, str]:
 
 def _montar_contexto_pdf_visita(visita_id: str) -> Dict[str, Any]:
     data = _batch_get_sheet_rows([
-        "Fato_Visitas!A1:R",
+        "Fato_Visitas!A1:S",
         "Fato_Avaliacao!A1:N",
         "Dim_Cliente_Visita!A1:F",
         "Fato_Cliente_Visita!A1:D",
@@ -1250,7 +1255,7 @@ def _montar_contexto_pdf_cliente(id_cliente: str) -> Dict[str, Any]:
     data = _batch_get_sheet_rows([
         "Dim_Cliente_Visita!A1:F",
         "Fato_Cliente_Visita!A1:D",
-        "Fato_Visitas!A1:R",
+        "Fato_Visitas!A1:S",
         "Fato_Avaliacao!A1:N",
         "Dim_Parceiro_Visita!A1:D",
         "Fato_Parceiro_Visita!A1:C",
@@ -1746,6 +1751,9 @@ def editar_visita(id_visita: str, payload: Dict[str, Any]) -> None:
 
     if "proposta" in payload:
         updates.append((f"Fato_Visitas!L{row_num}", _safe_str(payload["proposta"])))
+
+    if "motivoTalvez" in payload:
+        updates.append((f"Fato_Visitas!S{row_num}", _safe_str(payload["motivoTalvez"])))
 
     for range_str, value in updates:
         _with_retry(lambda r=range_str, v=value: sheets.values().update(

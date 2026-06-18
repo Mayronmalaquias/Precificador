@@ -239,6 +239,7 @@ export default function ApiForms() {
       dataVisita: isoDate,
       enderecoExterno: visita.enderecoExterno || "",
       proposta: visita.proposta || "",
+      motivoTalvez: visita.motivoTalvez || visita.motivo_talvez || "",
       situacaoImovel: situacao,
       avaliacoes,
     });
@@ -549,6 +550,17 @@ export default function ApiForms() {
                   onChange={(e) => setEditForm((f) => ({ ...f, proposta: e.target.value }))}
                 />
               </label>
+
+              {String(editForm.proposta || "").trim().toLowerCase() === "talvez" && (
+                <label>
+                  Motivo do talvez
+                  <input
+                    type="text"
+                    value={editForm.motivoTalvez || ""}
+                    onChange={(e) => setEditForm((f) => ({ ...f, motivoTalvez: e.target.value }))}
+                  />
+                </label>
+              )}
             </div>
 
             {(editForm.avaliacoes || []).length > 0 && (

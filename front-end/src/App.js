@@ -27,6 +27,7 @@ import RecuperarSenha from './components/RecuperarSenha';
 import TrocarSenha from './components/TrocarSenha'
 import ControleCorretor from './components/ControleCorretor'
 import JornadaCaptacao from './components/JornadaCaptacao'
+import GestaoClientesVisitas from './components/GestaoClientesVisitas'
 
 import './assets/css/styles.css';
 import './assets/css/report.css';
@@ -88,6 +89,10 @@ function App() {
                 <Route
                   path="/JornadaCaptacao"
                   element={<PrivateRoute><JornadaCaptacao /></PrivateRoute>}
+                />
+                <Route
+                  path="/GestaoClientes"
+                  element={<PrivateRoute><GestaoClientesVisitas /></PrivateRoute>}
                 />
               </Routes>
             </main>

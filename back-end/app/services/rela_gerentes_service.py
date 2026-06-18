@@ -4,7 +4,7 @@ import io
 import logging
 import os
 import time
-from collections import defaultdict
+from collections import Counter, defaultdict
 from datetime import datetime, date
 from threading import Lock
 from typing import Any, Dict, List, Optional, Tuple, TypedDict
@@ -12,6 +12,7 @@ from typing import Any, Dict, List, Optional, Tuple, TypedDict
 from dotenv import load_dotenv
 from googleapiclient.errors import HttpError
 from app.services.usuarios_service import retornar_lista
+from app.services.cliente_acao_service import listar_acoes_clientes
 
 load_dotenv()
 logger = logging.getLogger(__name__)
@@ -207,7 +208,7 @@ def _load_visitas_base(force_refresh: bool = False) -> Dict[str, List[Dict[str, 
                 "Dim_Gerente!A1:D",
                 "Dim_Cliente_Visita!A1:F",
                 "Dim_Parceiro_Visita!A1:D",
-                "Fato_Visitas!A1:R",
+                "Fato_Visitas!A1:S",
                 "Fato_Cliente_Visita!A1:D",
                 "Fato_Parceiro_Visita!A1:D",
                 "Fato_Avaliacao!A1:N",
@@ -224,6 +225,333 @@ def invalidar_cache_visitas() -> None:
     with _cache_lock:
         _cache_data = None
         _cache_expires = 0.0
+
+
+def _listar_usuarios_ativos() -> List[Dict[str, Any]]:
+    return retornar_lista(
+        ativo=True,
+        page=1,
+        per_page=100000,
+    ).get("lista", [])
+
+
+def _usuario_label(user: Dict[str, Any]) -> str:
+    return _safe_str(user.get("nome")) or _safe_str(user.get("username")) or _safe_str(user.get("id_usuarios"))
+
+
+def _usuario_lookup() -> Tuple[Dict[str, Dict[str, Any]], Dict[str, List[Dict[str, Any]]]]:
+    usuarios = _listar_usuarios_ativos()
+    por_id = {
+        _safe_str(u.get("id_usuarios")): u
+        for u in usuarios
+        if _safe_str(u.get("id_usuarios"))
+    }
+    por_time: Dict[str, List[Dict[str, Any]]] = defaultdict(list)
+    for u in usuarios:
+        team = _safe_str(u.get("team"))
+        if team:
+            por_time[team].append(u)
+    return por_id, por_time
+
+
+def _resolver_ids_corretor_gestao(
+    usuario_id: str,
+    permissao: str,
+    team: str = "",
+    escopo: str = "",
+    id_corretor: str = "",
+    id_gerente: str = "",
+) -> Tuple[set, List[Dict[str, Any]], Dict[str, Any]]:
+    usuario_id = _safe_str(usuario_id)
+    permissao = _safe_str(permissao).lower()
+    team = _safe_str(team)
+    escopo = _safe_str(escopo).lower() or "auto"
+    id_corretor = _safe_str(id_corretor)
+    id_gerente = _safe_str(id_gerente)
+
+    usuario_map, usuarios_por_time = _usuario_lookup()
+
+    if permissao == "diretor":
+        if escopo == "corretor" and id_corretor:
+            ids = {id_corretor}
+            modo = "corretor"
+        elif escopo == "equipe" and id_gerente:
+            ids = {_safe_str(u.get("id_usuarios")) for u in usuarios_por_time.get(id_gerente, []) if _safe_str(u.get("id_usuarios"))}
+            modo = "equipe"
+        else:
+            ids = {
+                _safe_str(u.get("id_usuarios"))
+                for u in usuario_map.values()
+                if _safe_str(u.get("id_usuarios")) and _safe_str(u.get("permissao")).lower() == "corretor"
+            }
+            modo = "61"
+    elif permissao in {"gerente", "administrador"}:
+        gerente_id = usuario_id
+        ids_equipe = {_safe_str(u.get("id_usuarios")) for u in usuarios_por_time.get(gerente_id, []) if _safe_str(u.get("id_usuarios"))}
+        if escopo == "corretor" and id_corretor and id_corretor in ids_equipe:
+            ids = {id_corretor}
+            modo = "corretor"
+        else:
+            ids = ids_equipe
+            modo = "equipe"
+    else:
+        ids = {usuario_id} if usuario_id else set()
+        modo = "corretor"
+
+    corretores = []
+    for cid in sorted(ids):
+        u = usuario_map.get(cid, {})
+        corretores.append({
+            "id_corretor": cid,
+            "nome": _usuario_label(u),
+            "team": _safe_str(u.get("team")),
+            "permissao": _safe_str(u.get("permissao")),
+        })
+
+    meta = {
+        "modo": modo,
+        "usuario_id": usuario_id,
+        "permissao": permissao,
+        "team": team,
+        "ids_corretor": sorted(ids),
+    }
+    return ids, corretores, meta
+
+
+def _media(values: List[float]) -> Optional[float]:
+    return round(sum(values) / len(values), 1) if values else None
+
+
+def _nota_float(value: Any) -> Optional[float]:
+    s = _safe_str(value).replace(",", ".")
+    if not s:
+        return None
+    try:
+        return float(s)
+    except Exception:
+        return None
+
+
+def gestao_clientes_visitas(
+    usuario_id: str,
+    permissao: str,
+    team: str = "",
+    escopo: str = "",
+    id_corretor: str = "",
+    id_gerente: str = "",
+    q: str = "",
+    start: Optional[str] = None,
+    end: Optional[str] = None,
+    limit: int = 500,
+) -> Dict[str, Any]:
+    data = _load_visitas_base()
+    maps = _build_maps(data)
+    ids_corretor, corretores_disponiveis, meta = _resolver_ids_corretor_gestao(
+        usuario_id=usuario_id,
+        permissao=permissao,
+        team=team,
+        escopo=escopo,
+        id_corretor=id_corretor,
+        id_gerente=id_gerente,
+    )
+
+    fato_visitas = data.get("Fato_Visitas", [])
+    dim_clientes = data.get("Dim_Cliente_Visita", [])
+    cliente_map = maps["cliente_map"]
+    cliente_visitas = maps["clientes_por_visita"]
+    avaliacoes_por_visita = maps["avaliacoes_por_visita"]
+
+    usuario_map, _ = _usuario_lookup()
+    qn = _norm_key(q)
+
+    clientes: Dict[str, Dict[str, Any]] = {}
+    for row in dim_clientes:
+        id_cliente = _safe_str(row.get("Id_Cliente"))
+        id_cli_corretor = _safe_str(row.get("Id_Corretor"))
+        if not id_cliente or id_cli_corretor not in ids_corretor:
+            continue
+        clientes[id_cliente] = {
+            "id_cliente": id_cliente,
+            "nome": _safe_str(row.get("Nome_Cliente")),
+            "telefone": _safe_str(row.get("Telefone_Cliente")),
+            "email": _safe_str(row.get("Email_Cliente")),
+            "id_corretor": id_cli_corretor,
+            "corretor": _usuario_label(usuario_map.get(id_cli_corretor, {})),
+            "visitas": [],
+            "notas": [],
+            "propostas": Counter(),
+            "motivos_talvez": [],
+            "ultima_data_ord": None,
+        }
+
+    visitas_por_dia: Counter = Counter()
+    propostas_total: Counter = Counter()
+    clientes_com_proposta = set()
+
+    for visita in fato_visitas:
+        id_visita = _safe_str(visita.get("Id_Visita"))
+        id_visit_corretor = _safe_str(visita.get("Id_Corretor"))
+        if not id_visita or id_visit_corretor not in ids_corretor:
+            continue
+        if not _in_period(visita.get("Data_Visita"), start, end):
+            continue
+
+        data_visita = _fmt_date(visita.get("Data_Visita"))
+        data_ord = _parse_date_any(visita.get("Data_Visita"))
+        proposta = _safe_str(visita.get("Proposta")) or "Sem informacao"
+        motivo_talvez = (
+            _safe_str(visita.get("Motivo_Talvez"))
+            or _safe_str(visita.get("Motivo Talvez"))
+            or _safe_str(visita.get("Motivo_Talvez_Proposta"))
+        )
+        if data_ord:
+            visitas_por_dia[data_ord.strftime("%Y-%m-%d")] += 1
+        propostas_total[proposta] += 1
+
+        ids_cliente = [
+            _safe_str(fc.get("Id_Cliente"))
+            for fc in cliente_visitas.get(id_visita, [])
+            if _safe_str(fc.get("Id_Cliente"))
+        ]
+        fallback_cliente = _safe_str(visita.get("Id_Cliente_Assinante"))
+        if fallback_cliente and fallback_cliente not in ids_cliente:
+            ids_cliente.append(fallback_cliente)
+
+        notas_por_cliente: Dict[str, List[float]] = defaultdict(list)
+        avaliacoes_payload = []
+        for av in avaliacoes_por_visita.get(id_visita, []):
+            cid = _safe_str(av.get("Id_Cliente"))
+            nota = _nota_float(av.get("Nota_Geral"))
+            if nota is not None:
+                notas_por_cliente[cid].append(nota)
+            avaliacoes_payload.append({
+                "id_cliente": cid,
+                "cliente": _safe_str((cliente_map.get(cid) or {}).get("Nome_Cliente")),
+                "notaGeral": _safe_str(av.get("Nota_Geral")),
+                "localizacao": _safe_str(av.get("Localizacao")),
+                "tamanho": _safe_str(av.get("Tamanho")),
+                "planta": _safe_str(av.get("Planta_Imovel")),
+                "acabamento": _safe_str(av.get("Qualidade_Acabamento")),
+                "conservacao": _safe_str(av.get("Estado_Conservacao")),
+                "condominio": _safe_str(av.get("Condominio_AreaComun")),
+                "preco": _safe_str(av.get("Preco")),
+                "precoNota10": _safe_str(av.get("Preco_N10")),
+            })
+
+        for cid in ids_cliente:
+            cli = clientes.get(cid)
+            if not cli:
+                base = cliente_map.get(cid, {})
+                clientes[cid] = cli = {
+                    "id_cliente": cid,
+                    "nome": _safe_str(base.get("Nome_Cliente")),
+                    "telefone": _safe_str(base.get("Telefone_Cliente")),
+                    "email": _safe_str(base.get("Email_Cliente")),
+                    "id_corretor": id_visit_corretor,
+                    "corretor": _usuario_label(usuario_map.get(id_visit_corretor, {})),
+                    "visitas": [],
+                    "notas": [],
+                    "propostas": Counter(),
+                    "motivos_talvez": [],
+                    "ultima_data_ord": None,
+                }
+
+            notas_cliente = notas_por_cliente.get(cid, [])
+            cli["notas"].extend(notas_cliente)
+            cli["propostas"][proposta] += 1
+            if proposta.strip().lower() in {"talvez", "talves"} and motivo_talvez:
+                cli["motivos_talvez"].append(motivo_talvez)
+            if proposta.strip().lower() not in {"", "nao", "não", "sem informacao", "sem informação"}:
+                clientes_com_proposta.add(cid)
+            if data_ord and (cli["ultima_data_ord"] is None or data_ord > cli["ultima_data_ord"]):
+                cli["ultima_data_ord"] = data_ord
+
+            cli["visitas"].append({
+                "id_visita": id_visita,
+                "data_visita": data_visita,
+                "id_imovel": _safe_str(visita.get("Id_Imovel")),
+                "endereco_externo": _safe_str(visita.get("Endereco_Externo")),
+                "id_corretor": id_visit_corretor,
+                "corretor": _usuario_label(usuario_map.get(id_visit_corretor, {})),
+                "proposta": proposta,
+                "motivo_talvez": motivo_talvez,
+                "nota_media": _media(notas_cliente),
+                "avaliacoes": [a for a in avaliacoes_payload if not a["id_cliente"] or a["id_cliente"] == cid],
+                "pdf_download_url": f"{API_BASE}/visitas/pdf/download?visita_id={id_visita}",
+            })
+
+    rows = []
+    for cli in clientes.values():
+        visitas = sorted(
+            cli["visitas"],
+            key=lambda v: _parse_date_any(v.get("data_visita")) or datetime.min,
+            reverse=True,
+        )
+        row = {
+            "id_cliente": cli["id_cliente"],
+            "nome": cli["nome"],
+            "telefone": cli["telefone"],
+            "email": cli["email"],
+            "id_corretor": cli["id_corretor"],
+            "corretor": cli["corretor"],
+            "qtd_visitas": len(visitas),
+            "ultima_visita": cli["ultima_data_ord"].strftime("%d/%m/%Y") if cli["ultima_data_ord"] else "",
+            "nota_media": _media(cli["notas"]),
+            "houve_proposta": any(k.strip().lower() not in {"", "nao", "não", "sem informacao", "sem informação"} for k in cli["propostas"]),
+            "propostas": dict(cli["propostas"]),
+            "motivos_talvez": cli["motivos_talvez"],
+            "visitas": visitas,
+            "pdf_download_url": f"{API_BASE}/clientes/pdf/download?id_cliente={cli['id_cliente']}",
+        }
+        hay = " ".join([
+            row["id_cliente"], row["nome"], row["telefone"], row["email"],
+            row["corretor"], row["ultima_visita"],
+        ])
+        if qn and qn not in _norm_key(hay):
+            continue
+        rows.append(row)
+
+    rows.sort(
+        key=lambda item: (
+            item.get("qtd_visitas", 0),
+            _parse_date_any(item.get("ultima_visita")) or datetime.min,
+            item.get("nome", ""),
+        ),
+        reverse=True,
+    )
+    rows = rows[: max(1, int(limit or 500))]
+
+    serie_clientes = Counter()
+    for cli in rows:
+        data_ultima = _parse_date_any(cli.get("ultima_visita"))
+        if data_ultima:
+            serie_clientes[data_ultima.strftime("%Y-%m-%d")] += 1
+
+    acoes_por_cliente = listar_acoes_clientes(item["id_cliente"] for item in rows)
+    for row in rows:
+        row["acoes"] = acoes_por_cliente.get(row["id_cliente"], [])
+
+    return {
+        "ok": True,
+        "meta": meta,
+        "corretores": corretores_disponiveis,
+        "clientes": rows,
+        "dashboard": {
+            "total_clientes": len(rows),
+            "total_visitas": sum(item["qtd_visitas"] for item in rows),
+            "clientes_com_proposta": len(clientes_com_proposta),
+            "nota_media_geral": _media([n for item in clientes.values() for n in item["notas"]]),
+            "propostas": dict(propostas_total),
+            "clientes_por_dia": [
+                {"data": key, "label": _parse_date_any(key).strftime("%d/%m") if _parse_date_any(key) else key, "total": serie_clientes[key]}
+                for key in sorted(serie_clientes)
+            ],
+            "visitas_por_dia": [
+                {"data": key, "label": _parse_date_any(key).strftime("%d/%m") if _parse_date_any(key) else key, "total": visitas_por_dia[key]}
+                for key in sorted(visitas_por_dia)
+            ],
+        },
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -611,6 +939,8 @@ def listar_visitas_do_gerente(
             "endereco_externo": _safe_str(visita.get("Endereco_Externo")),
             "tipo_captacao": _safe_str(visita.get("Tipo_Captacao")),
             "proposta": _safe_str(visita.get("Proposta")),
+            "motivo_talvez": _safe_str(visita.get("Motivo_Talvez")),
+            "motivoTalvez": _safe_str(visita.get("Motivo_Talvez")),
             "visita_com_parceiro": bool(_safe_str(visita.get("Visita_Com_Parceiro"))),
             "imovel_nao_captado": bool(_safe_str(visita.get("Imovel_Nao_Captado"))),
             "avaliacoes": avaliacoes,
@@ -622,7 +952,7 @@ def listar_visitas_do_gerente(
             hay = " ".join([
                 item["id_visita"], item["id_imovel"], item["data_visita"],
                 item["corretor"], item["endereco_externo"], item["tipo_captacao"],
-                item["proposta"], " ".join(item["clientes"]), " ".join(item["parceiros"]),
+                item["proposta"], item["motivo_talvez"], " ".join(item["clientes"]), " ".join(item["parceiros"]),
             ])
             if qn not in _norm_key(hay):
                 continue

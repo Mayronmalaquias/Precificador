@@ -49,16 +49,19 @@
 
 .visita-form input[type="text"],
 .visita-form input[type="date"],
-.visita-form input[type="number"] {
+.visita-form input[type="number"],
+.visita-form textarea {
   width: 100%;
   border-radius: 8px;
   border: 1px solid #ddd;
   padding: 8px 10px;
   font-size: 0.95rem;
   box-sizing: border-box;
+  font-family: inherit;
 }
 
-.visita-form input:focus {
+.visita-form input:focus,
+.visita-form textarea:focus {
   outline: none;
   border-color: #e1005b;
   box-shadow: 0 0 0 2px rgba(225, 0, 91, 0.15);
