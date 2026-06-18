@@ -375,7 +375,6 @@ function GestaoClientesVisitas() {
         start: filtros.start,
         end: filtros.end,
         q: filtros.q,
-        limit: "500",
       });
       const resp = await fetch(`${BASE}/gerente-dashboard/gestao-clientes?${params.toString()}`);
       const json = await resp.json().catch(() => ({}));

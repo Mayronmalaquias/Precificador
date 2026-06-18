@@ -342,7 +342,7 @@ def gestao_clientes_visitas(
     q: str = "",
     start: Optional[str] = None,
     end: Optional[str] = None,
-    limit: int = 500,
+    limit: Optional[int] = None,
 ) -> Dict[str, Any]:
     data = _load_visitas_base()
     maps = _build_maps(data)
@@ -387,17 +387,18 @@ def gestao_clientes_visitas(
     visitas_por_dia: Counter = Counter()
     propostas_total: Counter = Counter()
     clientes_com_proposta = set()
+    clientes_no_periodo: set = set()
+    periodo_definido = bool(start or end)
 
     for visita in fato_visitas:
         id_visita = _safe_str(visita.get("Id_Visita"))
         id_visit_corretor = _safe_str(visita.get("Id_Corretor"))
         if not id_visita or id_visit_corretor not in ids_corretor:
             continue
-        if not _in_period(visita.get("Data_Visita"), start, end):
-            continue
 
         data_visita = _fmt_date(visita.get("Data_Visita"))
         data_ord = _parse_date_any(visita.get("Data_Visita"))
+        visita_no_periodo = _in_period(visita.get("Data_Visita"), start, end)
         proposta = _safe_str(visita.get("Proposta")) or "Sem informacao"
         id_imovel = _safe_str(visita.get("Id_Imovel"))
         endereco_externo = _safe_str(visita.get("Endereco_Externo"))
@@ -406,9 +407,10 @@ def gestao_clientes_visitas(
             or _safe_str(visita.get("Motivo Talvez"))
             or _safe_str(visita.get("Motivo_Talvez_Proposta"))
         )
-        if data_ord:
-            visitas_por_dia[data_ord.strftime("%Y-%m-%d")] += 1
-        propostas_total[proposta] += 1
+        if visita_no_periodo:
+            if data_ord:
+                visitas_por_dia[data_ord.strftime("%Y-%m-%d")] += 1
+            propostas_total[proposta] += 1
 
         ids_cliente = [
             _safe_str(fc.get("Id_Cliente"))
@@ -458,6 +460,9 @@ def gestao_clientes_visitas(
                     "ultima_data_ord": None,
                 }
 
+            if visita_no_periodo:
+                clientes_no_periodo.add(cid)
+
             notas_cliente = notas_por_cliente.get(cid, [])
             cli["notas"].extend(notas_cliente)
             cli["propostas"][proposta] += 1
@@ -489,6 +494,8 @@ def gestao_clientes_visitas(
 
     rows = []
     for cli in clientes.values():
+        if periodo_definido and cli["id_cliente"] not in clientes_no_periodo:
+            continue
         visitas = sorted(
             cli["visitas"],
             key=lambda v: _parse_date_any(v.get("data_visita")) or datetime.min,
@@ -526,7 +533,8 @@ def gestao_clientes_visitas(
         ),
         reverse=True,
     )
-    rows = rows[: max(1, int(limit or 500))]
+    if limit:
+        rows = rows[: max(1, int(limit))]
 
     serie_clientes = Counter()
     for cli in rows:

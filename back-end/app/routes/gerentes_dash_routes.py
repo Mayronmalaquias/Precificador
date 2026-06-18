@@ -360,7 +360,8 @@ class GestaoClientesVisitas(Resource):
             q = (request.args.get("q") or "").strip()
             start = (request.args.get("start") or "").strip() or None
             end = (request.args.get("end") or "").strip() or None
-            limit = int(request.args.get("limit") or 500)
+            limit_raw = (request.args.get("limit") or "").strip()
+            limit = int(limit_raw) if limit_raw else None
 
             if not usuario_id or not permissao:
                 return {"ok": False, "error": "usuario_id e permissao sao obrigatorios"}, 400
