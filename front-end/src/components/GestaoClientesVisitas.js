@@ -345,6 +345,7 @@ function GestaoClientesVisitas() {
   const [dados, setDados] = useState(null);
   const [clienteSelecionadoId, setClienteSelecionadoId] = useState("");
   const [motivoPorVisita, setMotivoPorVisita] = useState({});
+  const [editandoMotivoId, setEditandoMotivoId] = useState("");
   const [salvandoMotivoId, setSalvandoMotivoId] = useState("");
   const [calendarioMes, setCalendarioMes] = useState(mesAtualStr);
   const [abaAtiva, setAbaAtiva] = useState("clientes");
@@ -505,6 +506,7 @@ function GestaoClientesVisitas() {
       });
       const json = await resp.json().catch(() => ({}));
       if (!resp.ok || !json.ok) throw new Error(json.error || "Erro ao salvar motivo.");
+      setEditandoMotivoId("");
       await carregar();
     } catch (err) {
       setErro(err.message || "Erro ao salvar motivo.");
@@ -907,29 +909,60 @@ function GestaoClientesVisitas() {
                       <strong>Nota {visita.nota_media ?? "-"}</strong>
                     </div>
                     {String(visita.proposta || "").trim().toLowerCase().startsWith("talve") && (
-                      <div className="gcv-motive-editor">
-                        <label htmlFor={`motivo-${visita.id_visita}`}>Motivo do talvez</label>
-                        <textarea
-                          id={`motivo-${visita.id_visita}`}
-                          value={motivoPorVisita[visita.id_visita] ?? visita.motivo_talvez ?? ""}
-                          onChange={(e) =>
-                            setMotivoPorVisita((prev) => ({
-                              ...prev,
-                              [visita.id_visita]: e.target.value,
-                            }))
-                          }
-                          placeholder="Informe por que o cliente ficou em talvez nessa visita."
-                          rows={3}
-                        />
-                        <button
-                          type="button"
-                          className="gcv-motive-save"
-                          onClick={() => salvarMotivoTalvez(visita)}
-                          disabled={salvandoMotivoId === visita.id_visita}
-                        >
-                          {salvandoMotivoId === visita.id_visita ? "Salvando..." : "Salvar motivo"}
-                        </button>
-                      </div>
+                      editandoMotivoId === visita.id_visita ? (
+                        <div className="gcv-motive-editor">
+                          <label htmlFor={`motivo-${visita.id_visita}`}>Motivo do talvez</label>
+                          <textarea
+                            id={`motivo-${visita.id_visita}`}
+                            value={motivoPorVisita[visita.id_visita] ?? visita.motivo_talvez ?? ""}
+                            onChange={(e) =>
+                              setMotivoPorVisita((prev) => ({
+                                ...prev,
+                                [visita.id_visita]: e.target.value,
+                              }))
+                            }
+                            placeholder="Informe por que o cliente ficou em talvez nessa visita."
+                            rows={3}
+                          />
+                          <div className="gcv-motive-actions">
+                            <button
+                              type="button"
+                              className="gcv-motive-cancel"
+                              onClick={() => setEditandoMotivoId("")}
+                              disabled={salvandoMotivoId === visita.id_visita}
+                            >
+                              Cancelar
+                            </button>
+                            <button
+                              type="button"
+                              className="gcv-motive-save"
+                              onClick={() => salvarMotivoTalvez(visita)}
+                              disabled={salvandoMotivoId === visita.id_visita}
+                            >
+                              {salvandoMotivoId === visita.id_visita ? "Salvando..." : "Salvar motivo"}
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="gcv-motive-view">
+                          <div>
+                            <span>Motivo do talvez</span>
+                            <p>{texto(visita.motivo_talvez, "Nenhum motivo informado.")}</p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setMotivoPorVisita((prev) => ({
+                                ...prev,
+                                [visita.id_visita]: prev[visita.id_visita] ?? visita.motivo_talvez ?? "",
+                              }));
+                              setEditandoMotivoId(visita.id_visita);
+                            }}
+                          >
+                            {visita.motivo_talvez ? "Editar motivo" : "Adicionar motivo"}
+                          </button>
+                        </div>
+                      )
                     )}
                     <div className="gcv-score-grid">
                       {(visita.avaliacoes || []).map((av, index) => (
