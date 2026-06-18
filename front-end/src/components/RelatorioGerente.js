@@ -252,12 +252,14 @@ function RelatorioGerente() {
 
     return (
       <>
-        <button
-          className={className}
-          onClick={() => abrirUrl(montarUrlPdf(recurso, id, true, true), mensagemErro)}
-        >
-          Baixar período
-        </button>
+        {!todoPeriodo && (
+          <button
+            className={className}
+            onClick={() => abrirUrl(montarUrlPdf(recurso, id, true, true), mensagemErro)}
+          >
+            Baixar período
+          </button>
+        )}
         <button
           className={className}
           onClick={() => abrirUrl(montarUrlPdf(recurso, id, true, false), mensagemErro)}
@@ -2116,38 +2118,44 @@ function RelatorioGerente() {
           </select>
         </div>
 
-        <div className="filtro-item">
-          <label>Data inicial</label>
+        {!todoPeriodo && (
+          <>
+            <div className="filtro-item">
+              <label>Data inicial</label>
 
-          <input
-            type="date"
-            className="campo-filtro"
-            value={filtros.start}
-            onChange={(e) => handleFiltroChange("start", e.target.value)}
-            disabled={todoPeriodo}
-          />
-        </div>
+              <input
+                type="date"
+                className="campo-filtro"
+                value={filtros.start}
+                onChange={(e) => handleFiltroChange("start", e.target.value)}
+              />
+            </div>
 
-        <div className="filtro-item">
-          <label>Data final</label>
+            <div className="filtro-item">
+              <label>Data final</label>
 
-          <input
-            type="date"
-            className="campo-filtro"
-            value={filtros.end}
-            onChange={(e) => handleFiltroChange("end", e.target.value)}
-            disabled={todoPeriodo}
-          />
-        </div>
+              <input
+                type="date"
+                className="campo-filtro"
+                value={filtros.end}
+                onChange={(e) => handleFiltroChange("end", e.target.value)}
+              />
+            </div>
+          </>
+        )}
 
         <div className="filtro-item filtro-checkbox">
-          <label>
+          <label>&nbsp;</label>
+          <label className="filtro-toggle">
             <input
               type="checkbox"
               checked={todoPeriodo}
               onChange={(e) => setTodoPeriodo(e.target.checked)}
             />
-            {" "}Todo o período
+            <span className="filtro-toggle-track">
+              <span className="filtro-toggle-thumb" />
+            </span>
+            <span className="filtro-toggle-label">Todo o período</span>
           </label>
         </div>
 

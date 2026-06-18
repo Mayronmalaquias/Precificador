@@ -74,10 +74,60 @@
   justify-content: end;
 }
 
-.filtro-checkbox label {
+.filtro-toggle {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 10px;
+  height: 50px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.filtro-toggle input {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.filtro-toggle-track {
+  position: relative;
+  width: 42px;
+  height: 24px;
+  border-radius: 999px;
+  background: #cbd5e1;
+  transition: background 0.2s ease;
+  flex-shrink: 0;
+}
+
+.filtro-toggle-thumb {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.3);
+  transition: transform 0.2s ease;
+}
+
+.filtro-toggle input:checked + .filtro-toggle-track {
+  background: #2563eb;
+}
+
+.filtro-toggle input:checked + .filtro-toggle-track .filtro-toggle-thumb {
+  transform: translateX(18px);
+}
+
+.filtro-toggle input:focus-visible + .filtro-toggle-track {
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.25);
+}
+
+.filtro-toggle-label {
+  font-size: 14px;
+  font-weight: 600;
+  color: #334155;
 }
 
 .campo-filtro {
