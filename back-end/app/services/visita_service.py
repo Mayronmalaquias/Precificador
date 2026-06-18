@@ -192,6 +192,28 @@ def _parse_ddmmyyyy_safe(s: str) -> dt.date:
         return dt.date.min
 
 
+def _visita_em_periodo(data_visita_ddmmyyyy: str, start: Optional[str], end: Optional[str]) -> bool:
+    """Verifica se uma data (dd/mm/yyyy) está dentro do período (start/end no formato yyyy-mm-dd)."""
+    if not start and not end:
+        return True
+    data = _parse_ddmmyyyy_safe(data_visita_ddmmyyyy)
+    if data == dt.date.min:
+        return False
+    if start:
+        try:
+            if data < dt.datetime.strptime(start, "%Y-%m-%d").date():
+                return False
+        except ValueError:
+            pass
+    if end:
+        try:
+            if data > dt.datetime.strptime(end, "%Y-%m-%d").date():
+                return False
+        except ValueError:
+            pass
+    return True
+
+
 def _fmt_money_brl(v: Any) -> str:
     if v in (None, ""):
         return ""
@@ -1251,7 +1273,11 @@ def _montar_contexto_pdf_visita(visita_id: str) -> Dict[str, Any]:
     }
 
 
-def _montar_contexto_pdf_cliente(id_cliente: str) -> Dict[str, Any]:
+def _montar_contexto_pdf_cliente(
+    id_cliente: str,
+    start: Optional[str] = None,
+    end: Optional[str] = None,
+) -> Dict[str, Any]:
     data = _batch_get_sheet_rows([
         "Dim_Cliente_Visita!A1:F",
         "Fato_Cliente_Visita!A1:D",
@@ -1281,6 +1307,8 @@ def _montar_contexto_pdf_cliente(id_cliente: str) -> Dict[str, Any]:
     for vid in visita_ids:
         visita = visitas_map.get(vid)
         if not visita:
+            continue
+        if not _visita_em_periodo(_pick_from_row(visita, "Data_Visita"), start, end):
             continue
 
         avals = [
@@ -1671,14 +1699,22 @@ def gerar_pdf_visita_publico(visita_id: str) -> Dict[str, str]:
     )
 
 
-def gerar_pdf_cliente_download(id_cliente: str) -> Tuple[io.BytesIO, str]:
-    ctx = _montar_contexto_pdf_cliente(id_cliente)
+def gerar_pdf_cliente_download(
+    id_cliente: str,
+    start: Optional[str] = None,
+    end: Optional[str] = None,
+) -> Tuple[io.BytesIO, str]:
+    ctx = _montar_contexto_pdf_cliente(id_cliente, start, end)
     pdf_bytes = _build_pdf_cliente_bytes(ctx)
     return io.BytesIO(pdf_bytes), f"Relatorio_Cliente_{id_cliente}.pdf"
 
 
-def gerar_pdf_cliente_publico(id_cliente: str) -> Dict[str, str]:
-    ctx = _montar_contexto_pdf_cliente(id_cliente)
+def gerar_pdf_cliente_publico(
+    id_cliente: str,
+    start: Optional[str] = None,
+    end: Optional[str] = None,
+) -> Dict[str, str]:
+    ctx = _montar_contexto_pdf_cliente(id_cliente, start, end)
     pdf_bytes = _build_pdf_cliente_bytes(ctx)
     file_name = f"Relatorio_Cliente_{id_cliente}.pdf"
     return _upload_pdf_bytes_to_drive(

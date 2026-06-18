@@ -3,7 +3,7 @@
 import io
 import os
 from collections import defaultdict
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 from app.services.visita_service import (
     _get_services,
@@ -11,6 +11,7 @@ from app.services.visita_service import (
     _trash_same_name_files_in_folder,
     _safe_str,
     _parse_ddmmyyyy_safe,
+    _visita_em_periodo,
     _find_first_by_key,
     _find_all_by_key,
     _norm_key,
@@ -192,7 +193,11 @@ def _find_corretor_row_from_visita(
     return corretor
 
 
-def _montar_contexto_pdf_imovel(imovel_id: str) -> Dict[str, Any]:
+def _montar_contexto_pdf_imovel(
+    imovel_id: str,
+    start: Optional[str] = None,
+    end: Optional[str] = None,
+) -> Dict[str, Any]:
     data_visitas = _batch_get_rows_from_sheet(
         VISITAS_SPREADSHEET_ID,
         [
@@ -217,6 +222,7 @@ def _montar_contexto_pdf_imovel(imovel_id: str) -> Dict[str, Any]:
     visitas_do_imovel = [
         v for v in fato_visitas
         if _safe_str(v.get("Id_Imovel")) == _safe_str(imovel_id)
+        and _visita_em_periodo(_safe_str(v.get("Data_Visita")), start, end)
     ]
 
     if not visitas_do_imovel:
@@ -635,15 +641,15 @@ def _build_pdf_imovel_bytes(ctx: Dict[str, Any]) -> bytes:
     return buffer.getvalue()
 
 
-def gerar_pdf_imovel_download(imovel_id: str):
-    ctx = _montar_contexto_pdf_imovel(imovel_id)
+def gerar_pdf_imovel_download(imovel_id: str, start: Optional[str] = None, end: Optional[str] = None):
+    ctx = _montar_contexto_pdf_imovel(imovel_id, start, end)
     pdf_bytes = _build_pdf_imovel_bytes(ctx)
     file_name = f"Relatorio_Imovel_{imovel_id}.pdf"
     return io.BytesIO(pdf_bytes), file_name
 
 
-def gerar_pdf_imovel_publico(imovel_id: str) -> Dict[str, str]:
-    ctx = _montar_contexto_pdf_imovel(imovel_id)
+def gerar_pdf_imovel_publico(imovel_id: str, start: Optional[str] = None, end: Optional[str] = None) -> Dict[str, str]:
+    ctx = _montar_contexto_pdf_imovel(imovel_id, start, end)
     pdf_bytes = _build_pdf_imovel_bytes(ctx)
     file_name = f"Relatorio_Imovel_{imovel_id}.pdf"
 

@@ -7,6 +7,8 @@ from app.services.usuarios_service import (
     _usuario_to_dict,
     alterar_gerente,
     retornar_corretor_nome,
+    editar_usuario,
+    CAMPOS_EDITAVEIS,
 )
 
 corretor_ns = Namespace("corretor", description="Corretores e usuários")
@@ -120,3 +122,26 @@ class AlterarGerenteCorretor(Resource):
             return message, 404
 
         return message, 200
+
+
+@corretor_ns.route("/corretor/editar-usuario")
+class EditarUsuario(Resource):
+    @corretor_ns.doc(description="Edita dados e senha de um usuário (somente diretores)")
+    def post(self):
+        data           = request.get_json() or {}
+        solicitante_id = data.get("solicitante_id")
+        id_corretor    = data.get("id_corretor")
+        nova_senha     = data.get("nova_senha")
+
+        if not solicitante_id or not id_corretor:
+            return {"error": "solicitante_id e id_corretor precisam ser passados"}, 400
+
+        campos = {k: v for k, v in data.items() if k in CAMPOS_EDITAVEIS}
+
+        resultado = editar_usuario(solicitante_id, id_corretor, campos, nova_senha)
+
+        if "error" in resultado:
+            status = 403 if "diretor" in resultado["error"].lower() else 404
+            return resultado, status
+
+        return resultado, 200

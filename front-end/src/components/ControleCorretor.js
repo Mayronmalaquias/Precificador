@@ -40,6 +40,8 @@ function ControleCorretores() {
   const [erroAcesso, setErroAcesso] = useState("");
   const [loading, setLoading] = useState(false);
   const [loadingAcao, setLoadingAcao] = useState(null);
+  const [editando, setEditando] = useState(null);
+  const [salvandoEdicao, setSalvandoEdicao] = useState(false);
 
   useEffect(() => {
     try {
@@ -67,6 +69,7 @@ function ControleCorretores() {
   const isAdministrativo = String(usuario?.team || "").toLowerCase() === "administrativo";
   const podeGerenciarTodasEquipes = ['administrador', 'diretor'].includes(usuario?.permissao) || isAdministrativo;
   const isGerente = usuario?.permissao === "gerente";
+  const isDiretor = usuario?.permissao === "diretor";
 
   const carregarCorretores = useCallback(async (usuarioAtual) => {
     if (!usuarioAtual) return;
@@ -172,6 +175,70 @@ function ControleCorretores() {
       toast("Erro de comunicação com a API.", "error");
     } finally {
       setLoadingAcao(null);
+    }
+  };
+
+  const abrirEdicao = (corretor) => {
+    setEditando({
+      id_usuarios: corretor.id_usuarios,
+      nome: corretor.nome || "",
+      username: corretor.username || "",
+      email: corretor.email || "",
+      telefone: corretor.telefone || "",
+      instagram: corretor.instagram || "",
+      descricao: corretor.descricao || "",
+      permissao: corretor.permissao || "corretor",
+      team: corretor.team || "",
+      novaSenha: "",
+    });
+  };
+
+  const fecharEdicao = () => setEditando(null);
+
+  const salvarEdicaoUsuario = async () => {
+    if (!editando || !usuario) return;
+
+    setSalvandoEdicao(true);
+
+    try {
+      const payload = {
+        solicitante_id: usuario.id_usuarios,
+        id_corretor: editando.id_usuarios,
+        nome: editando.nome,
+        username: editando.username,
+        email: editando.email,
+        telefone: editando.telefone,
+        instagram: editando.instagram,
+        descricao: editando.descricao,
+        permissao: editando.permissao,
+        team: editando.team,
+      };
+
+      if (editando.novaSenha) {
+        payload.nova_senha = editando.novaSenha;
+      }
+
+      const { ok, data } = await apiFetch("/corretor/editar-usuario", {
+        method: "POST",
+        body: JSON.stringify(payload),
+      });
+
+      if (!ok || data?.error) {
+        toast(data?.error || "Erro ao editar usuário.", "error");
+        return;
+      }
+
+      setCorretores((prev) =>
+        prev.map((c) =>
+          c.id_usuarios === editando.id_usuarios ? { ...c, ...data.usuario } : c
+        )
+      );
+      toast("Usuário atualizado com sucesso.", "success");
+      setEditando(null);
+    } catch {
+      toast("Erro de comunicação com a API.", "error");
+    } finally {
+      setSalvandoEdicao(false);
     }
   };
 
@@ -447,6 +514,7 @@ function ControleCorretores() {
                           <th>Status</th>
                           {podeGerenciarTodasEquipes && <th>Alterar Equipe</th>}
                           {(podeGerenciarTodasEquipes || isGerente) && <th>Ativo</th>}
+                          {isDiretor && <th>Editar</th>}
                         </tr>
                       </thead>
 
@@ -454,7 +522,12 @@ function ControleCorretores() {
                         {corretoresFiltrados.length === 0 ? (
                           <tr>
                             <td
-                              colSpan={podeGerenciarTodasEquipes ? 6 : 5}
+                              colSpan={
+                                4 +
+                                (podeGerenciarTodasEquipes ? 1 : 0) +
+                                (podeGerenciarTodasEquipes || isGerente ? 1 : 0) +
+                                (isDiretor ? 1 : 0)
+                              }
                               className="controle-corretores__empty"
                             >
                               Nenhum corretor encontrado com os filtros informados.
@@ -515,7 +588,7 @@ function ControleCorretores() {
                                     type="button"
                                     className={`controle-corretores__button ${
                                       c.ativo
-                                        ? "controle-corretores__button--ghost"
+                                        ? "controle-corretores__button--ghost-light"
                                         : "controle-corretores__button--primary"
                                     }`}
                                     disabled={loadingAcao === c.id_usuarios}
@@ -526,6 +599,18 @@ function ControleCorretores() {
                                       : c.ativo
                                       ? "Desativar"
                                       : "Ativar"}
+                                  </button>
+                                </td>
+                              )}
+
+                              {isDiretor && (
+                                <td>
+                                  <button
+                                    type="button"
+                                    className="controle-corretores__button controle-corretores__button--ghost-light"
+                                    onClick={() => abrirEdicao(c)}
+                                  >
+                                    Editar
                                   </button>
                                 </td>
                               )}
@@ -613,7 +698,7 @@ function ControleCorretores() {
                             type="button"
                             className={`controle-corretores__button ${
                               c.ativo
-                                ? "controle-corretores__button--ghost"
+                                ? "controle-corretores__button--ghost-light"
                                 : "controle-corretores__button--primary"
                             }`}
                             style={{ marginTop: "8px" }}
@@ -627,12 +712,171 @@ function ControleCorretores() {
                               : "Ativar"}
                           </button>
                         )}
+
+                        {isDiretor && (
+                          <button
+                            type="button"
+                            className="controle-corretores__button controle-corretores__button--ghost-light"
+                            style={{ marginTop: "8px" }}
+                            onClick={() => abrirEdicao(c)}
+                          >
+                            Editar
+                          </button>
+                        )}
                       </div>
                     </div>
                   ))
                 )}
               </div>
             </section>
+
+            {editando && (
+              <div className="controle-corretores__modal-overlay" onClick={fecharEdicao}>
+                <div
+                  className="controle-corretores__modal"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <h3 className="controle-corretores__panel-title">
+                    Editar usuário {editando.id_usuarios}
+                  </h3>
+
+                  <div className="controle-corretores__modal-grid">
+                    <div className="controle-corretores__field">
+                      <label className="controle-corretores__label">Nome</label>
+                      <input
+                        className="controle-corretores__search"
+                        value={editando.nome}
+                        onChange={(e) =>
+                          setEditando((prev) => ({ ...prev, nome: e.target.value }))
+                        }
+                      />
+                    </div>
+
+                    <div className="controle-corretores__field">
+                      <label className="controle-corretores__label">Username</label>
+                      <input
+                        className="controle-corretores__search"
+                        value={editando.username}
+                        onChange={(e) =>
+                          setEditando((prev) => ({ ...prev, username: e.target.value }))
+                        }
+                      />
+                    </div>
+
+                    <div className="controle-corretores__field">
+                      <label className="controle-corretores__label">E-mail</label>
+                      <input
+                        className="controle-corretores__search"
+                        value={editando.email}
+                        onChange={(e) =>
+                          setEditando((prev) => ({ ...prev, email: e.target.value }))
+                        }
+                      />
+                    </div>
+
+                    <div className="controle-corretores__field">
+                      <label className="controle-corretores__label">Telefone</label>
+                      <input
+                        className="controle-corretores__search"
+                        value={editando.telefone}
+                        onChange={(e) =>
+                          setEditando((prev) => ({ ...prev, telefone: e.target.value }))
+                        }
+                      />
+                    </div>
+
+                    <div className="controle-corretores__field">
+                      <label className="controle-corretores__label">Instagram</label>
+                      <input
+                        className="controle-corretores__search"
+                        value={editando.instagram}
+                        onChange={(e) =>
+                          setEditando((prev) => ({ ...prev, instagram: e.target.value }))
+                        }
+                      />
+                    </div>
+
+                    <div className="controle-corretores__field">
+                      <label className="controle-corretores__label">Permissão</label>
+                      <select
+                        className="controle-corretores__select"
+                        value={editando.permissao}
+                        onChange={(e) =>
+                          setEditando((prev) => ({ ...prev, permissao: e.target.value }))
+                        }
+                      >
+                        <option value="corretor">Corretor</option>
+                        <option value="gerente">Gerente</option>
+                        <option value="administrador">Administrador</option>
+                        <option value="diretor">Diretor</option>
+                      </select>
+                    </div>
+
+                    <div className="controle-corretores__field">
+                      <label className="controle-corretores__label">Equipe</label>
+                      <select
+                        className="controle-corretores__select"
+                        value={editando.team}
+                        onChange={(e) =>
+                          setEditando((prev) => ({ ...prev, team: e.target.value }))
+                        }
+                      >
+                        <option value="">Sem equipe</option>
+                        {IDS_EQUIPES_VALIDOS.map((eq) => (
+                          <option key={eq} value={eq}>
+                            {getNomeEquipe(eq)}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div className="controle-corretores__field controle-corretores__field--full">
+                      <label className="controle-corretores__label">Descrição</label>
+                      <input
+                        className="controle-corretores__search"
+                        value={editando.descricao}
+                        onChange={(e) =>
+                          setEditando((prev) => ({ ...prev, descricao: e.target.value }))
+                        }
+                      />
+                    </div>
+
+                    <div className="controle-corretores__field controle-corretores__field--full">
+                      <label className="controle-corretores__label">
+                        Nova senha (deixe em branco para não alterar)
+                      </label>
+                      <input
+                        type="password"
+                        className="controle-corretores__search"
+                        value={editando.novaSenha}
+                        onChange={(e) =>
+                          setEditando((prev) => ({ ...prev, novaSenha: e.target.value }))
+                        }
+                      />
+                    </div>
+                  </div>
+
+                  <div className="controle-corretores__modal-actions">
+                    <button
+                      type="button"
+                      className="controle-corretores__button controle-corretores__button--ghost-light"
+                      onClick={fecharEdicao}
+                      disabled={salvandoEdicao}
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      type="button"
+                      className="controle-corretores__button controle-corretores__button--primary"
+                      onClick={salvarEdicaoUsuario}
+                      disabled={salvandoEdicao}
+                    >
+                      {salvandoEdicao ? "Salvando..." : "Salvar"}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
           </>
         )}
       </div>

@@ -75,6 +75,11 @@ function RelatorioGerente() {
     q: "",
   });
 
+  const [todoPeriodo, setTodoPeriodo] = useState(false);
+  const periodoEfetivo = todoPeriodo
+    ? { start: "", end: "" }
+    : { start: filtros.start, end: filtros.end };
+
   const [filtrosVisitas, setFiltrosVisitas] = useState({
     imovel: "",
   });
@@ -210,7 +215,7 @@ function RelatorioGerente() {
     );
   };
 
-  const montarUrlPdf = (recurso, id, download = false) => {
+  const montarUrlPdf = (recurso, id, download = false, comPeriodo = false) => {
     if (!id) return "";
 
     const params = new URLSearchParams();
@@ -225,7 +230,42 @@ function RelatorioGerente() {
 
     params.set(chave, String(id));
 
+    if (comPeriodo) {
+      if (periodoEfetivo.start) params.set("start", periodoEfetivo.start);
+      if (periodoEfetivo.end) params.set("end", periodoEfetivo.end);
+    }
+
     return `${BASE}/${recurso}/pdf${download ? "/download" : ""}?${params.toString()}`;
+  };
+
+  const renderAcoesDownloadPdf = (recurso, id, mensagemErro, className = "botao-secundario") => {
+    if (recurso !== "imoveis" && recurso !== "clientes") {
+      return (
+        <button
+          className={className}
+          onClick={() => abrirUrl(montarUrlPdf(recurso, id, true), mensagemErro)}
+        >
+          Download
+        </button>
+      );
+    }
+
+    return (
+      <>
+        <button
+          className={className}
+          onClick={() => abrirUrl(montarUrlPdf(recurso, id, true, true), mensagemErro)}
+        >
+          Baixar período
+        </button>
+        <button
+          className={className}
+          onClick={() => abrirUrl(montarUrlPdf(recurso, id, true, false), mensagemErro)}
+        >
+          Baixar tudo
+        </button>
+      </>
+    );
   };
 
   const obterIdVisita = (item) =>
@@ -436,8 +476,8 @@ function RelatorioGerente() {
 
     const finalParams = {
       id_gerente: filtros.id_gerente,
-      start: filtros.start,
-      end: filtros.end,
+      start: periodoEfetivo.start,
+      end: periodoEfetivo.end,
       ...extra,
     };
 
@@ -530,8 +570,8 @@ function RelatorioGerente() {
     setLoadingEquipes(true);
     try {
       const params = new URLSearchParams();
-      if (filtros.start) params.set('start', filtros.start);
-      if (filtros.end) params.set('end', filtros.end);
+      if (periodoEfetivo.start) params.set('start', periodoEfetivo.start);
+      if (periodoEfetivo.end) params.set('end', periodoEfetivo.end);
       const res = await fetchJson(`${API_BASE}/equipes/dashboard?${params.toString()}`);
       setDashboardEquipes(res);
     } catch (e) {
@@ -880,15 +920,6 @@ function RelatorioGerente() {
     }
   }
 
-  function baixarPdfImovel() {
-    if (!itemSelecionado || tipoSelecionado !== "imovel") return;
-
-    abrirUrl(
-      montarUrlPdf("imoveis", obterIdImovel(itemSelecionado), true),
-      "Não foi encontrado o id do imóvel para download."
-    );
-  }
-
   async function abrirPdfCliente() {
     if (!itemSelecionado || tipoSelecionado !== "cliente") return;
 
@@ -915,15 +946,6 @@ function RelatorioGerente() {
     } finally {
       setLoadingPdfCliente(false);
     }
-  }
-
-  function baixarPdfCliente() {
-    if (!itemSelecionado || tipoSelecionado !== "cliente") return;
-
-    abrirUrl(
-      montarUrlPdf("clientes", obterIdCliente(itemSelecionado), true),
-      "Não foi encontrado o id do cliente para download."
-    );
   }
 
   const renderModalViewer = () => {
@@ -1164,17 +1186,7 @@ function RelatorioGerente() {
             {renderCampos()}
           </div>
           <div className="modal-footer">
-            <button
-              className="botao-secundario"
-              onClick={() =>
-                abrirUrl(
-                  montarUrlPdf(recursoDownload, idParaDownload, true),
-                  "ID não encontrado para download."
-                )
-              }
-            >
-              Download PDF
-            </button>
+            {renderAcoesDownloadPdf(recursoDownload, idParaDownload, "ID não encontrado para download.")}
             <button className="botao-secundario" onClick={fecharModal}>
               Fechar
             </button>
@@ -1467,17 +1479,11 @@ function RelatorioGerente() {
                         Ver
                       </button>
 
-                      <button
-                        className="botao-secundario"
-                        onClick={() =>
-                          abrirUrl(
-                            montarUrlPdf("imoveis", obterIdImovel(item), true),
-                            "Não foi encontrado o id do imóvel para download."
-                          )
-                        }
-                      >
-                        Download
-                      </button>
+                      {renderAcoesDownloadPdf(
+                        "imoveis",
+                        obterIdImovel(item),
+                        "Não foi encontrado o id do imóvel para download."
+                      )}
                     </div>
                   </td>
                 </tr>
@@ -1576,17 +1582,11 @@ function RelatorioGerente() {
                         Ver
                       </button>
 
-                      <button
-                        className="botao-secundario"
-                        onClick={() =>
-                          abrirUrl(
-                            montarUrlPdf("clientes", obterIdCliente(item), true),
-                            "Não foi encontrado o id do cliente para download."
-                          )
-                        }
-                      >
-                        Download
-                      </button>
+                      {renderAcoesDownloadPdf(
+                        "clientes",
+                        obterIdCliente(item),
+                        "Não foi encontrado o id do cliente para download."
+                      )}
                     </div>
                   </td>
                 </tr>
@@ -1880,9 +1880,11 @@ function RelatorioGerente() {
               {loadingPdfImovel ? "Gerando PDF..." : "Abrir PDF do imóvel"}
             </button>
 
-            <button className="botao-secundario" onClick={baixarPdfImovel}>
-              Baixar PDF
-            </button>
+            {renderAcoesDownloadPdf(
+              "imoveis",
+              obterIdImovel(itemSelecionado),
+              "Não foi encontrado o id do imóvel para download."
+            )}
           </div>
         </section>
       );
@@ -1941,9 +1943,11 @@ function RelatorioGerente() {
             {loadingPdfCliente ? "Gerando PDF..." : "Abrir PDF do cliente"}
           </button>
 
-          <button className="botao-secundario" onClick={baixarPdfCliente}>
-            Baixar PDF
-          </button>
+          {renderAcoesDownloadPdf(
+            "clientes",
+            obterIdCliente(itemSelecionado),
+            "Não foi encontrado o id do cliente para download."
+          )}
         </div>
       </section>
     );
@@ -1970,8 +1974,8 @@ function RelatorioGerente() {
 
     const baixarPdfEquipes = () => {
       const params = new URLSearchParams();
-      if (filtros.start) params.set('start', filtros.start);
-      if (filtros.end) params.set('end', filtros.end);
+      if (periodoEfetivo.start) params.set('start', periodoEfetivo.start);
+      if (periodoEfetivo.end) params.set('end', periodoEfetivo.end);
       window.open(`${API_BASE}/equipes/pdf/download?${params.toString()}`, '_blank');
     };
 
@@ -2120,6 +2124,7 @@ function RelatorioGerente() {
             className="campo-filtro"
             value={filtros.start}
             onChange={(e) => handleFiltroChange("start", e.target.value)}
+            disabled={todoPeriodo}
           />
         </div>
 
@@ -2131,7 +2136,19 @@ function RelatorioGerente() {
             className="campo-filtro"
             value={filtros.end}
             onChange={(e) => handleFiltroChange("end", e.target.value)}
+            disabled={todoPeriodo}
           />
+        </div>
+
+        <div className="filtro-item filtro-checkbox">
+          <label>
+            <input
+              type="checkbox"
+              checked={todoPeriodo}
+              onChange={(e) => setTodoPeriodo(e.target.checked)}
+            />
+            {" "}Todo o período
+          </label>
         </div>
 
         <div className="filtro-item filtro-acoes">

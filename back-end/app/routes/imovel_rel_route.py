@@ -59,7 +59,9 @@ class GerarPdfImovelResource(Resource):
             if not imovel_id:
                 return {"ok": False, "error": "Parâmetro imovel_id é obrigatório."}, 400
 
-            result = gerar_pdf_imovel_publico(imovel_id)
+            start = (request.args.get("start") or "").strip() or None
+            end = (request.args.get("end") or "").strip() or None
+            result = gerar_pdf_imovel_publico(imovel_id, start, end)
 
             return {
                 "ok": True,
@@ -82,7 +84,9 @@ class BaixarPdfImovelResource(Resource):
             if not imovel_id:
                 return {"ok": False, "error": "Parâmetro imovel_id é obrigatório."}, 400
 
-            buffer_pdf, filename = gerar_pdf_imovel_download(imovel_id)
+            start = (request.args.get("start") or "").strip() or None
+            end = (request.args.get("end") or "").strip() or None
+            buffer_pdf, filename = gerar_pdf_imovel_download(imovel_id, start, end)
             buffer_pdf.seek(0)
 
             return send_file(

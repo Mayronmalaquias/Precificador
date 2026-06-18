@@ -318,7 +318,9 @@ class GerarPdfCliente(Resource):
             if not id_cliente:
                 return {"ok": False, "error": "Parâmetro id_cliente é obrigatório."}, 400
 
-            result = gerar_pdf_cliente_publico(id_cliente)
+            start = (request.args.get("start") or "").strip() or None
+            end = (request.args.get("end") or "").strip() or None
+            result = gerar_pdf_cliente_publico(id_cliente, start, end)
 
             return {
                 "ok": True,
@@ -342,7 +344,9 @@ class BaixarPdfCliente(Resource):
             if not id_cliente:
                 return {"ok": False, "error": "Parâmetro id_cliente é obrigatório."}, 400
 
-            buffer_pdf, filename = gerar_pdf_cliente_download(id_cliente)
+            start = (request.args.get("start") or "").strip() or None
+            end = (request.args.get("end") or "").strip() or None
+            buffer_pdf, filename = gerar_pdf_cliente_download(id_cliente, start, end)
             buffer_pdf.seek(0)
 
             return send_file(

@@ -1,6 +1,12 @@
 from app import SessionLocal
 from app.models.usuarios import Usuarios
+from werkzeug.security import generate_password_hash
 import time
+
+CAMPOS_EDITAVEIS = {
+    "nome", "email", "telefone", "instagram", "descricao",
+    "username", "permissao", "team",
+}
 
 # Cache simples em memória: { chave: (timestamp, resultado) }
 _cache = {}
@@ -265,6 +271,47 @@ def alterar_gerente(manager, id_corretor):
     except Exception:
         session.rollback()
         return {"error": "Algo de errado aconteceu"}
+
+    finally:
+        session.close()
+
+
+def editar_usuario(solicitante_id, id_corretor, dados=None, nova_senha=None):
+    """
+    Edita os dados (e opcionalmente a senha) de um usuário.
+    Só é permitido se o solicitante (validado no banco, não no payload) for diretor.
+    """
+    session = SessionLocal()
+    try:
+        solicitante = session.query(Usuarios).filter(
+            Usuarios.id_usuarios == solicitante_id
+        ).first()
+
+        if not solicitante or solicitante.permissao != "diretor":
+            return {"error": "Apenas diretores podem editar usuários."}
+
+        usuario = session.query(Usuarios).filter(
+            Usuarios.id_usuarios == id_corretor
+        ).first()
+
+        if not usuario:
+            return {"error": "Usuário não encontrado"}
+
+        for campo, valor in (dados or {}).items():
+            if campo in CAMPOS_EDITAVEIS:
+                setattr(usuario, campo, valor)
+
+        if nova_senha:
+            usuario.password = generate_password_hash(nova_senha)
+
+        session.commit()
+
+        _cache_invalidate("lista:", f"info:{id_corretor}:")
+        return {"ok": "Usuário atualizado com sucesso", "usuario": _usuario_to_dict(usuario)}
+
+    except Exception:
+        session.rollback()
+        return {"error": "Erro ao atualizar usuário"}
 
     finally:
         session.close()
