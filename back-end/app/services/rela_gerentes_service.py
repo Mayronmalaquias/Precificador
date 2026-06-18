@@ -399,6 +399,8 @@ def gestao_clientes_visitas(
         data_visita = _fmt_date(visita.get("Data_Visita"))
         data_ord = _parse_date_any(visita.get("Data_Visita"))
         proposta = _safe_str(visita.get("Proposta")) or "Sem informacao"
+        id_imovel = _safe_str(visita.get("Id_Imovel"))
+        endereco_externo = _safe_str(visita.get("Endereco_Externo"))
         motivo_talvez = (
             _safe_str(visita.get("Motivo_Talvez"))
             or _safe_str(visita.get("Motivo Talvez"))
@@ -460,7 +462,12 @@ def gestao_clientes_visitas(
             cli["notas"].extend(notas_cliente)
             cli["propostas"][proposta] += 1
             if proposta.strip().lower() in {"talvez", "talves"} and motivo_talvez:
-                cli["motivos_talvez"].append(motivo_talvez)
+                cli["motivos_talvez"].append({
+                    "motivo": motivo_talvez,
+                    "id_imovel": id_imovel,
+                    "endereco_externo": endereco_externo,
+                    "id_visita": id_visita,
+                })
             if proposta.strip().lower() not in {"", "nao", "não", "sem informacao", "sem informação"}:
                 clientes_com_proposta.add(cid)
             if data_ord and (cli["ultima_data_ord"] is None or data_ord > cli["ultima_data_ord"]):

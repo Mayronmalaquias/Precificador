@@ -492,6 +492,34 @@ function GestaoClientesVisitas() {
     }
   }, [clientes, clienteSelecionadoId]);
 
+  const aplicarMotivoTalvezLocal = (dadosAtual, idVisita, motivo, visitaRef) => {
+    if (!dadosAtual?.clientes) return dadosAtual;
+    const ehTalvez = String(visitaRef.proposta || "").trim().toLowerCase().startsWith("talve");
+
+    const clientes = dadosAtual.clientes.map((cliente) => {
+      const temVisita = (cliente.visitas || []).some((v) => v.id_visita === idVisita);
+      if (!temVisita) return cliente;
+
+      const visitas = cliente.visitas.map((v) =>
+        v.id_visita === idVisita ? { ...v, motivo_talvez: motivo } : v
+      );
+
+      const motivosTalvez = (cliente.motivos_talvez || []).filter((m) => m.id_visita !== idVisita);
+      if (ehTalvez && motivo) {
+        motivosTalvez.push({
+          motivo,
+          id_imovel: visitaRef.id_imovel,
+          endereco_externo: visitaRef.endereco_externo,
+          id_visita: idVisita,
+        });
+      }
+
+      return { ...cliente, visitas, motivos_talvez: motivosTalvez };
+    });
+
+    return { ...dadosAtual, clientes };
+  };
+
   const salvarMotivoTalvez = async (visita) => {
     const idVisita = visita?.id_visita;
     if (!idVisita) return;
@@ -507,7 +535,7 @@ function GestaoClientesVisitas() {
       const json = await resp.json().catch(() => ({}));
       if (!resp.ok || !json.ok) throw new Error(json.error || "Erro ao salvar motivo.");
       setEditandoMotivoId("");
-      await carregar();
+      setDados((atual) => aplicarMotivoTalvezLocal(atual, idVisita, motivo, visita));
     } catch (err) {
       setErro(err.message || "Erro ao salvar motivo.");
     } finally {
@@ -891,8 +919,11 @@ function GestaoClientesVisitas() {
               {!!clienteSelecionado.motivos_talvez?.length && (
                 <div className="gcv-note">
                   <strong>Motivos do talvez</strong>
-                  {clienteSelecionado.motivos_talvez.map((motivo, index) => (
-                    <p key={`${motivo}-${index}`}>{motivo}</p>
+                  {clienteSelecionado.motivos_talvez.map((item, index) => (
+                    <p key={`${item.id_visita || index}-${index}`}>
+                      <strong>Imovel {texto(item.id_imovel)}</strong>
+                      {item.endereco_externo ? ` (${item.endereco_externo})` : ""}: {item.motivo}
+                    </p>
                   ))}
                 </div>
               )}
