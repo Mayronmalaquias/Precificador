@@ -44,21 +44,13 @@ def _rows_from_values(values: List[List[Any]]) -> List[Dict[str, Any]]:
 
 
 def _batch_get_ranges(ranges: List[str]) -> Dict[str, List[Dict[str, Any]]]:
-    sheets, _, _ = _get_services()
+    """Le do Postgres (substitui o batchGet do Google Sheets)."""
+    from app.services import db_loaders
 
-    res = sheets.values().batchGet(
-        spreadsheetId=SPREADSHEET_ID,
-        ranges=ranges,
-        majorDimension="ROWS",
-    ).execute()
-
-    value_ranges = res.get("valueRanges", [])
     out: Dict[str, List[Dict[str, Any]]] = {}
-
-    for rg, vr in zip(ranges, value_ranges):
+    for rg in ranges:
         sheet_name = rg.split("!")[0]
-        out[sheet_name] = _rows_from_values(vr.get("values", []))
-
+        out[sheet_name] = db_loaders.carregar_aba(sheet_name)
     return out
 
 

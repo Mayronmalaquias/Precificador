@@ -23,7 +23,6 @@ import re
 import time
 import uuid
 import datetime as dt
-from dataclasses import dataclass, field
 from decimal import Decimal, InvalidOperation
 from typing import Any, Dict, List, Optional, Tuple
 from xml.sax.saxutils import escape
@@ -35,6 +34,11 @@ from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import Resource, build
 from googleapiclient.errors import HttpError
 from googleapiclient.http import MediaIoBaseUpload
+
+from app.database import SessionLocal
+from app.models.visita import (
+    ClienteVisita, ParceiroVisita, Visita, VisitaCliente, VisitaParceiro, Avaliacao,
+)
 
 # ---------------------------------------------------------------------------
 # Logging
@@ -87,86 +91,10 @@ CRITERIOS_KEY_MAP: Dict[str, str] = {
 }
 
 # ---------------------------------------------------------------------------
-# Schemas das sheets (evita "magic strings" espalhadas)
-# ---------------------------------------------------------------------------
-@dataclass
-class VisitaRow:
-    id_visita: str
-    id_imovel: str
-    data_visita: str
-    id_corretor: str
-    anexo_ficha: str = ""
-    audio_desc: str = ""
-    link_audio: str = ""
-    link_imagem: str = ""
-    visita_com_parceiro: str = ""
-    tipo_captacao: str = ""
-    endereco_externo: str = ""
-    proposta: str = ""
-    motivo_talvez: str = ""
-    created_at: str = ""
-    created_by: str = ""
-    assinatura: str = ""
-    id_cliente_assinante: str = ""
-    id_parceiro: str = ""
-    imovel_nao_captado: str = ""
-
-    def to_list(self) -> List[Any]:
-        return [
-            self.id_visita, self.id_imovel, self.data_visita, self.id_corretor,
-            self.anexo_ficha, self.audio_desc, self.link_audio, self.link_imagem,
-            self.visita_com_parceiro, self.tipo_captacao, self.endereco_externo,
-            self.proposta, self.created_at, self.created_by, self.assinatura,
-            self.id_cliente_assinante, self.id_parceiro, self.imovel_nao_captado,
-            self.motivo_talvez,
-        ]
-
-
-@dataclass
-class AvaliacaoRow:
-    id_avaliacao: str
-    id_visita: str
-    id_cliente: str
-    localizacao: str = ""
-    tamanho: str = ""
-    planta_imovel: str = ""
-    qualidade_acabamento: str = ""
-    estado_conservacao: str = ""
-    condominio_area_comun: str = ""
-    preco: str = ""
-    nota_geral: str = ""
-    preco_n10: str = ""
-    created_by: str = ""
-    id_parceiro: str = ""
-
-    def to_list(self) -> List[Any]:
-        return [
-            self.id_avaliacao, self.id_visita, self.id_cliente,
-            self.localizacao, self.tamanho, self.planta_imovel,
-            self.qualidade_acabamento, self.estado_conservacao,
-            self.condominio_area_comun, self.preco, self.nota_geral,
-            self.preco_n10, self.created_by, self.id_parceiro,
-        ]
-
-
-# ---------------------------------------------------------------------------
 # Utilitários
 # ---------------------------------------------------------------------------
 def _safe_str(v: Any) -> str:
     return "" if v is None else str(v).strip()
-
-
-def _to_ddmmyyyy(date_str: str) -> str:
-    if not date_str:
-        return dt.date.today().strftime("%d/%m/%Y")
-    try:
-        return dt.datetime.strptime(date_str, "%Y-%m-%d").strftime("%d/%m/%Y")
-    except Exception:
-        return date_str
-
-
-def _now_ddmmyyyy_hhmmss() -> str:
-    return dt.datetime.now().strftime("%d/%m/%Y %H:%M:%S")
 
 
 def _is_true(value: Any) -> bool:
@@ -527,123 +455,75 @@ def upload_pdf_to_drive(file_storage, id_corretor: str, imovel_id: str, data_vis
 # Sheets helpers
 # ---------------------------------------------------------------------------
 def _batch_get_sheet_rows(ranges: List[str]) -> Dict[str, List[Dict[str, Any]]]:
-    """batchGet com header automático. Retorna dict sheet_name → list[dict]."""
-    sheets, _, _ = _get_services()
-
-    res = _with_retry(lambda: sheets.values().batchGet(
-        spreadsheetId=SPREADSHEET_ID,
-        ranges=ranges,
-        majorDimension="ROWS",
-    ).execute())
+    """Le do Postgres (substitui o batchGet do Google Sheets). Mantem a mesma
+    assinatura/formato de retorno (dict nome_da_aba -> list[dict] de strings)
+    pra nao precisar tocar em quem chama isso."""
+    from app.services import db_loaders
 
     out: Dict[str, List[Dict[str, Any]]] = {}
-    for rg, vr in zip(ranges, res.get("valueRanges", [])):
+    for rg in ranges:
         sheet_name = rg.split("!")[0]
-        values = vr.get("values", [])
-
-        if not values or len(values) < 1:
-            out[sheet_name] = []
-            continue
-
-        header = [str(c).strip() for c in values[0]]
-        if not any(header):
-            logger.warning("Sheet '%s' sem cabeçalho válido.", sheet_name)
-            out[sheet_name] = []
-            continue
-
-        out[sheet_name] = [
-            {header[i]: (raw[i] if i < len(raw) else "") for i in range(len(header))}
-            for raw in values[1:]
-        ]
-
+        out[sheet_name] = db_loaders.carregar_aba(sheet_name)
     return out
 
 
-def _append_row(sheets: Resource, sheet_name: str, values: List[Any]) -> None:
-    _with_retry(lambda: sheets.values().append(
-        spreadsheetId=SPREADSHEET_ID,
-        range=f"{sheet_name}!A:Z",
-        valueInputOption="USER_ENTERED",
-        insertDataOption="INSERT_ROWS",
-        body={"values": [values]},
-    ).execute())
-
-
-def _read_two_columns(sheets: Resource, sheet_name: str, id_col: str, name_col: str) -> List[Tuple[str, str]]:
-    """
-    Lê duas colunas de uma só vez para evitar N+1 queries.
-    Retorna lista de (id, nome).
-    """
-    cols = f"{min(id_col, name_col)}:{max(id_col, name_col)}"
-    res = _with_retry(lambda: sheets.values().get(
-        spreadsheetId=SPREADSHEET_ID,
-        range=f"{sheet_name}!{cols}",
-    ).execute())
-
-    rows_raw = res.get("values", [])
-    # Determina qual coluna é id e qual é nome pelo índice
-    id_idx = 0 if id_col <= name_col else 1
-    name_idx = 1 - id_idx
-
-    result = []
-    for r in rows_raw[1:]:  # skip header
-        if len(r) > max(id_idx, name_idx):
-            result.append((r[id_idx].strip(), r[name_idx].strip()))
-    return result
-
-
-def _find_id_by_name(sheets: Resource, dim_sheet: str, id_col: str, name_col: str, name: str) -> str:
-    """Busca ID pelo nome (case-insensitive) em uma única query."""
-    if not name:
-        return ""
-
-    pairs = _read_two_columns(sheets, dim_sheet, id_col, name_col)
-    key = _norm_key(name)
-
-    for pair_id, pair_name in pairs:
-        if _norm_key(pair_name) == key:
-            return pair_id
-
-    return ""
-
-
 # ---------------------------------------------------------------------------
-# Dim helpers: ensure_* (busca ou cria)
+# Dim helpers: ensure_* (busca ou cria) - operam no Postgres
 # ---------------------------------------------------------------------------
-def ensure_parceiro_id(sheets: Resource, nome_parceiro: str, imobiliaria: str, id_corretor: str) -> str:
-    """
-    Dim_Parceiro_Visita: A=Id_Parceiro, B=Nome_Parceiro, C=Imobiliaria, D=Id_Corretor
-    Retorna ID existente ou cria novo.
-    """
+def ensure_parceiro_id(session, nome_parceiro: str, imobiliaria: str, id_corretor: str) -> str:
+    """Busca parceiro por nome (case-insensitive) ou cria novo. Retorna o id."""
     nome_parceiro = (nome_parceiro or "").strip()
     if not nome_parceiro:
         return ""
 
-    found = _find_id_by_name(sheets, "Dim_Parceiro_Visita", "A", "B", nome_parceiro)
-    if found:
-        return found
+    key = _norm_key(nome_parceiro)
+    for p in session.query(ParceiroVisita).all():
+        if _norm_key(p.nome_parceiro or "") == key:
+            return p.id_parceiro
 
     new_id = f"P{uuid.uuid4().hex[:7].upper()}"
-    _append_row(sheets, "Dim_Parceiro_Visita", [new_id, nome_parceiro, (imobiliaria or "").strip(), id_corretor or ""])
+    session.add(ParceiroVisita(
+        id_parceiro=new_id,
+        nome_parceiro=nome_parceiro,
+        imobiliaria=(imobiliaria or "").strip(),
+        id_corretor=id_corretor or "",
+    ))
+    session.flush()
     return new_id
 
 
-def ensure_cliente_id(sheets: Resource, nome_cliente: str, telefone: str, email: str, created_by: str, id_corretor: str) -> str:
-    """
-    Dim_Cliente_Visita: A=Id_Cliente, B=Nome, C=Telefone, D=Email, E=CreatedBy, F=Id_Corretor
-    Retorna ID existente ou cria novo.
-    """
+def ensure_cliente_id(session, nome_cliente: str, telefone: str, email: str, created_by: str, id_corretor: str) -> str:
+    """Busca cliente por nome (case-insensitive) ou cria novo. Retorna o id."""
     nome_cliente = (nome_cliente or "").strip()
     if not nome_cliente:
         return ""
 
-    found = _find_id_by_name(sheets, "Dim_Cliente_Visita", "A", "B", nome_cliente)
-    if found:
-        return found
+    key = _norm_key(nome_cliente)
+    for c in session.query(ClienteVisita).all():
+        if _norm_key(c.nome_cliente or "") == key:
+            return c.id_cliente
 
     new_id = f"CL{uuid.uuid4().hex[:6].upper()}"
-    _append_row(sheets, "Dim_Cliente_Visita", [new_id, nome_cliente, telefone or "", email or "", created_by or "", id_corretor or ""])
+    session.add(ClienteVisita(
+        id_cliente=new_id,
+        nome_cliente=nome_cliente,
+        telefone_cliente=telefone or "",
+        email_cliente=email or "",
+        created_by=created_by or "",
+        id_corretor=id_corretor or "",
+    ))
+    session.flush()
     return new_id
+
+
+def _to_decimal_or_none(v: Any) -> Optional[Decimal]:
+    s = _safe_str(v)
+    if not s:
+        return None
+    try:
+        return Decimal(s)
+    except InvalidOperation:
+        return None
 
 
 # ---------------------------------------------------------------------------
@@ -651,128 +531,128 @@ def ensure_cliente_id(sheets: Resource, nome_cliente: str, telefone: str, email:
 # ---------------------------------------------------------------------------
 def registrar_visita(payload: Dict[str, Any]) -> str:
     """
-    Grava em: Fato_Visitas, Fato_Avaliacao, Fato_Cliente_Visita, Fato_Parceiro_Visita.
+    Grava em: visitas, avaliacoes_visita, visita_cliente, visita_parceiro (Postgres).
     Retorna id_visita gerado.
     """
-    # Uma única conexão para toda a operação
-    sheets, _, _ = _get_services()
+    session = SessionLocal()
+    try:
+        id_visita = uuid.uuid4().hex[:8]
+        id_avaliacao = uuid.uuid4().hex[:8]
+        id_cliente_visita = uuid.uuid4().hex[:8]
+        id_parceiro_visita = uuid.uuid4().hex[:8]
 
-    id_visita = uuid.uuid4().hex[:8]
-    id_avaliacao = uuid.uuid4().hex[:8]
-    id_cliente_visita = uuid.uuid4().hex[:8]
-    id_parceiro_visita = uuid.uuid4().hex[:8]
+        data_str = _safe_str(payload.get("dataVisita", ""))
+        try:
+            data_visita = dt.datetime.strptime(data_str, "%Y-%m-%d").date()
+        except ValueError:
+            data_visita = dt.date.today()
 
-    data_visita = _to_ddmmyyyy(payload.get("dataVisita", ""))
-    imovel_id = _safe_str(payload.get("imovelId"))
-    id_corretor = _safe_str(payload.get("idCorretor") or payload.get("corretorId"))
+        imovel_id = _safe_str(payload.get("imovelId"))
+        id_corretor = _safe_str(payload.get("idCorretor") or payload.get("corretorId"))
 
-    parceiro_externo = payload.get("parceiroExterno", "NAO")
-    situacao_imovel = payload.get("situacaoImovel", "CAPTACAO_PROPRIA")
-    created_at = _now_ddmmyyyy_hhmmss()
-    created_by = payload.get("corretorEmail") or ""
+        parceiro_externo = payload.get("parceiroExterno", "NAO")
+        situacao_imovel = payload.get("situacaoImovel", "CAPTACAO_PROPRIA")
+        created_at = dt.datetime.now()
+        created_by = payload.get("corretorEmail") or ""
 
-    # Tipo de captação
-    tipo_captacao = ""
-    imovel_nao_captado = ""
-    if situacao_imovel in {"CAPTACAO_61", "CAPTACAO_PROPRIA", "CAPTACAO_PARCEIRO"}:
-        tipo_captacao = "Captação 61"
-    elif situacao_imovel == "IMOVEL_NAO_CAPTADO":
-        imovel_nao_captado = "TRUE"
+        # Tipo de captação
+        tipo_captacao = ""
+        imovel_nao_captado = False
+        if situacao_imovel in {"CAPTACAO_61", "CAPTACAO_PROPRIA", "CAPTACAO_PARCEIRO"}:
+            tipo_captacao = "Captação 61"
+        elif situacao_imovel == "IMOVEL_NAO_CAPTADO":
+            imovel_nao_captado = True
 
-    # Parceiro
-    parceiro_nome = _safe_str(payload.get("parceiroNome"))
-    parceiro_imobiliaria = _safe_str(payload.get("parceiroImobiliaria"))
-    id_parceiro = ensure_parceiro_id(sheets, parceiro_nome, parceiro_imobiliaria, id_corretor)
+        # Parceiro
+        parceiro_nome = _safe_str(payload.get("parceiroNome"))
+        parceiro_imobiliaria = _safe_str(payload.get("parceiroImobiliaria"))
+        id_parceiro = ensure_parceiro_id(session, parceiro_nome, parceiro_imobiliaria, id_corretor)
 
-    # Clientes
-    cliente_nome = _safe_str(payload.get("clienteNome"))
-    cliente_tel = _safe_str(payload.get("clienteTelefone") or payload.get("clienteAssinanteTelefone"))
-    cliente_email = _safe_str(payload.get("clienteEmail") or payload.get("clienteAssinanteEmail"))
-    id_cliente = ensure_cliente_id(sheets, cliente_nome, cliente_tel, cliente_email, created_by, id_corretor)
+        # Clientes
+        cliente_nome = _safe_str(payload.get("clienteNome"))
+        cliente_tel = _safe_str(payload.get("clienteTelefone") or payload.get("clienteAssinanteTelefone"))
+        cliente_email = _safe_str(payload.get("clienteEmail") or payload.get("clienteAssinanteEmail"))
+        id_cliente = ensure_cliente_id(session, cliente_nome, cliente_tel, cliente_email, created_by, id_corretor)
 
-    cliente_assinante_nome = _safe_str(payload.get("clienteAssinanteNome"))
-    if cliente_assinante_nome and _norm_key(cliente_assinante_nome) != _norm_key(cliente_nome):
-        id_cliente_assinante = ensure_cliente_id(
-            sheets,
-            cliente_assinante_nome,
-            _safe_str(payload.get("clienteAssinanteTelefone")),
-            _safe_str(payload.get("clienteAssinanteEmail")),
-            created_by,
-            id_corretor,
-        )
-    else:
-        id_cliente_assinante = id_cliente
+        cliente_assinante_nome = _safe_str(payload.get("clienteAssinanteNome"))
+        if cliente_assinante_nome and _norm_key(cliente_assinante_nome) != _norm_key(cliente_nome):
+            id_cliente_assinante = ensure_cliente_id(
+                session,
+                cliente_assinante_nome,
+                _safe_str(payload.get("clienteAssinanteTelefone")),
+                _safe_str(payload.get("clienteAssinanteEmail")),
+                created_by,
+                id_corretor,
+            )
+        else:
+            id_cliente_assinante = id_cliente
 
-    # --- Fato_Visitas ---
-    visita = VisitaRow(
-        id_visita=id_visita,
-        id_imovel=imovel_id,
-        data_visita=data_visita,
-        id_corretor=id_corretor,
-        anexo_ficha=_safe_str(payload.get("anexoFichaVisita")),
-        audio_desc=_safe_str(payload.get("audioDescricaoClienteVisita")),
-        link_audio=_safe_str(payload.get("linkAudio")),
-        link_imagem=_safe_str(payload.get("linkImagem")),
-        visita_com_parceiro="TRUE" if _is_true(parceiro_externo) else "FALSE",
-        tipo_captacao=tipo_captacao,
-        endereco_externo=_safe_str(payload.get("enderecoExterno")),
-        proposta=_safe_str(payload.get("proposta")),
-        motivo_talvez=_safe_str(payload.get("motivoTalvez")),
-        created_at=created_at,
-        created_by=created_by,
-        assinatura=_safe_str(payload.get("assinatura")),
-        id_cliente_assinante=id_cliente_assinante,
-        id_parceiro=id_parceiro,
-        imovel_nao_captado=imovel_nao_captado,
-    )
+        session.add(Visita(
+            id_visita=id_visita,
+            id_imovel=imovel_id,
+            data_visita=data_visita,
+            id_corretor=id_corretor,
+            anexo_ficha_visita=_safe_str(payload.get("anexoFichaVisita")),
+            audiodescricao_cliente_visita=_safe_str(payload.get("audioDescricaoClienteVisita")),
+            link_audio=_safe_str(payload.get("linkAudio")),
+            link_imagem=_safe_str(payload.get("linkImagem")),
+            visita_com_parceiro=_is_true(parceiro_externo),
+            tipo_captacao=tipo_captacao,
+            endereco_externo=_safe_str(payload.get("enderecoExterno")),
+            proposta=_safe_str(payload.get("proposta")),
+            motivo_talvez=_safe_str(payload.get("motivoTalvez")),
+            created_at=created_at,
+            created_by=created_by,
+            assinatura=_safe_str(payload.get("assinatura")),
+            id_cliente_assinante=id_cliente_assinante or None,
+            id_parceiro=id_parceiro or None,
+            imovel_nao_captado=imovel_nao_captado,
+        ))
+        session.flush()  # garante que a visita existe antes de gravar os dependentes (FK)
 
-    # Encontra próxima linha disponível
-    col_a = _with_retry(lambda: sheets.values().get(
-        spreadsheetId=SPREADSHEET_ID,
-        range="Fato_Visitas!A2:A",
-    ).execute().get("values", []))
-    next_row = 2 + len(col_a)
+        # --- avaliacoes_visita ---
+        aval = payload.get("avaliacoes") or {}
+        session.add(Avaliacao(
+            id_avaliacao=id_avaliacao,
+            id_visita=id_visita,
+            id_cliente=id_cliente or None,
+            localizacao=_to_decimal_or_none(aval.get("localizacao")),
+            tamanho=_to_decimal_or_none(aval.get("tamanho")),
+            planta_imovel=_to_decimal_or_none(aval.get("planta")),
+            qualidade_acabamento=_to_decimal_or_none(aval.get("acabamento")),
+            estado_conservacao=_to_decimal_or_none(aval.get("conservacao")),
+            condominio_areacomun=_to_decimal_or_none(aval.get("condominio")),
+            preco=_to_decimal_or_none(aval.get("preco")),
+            nota_geral=_to_decimal_or_none(aval.get("notaGeral")),
+            preco_n10=_safe_str(payload.get("precoNota10")),
+            created_by=created_by or _safe_str(payload.get("corretor")),
+            id_parceiro=id_parceiro or None,
+        ))
 
-    _with_retry(lambda: sheets.values().update(
-        spreadsheetId=SPREADSHEET_ID,
-        range=f"Fato_Visitas!A{next_row}:S{next_row}",
-        valueInputOption="USER_ENTERED",
-        body={"values": [visita.to_list()]},
-    ).execute())
+        # --- visita_cliente ---
+        if id_cliente:
+            session.add(VisitaCliente(
+                id_clientevisita_origem=id_cliente_visita,
+                id_visita=id_visita,
+                id_cliente=id_cliente,
+                papel_na_visita=_safe_str(payload.get("papelVisita")),
+            ))
 
-    # --- Fato_Avaliacao ---
-    aval = payload.get("avaliacoes") or {}
-    avaliacao = AvaliacaoRow(
-        id_avaliacao=id_avaliacao,
-        id_visita=id_visita,
-        id_cliente=id_cliente,
-        localizacao=_safe_str(aval.get("localizacao")),
-        tamanho=_safe_str(aval.get("tamanho")),
-        planta_imovel=_safe_str(aval.get("planta")),
-        qualidade_acabamento=_safe_str(aval.get("acabamento")),
-        estado_conservacao=_safe_str(aval.get("conservacao")),
-        condominio_area_comun=_safe_str(aval.get("condominio")),
-        preco=_safe_str(aval.get("preco")),
-        nota_geral=_safe_str(aval.get("notaGeral")),
-        preco_n10=_safe_str(payload.get("precoNota10")),
-        created_by=created_by or _safe_str(payload.get("corretor")),
-        id_parceiro=id_parceiro,
-    )
-    _append_row(sheets, "Fato_Avaliacao", avaliacao.to_list())
+        # --- visita_parceiro ---
+        if id_parceiro:
+            session.add(VisitaParceiro(
+                id_parceirovisita_origem=id_parceiro_visita,
+                id_visita=id_visita,
+                id_parceiro=id_parceiro,
+            ))
 
-    # --- Fato_Cliente_Visita ---
-    _append_row(sheets, "Fato_Cliente_Visita", [
-        id_cliente_visita,
-        id_visita,
-        id_cliente,
-        _safe_str(payload.get("papelVisita")),
-    ])
-
-    # --- Fato_Parceiro_Visita ---
-    if id_parceiro:
-        _append_row(sheets, "Fato_Parceiro_Visita", [id_parceiro_visita, id_visita, id_parceiro])
-
-    return id_visita
+        session.commit()
+        return id_visita
+    except Exception:
+        session.rollback()
+        raise
+    finally:
+        session.close()
 
 
 # ---------------------------------------------------------------------------
@@ -1007,23 +887,20 @@ def buscar_visitas_do_corretor(id_corretor: str, q: str = "", limit: int = 30) -
 # ---------------------------------------------------------------------------
 def listar_clientes_do_corretor(id_corretor: str) -> List[Dict[str, Any]]:
     """Retorna clientes vinculados ao corretor (leitura simples da Dim)."""
+    from app.services import db_loaders
+
     id_corretor_norm = _safe_str(id_corretor).upper()
-    sheets, _, _ = _get_services()
 
-    res = _with_retry(lambda: sheets.values().get(
-        spreadsheetId=SPREADSHEET_ID,
-        range="Dim_Cliente_Visita!A2:F",
-    ).execute())
-
-    clientes = []
-    for r in res.get("values", []):
-        if _safe_str(r[5] if len(r) > 5 else "").upper() == id_corretor_norm:
-            clientes.append({
-                "id_cliente": r[0] if len(r) > 0 else "",
-                "nome": r[1] if len(r) > 1 else "",
-                "telefone": r[2] if len(r) > 2 else "",
-                "email": r[3] if len(r) > 3 else "",
-            })
+    clientes = [
+        {
+            "id_cliente": r.get("Id_Cliente", ""),
+            "nome": r.get("Nome_Cliente", ""),
+            "telefone": r.get("Telefone_Cliente", ""),
+            "email": r.get("Email_Cliente", ""),
+        }
+        for r in db_loaders.carregar_dim_cliente_visita()
+        if _safe_str(r.get("Id_Corretor")).upper() == id_corretor_norm
+    ]
 
     clientes.sort(key=lambda x: x["nome"].lower())
     return clientes
@@ -1031,8 +908,16 @@ def listar_clientes_do_corretor(id_corretor: str) -> List[Dict[str, Any]]:
 
 def criar_cliente_manual(nome: str, telefone: str, email: str, created_by: str, id_corretor: str) -> str:
     """Cria cliente manualmente (via formulário), reutilizando ensure_cliente_id."""
-    sheets, _, _ = _get_services()
-    return ensure_cliente_id(sheets, nome, telefone, email, created_by, id_corretor)
+    session = SessionLocal()
+    try:
+        novo_id = ensure_cliente_id(session, nome, telefone, email, created_by, id_corretor)
+        session.commit()
+        return novo_id
+    except Exception:
+        session.rollback()
+        raise
+    finally:
+        session.close()
 
 
 def buscar_clientes_do_corretor_com_historico(id_corretor: str, q: str = "", limit: int = 200) -> List[Dict[str, Any]]:
@@ -1726,145 +1611,79 @@ def gerar_pdf_cliente_publico(
 # ---------------------------------------------------------------------------
 # Editar e excluir visita
 # ---------------------------------------------------------------------------
-def _find_row_by_id_in_col(sheets: Resource, sheet_name: str, id_value: str, col_letter: str = "A") -> Optional[int]:
-    """Retorna o número de linha 1-indexed que tem id_value na coluna col_letter, ou None."""
-    res = _with_retry(lambda: sheets.values().get(
-        spreadsheetId=SPREADSHEET_ID,
-        range=f"{sheet_name}!{col_letter}:{col_letter}",
-    ).execute())
-    for i, row in enumerate(res.get("values", [])):
-        if row and _safe_str(row[0]) == id_value:
-            return i + 1  # 1-indexed
-    return None
-
-
-def _find_all_rows_by_id_in_col(sheets: Resource, sheet_name: str, id_value: str, col_letter: str = "B") -> List[int]:
-    """Retorna lista de índices 0-indexed de todas as linhas que têm id_value na coluna."""
-    res = _with_retry(lambda: sheets.values().get(
-        spreadsheetId=SPREADSHEET_ID,
-        range=f"{sheet_name}!{col_letter}:{col_letter}",
-    ).execute())
-    return [i for i, row in enumerate(res.get("values", [])) if row and _safe_str(row[0]) == id_value]
-
-
-def _get_sheet_ids(sheets: Resource, sheet_names: List[str]) -> Dict[str, int]:
-    """Retorna dict sheet_name → sheetId (numérico) para as sheets listadas."""
-    result = _with_retry(lambda: sheets.get(
-        spreadsheetId=SPREADSHEET_ID,
-        fields="sheets(properties(title,sheetId))",
-    ).execute())
-    return {
-        s["properties"]["title"]: s["properties"]["sheetId"]
-        for s in result.get("sheets", [])
-        if s["properties"]["title"] in sheet_names
-    }
-
-
 def editar_visita(id_visita: str, payload: Dict[str, Any]) -> None:
-    """Atualiza campos editáveis de uma visita na sheet Fato_Visitas."""
-    sheets, _, _ = _get_services()
+    """Atualiza campos editáveis de uma visita (Postgres)."""
+    session = SessionLocal()
+    try:
+        visita = session.get(Visita, id_visita)
+        if visita is None:
+            raise ValueError(f"Visita '{id_visita}' não encontrada.")
 
-    row_num = _find_row_by_id_in_col(sheets, "Fato_Visitas", id_visita, "A")
-    if row_num is None:
-        raise ValueError(f"Visita '{id_visita}' não encontrada.")
+        if "dataVisita" in payload:
+            try:
+                visita.data_visita = dt.datetime.strptime(_safe_str(payload["dataVisita"]), "%Y-%m-%d").date()
+            except ValueError:
+                pass
 
-    updates: List[Tuple[str, Any]] = []
+        if "situacaoImovel" in payload:
+            sit = payload["situacaoImovel"]
+            if sit in {"CAPTACAO_61", "CAPTACAO_PROPRIA", "CAPTACAO_PARCEIRO"}:
+                visita.tipo_captacao = "Captação 61"
+                visita.imovel_nao_captado = False
+            elif sit == "IMOVEL_NAO_CAPTADO":
+                visita.tipo_captacao = ""
+                visita.imovel_nao_captado = True
 
-    if "dataVisita" in payload:
-        updates.append((f"Fato_Visitas!C{row_num}", _to_ddmmyyyy(payload["dataVisita"])))
+        if "enderecoExterno" in payload:
+            visita.endereco_externo = _safe_str(payload["enderecoExterno"])
 
-    if "situacaoImovel" in payload:
-        sit = payload["situacaoImovel"]
-        if sit in {"CAPTACAO_61", "CAPTACAO_PROPRIA", "CAPTACAO_PARCEIRO"}:
-            updates.append((f"Fato_Visitas!J{row_num}", "Captação 61"))
-            updates.append((f"Fato_Visitas!R{row_num}", ""))
-        elif sit == "IMOVEL_NAO_CAPTADO":
-            updates.append((f"Fato_Visitas!J{row_num}", ""))
-            updates.append((f"Fato_Visitas!R{row_num}", "TRUE"))
+        if "proposta" in payload:
+            visita.proposta = _safe_str(payload["proposta"])
 
-    if "enderecoExterno" in payload:
-        updates.append((f"Fato_Visitas!K{row_num}", _safe_str(payload["enderecoExterno"])))
+        if "motivoTalvez" in payload:
+            visita.motivo_talvez = _safe_str(payload["motivoTalvez"])
 
-    if "proposta" in payload:
-        updates.append((f"Fato_Visitas!L{row_num}", _safe_str(payload["proposta"])))
+        for av in payload.get("avaliacoes", []):
+            id_av = _safe_str(av.get("id_avaliacao"))
+            if not id_av:
+                continue
+            avaliacao = session.get(Avaliacao, id_av)
+            if avaliacao is None:
+                continue
+            avaliacao.localizacao = _to_decimal_or_none(av.get("localizacao"))
+            avaliacao.tamanho = _to_decimal_or_none(av.get("tamanho"))
+            avaliacao.planta_imovel = _to_decimal_or_none(av.get("planta"))
+            avaliacao.qualidade_acabamento = _to_decimal_or_none(av.get("acabamento"))
+            avaliacao.estado_conservacao = _to_decimal_or_none(av.get("conservacao"))
+            avaliacao.condominio_areacomun = _to_decimal_or_none(av.get("condominio"))
+            avaliacao.preco = _to_decimal_or_none(av.get("preco"))
+            avaliacao.nota_geral = _to_decimal_or_none(av.get("notaGeral"))
+            avaliacao.preco_n10 = _safe_str(av.get("precoNota10"))
 
-    if "motivoTalvez" in payload:
-        updates.append((f"Fato_Visitas!S{row_num}", _safe_str(payload["motivoTalvez"])))
-
-    for range_str, value in updates:
-        _with_retry(lambda r=range_str, v=value: sheets.values().update(
-            spreadsheetId=SPREADSHEET_ID,
-            range=r,
-            valueInputOption="USER_ENTERED",
-            body={"values": [[v]]},
-        ).execute())
-
-    # Atualiza avaliações (Fato_Avaliacao colunas D:L)
-    for av in payload.get("avaliacoes", []):
-        id_av = _safe_str(av.get("id_avaliacao"))
-        if not id_av:
-            continue
-        av_row = _find_row_by_id_in_col(sheets, "Fato_Avaliacao", id_av, "A")
-        if av_row is None:
-            continue
-        scores = [
-            _safe_str(av.get("localizacao", "")),
-            _safe_str(av.get("tamanho", "")),
-            _safe_str(av.get("planta", "")),
-            _safe_str(av.get("acabamento", "")),
-            _safe_str(av.get("conservacao", "")),
-            _safe_str(av.get("condominio", "")),
-            _safe_str(av.get("preco", "")),
-            _safe_str(av.get("notaGeral", "")),
-            _safe_str(av.get("precoNota10", "")),
-        ]
-        _with_retry(lambda r=f"Fato_Avaliacao!D{av_row}:L{av_row}", v=[scores]: sheets.values().update(
-            spreadsheetId=SPREADSHEET_ID,
-            range=r,
-            valueInputOption="USER_ENTERED",
-            body={"values": v},
-        ).execute())
+        session.commit()
+    except Exception:
+        session.rollback()
+        raise
+    finally:
+        session.close()
 
 
 def excluir_visita(id_visita: str) -> None:
-    """Remove a visita e todos os registros relacionados das sheets do Google Sheets."""
-    sheets, _, _ = _get_services()
+    """Remove a visita e todos os registros relacionados (Postgres)."""
+    session = SessionLocal()
+    try:
+        visita = session.get(Visita, id_visita)
+        if visita is None:
+            raise ValueError(f"Visita '{id_visita}' não encontrada.")
 
-    related_sheets = ["Fato_Visitas", "Fato_Avaliacao", "Fato_Cliente_Visita", "Fato_Parceiro_Visita"]
-    sheet_ids = _get_sheet_ids(sheets, related_sheets)
+        session.query(Avaliacao).filter(Avaliacao.id_visita == id_visita).delete(synchronize_session=False)
+        session.query(VisitaCliente).filter(VisitaCliente.id_visita == id_visita).delete(synchronize_session=False)
+        session.query(VisitaParceiro).filter(VisitaParceiro.id_visita == id_visita).delete(synchronize_session=False)
+        session.delete(visita)
 
-    fato_rows = _find_all_rows_by_id_in_col(sheets, "Fato_Visitas", id_visita, "A")
-    if not fato_rows:
-        raise ValueError(f"Visita '{id_visita}' não encontrada.")
-
-    aval_rows = _find_all_rows_by_id_in_col(sheets, "Fato_Avaliacao", id_visita, "B")
-    cliente_rows = _find_all_rows_by_id_in_col(sheets, "Fato_Cliente_Visita", id_visita, "B")
-    parceiro_rows = _find_all_rows_by_id_in_col(sheets, "Fato_Parceiro_Visita", id_visita, "B")
-
-    requests = []
-    for sheet_name, row_indices in [
-        ("Fato_Visitas", fato_rows),
-        ("Fato_Avaliacao", aval_rows),
-        ("Fato_Cliente_Visita", cliente_rows),
-        ("Fato_Parceiro_Visita", parceiro_rows),
-    ]:
-        sid = sheet_ids.get(sheet_name)
-        if sid is None:
-            continue
-        for row_idx in sorted(row_indices, reverse=True):
-            requests.append({
-                "deleteDimension": {
-                    "range": {
-                        "sheetId": sid,
-                        "dimension": "ROWS",
-                        "startIndex": row_idx,
-                        "endIndex": row_idx + 1,
-                    }
-                }
-            })
-
-    if requests:
-        _with_retry(lambda: sheets.batchUpdate(
-            spreadsheetId=SPREADSHEET_ID,
-            body={"requests": requests},
-        ).execute())
+        session.commit()
+    except Exception:
+        session.rollback()
+        raise
+    finally:
+        session.close()

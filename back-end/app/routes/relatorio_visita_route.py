@@ -7,7 +7,6 @@ from typing import Any, Dict, List
 from flask import request
 from flask_restx import Namespace, Resource
 
-from app.services.visita_service import _get_services, SPREADSHEET_ID
 
 
 relatorio_visita = Namespace(
@@ -42,35 +41,11 @@ def listar_imoveis_do_corretor(
     if not id_corretor:
         return []
 
-    sheets, _, _ = _get_services()
+    from app.services import db_loaders
 
-    res = sheets.values().batchGet(
-        spreadsheetId=SPREADSHEET_ID,
-        ranges=[
-            "Fato_Visitas!A1:R",
-            "Fato_Cliente_Visita!A1:D",
-            "Dim_Cliente_Visita!A1:F",
-        ],
-    ).execute()
-
-    value_ranges = res.get("valueRanges", [])
-
-    def to_rows(vr):
-        vals = vr.get("values", [])
-        if not vals:
-            return []
-        header = vals[0]
-        rows = []
-        for raw in vals[1:]:
-            obj = {}
-            for i, h in enumerate(header):
-                obj[h] = raw[i] if i < len(raw) else ""
-            rows.append(obj)
-        return rows
-
-    visitas_rows = to_rows(value_ranges[0]) if len(value_ranges) > 0 else []
-    fato_cliente_rows = to_rows(value_ranges[1]) if len(value_ranges) > 1 else []
-    dim_cliente_rows = to_rows(value_ranges[2]) if len(value_ranges) > 2 else []
+    visitas_rows = db_loaders.carregar_aba("Fato_Visitas")
+    fato_cliente_rows = db_loaders.carregar_aba("Fato_Cliente_Visita")
+    dim_cliente_rows = db_loaders.carregar_aba("Dim_Cliente_Visita")
 
     cliente_map = {
         _safe_str(r.get("Id_Cliente")): _safe_str(r.get("Nome_Cliente"))

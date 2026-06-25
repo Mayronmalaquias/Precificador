@@ -81,36 +81,14 @@ def _batch_get_rows_from_sheet(
     spreadsheet_id: str,
     ranges: List[str],
 ) -> Dict[str, List[Dict[str, Any]]]:
-    sheets, _, _ = _get_services()
+    """Le do Postgres (substitui o batchGet do Google Sheets). spreadsheet_id
+    ignorado - so existe pra nao mudar a assinatura de quem chama isso."""
+    from app.services import db_loaders
 
-    res = sheets.values().batchGet(
-        spreadsheetId=spreadsheet_id,
-        ranges=ranges,
-        majorDimension="ROWS",
-    ).execute()
-
-    value_ranges = res.get("valueRanges", [])
     out: Dict[str, List[Dict[str, Any]]] = {}
-
-    for rg, vr in zip(ranges, value_ranges):
-        values = vr.get("values", [])
+    for rg in ranges:
         sheet_name = rg.split("!")[0]
-
-        if not values:
-            out[sheet_name] = []
-            continue
-
-        header = [str(c).strip() for c in values[0]]
-        rows = []
-
-        for raw in values[1:]:
-            row = {}
-            for i, h in enumerate(header):
-                row[h] = raw[i] if i < len(raw) else ""
-            rows.append(row)
-
-        out[sheet_name] = rows
-
+        out[sheet_name] = db_loaders.carregar_aba(sheet_name)
     return out
 
 
@@ -713,35 +691,11 @@ def listar_imoveis_do_corretor(
     if not id_corretor:
         return []
 
-    sheets, _, _ = _get_services()
+    from app.services import db_loaders
 
-    res = sheets.values().batchGet(
-        spreadsheetId=VISITAS_SPREADSHEET_ID,
-        ranges=[
-            "Fato_Visitas!A1:R",
-            "Fato_Cliente_Visita!A1:D",
-            "Dim_Cliente_Visita!A1:F",
-        ],
-    ).execute()
-
-    value_ranges = res.get("valueRanges", [])
-
-    def to_rows(vr):
-        vals = vr.get("values", [])
-        if not vals:
-            return []
-        header = vals[0]
-        rows = []
-        for raw in vals[1:]:
-            obj = {}
-            for i, h in enumerate(header):
-                obj[h] = raw[i] if i < len(raw) else ""
-            rows.append(obj)
-        return rows
-
-    visitas_rows = to_rows(value_ranges[0]) if len(value_ranges) > 0 else []
-    fato_cliente_rows = to_rows(value_ranges[1]) if len(value_ranges) > 1 else []
-    dim_cliente_rows = to_rows(value_ranges[2]) if len(value_ranges) > 2 else []
+    visitas_rows = db_loaders.carregar_aba("Fato_Visitas")
+    fato_cliente_rows = db_loaders.carregar_aba("Fato_Cliente_Visita")
+    dim_cliente_rows = db_loaders.carregar_aba("Dim_Cliente_Visita")
 
     cliente_map = {
         _safe_str(r.get("Id_Cliente")): _safe_str(r.get("Nome_Cliente"))

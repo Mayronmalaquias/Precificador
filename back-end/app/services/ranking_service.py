@@ -92,48 +92,15 @@ class RankingService:
             if str(x).strip()
         }
 
-    # =========================================================
-    # Google Sheets client
-    # =========================================================
-    def _get_gspread_client(self, readonly: bool = True):
-        import gspread
-        from google.oauth2.service_account import Credentials
-
-        scopes = ["https://www.googleapis.com/auth/spreadsheets.readonly"] if readonly else [
-            "https://www.googleapis.com/auth/spreadsheets"
-        ]
-
-        if self.gsa_json_inline:
-            info = json.loads(self.gsa_json_inline)
-            creds = Credentials.from_service_account_info(info, scopes=scopes)
-        else:
-            if not self.gsa_json_path:
-                raise RuntimeError("Defina GSA_JSON ou configure o caminho do JSON de credenciais.")
-            creds = Credentials.from_service_account_file(self.gsa_json_path, scopes=scopes)
-
-        return gspread.authorize(creds)
-
     def read_sheet_df(self, spreadsheet_id: str, sheet_name: str) -> pd.DataFrame:
-        from gspread.exceptions import WorksheetNotFound
+        """Le do Postgres (substitui a leitura via gspread). spreadsheet_id
+        ignorado - so existe pra nao mudar a assinatura de quem chama isso."""
+        from app.services import db_loaders
 
-        if not spreadsheet_id:
+        rows = db_loaders.carregar_aba(sheet_name)
+        if not rows:
             return pd.DataFrame()
-
-        gc = self._get_gspread_client(readonly=True)
-        sh = gc.open_by_key(spreadsheet_id)
-
-        try:
-            ws = sh.worksheet(sheet_name)
-        except WorksheetNotFound:
-            return pd.DataFrame()
-
-        values = ws.get_all_values()
-        if not values or len(values) < 2:
-            return pd.DataFrame()
-
-        headers = [str(h).strip() for h in values[0]]
-        data = values[1:]
-        return pd.DataFrame(data, columns=headers)
+        return pd.DataFrame(rows)
 
     # =========================================================
     # Helpers base
@@ -341,40 +308,6 @@ class RankingService:
             for _, r in df.iterrows()
         }
         return id_to_name, name_to_id
-
-    # =========================================================
-    # Divisão Comissão (mantido)
-    # =========================================================
-    def _ensure_divisao_sheet(self, sh):
-        from gspread.exceptions import WorksheetNotFound
-
-        sheet_name = self.cfg.ABA_DIVISAO_COMISSAO
-        try:
-            ws = sh.worksheet(sheet_name)
-        except WorksheetNotFound:
-            ws = sh.add_worksheet(title=sheet_name, rows=2000, cols=20)
-
-        header = [
-            "Id_Contrato",
-            "Papel",
-            "Id_Corretor",
-            "Nome_Corretor",
-            "Percentual",
-            "Comissao_Valor",
-            "Observacao",
-            "UpdatedAt",
-        ]
-
-        values = ws.get_all_values()
-        if not values:
-            ws.append_row(header, value_input_option="RAW")
-            return ws
-
-        first = [str(x).strip() for x in values[0]]
-        if first[:len(header)] != header:
-            ws.update("A1:H1", [header], value_input_option="RAW")
-
-        return ws
 
     # =========================================================
     # Load bases
@@ -1137,34 +1070,38 @@ class RankingService:
             if not row.empty:
                 valor_comissao_total = float(row.iloc[0]["Valor_Total_61"] or 0.0)
 
-        now_iso = datetime.utcnow().isoformat()
+        agora = datetime.utcnow()
 
-        to_append = []
-        for x in norm:
-            comissao_valor = 0.0
-            if valor_comissao_total > 0:
-                comissao_valor = valor_comissao_total * (x["percentual"] / 100.0)
+        from app.database import SessionLocal
+        from app.models.contrato import DivisaoComissao
 
-            to_append.append([
-                id_contrato,
-                x["papel"],
-                x["id_corretor"],
-                x["nome"],
-                x["percentual"],
-                comissao_valor,
-                x["obs"],
-                now_iso
-            ])
+        session = SessionLocal()
+        try:
+            for x in norm:
+                comissao_valor = 0.0
+                if valor_comissao_total > 0:
+                    comissao_valor = valor_comissao_total * (x["percentual"] / 100.0)
 
-        gc = self._get_gspread_client(readonly=False)
-        sh = gc.open_by_key(self.cfg.SHEET_VENDAS_ID)
-        ws = self._ensure_divisao_sheet(sh)
-
-        ws.append_rows(to_append, value_input_option="USER_ENTERED")
+                session.add(DivisaoComissao(
+                    id_contrato=id_contrato,
+                    papel=x["papel"],
+                    id_corretor=x["id_corretor"],
+                    nome_corretor=x["nome"],
+                    percentual=x["percentual"],
+                    comissao_valor=comissao_valor,
+                    observacao=x["obs"],
+                    atualizado_em=agora,
+                ))
+            session.commit()
+        except Exception:
+            session.rollback()
+            raise
+        finally:
+            session.close()
 
         return {
             "ok": True,
             "id_contrato": id_contrato,
-            "linhas_inseridas": len(to_append),
+            "linhas_inseridas": len(norm),
             "valor_comissao_total": valor_comissao_total
         }

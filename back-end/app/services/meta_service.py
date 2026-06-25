@@ -14,14 +14,6 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 from matplotlib.gridspec import GridSpec, GridSpecFromSubplotSpec
 
-# Tenta importar gspread, mas permite execução local sem ele
-try:
-    import gspread
-    from oauth2client.service_account import ServiceAccountCredentials
-except ImportError:
-    gspread = None
-    ServiceAccountCredentials = None
-
 
 # ==========================================================
 # CONFIG / DTOs
@@ -122,41 +114,15 @@ class MetaGerenteService:
         except Exception:
             return False
 
-    def autenticar_google_sheets(self):
-        if not gspread:
-            raise ImportError(
-                "Biblioteca gspread não instalada. Instale com:\n"
-                "pip install gspread oauth2client"
-            )
-
-        scope = [
-            "https://spreadsheets.google.com/feeds",
-            "https://www.googleapis.com/auth/drive"
-        ]
-
-        creds = ServiceAccountCredentials.from_json_keyfile_name(
-            self.config.caminho_credencial,
-            scope
-        )
-        client = gspread.authorize(creds)
-        return client
-
     def carregar_aba_por_id(self, sheet_id: str, nome_aba: str) -> pd.DataFrame:
-        client = self.autenticar_google_sheets()
-        planilha = client.open_by_key(sheet_id)
-        aba = planilha.worksheet(nome_aba)
-        dados = aba.get_all_values()
+        """Le do Postgres (substitui a leitura via gspread). sheet_id ignorado -
+        so existe pra nao mudar a assinatura de quem chama isso."""
+        from app.services import db_loaders
 
-        if not dados:
+        rows = db_loaders.carregar_aba(nome_aba)
+        if not rows:
             return pd.DataFrame()
-
-        header = dados[0]
-        rows = dados[1:]
-
-        df = pd.DataFrame(rows, columns=header)
-        df.columns = [str(c).strip() for c in df.columns]
-        df = df.dropna(how="all")
-        return df
+        return pd.DataFrame(rows)
 
     @staticmethod
     def dividir_em_blocos(lista, tamanho):

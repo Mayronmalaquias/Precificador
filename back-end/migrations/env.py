@@ -9,6 +9,7 @@ from app.models.base import Base
 
 # Import models so Alembic can see their metadata.
 from app.models import imovel, relatorio, usuarios  # noqa: F401
+from app.models import equipe, visita, contrato, venda_legado, legado_diversos, estoque_legado, eventos_imovel_legado  # noqa: F401
 
 
 config = context.config

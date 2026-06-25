@@ -17,5 +17,6 @@ class Usuarios(Base):
     permissao = Column(String(20))
     id_usuarios = Column(String(50))
     ativo = Column(Boolean, nullable=False, default=True)
+    id_imoview = Column(String(50), nullable=True)
 
 

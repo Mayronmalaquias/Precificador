@@ -147,46 +147,14 @@ def _batch_get_rows_from_sheet(
     spreadsheet_id: str,
     ranges: List[str],
 ) -> Dict[str, List[Dict[str, Any]]]:
-    sheets, _, _ = _get_services()
-    last_error: Optional[Exception] = None
-    res = None
+    """Le do Postgres (substitui o batchGet do Google Sheets). spreadsheet_id
+    ignorado - so existe pra nao mudar a assinatura de quem chama isso."""
+    from app.services import db_loaders
 
-    for attempt in range(3):
-        try:
-            res = (
-                sheets.values()
-                .batchGet(
-                    spreadsheetId=spreadsheet_id,
-                    ranges=ranges,
-                    majorDimension="ROWS",
-                )
-                .execute()
-            )
-            break
-        except HttpError as e:
-            last_error = e
-            status = getattr(getattr(e, "resp", None), "status", None)
-            if status == 429 and attempt < 2:
-                time.sleep(1.5 * (attempt + 1))
-                continue
-            raise
-
-    if res is None and last_error:
-        raise last_error
-
-    value_ranges = res.get("valueRanges", [])
     out: Dict[str, List[Dict[str, Any]]] = {}
-
-    for rg, vr in zip(ranges, value_ranges):
-        values = vr.get("values", [])
+    for rg in ranges:
         sheet_name = rg.split("!")[0]
-        if not values:
-            out[sheet_name] = []
-            continue
-        header = [str(c).strip() for c in values[0]]
-        rows = [{h: (raw[i] if i < len(raw) else "") for i, h in enumerate(header)} for raw in values[1:]]
-        out[sheet_name] = rows
-
+        out[sheet_name] = db_loaders.carregar_aba(sheet_name)
     return out
 
 

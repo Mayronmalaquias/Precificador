@@ -1,0 +1,34 @@
+=== Dim_Cliente (max_row=None) ===
+['CPF', 'Nome', 'IdContrato', 'Link_Drive']
+=== Dim_Nicho (max_row=None) ===
+['Corretor', 'Nome', 'Equipe', 'Gerente', 'Região', 'Bairro', 'Valor_min', 'Valor_max', 'Tipologia_1', 'Tipologia_2', 'Tipologia_3', 'Tipologia_4', 'Vaga', 'N_Cap_Nicho', 'Estoque_Nicho', 'N_Estoque_total', 'VGV_Venda', None, None, None, None, None, None, None, None, None, None, None]
+=== Dim_Tipo (max_row=None) ===
+['IdTipo', 'Nome']
+=== Dim_Bairro (max_row=None) ===
+['IdBairro', 'Nome']
+=== Dim_Imovel (max_row=None) ===
+['Código', 'Tipo', 'Valor', 'Bairro', 'Foco PP', 'Foco AC', None]
+=== Dim_Diretor (max_row=None) ===
+['IdDiretor', 'Nome']
+=== Dim_AnuncioImóvel (max_row=None) ===
+['IdAnuncio', 'Cod']
+=== Dim_Portal (max_row=None) ===
+['Categoria', 'Limite']
+=== Dim_Fonte (max_row=None) ===
+['Codigo', 'Nome']
+=== Dim_Atendimento (max_row=None) ===
+['Codigo', 'Nome']
+=== Fato_Estoque (max_row=None) ===
+['Código', 'Captador1', 'Captador2', 'Captador3', 'Gerente', 'DataEstoque', 'PublicacaoNaInternet', 'Exclusivo', 'Categoria_DF', 'Categoria_DF_Seguro', 'Categoria_WI', 'IdAnuncioMeta']
+=== Fato_Saida (max_row=None) ===
+['Código', 'Captador1', 'Captador2', 'Captador3', 'Gerente', 'Motivo', 'DataSaida']
+=== Fato_Campanhas (max_row=None) ===
+['Nome da campanha', 'Nome do conjunto de anúncios', 'Nome do anúncio', 'Dia', 'Alcance', 'Impressões', 'Frequência', 'Montante gasto (BRL)', 'Definição de atribuição', 'Começa a', 'Termina a', 'Tipo de resultado', 'Resultados', 'Custo por resultado', 'Início dos relatórios', 'Fim dos relatórios', 'IdAnuncio']
+=== Fato_Destaque (max_row=None) ===
+['Código', 'Captador1', 'Captador2', 'Captador3', 'Gerente', 'Endereco', 'Bairro', 'Publicacao_Web', 'Categoria_DF', 'Categoria_WI', 'Categoria_DF_Seguro', 'Categoria_DF_Assinado', 'Valor']
+=== Fato_Destaque_Mensal (max_row=None) ===
+['Código', 'Captador1', 'Captador2', 'Captador3', 'Gerente', 'Endereco', 'Bairro', 'Publicacao_Web', 'Categoria_DF', 'Categoria_WI', 'Categoria_DF_Seguro', 'Categoria_DF_Assinado', 'Valor']
+=== Fato_Lead (max_row=None) ===
+['Data', 'Fonte', 'Contato', 'Relatório ', 'Cliente', 'Telefone', 'Código', 'Atendimento', 'Equipe', 'Observação', 'SanObservação']
+=== Fato_Meta_Mensal (max_row=None) ===
+['Mes', 'IdGerente', 'Equipe', 'Meta_Cap', 'Meta_VGV', 'Super_Meta_Cap', 'Super_Meta_Vgv']

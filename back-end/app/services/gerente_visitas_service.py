@@ -83,41 +83,17 @@ def _is_data_na_semana(data_value: Any, ref: dt.date | None = None) -> bool:
 
 def _batch_get_as_dicts(ranges: List[str]) -> Dict[str, List[Dict[str, Any]]]:
     """
-    Lê múltiplas abas com cabeçalho na primeira linha e devolve:
+    Le do Postgres (substitui o batchGet do Google Sheets) e devolve:
     {
       "NomeAba": [ {coluna: valor, ...}, ... ]
     }
     """
-    sheets, _, _ = _get_services()
+    from app.services import db_loaders
 
-    res = sheets.values().batchGet(
-        spreadsheetId=SPREADSHEET_ID,
-        ranges=ranges,
-        majorDimension="ROWS",
-    ).execute()
-
-    value_ranges = res.get("valueRanges", [])
     out: Dict[str, List[Dict[str, Any]]] = {}
-
-    for rg, vr in zip(ranges, value_ranges):
-        values = vr.get("values", [])
+    for rg in ranges:
         sheet_name = rg.split("!")[0]
-
-        if not values:
-            out[sheet_name] = []
-            continue
-
-        header = [_safe_str(c) for c in values[0]]
-        rows_dict = []
-
-        for raw in values[1:]:
-            item = {}
-            for i, col in enumerate(header):
-                item[col] = raw[i] if i < len(raw) else ""
-            rows_dict.append(item)
-
-        out[sheet_name] = rows_dict
-
+        out[sheet_name] = db_loaders.carregar_aba(sheet_name)
     return out
 
 
