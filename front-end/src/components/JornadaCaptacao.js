@@ -70,6 +70,13 @@ function corretorColor(nome, lista) {
   return CORRETOR_PALETTE[idx % CORRETOR_PALETTE.length];
 }
 
+function equipeColor(team, lista) {
+  if (!team) return "#94a3b8";
+  const idx = lista.indexOf(team);
+  if (idx === -1) return "#94a3b8";
+  return CORRETOR_PALETTE[idx % CORRETOR_PALETTE.length];
+}
+
 function extrairEventos(captacoes) {
   const evts = [];
   captacoes.filter(c => c.status !== "fechado" && c.status !== "captado" && c.status !== "exclusividade").forEach(c => {
@@ -398,6 +405,10 @@ function CalendarioView({ captacoes, isAdmin, onCardClick }) {
     () => [...new Set(captacoes.map(c => c.nome_corretor).filter(Boolean))].sort(),
     [captacoes]
   );
+  const equipes = useMemo(
+    () => [...new Set(captacoes.map(c => c.team).filter(Boolean))].sort(),
+    [captacoes]
+  );
   const evtsDoDia = useCallback((ds) => eventos.filter(e => e.data === ds), [eventos]);
 
   const navMes = (d) => {
@@ -425,12 +436,12 @@ function CalendarioView({ captacoes, isAdmin, onCardClick }) {
         <button className="cap-cal-nav-btn" onClick={() => navMes(1)}>›</button>
         <button className="cap-cal-hoje-btn" onClick={() => { setMes(agora.getMonth()); setAno(agora.getFullYear()); setDiaAtivo(hojeStr); }}>Hoje</button>
       </div>
-      {isAdmin && corretores.length > 0 && (
+      {isAdmin && equipes.length > 0 && (
         <div className="cap-cal-legenda">
-          {corretores.map((n, i) => (
-            <span key={n} className="cap-cal-leg-item">
+          {equipes.map((t, i) => (
+            <span key={t} className="cap-cal-leg-item">
               <span className="cap-cal-leg-dot" style={{ background: CORRETOR_PALETTE[i % CORRETOR_PALETTE.length] }} />
-              {n}
+              {nomeEquipe(t)}
             </span>
           ))}
         </div>
@@ -451,7 +462,7 @@ function CalendarioView({ captacoes, isAdmin, onCardClick }) {
               <span className="cap-cal-dia-num">{dia}</span>
               <div className="cap-cal-pips">
                 {isAdmin
-                  ? evts.slice(0,5).map((e,ei) => <span key={ei} className="cap-cal-pip" style={{ background: corretorColor(e.captacao.nome_corretor, corretores) }} />)
+                  ? evts.slice(0,5).map((e,ei) => <span key={ei} className="cap-cal-pip" style={{ background: equipeColor(e.captacao.team, equipes) }} />)
                   : evts.slice(0,4).map((e,ei) => <span key={ei} className="cap-cal-pip" style={{ background: ETAPA_INFO[e.etapa]?.color }} />)
                 }
                 {isAdmin
@@ -474,10 +485,10 @@ function CalendarioView({ captacoes, isAdmin, onCardClick }) {
             : <div className="cap-cal-panel-lista">
                 {evtsAtivo.map((e, i) => (
                   <div key={i} className="cap-cal-panel-item"
-                    style={{ borderLeftColor: isAdmin ? corretorColor(e.captacao.nome_corretor, corretores) : ETAPA_INFO[e.etapa]?.color }}
+                    style={{ borderLeftColor: isAdmin ? equipeColor(e.captacao.team, equipes) : ETAPA_INFO[e.etapa]?.color }}
                     onClick={() => onCardClick(e.captacao)}
                   >
-                    {isAdmin && <span className="cap-cal-panel-corretor" style={{ color: corretorColor(e.captacao.nome_corretor, corretores) }}>{e.captacao.nome_corretor || "—"}</span>}
+                    {isAdmin && <span className="cap-cal-panel-corretor" style={{ color: equipeColor(e.captacao.team, equipes) }}>{e.captacao.nome_corretor || "—"}</span>}
                     <span className="cap-cal-panel-endereco">{e.captacao.endereco}</span>
                     <span className="cap-cal-panel-acao">{e.acao || "Ação agendada"}</span>
                     <span className="cap-cal-panel-etapa" style={{ background: ETAPA_INFO[e.etapa]?.light, color: ETAPA_INFO[e.etapa]?.color }}>
@@ -760,11 +771,12 @@ function UltimaAcao({ captacao, onSave }) {
 }
 
 // ── Kanban Card ──────────────────────────────────────────────────────────────
-function KanbanCard({ c, onClick, isAdmin, isDiretor }) {
+function KanbanCard({ c, onClick, isAdmin, isDiretor, equipes = [] }) {
   const etapa    = ETAPA_INFO[c.etapa_atual] || {};
   const isCaptado = c.status === "captado";
   const ageColor  = corIdade(c.data_entrada_etapa);
   const ageLabel  = diasDesde(c.data_entrada_etapa);
+  const cardColor = isAdmin ? equipeColor(c.team, equipes) : etapa.color;
 
   const campoObje = CAMP_OBJE_KANBAN[c.etapa_atual];
   const temAcao   = !!(c[CAMP_ACAO_KANBAN[c.etapa_atual]] || (campoObje && c[campoObje]));
@@ -773,7 +785,7 @@ function KanbanCard({ c, onClick, isAdmin, isDiretor }) {
 
   return (
     <div className={`cap-kcard${isCaptado ? " cap-kcard--captado" : ""}`}
-      style={{ borderLeftColor: etapa.color }} onClick={() => onClick(c)}>
+      style={{ borderLeftColor: cardColor }} onClick={() => onClick(c)}>
 
       {/* Linha de topo: age indicator + book icon */}
       <div className="cap-kcard-top-row">
@@ -796,8 +808,13 @@ function KanbanCard({ c, onClick, isAdmin, isDiretor }) {
       {c.numero_imovel && <div className="cap-kcard-num">Nº {c.numero_imovel}</div>}
       {c.nome_cliente  && <div className="cap-kcard-cliente">👤 {c.nome_cliente}</div>}
 
-      {isDiretor && c.team && (
-        <div className="cap-kcard-team-badge">{nomeEquipe(c.team)}</div>
+      {isAdmin && c.team && (
+        <div
+          className="cap-kcard-team-badge"
+          style={{ backgroundColor: `${cardColor}1a`, color: cardColor }}
+        >
+          {nomeEquipe(c.team)}
+        </div>
       )}
       <div className="cap-kcard-footer">
         {isAdmin && c.nome_corretor && <span className="cap-kcard-corretor">{c.nome_corretor}</span>}
@@ -1883,7 +1900,14 @@ export default function JornadaCaptacao() {
                     {(porEtapa[etapa.key] || []).length === 0
                       ? <div className="cap-empty-col">Nenhum imóvel</div>
                       : (porEtapa[etapa.key] || []).map(c => (
-                          <KanbanCard key={c.id} c={c} onClick={setSelecionada} isAdmin={isAdmin} isDiretor={isDiretor} />
+                          <KanbanCard
+                            key={c.id}
+                            c={c}
+                            onClick={setSelecionada}
+                            isAdmin={isAdmin}
+                            isDiretor={isDiretor}
+                            equipes={equipesDisponiveis}
+                          />
                         ))
                     }
                   </div>

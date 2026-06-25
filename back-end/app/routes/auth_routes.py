@@ -2,7 +2,7 @@ from flask import current_app, request
 from flask_restx import Namespace, Resource
 
 from app.services.auth_service import cadastrar_usuario, login, registrar_nova_senha
-from app.services.usuarios_service import retornar_infos
+from app.services.usuarios_service import CAMPOS_EDITAVEIS, retornar_infos
 from app.utils.helpers import normalizar_user
 from app.utils.security import validate_password_strength
 
@@ -22,11 +22,24 @@ class CadastroUsuario(Resource):
         if not all([username, password, team]):
             return {"error": "Campos username, password e team sao obrigatorios"}, 400
 
+        if data.get("lgpd_assinada") is not True:
+            return {"error": "É obrigatório aceitar os termos de LGPD para criar a conta."}, 400
+
         password_error = validate_password_strength(password)
         if password_error:
             return {"error": password_error}, 400
 
         try:
+            dados_extras = {
+                k: v
+                for k, v in data.items()
+                if k in CAMPOS_EDITAVEIS
+                and k not in {
+                    "nome", "email", "telefone", "instagram", "descricao",
+                    "username", "permissao", "team",
+                }
+            }
+
             cadastrar_usuario(
                 username=username,
                 password=password,
@@ -38,6 +51,7 @@ class CadastroUsuario(Resource):
                 descricao=data.get("descricao"),
                 id_usuarios=data.get("id_usuarios"),
                 permissao=data.get("permissao"),
+                dados_extras=dados_extras,
             )
             return {"message": "Usuario cadastrado com sucesso"}, 201
 
@@ -62,6 +76,9 @@ class LoginUsuario(Resource):
             return {"error": "Usuario e senha sao obrigatorios"}, 400
 
         usuario = login(username, password)
+
+        if isinstance(usuario, dict) and usuario.get("inactive"):
+            return {"error": "Cadastro aguardando validação do RH."}, 403
 
         if usuario:
             return {

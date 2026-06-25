@@ -217,6 +217,26 @@
 .botao-excluir:disabled { opacity: 0.6; cursor: not-allowed; }
 
 /* reutiliza estilos do AppVisita para os modais de edição/exclusão do gerente */
+.relatorio-gerente-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1400;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 18px;
+  background: rgba(15, 23, 42, 0.56);
+  backdrop-filter: blur(2px);
+}
+
+.relatorio-gerente-modal {
+  background: #ffffff;
+  border-radius: 14px;
+  box-shadow: 0 24px 70px rgba(15, 23, 42, 0.28);
+  display: flex;
+  flex-direction: column;
+}
+
 .relatorios-edit-form {
   display: flex;
   flex-direction: column;

@@ -527,7 +527,10 @@ function RelatorioGerente() {
       setRankingVisitas(rankingVisitasRes.lista || []);
       setRankingClientes(rankingClientesRes.lista || []);
 
-      await carregarListas();
+      await carregarDados();
+      if (dashboardEquipes !== null) {
+        await carregarEquipes();
+      }
     } catch (e) {
       setErro(e.message || "Erro ao carregar dashboard.");
     } finally {
@@ -623,7 +626,9 @@ function RelatorioGerente() {
       isoDate = `${yyyy}-${mm}-${dd}`;
     }
     let situacao = "CAPTACAO_PROPRIA";
-    if ((item.imovel_nao_captado || "").toUpperCase() === "TRUE") situacao = "IMOVEL_NAO_CAPTADO";
+    const imovelNaoCaptado = item.imovel_nao_captado === true ||
+      String(item.imovel_nao_captado || "").toUpperCase() === "TRUE";
+    if (imovelNaoCaptado) situacao = "IMOVEL_NAO_CAPTADO";
     else if (item.tipo_captacao) situacao = "CAPTACAO_61";
 
     const avaliacoes = (item.avaliacoes || []).map((av) => ({
@@ -644,6 +649,7 @@ function RelatorioGerente() {
       dataVisita: isoDate,
       enderecoExterno: item.endereco_externo || "",
       proposta: item.proposta || "",
+      motivoTalvez: item.motivoTalvez || item.motivo_talvez || "",
       situacaoImovel: situacao,
       avaliacoes,
     });
@@ -655,6 +661,7 @@ function RelatorioGerente() {
     setSavingEditVisita(true);
     try {
       const id = obterIdVisita(editVisitaModal);
+      if (!id) throw new Error("ID da visita não encontrado.");
       const resp = await fetch(`${BASE}/visitas/${id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
@@ -1312,6 +1319,7 @@ function RelatorioGerente() {
               <th>Imóvel</th>
               <th>Clientes</th>
               <th>Proposta</th>
+              <th>Motivo do talvez</th>
               <th>Ações</th>
             </tr>
           </thead>
@@ -1319,7 +1327,7 @@ function RelatorioGerente() {
           <tbody>
             {!visitasFiltradas.length ? (
               <tr>
-                <td colSpan="7">Nenhuma visita encontrada.</td>
+                <td colSpan="8">Nenhuma visita encontrada.</td>
               </tr>
             ) : (
               visitasFiltradas.map((item) => (
@@ -1348,10 +1356,12 @@ function RelatorioGerente() {
                       : "-"}
                   </td>
                   <td>{item.proposta || "-"}</td>
+                  <td>{item.motivoTalvez || item.motivo_talvez || "-"}</td>
 
                   <td>
                     <div className="acoes-tabela">
                       <button
+                        type="button"
                         className="botao-secundario botao-editar"
                         onClick={() => abrirEditVisita(item)}
                         title="Editar visita"
@@ -2221,9 +2231,9 @@ function RelatorioGerente() {
 
       {/* Modal editar visita (gerente) */}
       {editVisitaModal && (
-        <div className="ranking__modal-backdrop" onClick={() => !savingEditVisita && setEditVisitaModal(null)}>
+        <div className="relatorio-gerente-modal-backdrop" onClick={() => !savingEditVisita && setEditVisitaModal(null)}>
           <div
-            className="ranking__modal"
+            className="relatorio-gerente-modal"
             style={{ width: "min(560px,96vw)", padding: "24px 28px", maxHeight: "92vh", overflowY: "auto" }}
             onClick={(e) => e.stopPropagation()}
           >
@@ -2272,6 +2282,15 @@ function RelatorioGerente() {
                   onChange={(e) => setEditVisitaForm((f) => ({ ...f, proposta: e.target.value }))}
                 />
               </label>
+
+              <label>
+                Motivo do talvez
+                <input
+                  type="text"
+                  value={editVisitaForm.motivoTalvez}
+                  onChange={(e) => setEditVisitaForm((f) => ({ ...f, motivoTalvez: e.target.value }))}
+                />
+              </label>
             </div>
 
             {(editVisitaForm.avaliacoes || []).length > 0 && (
@@ -2315,9 +2334,9 @@ function RelatorioGerente() {
 
       {/* Modal confirmar exclusão visita (gerente) */}
       {deleteVisitaConfirm && (
-        <div className="ranking__modal-backdrop" onClick={() => !deletingVisita && setDeleteVisitaConfirm(null)}>
+        <div className="relatorio-gerente-modal-backdrop" onClick={() => !deletingVisita && setDeleteVisitaConfirm(null)}>
           <div
-            className="ranking__modal"
+            className="relatorio-gerente-modal"
             style={{ width: "min(480px,96vw)", padding: "24px 28px" }}
             onClick={(e) => e.stopPropagation()}
           >

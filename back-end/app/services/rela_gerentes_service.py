@@ -910,6 +910,12 @@ def listar_visitas_do_gerente(
                 "precoNota10": _safe_str(av.get("Preco_N10")),
             })
 
+        motivo_talvez = (
+            _safe_str(visita.get("Motivo_Talvez"))
+            or _safe_str(visita.get("Motivo Talvez"))
+            or _safe_str(visita.get("Motivo_Talvez_Proposta"))
+        )
+
         item = {
             "id_visita": visita_id,
             "id_imovel": _safe_str(visita.get("Id_Imovel")),
@@ -923,8 +929,8 @@ def listar_visitas_do_gerente(
             "endereco_externo": _safe_str(visita.get("Endereco_Externo")),
             "tipo_captacao": _safe_str(visita.get("Tipo_Captacao")),
             "proposta": _safe_str(visita.get("Proposta")),
-            "motivo_talvez": _safe_str(visita.get("Motivo_Talvez")),
-            "motivoTalvez": _safe_str(visita.get("Motivo_Talvez")),
+            "motivo_talvez": motivo_talvez,
+            "motivoTalvez": motivo_talvez,
             "visita_com_parceiro": _is_true(visita.get("Visita_Com_Parceiro")),
             "imovel_nao_captado": _is_true(visita.get("Imovel_Nao_Captado")),
             "avaliacoes": avaliacoes,
@@ -1635,18 +1641,19 @@ def _build_pdf_gerente_bytes(ctx: Dict[str, Any]) -> bytes:
 
     doc.section("Visitas do periodo")
     doc.table(
-        ["Data", "Corretor", "Imovel", "Proposta", "Clientes"],
+        ["Data", "Corretor", "Imovel", "Proposta", "Motivo talvez", "Clientes"],
         [
             [
                 _display(v.get("data_visita")),
                 _display(v.get("corretor")),
                 _display(v.get("id_imovel")),
                 _display(v.get("proposta")),
+                _display(v.get("motivo_talvez")),
                 ", ".join(v.get("clientes", [])) if v.get("clientes") else "-",
             ]
             for v in visitas[:200]
         ],
-        [22, 42, 22, 24, 70],
+        [20, 34, 20, 22, 44, 40],
     )
 
     return doc.to_bytes()

@@ -69,8 +69,9 @@ function Header() {
     { to: '/GestaoClientes', label: 'Gestao de Clientes', show: isLogado },
     { to: '/RelatorioGerente', label: 'Relatório Gerente', show: isLogado && isAdmin },
     { to: '/ranking', label: 'Ranking', show: isLogado && isAdmin },
+    { to: '/RHUsuarios', label: 'RH Usuarios', show: isLogado && isAdministrador },
     { to: '/ControleCorretor', label: 'Controle de usuarios', show: isLogado && isAdministrador },
-    { to: '/register', label: 'Registrar Usuário', show: isLogado && isAdministrador },
+    { to: '/register', label: isLogado ? 'Registrar Usuario' : 'Criar conta', show: !isLogado || isAdministrador },
     { to: '/JornadaCaptacao', label: 'Jornada Captação', show: isLogado },
   ].filter((item) => item.show);
 

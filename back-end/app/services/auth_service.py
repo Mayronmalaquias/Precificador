@@ -2,28 +2,39 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from sqlalchemy.exc import IntegrityError
 from app import SessionLocal
 from app.models.usuarios import Usuarios
+from app.services.usuarios_service import DATE_FIELDS, BOOL_FIELDS, _parse_bool, _parse_date, _usuario_to_dict
 
 
 def cadastrar_usuario(username, password, team,
                       nome=None, email=None, telefone=None,
                       instagram=None, descricao=None,
-                      id_usuarios=None, permissao=None):
+                      id_usuarios=None, permissao=None, dados_extras=None):
 
     session = SessionLocal()
     try:
         hashed_pw = generate_password_hash(password)
 
+        campos_extras = {}
+        for campo, valor in (dados_extras or {}).items():
+            if campo in DATE_FIELDS:
+                valor = _parse_date(valor)
+            elif campo in BOOL_FIELDS:
+                valor = _parse_bool(valor)
+            campos_extras[campo] = valor
+
         usuario = Usuarios(
             username=username,
             password=hashed_pw,
             team=team,
+            ativo=False,
             nome=nome,
             email=email,
             telefone=telefone,
             instagram=instagram,
             descricao=descricao,
             id_usuarios=id_usuarios,
-            permissao=permissao
+            permissao=permissao,
+            **campos_extras,
         )
 
         session.add(usuario)
@@ -51,18 +62,9 @@ def login(username, password):
 
         if usuario and check_password_hash(usuario.password, password):
             # retorna os dados antes de fechar a sessão
-            user_data = {
-                "id": usuario.id,
-                "username": usuario.username,
-                "team": usuario.team,
-                "nome": usuario.nome,
-                "email": usuario.email,
-                "telefone": usuario.telefone,
-                "instagram": usuario.instagram,
-                "descricao": usuario.descricao,
-                "permissao": usuario.permissao,
-                "id_usuarios": usuario.id_usuarios
-            }
+            if usuario.ativo is False:
+                return {"inactive": True}
+            user_data = _usuario_to_dict(usuario)
             return user_data
 
         return None

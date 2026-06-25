@@ -1,12 +1,59 @@
 from app import SessionLocal
 from app.models.usuarios import Usuarios
 from werkzeug.security import generate_password_hash
+from datetime import date, datetime
 import time
+
+RH_CAMPOS_OBRIGATORIOS = {
+    "status",
+    "nome",
+    "unidade",
+    "gerente_responsavel",
+    "data_entrada_61",
+    "telefone_corporativo",
+    "email_corporativo",
+    "data_nascimento",
+    "estado_civil",
+    "possui_filhos",
+    "endereco",
+    "contato_emergencia",
+    "cpf",
+    "contrato_assinado",
+    "codigo_conduta_assinado",
+    "lgpd_assinada",
+    "onboarding_realizado",
+}
+
+RH_CAMPOS_EDITAVEIS = {
+    "status", "unidade", "gerente_responsavel", "data_entrada_61",
+    "creci", "validade_creci", "telefone_pessoal", "telefone_corporativo",
+    "email_pessoal", "email_corporativo", "data_nascimento", "estado_civil",
+    "possui_filhos", "endereco", "contato_emergencia", "cpf", "rg", "cnpj",
+    "razao_social", "banco", "agencia", "conta", "tipo_conta", "chave_pix",
+    "contrato_assinado", "codigo_conduta_assinado", "lgpd_assinada",
+    "onboarding_realizado", "desligado", "data_desligamento", "observacoes",
+}
+
+DATE_FIELDS = {
+    "data_entrada_61",
+    "validade_creci",
+    "data_nascimento",
+    "data_desligamento",
+}
+
+BOOL_FIELDS = {
+    "possui_filhos",
+    "contrato_assinado",
+    "codigo_conduta_assinado",
+    "lgpd_assinada",
+    "onboarding_realizado",
+    "desligado",
+}
 
 CAMPOS_EDITAVEIS = {
     "nome", "email", "telefone", "instagram", "descricao",
     "username", "permissao", "team",
-}
+}.union(RH_CAMPOS_EDITAVEIS)
 
 # Cache simples em memória: { chave: (timestamp, resultado) }
 _cache = {}
@@ -30,6 +77,41 @@ def _cache_invalidate(*prefixes):
             del _cache[key]
 
 
+def _date_to_iso(value):
+    if isinstance(value, (date, datetime)):
+        return value.isoformat()[:10]
+    return value
+
+
+def _parse_date(value):
+    if value in (None, ""):
+        return None
+    if isinstance(value, datetime):
+        return value.date()
+    if isinstance(value, date):
+        return value
+    value = str(value).strip()
+    for fmt in ("%Y-%m-%d", "%d/%m/%Y"):
+        try:
+            return datetime.strptime(value, fmt).date()
+        except ValueError:
+            pass
+    return None
+
+
+def _parse_bool(value):
+    if value in (None, ""):
+        return None
+    if isinstance(value, bool):
+        return value
+    value = str(value).strip().lower()
+    if value in {"true", "1", "sim", "s", "yes"}:
+        return True
+    if value in {"false", "0", "nao", "não", "n", "no"}:
+        return False
+    return None
+
+
 def _usuario_to_dict(usuario):
     return {
         "id": usuario.id,
@@ -43,6 +125,38 @@ def _usuario_to_dict(usuario):
         "permissao": usuario.permissao,
         "id_usuarios": usuario.id_usuarios,
         "ativo": getattr(usuario, "ativo", None),
+        "id_imoview": getattr(usuario, "id_imoview", None),
+        "status": getattr(usuario, "status", None),
+        "unidade": getattr(usuario, "unidade", None),
+        "gerente_responsavel": getattr(usuario, "gerente_responsavel", None),
+        "data_entrada_61": _date_to_iso(getattr(usuario, "data_entrada_61", None)),
+        "creci": getattr(usuario, "creci", None),
+        "validade_creci": _date_to_iso(getattr(usuario, "validade_creci", None)),
+        "telefone_pessoal": getattr(usuario, "telefone_pessoal", None),
+        "telefone_corporativo": getattr(usuario, "telefone_corporativo", None),
+        "email_pessoal": getattr(usuario, "email_pessoal", None),
+        "email_corporativo": getattr(usuario, "email_corporativo", None),
+        "data_nascimento": _date_to_iso(getattr(usuario, "data_nascimento", None)),
+        "estado_civil": getattr(usuario, "estado_civil", None),
+        "possui_filhos": getattr(usuario, "possui_filhos", None),
+        "endereco": getattr(usuario, "endereco", None),
+        "contato_emergencia": getattr(usuario, "contato_emergencia", None),
+        "cpf": getattr(usuario, "cpf", None),
+        "rg": getattr(usuario, "rg", None),
+        "cnpj": getattr(usuario, "cnpj", None),
+        "razao_social": getattr(usuario, "razao_social", None),
+        "banco": getattr(usuario, "banco", None),
+        "agencia": getattr(usuario, "agencia", None),
+        "conta": getattr(usuario, "conta", None),
+        "tipo_conta": getattr(usuario, "tipo_conta", None),
+        "chave_pix": getattr(usuario, "chave_pix", None),
+        "contrato_assinado": getattr(usuario, "contrato_assinado", None),
+        "codigo_conduta_assinado": getattr(usuario, "codigo_conduta_assinado", None),
+        "lgpd_assinada": getattr(usuario, "lgpd_assinada", None),
+        "onboarding_realizado": getattr(usuario, "onboarding_realizado", None),
+        "desligado": getattr(usuario, "desligado", None),
+        "data_desligamento": _date_to_iso(getattr(usuario, "data_desligamento", None)),
+        "observacoes": getattr(usuario, "observacoes", None),
     }
 
 
@@ -79,19 +193,7 @@ def retornar_lista(id_gerente=None, ativo=None, page=1, per_page=1000):
 
     session = SessionLocal()
     try:
-        query = session.query(
-            Usuarios.id,
-            Usuarios.username,
-            Usuarios.team,
-            Usuarios.nome,
-            Usuarios.email,
-            Usuarios.telefone,
-            Usuarios.instagram,
-            Usuarios.descricao,
-            Usuarios.permissao,
-            Usuarios.id_usuarios,
-            Usuarios.ativo,
-        )
+        query = session.query(Usuarios)
 
         if id_gerente is not None:
             query = query.filter(Usuarios.team == id_gerente)
@@ -114,22 +216,7 @@ def retornar_lista(id_gerente=None, ativo=None, page=1, per_page=1000):
         fim = inicio + per_page
         rows_paginados = rows_unicos[inicio:fim]
 
-        lista = [
-            {
-                "id": r.id,
-                "username": r.username,
-                "team": r.team,
-                "nome": r.nome,
-                "email": r.email,
-                "telefone": r.telefone,
-                "instagram": r.instagram,
-                "descricao": r.descricao,
-                "permissao": r.permissao,
-                "id_usuarios": r.id_usuarios,
-                "ativo": r.ativo,
-            }
-            for r in rows_paginados
-        ]
+        lista = [_usuario_to_dict(r) for r in rows_paginados]
 
         resultado = {
             "lista": lista,
@@ -185,10 +272,14 @@ def alterar_ativo(id_corretor, ativo):
             return {"error": "Usuário não encontrado"}
 
         usuario.ativo = ativo
+        if ativo:
+            usuario.status = "Ativo"
+        elif not usuario.desligado:
+            usuario.status = "Inativo"
         session.commit()
 
         _cache_invalidate("lista:", f"info:{id_corretor}:")
-        return {"ok": "Ativo alterado com sucesso"}
+        return {"ok": "Ativo alterado com sucesso", "status": usuario.status}
 
     except Exception:
         session.rollback()
@@ -287,8 +378,15 @@ def editar_usuario(solicitante_id, id_corretor, dados=None, nova_senha=None):
             Usuarios.id_usuarios == solicitante_id
         ).first()
 
-        if not solicitante or solicitante.permissao != "diretor":
-            return {"error": "Apenas diretores podem editar usuários."}
+        solicitante_admin = (
+            solicitante
+            and (
+                solicitante.permissao in {"diretor", "administrador", "administrativo"}
+                or str(solicitante.team or "").lower() == "administrativo"
+            )
+        )
+        if not solicitante_admin:
+            return {"error": "Apenas diretores, administradores ou RH podem editar usuários."}
 
         usuario = session.query(Usuarios).filter(
             Usuarios.id_usuarios == id_corretor
@@ -299,7 +397,17 @@ def editar_usuario(solicitante_id, id_corretor, dados=None, nova_senha=None):
 
         for campo, valor in (dados or {}).items():
             if campo in CAMPOS_EDITAVEIS:
+                if campo in DATE_FIELDS:
+                    valor = _parse_date(valor)
+                elif campo in BOOL_FIELDS:
+                    valor = _parse_bool(valor)
                 setattr(usuario, campo, valor)
+
+        if usuario.desligado:
+            usuario.status = "Desligado"
+            usuario.ativo = False
+        elif usuario.status == "Desligado":
+            usuario.status = "Ativo" if usuario.ativo else "Inativo"
 
         if nova_senha:
             usuario.password = generate_password_hash(nova_senha)

@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useToast } from '../context/ToastContext';
 import { api } from '../services/api';
+import { EQUIPES_OPCOES, RH_FIELDS, RH_REQUIRED_FIELDS, emptyRhForm } from './rhFields';
 
 function Cadastro() {
   const [formData, setFormData] = useState({
@@ -15,7 +16,9 @@ function Cadastro() {
     telefone: '',
     instagram: '',
     descricao: '',
+    ...emptyRhForm(),
   });
+  const [aceiteLgpd, setAceiteLgpd] = useState(false);
   const [loading, setLoading] = useState(false);
 
   const navigate = useNavigate();
@@ -42,6 +45,7 @@ function Cadastro() {
     const payload = {
       ...formData,
       telefone: formData.telefone ? formData.telefone.replace(/\D/g, '') : '',
+      lgpd_assinada: aceiteLgpd,
     };
 
     setLoading(true);
@@ -73,10 +77,10 @@ function Cadastro() {
             </div>
 
             <div className="ds-form-group">
-              <label className="ds-label" htmlFor="reg-nome">Nome</label>
+              <label className="ds-label" htmlFor="reg-nome">Nome completo *</label>
               <input id="reg-nome" className="ds-input" name="nome"
                 type="text" placeholder="Nome completo" value={formData.nome}
-                onChange={handleChange} disabled={loading} />
+                onChange={handleChange} required disabled={loading} />
             </div>
           </div>
 
@@ -106,9 +110,13 @@ function Cadastro() {
 
             <div className="ds-form-group">
               <label className="ds-label" htmlFor="reg-team">Equipe *</label>
-              <input id="reg-team" className="ds-input" name="team"
-                type="text" placeholder="Nome da equipe" value={formData.team}
-                onChange={handleChange} required disabled={loading} />
+              <select id="reg-team" className="ds-input ds-select" name="team"
+                value={formData.team} onChange={handleChange} required disabled={loading}>
+                <option value="">Selecione...</option>
+                {EQUIPES_OPCOES.map((equipe) => (
+                  <option key={equipe.value} value={equipe.value}>{equipe.label}</option>
+                ))}
+              </select>
             </div>
           </div>
 
@@ -127,6 +135,7 @@ function Cadastro() {
                 <option value="">Selecione...</option>
                 <option value="corretor">Corretor</option>
                 <option value="gerente">Gerente</option>
+                <option value="administrativo">Administrativo</option>
                 <option value="administrador">Administrador</option>
                 <option value="diretor">Diretor</option>
               </select>
@@ -145,6 +154,94 @@ function Cadastro() {
             <input id="reg-pass" className="ds-input" name="password"
               type="password" placeholder="Mínimo 8 caracteres" value={formData.password}
               onChange={handleChange} required disabled={loading} autoComplete="new-password" />
+          </div>
+
+          <div className="ds-divider" />
+
+          <div>
+            <h3 className="ds-page-title" style={{ fontSize: '1.05rem', marginBottom: 4 }}>Dados de RH</h3>
+            <p className="ds-page-subtitle" style={{ marginBottom: 14 }}>Campos com * são obrigatórios para controle interno.</p>
+          </div>
+
+          <div className="ds-form-row">
+            {RH_FIELDS.filter((field) => field.name !== 'nome' && field.name !== 'lgpd_assinada').map((field) => {
+              const required = RH_REQUIRED_FIELDS.includes(field.name);
+              const id = `reg-rh-${field.name}`;
+              const label = `${field.label}${required ? ' *' : ''}`;
+
+              if (field.type === 'textarea') {
+                return (
+                  <div key={field.name} className="ds-form-group" style={{ gridColumn: '1 / -1' }}>
+                    <label className="ds-label" htmlFor={id}>{label}</label>
+                    <textarea id={id} className="ds-input ds-textarea" name={field.name}
+                      value={formData[field.name] || ''} onChange={handleChange}
+                      required={required} rows={2} disabled={loading} />
+                  </div>
+                );
+              }
+
+              if (field.type === 'boolean') {
+                return (
+                  <div key={field.name} className="ds-form-group">
+                    <label className="ds-label" htmlFor={id}>{label}</label>
+                    <select id={id} className="ds-input ds-select" name={field.name}
+                      value={formData[field.name] ?? ''} onChange={handleChange}
+                      required={required} disabled={loading}>
+                      <option value="">Selecione...</option>
+                      <option value="true">Sim</option>
+                      <option value="false">Não</option>
+                    </select>
+                  </div>
+                );
+              }
+
+              if (field.type === 'select') {
+                return (
+                  <div key={field.name} className="ds-form-group">
+                    <label className="ds-label" htmlFor={id}>{label}</label>
+                    <select id={id} className="ds-input ds-select" name={field.name}
+                      value={formData[field.name] || ''} onChange={handleChange}
+                      required={required} disabled={loading}>
+                      <option value="">Selecione...</option>
+                      {(field.options || []).map((option) => (
+                        <option key={option} value={option}>{option}</option>
+                      ))}
+                    </select>
+                  </div>
+                );
+              }
+
+              return (
+                <div key={field.name} className="ds-form-group">
+                  <label className="ds-label" htmlFor={id}>{label}</label>
+                  <input id={id} className="ds-input" name={field.name}
+                    type={field.type || 'text'} value={formData[field.name] || ''}
+                    onChange={handleChange} required={required} disabled={loading} />
+                </div>
+              );
+            })}
+          </div>
+
+          <div className="ds-alert ds-alert-info">
+            <div>
+              <strong>Termo de LGPD</strong>
+              <p style={{ margin: '6px 0 0' }}>
+                Autorizo a 61 Imóveis a coletar, armazenar e tratar meus dados pessoais para fins de cadastro,
+                validação pelo RH, gestão contratual, comunicações internas e cumprimento de obrigações legais,
+                conforme a Lei Geral de Proteção de Dados. Declaro estar ciente de que posso solicitar correção,
+                atualização ou informações sobre o tratamento dos meus dados pelos canais oficiais da empresa.
+              </p>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 12, fontWeight: 700 }}>
+                <input
+                  type="checkbox"
+                  checked={aceiteLgpd}
+                  onChange={(e) => setAceiteLgpd(e.target.checked)}
+                  required
+                  disabled={loading}
+                />
+                Li e aceito os termos de LGPD *
+              </label>
+            </div>
           </div>
 
           <div style={{ display: 'flex', gap: '12px', marginTop: '4px' }}>

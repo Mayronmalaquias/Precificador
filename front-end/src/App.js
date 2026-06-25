@@ -28,6 +28,7 @@ import TrocarSenha from './components/TrocarSenha'
 import ControleCorretor from './components/ControleCorretor'
 import JornadaCaptacao from './components/JornadaCaptacao'
 import GestaoClientesVisitas from './components/GestaoClientesVisitas'
+import RHUsuarios from './components/RHUsuarios'
 
 import './assets/css/styles.css';
 import './assets/css/report.css';
@@ -76,7 +77,7 @@ function App() {
                 />
                 <Route
                   path="/register"
-                  element={<AdministradorRoute><Register /></AdministradorRoute>}
+                  element={<Register />}
                 />
                 <Route
                   path="/RelatorioGerente"
@@ -85,6 +86,10 @@ function App() {
                 <Route
                   path="/ControleCorretor"
                   element={<AdministradorRoute><ControleCorretor /></AdministradorRoute>}
+                />
+                <Route
+                  path="/RHUsuarios"
+                  element={<AdministradorRoute><RHUsuarios /></AdministradorRoute>}
                 />
                 <Route
                   path="/JornadaCaptacao"

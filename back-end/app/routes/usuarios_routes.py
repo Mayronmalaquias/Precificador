@@ -9,6 +9,9 @@ from app.services.usuarios_service import (
     retornar_corretor_nome,
     editar_usuario,
     CAMPOS_EDITAVEIS,
+    RH_CAMPOS_OBRIGATORIOS,
+    DATE_FIELDS,
+    BOOL_FIELDS,
 )
 
 corretor_ns = Namespace("corretor", description="Corretores e usuários")
@@ -70,6 +73,18 @@ class RetornarInfoCorretor(Resource):
         return {"ok": True, "usuario": resultado}, 200
 
 
+@corretor_ns.route("/corretor/campos-rh")
+class RetornarCamposRH(Resource):
+    @corretor_ns.doc(description="Retorna metadados dos campos de RH dos usuarios")
+    def get(self):
+        return {
+            "ok": True,
+            "campos_obrigatorios": sorted(RH_CAMPOS_OBRIGATORIOS),
+            "campos_data": sorted(DATE_FIELDS),
+            "campos_booleanos": sorted(BOOL_FIELDS),
+        }, 200
+
+
 @corretor_ns.route("/corretor/alterar-ativo")
 class AlterarCorretorAtivo(Resource):
     @corretor_ns.doc(description="Altera se o corretor está ativo ou não")
@@ -126,7 +141,7 @@ class AlterarGerenteCorretor(Resource):
 
 @corretor_ns.route("/corretor/editar-usuario")
 class EditarUsuario(Resource):
-    @corretor_ns.doc(description="Edita dados e senha de um usuário (somente diretores)")
+    @corretor_ns.doc(description="Edita dados e senha de um usuário (diretores, administradores ou administrativo)")
     def post(self):
         data           = request.get_json() or {}
         solicitante_id = data.get("solicitante_id")

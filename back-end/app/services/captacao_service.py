@@ -100,8 +100,17 @@ def _add_hist(session, captacao_id, etapa, tipo, descricao, data_acao=None):
     ))
 
 
+CAMPOS_DATA = {
+    "data_acao_sem_numero", "data_proxima_acao_interacao",
+    "data_proxima_acao_apresentacao", "data_proxima_acao_captacao",
+}
+
+
 def _set_val(obj, campo, val):
-    setattr(obj, campo, val if val != "" else None)
+    if campo in CAMPOS_DATA:
+        setattr(obj, campo, _parse_date(val))
+    else:
+        setattr(obj, campo, val if val != "" else None)
 
 
 def criar_captacao(data: dict) -> dict:
