@@ -513,6 +513,8 @@ function RelatorioGerente() {
 
     setLoading(true);
     setErro("");
+    setItemSelecionado(null);
+    setTipoSelecionado("");
 
     try {
       const [
@@ -520,19 +522,43 @@ function RelatorioGerente() {
         corretoresRes,
         rankingVisitasRes,
         rankingClientesRes,
+        visitasRes,
+        clientesRes,
+        imoveisRes,
       ] = await Promise.all([
         fetchJson(`${API_BASE}/dashboard?${query}`),
         fetchJson(`${API_BASE}/corretores?${query}`),
         fetchJson(`${API_BASE}/ranking?${query}&tipo=visitas`),
         fetchJson(`${API_BASE}/ranking?${query}&tipo=clientes`),
+        fetchJson(`${API_BASE}/visitas?${buildQuery({ q: filtros.q, limit: 200 })}`),
+        fetchJson(`${API_BASE}/clientes?${buildQuery({ q: filtros.q, limit: 200 })}`),
+        fetchJson(`${API_BASE}/imoveis?${buildQuery({ q: filtros.q, limit: 200 })}`),
       ]);
 
       if (requestId !== carregarDadosSeqRef.current) return;
+
+      const visitasLista = visitasRes.lista || [];
+      const clientesLista = clientesRes.lista || [];
+      const imoveisLista = imoveisRes.lista || [];
 
       setDashboard(dashboardRes);
       setCorretores(corretoresRes.lista || []);
       setRankingVisitas(rankingVisitasRes.lista || []);
       setRankingClientes(rankingClientesRes.lista || []);
+      setVisitas(visitasLista);
+      setClientes(clientesLista);
+      setImoveis(imoveisLista);
+
+      if (visitasLista.length > 0) {
+        setTipoSelecionado("visita");
+        setItemSelecionado(visitasLista[0]);
+      } else if (imoveisLista.length > 0) {
+        setTipoSelecionado("imovel");
+        setItemSelecionado(imoveisLista[0]);
+      } else if (clientesLista.length > 0) {
+        setTipoSelecionado("cliente");
+        setItemSelecionado(clientesLista[0]);
+      }
     } catch (e) {
       if (requestId !== carregarDadosSeqRef.current) return;
       setErro(e.message || "Erro ao carregar dashboard.");
