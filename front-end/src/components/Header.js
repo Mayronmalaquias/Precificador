@@ -5,7 +5,8 @@ import '../assets/css/Header.css';
 
 function Header() {
   const navigate = useNavigate();
-  const { isLogado, isAdmin, isAdministrador, nomeUsuario, idCorretor, logout } = useAuth();
+  const { isLogado, isAdmin, isAdministrador, permissao, nomeUsuario, idCorretor, logout } = useAuth();
+  const isAdminOuDiretor = ['administrador', 'diretor'].includes(permissao);
   const profileRef = useRef(null);
   const servicosRef = useRef(null);
 
@@ -68,8 +69,10 @@ function Header() {
     { to: '/AppVisita', label: 'Relatório de Visita', show: isLogado },
     { to: '/GestaoClientes', label: 'Gestao de Clientes', show: isLogado },
     { to: '/RelatorioGerente', label: 'Relatório Gerente', show: isLogado && isAdmin },
+    { to: '/GerenteRH', label: 'RH da Equipe', show: isLogado && isAdmin },
     { to: '/ranking', label: 'Ranking', show: isLogado && isAdmin },
     { to: '/RHUsuarios', label: 'RH Usuarios', show: isLogado && isAdministrador },
+    { to: '/AdminBases', label: 'Gestão de Bases', show: isLogado && isAdminOuDiretor },
     { to: '/ControleCorretor', label: 'Controle de usuarios', show: isLogado && isAdministrador },
     { to: '/register', label: isLogado ? 'Registrar Usuario' : 'Criar conta', show: !isLogado || isAdministrador },
     { to: '/JornadaCaptacao', label: 'Jornada Captação', show: isLogado },

@@ -8,7 +8,9 @@ from app.services.usuarios_service import (
     alterar_gerente,
     retornar_corretor_nome,
     editar_usuario,
+    editar_rh_corretor_gerente,
     CAMPOS_EDITAVEIS,
+    RH_CAMPOS_EDITAVEIS,
     RH_CAMPOS_OBRIGATORIOS,
     DATE_FIELDS,
     BOOL_FIELDS,
@@ -157,6 +159,30 @@ class EditarUsuario(Resource):
 
         if "error" in resultado:
             status = 403 if "diretor" in resultado["error"].lower() else 404
+            return resultado, status
+
+        return resultado, 200
+
+
+@corretor_ns.route("/corretor/editar-rh-gerente")
+class EditarRhGerente(Resource):
+    @corretor_ns.doc(description="Permite que gerentes preencham dados de RH dos corretores ativos da propria equipe")
+    def post(self):
+        data = request.get_json() or {}
+        solicitante_id = data.get("solicitante_id")
+        id_corretor = data.get("id_corretor")
+
+        if not solicitante_id or not id_corretor:
+            return {"error": "solicitante_id e id_corretor precisam ser passados"}, 400
+
+        campos_permitidos = set(RH_CAMPOS_EDITAVEIS).union({"nome"}) - {"desligado", "data_desligamento"}
+        campos = {k: v for k, v in data.items() if k in campos_permitidos}
+
+        resultado = editar_rh_corretor_gerente(solicitante_id, id_corretor, campos)
+
+        if "error" in resultado:
+            erro = resultado["error"].lower()
+            status = 403 if "apenas" in erro or "pertence" in erro else 404
             return resultado, status
 
         return resultado, 200

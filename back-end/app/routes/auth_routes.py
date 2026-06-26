@@ -49,7 +49,6 @@ class CadastroUsuario(Resource):
                 telefone=data.get("telefone"),
                 instagram=data.get("instagram"),
                 descricao=data.get("descricao"),
-                id_usuarios=data.get("id_usuarios"),
                 permissao=data.get("permissao"),
                 dados_extras=dados_extras,
             )

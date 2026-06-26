@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Registro de Saídas</title>
+    <style>
+        body {
+            align-items: center;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            display: flex;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+            font-family: Arial, sans-serif;
+        }
+        .form {
+            background-color: #15172b;
+            border-radius: 20px;
+            box-sizing: border-box;
+            padding: 20px;
+            width: 85%; /* 60% of 1280px is 768px */
+            max-height: 90%; /* 80% of 720px is 576px */
+            overflow-y: auto; /* Allow scrolling if content overflows */
+        }
+        .title {
+            color: #eee;
+            font-family: sans-serif;
+            font-size: 36px;
+            font-weight: 600;
+            margin-top: 30px;
+            text-align: center;
+        }
+        .input-container {
+            height: 50px;
+            position: relative;
+            width: 100%;
+            margin-top: 20px;
+        }
+        .input {
+            background-color: #303245;
+            border-radius: 12px;
+            border: 0;
+            box-sizing: border-box;
+            color: #eee;
+            font-size: 18px;
+            height: 100%;
+            outline: 0;
+            padding: 4px 20px 0;
+            width: 100%;
+        }
+        .cut {
+            background-color: #15172b;
+            border-radius: 10px;
+            height: 20px;
+            left: 20px;
+            position: absolute;
+            top: -20px;
+            transform: translateY(0);
+            transition: transform 200ms;
+            width: 100px;
+        }
+        .cut-short {
+            width: 70px;
+        }
+        .input:focus ~ .cut,
+        .input:not(:placeholder-shown) ~ .cut {
+            transform: translateY(8px);
+        }
+        .placeholder {
+            color: #65657b;
+            font-family: sans-serif;
+            left: 20px;
+            line-height: 14px;
+            pointer-events: none;
+            position: absolute;
+            transform-origin: 0 50%;
+            transition: transform 200ms, color 200ms;
+            top: 20px;
+        }
+        .input:focus ~ .placeholder,
+        .input:not(:placeholder-shown) ~ .placeholder {
+            transform: translateY(-30px) translateX(10px) scale(0.75);
+        }
+        .input:not(:placeholder-shown) ~ .placeholder {
+            color: #808097;
+        }
+        .input:focus ~ .placeholder {
+            color: #dc2f55;
+        }
+        .submit {
+            background-color: #08d;
+            border-radius: 12px;
+            border: 0;
+            box-sizing: border-box;
+            color: #eee;
+            cursor: pointer;
+            font-size: 18px;
+            height: 50px;
+            margin-top: 38px;
+            text-align: center;
+            width: 100%;
+        }
+        .submit:active {
+            background-color: #06b;
+        }
+        .btn-primary {
+            background-color: #08d;
+            border-radius: 12px;
+            border: 0;
+            color: #eee;
+            cursor: pointer;
+            font-size: 18px;
+            height: 50px;
+            margin-top: 10px;
+            text-align: center;
+            width: 100%;
+        }
+        .btn-primary:hover {
+            background-color: #06b;
+        }
+        .checkbox-container {
+            display: flex;
+            align-items: center;
+            margin-top: 20px;
+        }
+        .checkbox-container input {
+            width: auto;
+            margin-right: 10px;
+        }
+        .checkbox-container label {
+            color: #eee;
+            font-size: 18px;
+        }
+        .textarea-container {
+            margin-top: 20px;
+        }
+        .textarea {
+            background-color: #303245;
+            border-radius: 12px;
+            border: 0;
+            box-sizing: border-box;
+            color: #eee;
+            font-size: 18px;
+            outline: 0;
+            padding: 10px 20px;
+            width: 100%;
+            height: 100px;
+            resize: none;
+        }
+    </style>
+</head>
+<body>
+    <form id="formSaida" class="form">
+        <div class="title">Registro de Saídas</div>
+        <div class="input-container">
+            <input type="number" id="codigoSaida" name="codigoSaida" class="input" placeholder=" " required oninput="fetchData()">
+            <div class="cut"></div>
+            <label for="codigoSaida" class="placeholder">Código</label>
+        </div>
+        <div class="textarea-container">
+            <textarea id="motivo" name="motivo" class="textarea" placeholder=" " required></textarea>
+            <div class="cut"></div>
+            <label for="motivo" class="placeholder"> </label>
+        </div>
+        <div class="input-container">
+            <input type="text" id="captador1Saida" name="captador1Saida" class="input" placeholder=" " readonly>
+            <div class="cut"></div>
+            <label for="captador1Saida" class="placeholder">Captador 1</label>
+        </div>
+        <div class="input-container">
+            <input type="text" id="captador2Saida" name="captador2Saida" class="input" placeholder=" " readonly>
+            <div class="cut"></div>
+            <label for="captador2Saida" class="placeholder">Captador 2</label>
+        </div>
+        <div class="input-container">
+            <input type="text" id="captador3Saida" name="captador3Saida" class="input" placeholder=" " readonly>
+            <div class="cut"></div>
+            <label for="captador3Saida" class="placeholder">Captador 3</label>
+        </div>
+        <div class="input-container">
+            <input type="text" id="gerenteSaida" name="gerenteSaida" class="input" placeholder=" " readonly>
+            <div class="cut"></div>
+            <label for="gerenteSaida" class="placeholder">Gerente</label>
+        </div>
+        <div class="input-container">
+            <input type="date" id="dataSaida" name="dataSaida" class="input" placeholder=" " required>
+            <div class="cut"></div>
+            <label for="dataSaida" class="placeholder">Data de Saída</label>
+        </div>
+        <button type="button" class="submit" onclick="submitSaida()">Registrar Saída</button>
+        <button type="button" class="btn-primary" onclick="google.script.run.showMainMenu()">Menu Principal</button>
+    </form>
+    <script>
+        function fetchData() {
+            var codigo = document.getElementById('codigoSaida').value;
+            if (codigo) {
+                google.script.run.withSuccessHandler(function(data) {
+                    document.getElementById('captador1Saida').value = data.captador1 || '';
+                    document.getElementById('captador2Saida').value = data.captador2 || '';
+                    document.getElementById('captador3Saida').value = data.captador3 || '';
+                    document.getElementById('gerenteSaida').value = data.gerente || '';
+                }).getDataForExit(codigo);
+            }
+        }
+
+        function submitSaida() {
+            let form = document.getElementById('formSaida');
+            let dataSaida = form.dataSaida.value ? new Date(form.dataSaida.value).toISOString() : ''; // Converte a data para ISO string, verifica se está preenchido
+
+            google.script.run
+                .withSuccessHandler(function() {
+                    alert('Saída registrada com sucesso!');
+                    form.reset();
+                })
+                .withFailureHandler(function(err) {
+                    alert('Falha ao registrar saída: ' + err);
+                })
+                .submitExitData({
+                    codigo: form.codigoSaida.value,
+                    captador1: form.captador1Saida.value,
+                    captador2: form.captador2Saida.value,
+                    captador3: form.captador3Saida.value,
+                    gerente: form.gerenteSaida.value,
+                    motivo: form.motivo.value,
+                    dataSaida: dataSaida
+                });
+        }
+    </script>
+</body>
+</html>

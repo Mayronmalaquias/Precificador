@@ -97,6 +97,23 @@
   background: #fff5fa;
 }
 
+.vf-sugestoes-label {
+  color: #52525b;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0;
+}
+
+.vf-sugestao-lead {
+  border-color: #bfdbfe;
+  background: #f8fbff;
+}
+
+.vf-sugestao-lead:hover {
+  border-color: #2563eb;
+  background: #eff6ff;
+}
+
 .vf-sugestao-row {
   display: flex;
   align-items: center;

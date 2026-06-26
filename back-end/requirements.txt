@@ -8,9 +8,12 @@ flask-sqlalchemy==2.5.1
 gunicorn==20.1.0
 numpy==2.0.2
 openai==0.27.0
+openpyxl>=3.1          # leitura de .xlsx (gestao de bases)
+lxml>=5.0             # leitura do .xls (HTML do Imoview) via read_html
 pandas==2.2.3
 psycopg2-binary>=2.9
 python-dotenv==0.19.2
+requests>=2.31
 #scikit-learn==1.4.2
 SQLAlchemy==1.4.49
 folium==0.12.1

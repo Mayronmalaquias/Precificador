@@ -5,6 +5,21 @@ from app.models.usuarios import Usuarios
 from app.services.usuarios_service import DATE_FIELDS, BOOL_FIELDS, _parse_bool, _parse_date, _usuario_to_dict
 
 
+def _gerar_proximo_id_usuario(session):
+    maior_numero = 61000
+    ids = session.query(Usuarios.id_usuarios).filter(Usuarios.id_usuarios.isnot(None)).all()
+
+    for (id_usuario,) in ids:
+        valor = str(id_usuario or "").strip().upper()
+        if not valor.startswith("C61"):
+            continue
+        sufixo = valor[1:]
+        if sufixo.isdigit():
+            maior_numero = max(maior_numero, int(sufixo))
+
+    return f"C{maior_numero + 1}"
+
+
 def cadastrar_usuario(username, password, team,
                       nome=None, email=None, telefone=None,
                       instagram=None, descricao=None,
@@ -13,6 +28,7 @@ def cadastrar_usuario(username, password, team,
     session = SessionLocal()
     try:
         hashed_pw = generate_password_hash(password)
+        id_usuarios = (id_usuarios or "").strip() or _gerar_proximo_id_usuario(session)
 
         campos_extras = {}
         for campo, valor in (dados_extras or {}).items():

@@ -310,6 +310,31 @@ class ClientesBusca(Resource):
             return {"ok": False, "error": str(e)}, 500
 
 
+@visita_ns.route("/leads_busca")
+class LeadsBusca(Resource):
+    def get(self):
+        try:
+            id_corretor = (request.args.get("id_corretor") or "").strip()
+            q = (request.args.get("q") or "").strip()
+            limit = int(request.args.get("limit") or 80)
+
+            if not id_corretor:
+                return {"ok": False, "error": "id_corretor e obrigatorio"}, 400
+
+            from app.services.leads_service import listar_leads_do_corretor
+
+            lista = listar_leads_do_corretor(
+                id_corretor=id_corretor,
+                q=q,
+                limit=limit,
+            )
+            return {"ok": True, "lista": lista}, 200
+
+        except Exception as e:
+            current_app.logger.exception("Erro ao buscar leads para visita")
+            return {"ok": False, "error": str(e)}, 500
+
+
 @visita_ns.route("/clientes/pdf")
 class GerarPdfCliente(Resource):
     def get(self):

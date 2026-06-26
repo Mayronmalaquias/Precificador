@@ -29,6 +29,8 @@ import ControleCorretor from './components/ControleCorretor'
 import JornadaCaptacao from './components/JornadaCaptacao'
 import GestaoClientesVisitas from './components/GestaoClientesVisitas'
 import RHUsuarios from './components/RHUsuarios'
+import AdminBases from './components/AdminBases'
+import GerenteRHCorretores from './components/GerenteRHCorretores'
 
 import './assets/css/styles.css';
 import './assets/css/report.css';
@@ -90,6 +92,14 @@ function App() {
                 <Route
                   path="/RHUsuarios"
                   element={<AdministradorRoute><RHUsuarios /></AdministradorRoute>}
+                />
+                <Route
+                  path="/GerenteRH"
+                  element={<AdminRoute><GerenteRHCorretores /></AdminRoute>}
+                />
+                <Route
+                  path="/AdminBases"
+                  element={<AdministradorRoute><AdminBases /></AdministradorRoute>}
                 />
                 <Route
                   path="/JornadaCaptacao"

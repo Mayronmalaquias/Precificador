@@ -59,8 +59,14 @@ export default function VisitaForm() {
   const [showClientesSugestoes, setShowClientesSugestoes]     = useState(false);
   const [clienteSelecionado, setClienteSelecionado]           = useState(null);
   const [clienteStatus, setClienteStatus]                     = useState("NOVO");
+  const [leadsDoCorretor, setLeadsDoCorretor]                 = useState([]);
+  const [leadsSugestoes, setLeadsSugestoes]                   = useState([]);
+  const [loadingLeads, setLoadingLeads]                       = useState(false);
 
   const isImovelNaoCaptado = form.situacaoImovel === "IMOVEL_NAO_CAPTADO";
+
+  const normText = (value) => String(value || "").trim().toLowerCase();
+  const onlyDigits = (value) => String(value || "").replace(/\D/g, "");
 
   const formatarMoedaBR = (valor) => {
     const somenteNumeros = String(valor).replace(/\D/g, "");
@@ -97,7 +103,10 @@ export default function VisitaForm() {
         descricao: u.descricao || "", email: u.email || "",
       };
       setCorretorInfo(corretor);
-      if (id) carregarClientesDoCorretor(id);
+      if (id) {
+        carregarClientesDoCorretor(id);
+        carregarLeadsDoCorretor(id);
+      }
     } catch (e) { console.error(e); }
   }, []);
 
@@ -113,16 +122,36 @@ export default function VisitaForm() {
 
   // ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ Filtro de clientes ao digitar ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬
   useEffect(() => {
-    const termo = (form.clienteNome || "").trim().toLowerCase();
+    const termo = normText(form.clienteNome);
+    const telefone = onlyDigits(form.clienteTelefone);
     if (!termo) {
-      setClientesSugestoes([]); setClienteSelecionado(null); setClienteStatus("NOVO"); return;
+      setClientesSugestoes([]);
+      setLeadsSugestoes(leadsDoCorretor.slice(0, 6));
+      setClienteSelecionado(null);
+      setClienteStatus("NOVO");
+      return;
     }
-    const filtrados = clientesDoCorretor.filter(c => (c.nome || "").toLowerCase().includes(termo));
+    const filtrados = clientesDoCorretor.filter(c => normText(c.nome).includes(termo));
     setClientesSugestoes(filtrados);
-    const exato = clientesDoCorretor.find(c => (c.nome || "").trim().toLowerCase() === termo);
+    const leadsFiltrados = leadsDoCorretor.filter(lead => {
+      const texto = [
+        lead.cliente,
+        lead.telefone,
+        lead.codigo_imovel,
+        lead.fonte,
+        lead.contato,
+      ].map(normText).join(" ");
+      return texto.includes(termo);
+    });
+    setLeadsSugestoes(leadsFiltrados.slice(0, 8));
+    const exato = clientesDoCorretor.find(c => {
+      const mesmoNome = normText(c.nome) === termo;
+      const mesmoTelefone = telefone && onlyDigits(c.telefone) === telefone;
+      return mesmoNome || mesmoTelefone;
+    });
     if (exato) setClienteStatus("EXISTENTE");
     else { setClienteStatus("NOVO"); setClienteSelecionado(null); }
-  }, [form.clienteNome, clientesDoCorretor]);
+  }, [form.clienteNome, form.clienteTelefone, clientesDoCorretor, leadsDoCorretor]);
 
   // ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ Debounce busca de imÃƒÆ’Ã‚Â³veis ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬
   useEffect(() => {
@@ -184,10 +213,52 @@ export default function VisitaForm() {
     finally { setLoadingClientes(false); }
   }
 
+  async function carregarLeadsDoCorretor(idCorretor) {
+    setLoadingLeads(true);
+    try {
+      const r = await fetch(`${BASE}/leads_busca?id_corretor=${encodeURIComponent(idCorretor)}&q=&limit=80`);
+      const d = await r.json().catch(() => ({}));
+      if (r.ok && d.ok) setLeadsDoCorretor(Array.isArray(d.lista) ? d.lista : []);
+    } catch (e) { console.error(e); }
+    finally { setLoadingLeads(false); }
+  }
+
   function selecionarCliente(c) {
     setClienteSelecionado(c); setClienteStatus("EXISTENTE");
     setForm(p => ({ ...p, clienteNome: c.nome || "", clienteTelefone: c.telefone || "", clienteEmail: c.email || "" }));
-    setShowClientesSugestoes(false); setClientesSugestoes([]);
+    setShowClientesSugestoes(false); setClientesSugestoes([]); setLeadsSugestoes([]);
+  }
+
+  function selecionarLead(lead) {
+    const leadTelefone = onlyDigits(lead.telefone);
+    const clienteExistente = clientesDoCorretor.find(c => {
+      const mesmoNome = normText(c.nome) === normText(lead.cliente);
+      const mesmoTelefone = leadTelefone && onlyDigits(c.telefone) === leadTelefone;
+      return mesmoNome || mesmoTelefone;
+    });
+    const codigo = String(lead.codigo_imovel || "").trim();
+
+    if (clienteExistente?.id_cliente) {
+      setClienteSelecionado(clienteExistente);
+      setClienteStatus("EXISTENTE");
+    } else {
+      setClienteSelecionado(null);
+      setClienteStatus("NOVO");
+    }
+
+    setForm(p => ({
+      ...p,
+      clienteNome: clienteExistente?.nome || lead.cliente || "",
+      clienteTelefone: clienteExistente?.telefone || lead.telefone || "",
+      clienteEmail: clienteExistente?.email || p.clienteEmail || "",
+      imovelId: !isImovelNaoCaptado && codigo ? codigo : p.imovelId,
+    }));
+    if (!isImovelNaoCaptado && codigo) {
+      setEnderecoQuery(["Cod. " + codigo, lead.fonte].filter(Boolean).join(" - "));
+    }
+    setShowClientesSugestoes(false);
+    setClientesSugestoes([]);
+    setLeadsSugestoes([]);
   }
 
   async function buscarImoveisPorEndereco(query) {
@@ -300,7 +371,7 @@ export default function VisitaForm() {
       // Reset
       setForm({ imovelId:"", dataVisita: new Date().toISOString().split("T")[0], parceiroExterno:"NAO", situacaoImovel:"CAPTACAO_61", clienteNome:"", clienteTelefone:"", clienteEmail:"", proposta:"Talvez", papelVisita:"Interessado", enderecoExterno:"", parceiroNome:"", parceiroImobiliaria:"", clienteAssinanteNome:"", clienteAssinanteTelefone:"", clienteAssinanteEmail:"", assinatura:"", audioDescricaoClienteVisita:"", linkAudio:"", localizacao:10, tamanho:10, planta:10, acabamento:10, conservacao:10, condominio:10, preco:10, notaGeral:10, precoNota10:"" });
       setEnderecoQuery(""); setImoveisSugestoes([]); setShowSugestoes(false); setPdfFile(null);
-      setClienteSelecionado(null); setClienteStatus("NOVO"); setClientesSugestoes([]); setShowClientesSugestoes(false);
+      setClienteSelecionado(null); setClienteStatus("NOVO"); setClientesSugestoes([]); setLeadsSugestoes([]); setShowClientesSugestoes(false);
     } catch (err) {
       console.error(err);
       toast(err.message || "Erro inesperado. Tente novamente.", "error");
@@ -516,7 +587,7 @@ export default function VisitaForm() {
               autoComplete="off"
               required
             />
-            {loadingClientes && <div className="vf-hint">Carregando clientes...</div>}
+            {(loadingClientes || loadingLeads) && <div className="vf-hint">Carregando clientes e leads...</div>}
             {!!form.clienteNome && (
               <span className={`vf-badge ${clienteStatus === "EXISTENTE" ? "vf-badge--existente" : "vf-badge--novo"}`}>
                 {clienteStatus === "EXISTENTE" ? "Cliente ja cadastrado" : "Novo cliente"}
@@ -528,6 +599,24 @@ export default function VisitaForm() {
                   <button type="button" key={c.id_cliente} className="vf-sugestao-item" onClick={() => selecionarCliente(c)}>
                     <div className="vf-sugestao-title">{c.nome}</div>
                     <div className="vf-sugestao-sub">{c.telefone || "Sem telefone"}{c.email ? ` - ${c.email}` : ""}</div>
+                  </button>
+                ))}
+              </div>
+            )}
+            {showClientesSugestoes && leadsSugestoes.length > 0 && (
+              <div className="vf-sugestoes vf-sugestoes-leads">
+                <div className="vf-sugestoes-label">Leads do seu atendimento</div>
+                {leadsSugestoes.map(lead => (
+                  <button type="button" key={`lead-${lead.id}`} className="vf-sugestao-item vf-sugestao-lead" onClick={() => selecionarLead(lead)}>
+                    <div className="vf-sugestao-title">{lead.cliente || "Lead sem nome"}</div>
+                    <div className="vf-sugestao-sub">
+                      {[
+                        lead.telefone || "Sem telefone",
+                        lead.codigo_imovel ? `Cod. ${lead.codigo_imovel}` : "",
+                        lead.fonte || "",
+                        lead.data || "",
+                      ].filter(Boolean).join(" - ")}
+                    </div>
                   </button>
                 ))}
               </div>

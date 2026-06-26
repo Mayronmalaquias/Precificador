@@ -117,7 +117,9 @@ function RHUsuarios() {
   const [filtroDesligamento, setFiltroDesligamento] = useState("");
   const [filtroCreci, setFiltroCreci] = useState("");
   const [calendarioData, setCalendarioData] = useState(() => new Date());
+  const [calendarioAberto, setCalendarioAberto] = useState(false);
   const [editando, setEditando] = useState(null);
+  const [detalhando, setDetalhando] = useState(null);
   const [salvando, setSalvando] = useState(false);
 
   useEffect(() => {
@@ -329,6 +331,10 @@ function RHUsuarios() {
     setEditando(form);
   };
 
+  const abrirDetalhes = (usuarioDetalhado) => {
+    setDetalhando(usuarioDetalhado);
+  };
+
   const alterarAtivo = async (item, novoAtivo) => {
     const { ok, data } = await apiFetch("/corretor/alterar-ativo", {
       method: "POST",
@@ -458,6 +464,30 @@ function RHUsuarios() {
     );
   };
 
+  const formatarValorDetalhe = (value) => {
+    if (value === true || value === "true") return "Sim";
+    if (value === false || value === "false") return "Nao";
+    return value || "-";
+  };
+
+  const renderDetalheItem = (label, value) => (
+    <div className="rh-usuarios__detail-item">
+      <span>{label}</span>
+      <strong>{formatarValorDetalhe(value)}</strong>
+    </div>
+  );
+
+  const renderDetalheSecao = (titulo, itens) => (
+    <section className="rh-usuarios__detail-section">
+      <h4>{titulo}</h4>
+      <div className="rh-usuarios__detail-grid">
+        {itens.map(([label, value]) => (
+          <React.Fragment key={label}>{renderDetalheItem(label, value)}</React.Fragment>
+        ))}
+      </div>
+    </section>
+  );
+
   return (
     <div className="controle-corretores rh-usuarios">
       <div className="controle-corretores__container">
@@ -547,7 +577,22 @@ function RHUsuarios() {
           </div>
         </section>
 
-        <section className="rh-usuarios__calendar">
+        <section className="rh-usuarios__calendar-shell">
+          <button
+            type="button"
+            className="rh-usuarios__calendar-toggle"
+            onClick={() => setCalendarioAberto((prev) => !prev)}
+            aria-expanded={calendarioAberto}
+          >
+            <span>
+              <strong>Calendario RH</strong>
+              <small>{MESES[calendarioMes]} {calendarioAno} · {proximosEventosCalendario.length} evento(s) no mes</small>
+            </span>
+            <b>{calendarioAberto ? "Ocultar" : "Ver calendario"}</b>
+          </button>
+
+          {calendarioAberto && (
+        <div className="rh-usuarios__calendar">
           <div className="rh-usuarios__calendar-main">
             <div className="rh-usuarios__calendar-head">
               <div>
@@ -610,6 +655,8 @@ function RHUsuarios() {
               ))}
             </div>
           </aside>
+        </div>
+          )}
         </section>
 
         <section className="controle-corretores__panel rh-usuarios__panel">
@@ -713,18 +760,21 @@ function RHUsuarios() {
                     <th>Equipe</th>
                     <th>Permissão</th>
                     <th>Ativo</th>
+                    <th>Contato</th>
                     <th>Pendências</th>
                     <th>Ações</th>
                   </tr>
                 </thead>
                 <tbody>
                   {loading ? (
-                    <tr><td colSpan="6" className="controle-corretores__empty">Carregando...</td></tr>
+                    <tr><td colSpan="7" className="controle-corretores__empty">Carregando...</td></tr>
                   ) : usuariosFiltrados.length === 0 ? (
-                    <tr><td colSpan="6" className="controle-corretores__empty">Nenhum usuário encontrado.</td></tr>
+                    <tr><td colSpan="7" className="controle-corretores__empty">Nenhum usuário encontrado.</td></tr>
                   ) : usuariosFiltrados.map((item) => {
                     const faltantes = camposFaltantes(item);
                     const statusOperacional = usuarioEmSaida(item) ? "Desligado" : item.ativo ? "Ativo" : "Pendente ativacao";
+                    const contatoPrincipal = item.telefone_corporativo || item.telefone_pessoal || item.telefone || "-";
+                    const emailPrincipal = item.email_corporativo || item.email_pessoal || item.email || "-";
                     return (
                       <tr key={item.id_usuarios || item.id}>
                         <td>
@@ -741,6 +791,12 @@ function RHUsuarios() {
                           </span>
                         </td>
                         <td>
+                          <div className="rh-usuarios__contact">
+                            <span>{contatoPrincipal}</span>
+                            <small>{emailPrincipal}</small>
+                          </div>
+                        </td>
+                        <td>
                           {faltantes.length === 0 ? (
                             <span className="rh-usuarios__ok">Completo</span>
                           ) : (
@@ -749,6 +805,7 @@ function RHUsuarios() {
                         </td>
                         <td>
                           <div className="rh-usuarios__actions">
+                            <button type="button" className="controle-corretores__button controle-corretores__button--ghost-light" onClick={() => abrirDetalhes(item)}>Detalhes</button>
                             <button type="button" className="controle-corretores__button controle-corretores__button--ghost-light" onClick={() => abrirEdicao(item)}>Editar</button>
                             <button type="button" className="controle-corretores__button controle-corretores__button--ghost-light" onClick={() => alterarAtivo(item, !item.ativo)}>
                               {item.ativo ? "Desativar" : "Ativar cadastro"}
@@ -765,6 +822,87 @@ function RHUsuarios() {
         </section>
           </main>
         </div>
+
+        {detalhando && (
+          <div className="controle-corretores__modal-overlay" onClick={() => setDetalhando(null)}>
+            <div className="controle-corretores__modal rh-usuarios__modal rh-usuarios__detail-modal" onClick={(e) => e.stopPropagation()}>
+              <div className="rh-usuarios__detail-head">
+                <div>
+                  <span className="rh-usuarios__detail-kicker">Detalhes do usuario</span>
+                  <h3>{detalhando.nome || detalhando.username || "-"}</h3>
+                  <p>{detalhando.id_usuarios || "-"} · {getNomeEquipe(detalhando.team)} · {detalhando.permissao || "sem permissao"}</p>
+                </div>
+                <span className={`controle-corretores__badge ${detalhando.ativo ? "controle-corretores__badge--ativo" : "controle-corretores__badge--inativo"}`}>
+                  {usuarioEmSaida(detalhando) ? "Desligado" : detalhando.ativo ? "Ativo" : "Pendente ativacao"}
+                </span>
+              </div>
+
+              <div className="rh-usuarios__detail-alert">
+                {camposFaltantes(detalhando).length === 0 ? (
+                  <span className="rh-usuarios__ok">Cadastro completo para o RH.</span>
+                ) : (
+                  <>
+                    <strong>{camposFaltantes(detalhando).length} pendencia(s)</strong>
+                    <span>{camposFaltantes(detalhando).map((f) => f.label).join(", ")}</span>
+                  </>
+                )}
+              </div>
+
+              <div className="rh-usuarios__detail-sections">
+                {renderDetalheSecao("Dados principais", [
+                  ["Username", detalhando.username],
+                  ["Nome completo", detalhando.nome],
+                  ["Unidade", detalhando.unidade],
+                  ["Gerente responsavel", detalhando.gerente_responsavel],
+                  ["Data de entrada", detalhando.data_entrada_61],
+                  ["Status RH", detalhando.status],
+                ])}
+                {renderDetalheSecao("Contatos", [
+                  ["Telefone corporativo", detalhando.telefone_corporativo],
+                  ["Telefone pessoal", detalhando.telefone_pessoal],
+                  ["E-mail corporativo", detalhando.email_corporativo],
+                  ["E-mail pessoal", detalhando.email_pessoal],
+                  ["Contato emergencia", detalhando.contato_emergencia],
+                  ["Endereco", detalhando.endereco],
+                ])}
+                {renderDetalheSecao("Documentos e dados pessoais", [
+                  ["CPF", detalhando.cpf],
+                  ["RG", detalhando.rg],
+                  ["CRECI", detalhando.creci],
+                  ["Validade CRECI", detalhando.validade_creci],
+                  ["Data nascimento", detalhando.data_nascimento],
+                  ["Estado civil", detalhando.estado_civil],
+                  ["Possui filhos", detalhando.possui_filhos],
+                ])}
+                {renderDetalheSecao("Financeiro e contratos", [
+                  ["CNPJ", detalhando.cnpj],
+                  ["Razao social", detalhando.razao_social],
+                  ["Banco", detalhando.banco],
+                  ["Agencia", detalhando.agencia],
+                  ["Conta", detalhando.conta],
+                  ["Tipo de conta", detalhando.tipo_conta],
+                  ["Chave PIX", detalhando.chave_pix],
+                  ["Contrato assinado", detalhando.contrato_assinado],
+                  ["Codigo de conduta", detalhando.codigo_conduta_assinado],
+                  ["LGPD assinada", detalhando.lgpd_assinada],
+                  ["Onboarding", detalhando.onboarding_realizado],
+                ])}
+                {usuarioEmSaida(detalhando) && renderDetalheSecao("Desligamento", [
+                  ["Desligado", detalhando.desligado],
+                  ["Data desligamento", detalhando.data_desligamento],
+                  ["Observacoes", detalhando.observacoes],
+                ])}
+              </div>
+
+              <div className="controle-corretores__modal-actions">
+                <button type="button" className="controle-corretores__button controle-corretores__button--ghost-light" onClick={() => setDetalhando(null)}>Fechar</button>
+                <button type="button" className="controle-corretores__button controle-corretores__button--primary" onClick={() => { abrirEdicao(detalhando); setDetalhando(null); }}>
+                  Editar usuario
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {editando && (
           <div className="controle-corretores__modal-overlay" onClick={() => setEditando(null)}>

@@ -1,0 +1,737 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <!-- Inclusão da biblioteca PDF-Lib -->
+    <script src="https://unpkg.com/pdf-lib@1.16.0"></script>
+
+    <title>Registro de Vendas Novo</title>
+    <style>
+        body {
+            align-items: center;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            display: flex;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+            font-family: Arial, sans-serif;
+        }
+        .form {
+            background-color: #15172b;
+            border-radius: 20px;
+            box-sizing: border-box;
+            padding: 20px;
+            width: 85%;
+            max-height: 90%;
+            overflow-y: auto;
+        }
+        .title {
+            color: #eee;
+            font-family: sans-serif;
+            font-size: 36px;
+            font-weight: 600;
+            margin-top: 30px;
+            text-align: center;
+        }
+        .input-container {
+            height: 50px;
+            position: relative;
+            width: 100%;
+            margin-top: 20px;
+        }
+        .input {
+            background-color: #303245;
+            border-radius: 12px;
+            border: 0;
+            box-sizing: border-box;
+            color: #eee;
+            font-size: 18px;
+            height: 100%;
+            outline: 0;
+            padding: 4px 20px 0;
+            width: 100%;
+        }
+        .cut {
+            background-color: #15172b;
+            border-radius: 10px;
+            height: 20px;
+            left: 20px;
+            position: absolute;
+            top: -20px;
+            transform: translateY(0);
+            transition: transform 200ms;
+            width: 170px;
+        }
+        .cut-short {
+            width: 70px;
+        }
+        .input:focus ~ .cut,
+        .input:not(:placeholder-shown) ~ .cut {
+            transform: translateY(8px);
+        }
+        .placeholder {
+            color: #65657b;
+            font-family: sans-serif;
+            left: 20px;
+            line-height: 14px;
+            pointer-events: none;
+            position: absolute;
+            transform-origin: 0 50%;
+            transition: transform 200ms, color 200ms;
+            top: 20px;
+        }
+        .input:focus ~ .placeholder,
+        .input:not(:placeholder-shown) ~ .placeholder {
+            transform: translateY(-30px) translateX(10px) scale(0.75);
+        }
+        .input:not(:placeholder-shown) ~ .placeholder {
+            color: #808097;
+        }
+        .input:focus ~ .placeholder {
+            color: #dc2f55;
+        }
+        .submit {
+            background-color: #08d;
+            border-radius: 12px;
+            border: 0;
+            box-sizing: border-box;
+            color: #eee;
+            cursor: pointer;
+            font-size: 18px;
+            height: 50px;
+            margin-top: 38px;
+            text-align: center;
+            width: 100%;
+        }
+        .submit:active {
+            background-color: #06b;
+        }
+        .btn-primary {
+            background-color: #08d;
+            border-radius: 12px;
+            border: 0;
+            color: #eee;
+            cursor: pointer;
+            font-size: 18px;
+            height: 50px;
+            margin-top: 10px;
+            text-align: center;
+            width: 100%;
+        }
+        .btn-primary:hover {
+            background-color: #06b;
+        }
+        .checkbox-container {
+            display: flex;
+            align-items: center;
+            margin-top: 20px;
+        }
+        .checkbox-container input {
+            width: auto;
+            margin-right: 10px;
+        }
+        .checkbox-container label {
+            color: #eee;
+            font-size: 18px;
+        }
+        h2 {
+            color: #eee; /* Cor branca */
+            font-family: sans-serif; /* Fonte */
+            font-size: 24px; /* Tamanho da fonte */
+            margin-top: 20px; /* Espaçamento superior */
+            text-align: center; /* Centraliza o texto */
+            font-style: italic; /* Coloca o texto em itálico */
+        }
+
+        .linha {
+            border-bottom: 2px solid #eee; /* Cor e espessura da linha */
+            width: 100%; /* Largura total */
+            margin-top: 10px; /* Espaçamento superior */
+            margin-bottom: 20px; /* Espaçamento inferior */
+        }
+
+    </style>
+</head>
+<body>
+<form id="formVendas" class="form">
+    <div class="title">Registro de Vendas</div>
+
+    <!-- Seção de Contrato -->
+    <h2>Seleção de Contrato</h2>
+    <hr>
+    
+    <!-- Campo de Seleção de Contrato -->
+    <div class="input-container">
+        <select id="contrato" name="contrato" class="input" required>
+            <option value="">Selecione o Contrato</option>
+        </select>
+        <div class="cut"></div>
+        <label for="contrato" class="placeholder">Contrato</label>
+    </div>
+
+        <!-- Campo de Upload de PDF -->
+        <div class="input-container">
+            <input type="file" id="fileUpload" name="fileUpload[]" class="input" accept=".pdf" required multiple>
+            <div class="cut"></div>
+            <label for="fileUpload" class="placeholder">Anexar PDF Contrato (até dois arquivos)</label>
+        </div>
+
+    <!-- Seção de Vendedores -->
+    <h2>Clientes Vendedores</h2>
+    <div class="linha"></div>
+
+    <!-- Nome Vendedor 1 -->
+    <div class="input-container">
+        <input type="text" id="nomeClienteVendedor1" name="nomeClienteVendedor1" class="input" placeholder=" " required>
+        <div class="cut"></div>
+        <label for="nomeClienteVendedor1" class="placeholder">Nome Cliente Vendedor 1</label>
+    </div>
+
+    <!-- CPF Vendedor 1 -->
+    <div class="input-container">
+        <input type="text" id="cpfClienteVendedor1" name="cpfClienteVendedor1" class="input" placeholder=" " required>
+        <div class="cut"></div>
+        <label for="cpfClienteVendedor1" class="placeholder">CPF Cliente Vendedor 1</label>
+    </div>
+
+    <!-- Nome Vendedor 2 -->
+    <div class="input-container">
+        <input type="text" id="nomeClienteVendedor2" name="nomeClienteVendedor2" class="input" placeholder=" " required>
+        <div class="cut"></div>
+        <label for="nomeClienteVendedor2" class="placeholder">Nome Cliente Vendedor 2</label>
+    </div>
+
+    <!-- CPF Vendedor 2 -->
+    <div class="input-container">
+        <input type="text" id="cpfClienteVendedor2" name="cpfClienteVendedor2" class="input" placeholder=" " required>
+        <div class="cut"></div>
+        <label for="cpfClienteVendedor2" class="placeholder">CPF Cliente Vendedor 2</label>
+    </div>
+
+    <!-- Nome Vendedor 3 -->
+    <div class="input-container">
+        <input type="text" id="nomeClienteVendedor3" name="nomeClienteVendedor3" class="input" placeholder=" " required>
+        <div class="cut"></div>
+        <label for="nomeClienteVendedor3" class="placeholder">Nome Cliente Vendedor 3</label>
+    </div>
+
+    <!-- CPF Vendedor 3 -->
+    <div class="input-container">
+        <input type="text" id="cpfClienteVendedor3" name="cpfClienteVendedor3" class="input" placeholder=" " required>
+        <div class="cut"></div>
+        <label for="cpfClienteVendedor3" class="placeholder">CPF Cliente Vendedor 3</label>
+    </div>
+
+    <!-- Nome Vendedor 4 -->
+    <div class="input-container">
+        <input type="text" id="nomeClienteVendedor4" name="nomeClienteVendedor4" class="input" placeholder=" " required>
+        <div class="cut"></div>
+        <label for="nomeClienteVendedor4" class="placeholder">Nome Cliente Vendedor 4</label>
+    </div>
+
+    <!-- CPF Vendedor 4 -->
+    <div class="input-container">
+        <input type="text" id="cpfClienteVendedor4" name="cpfClienteVendedor4" class="input" placeholder=" " required>
+        <div class="cut"></div>
+        <label for="cpfClienteVendedor4" class="placeholder">CPF Cliente Vendedor 4</label>
+    </div>
+
+    <!-- Nome Vendedor 5 -->
+    <div class="input-container">
+        <input type="text" id="nomeClienteVendedor5" name="nomeClienteVendedor5" class="input" placeholder=" " required>
+        <div class="cut"></div>
+        <label for="nomeClienteVendedor5" class="placeholder">Nome Cliente Vendedor 5</label>
+    </div>
+
+    <!-- CPF Vendedor 5 -->
+    <div class="input-container">
+        <input type="text" id="cpfClienteVendedor5" name="cpfClienteVendedor5" class="input" placeholder=" " required>
+        <div class="cut"></div>
+        <label for="cpfClienteVendedor5" class="placeholder">CPF Cliente Vendedor 5</label>
+    </div>
+
+    <!-- Nome Vendedor 6 -->
+    <div class="input-container">
+        <input type="text" id="nomeClienteVendedor6" name="nomeClienteVendedor6" class="input" placeholder=" " required>
+        <div class="cut"></div>
+        <label for="nomeClienteVendedor6" class="placeholder">Nome Cliente Vendedor 6</label>
+    </div>
+
+    <!-- CPF Vendedor 6 -->
+    <div class="input-container">
+        <input type="text" id="cpfClienteVendedor6" name="cpfClienteVendedor6" class="input" placeholder=" " required>
+        <div class="cut"></div>
+        <label for="cpfClienteVendedor6" class="placeholder">CPF Cliente Vendedor 6</label>
+    </div>
+
+    <!-- Nome Vendedor 7 -->
+    <div class="input-container">
+        <input type="text" id="nomeClienteVendedor7" name="nomeClienteVendedor7" class="input" placeholder=" " required>
+        <div class="cut"></div>
+        <label for="nomeClienteVendedor7" class="placeholder">Nome Cliente Vendedor 7</label>
+    </div>
+
+    <!-- CPF Vendedor 7 -->
+    <div class="input-container">
+        <input type="text" id="cpfClienteVendedor7" name="cpfClienteVendedor7" class="input" placeholder=" " required>
+        <div class="cut"></div>
+        <label for="cpfClienteVendedor7" class="placeholder">CPF Cliente Vendedor 7</label>
+    </div>
+
+    <!-- Nome Vendedor 8 -->
+    <div class="input-container">
+        <input type="text" id="nomeClienteVendedor8" name="nomeClienteVendedor8" class="input" placeholder=" " required>
+        <div class="cut"></div>
+        <label for="nomeClienteVendedor8" class="placeholder">Nome Cliente Vendedor 8</label>
+    </div>
+
+    <!-- CPF Vendedor 8 -->
+    <div class="input-container">
+        <input type="text" id="cpfClienteVendedor8" name="cpfClienteVendedor8" class="input" placeholder=" " required>
+        <div class="cut"></div>
+        <label for="cpfClienteVendedor8" class="placeholder">CPF Cliente Vendedor 8</label>
+    </div>
+
+    <!-- Nome Vendedor 9 -->
+    <div class="input-container">
+        <input type="text" id="nomeClienteVendedor9" name="nomeClienteVendedor9" class="input" placeholder=" " required>
+        <div class="cut"></div>
+        <label for="nomeClienteVendedor9" class="placeholder">Nome Cliente Vendedor 9</label>
+    </div>
+
+    <!-- CPF Vendedor 9 -->
+    <div class="input-container">
+        <input type="text" id="cpfClienteVendedor9" name="cpfClienteVendedor9" class="input" placeholder=" " required>
+        <div class="cut"></div>
+        <label for="cpfClienteVendedor9" class="placeholder">CPF Cliente Vendedor 9</label>
+    </div>
+
+    <!-- Nome Vendedor 10 -->
+    <div class="input-container">
+        <input type="text" id="nomeClienteVendedor10" name="nomeClienteVendedor10" class="input" placeholder=" " required>
+        <div class="cut"></div>
+        <label for="nomeClienteVendedor10" class="placeholder">Nome Cliente Vendedor 10</label>
+    </div>
+
+    <!-- CPF Vendedor 10 -->
+    <div class="input-container">
+        <input type="text" id="cpfClienteVendedor10" name="cpfClienteVendedor10" class="input" placeholder=" " required>
+        <div class="cut"></div>
+        <label for="cpfClienteVendedor10" class="placeholder">CPF Cliente Vendedor 10</label>
+    </div>
+
+    <!-- Nome Vendedor 11 -->
+    <div class="input-container">
+        <input type="text" id="nomeClienteVendedor11" name="nomeClienteVendedor11" class="input" placeholder=" " required>
+        <div class="cut"></div>
+        <label for="nomeClienteVendedor11" class="placeholder">Nome Cliente Vendedor 11</label>
+    </div>
+
+    <!-- CPF Vendedor 11 -->
+    <div class="input-container">
+        <input type="text" id="cpfClienteVendedor11" name="cpfClienteVendedor11" class="input" placeholder=" " required>
+        <div class="cut"></div>
+        <label for="cpfClienteVendedor11" class="placeholder">CPF Cliente Vendedor 11</label>
+    </div>
+
+    <!-- Nome Vendedor 12 -->
+    <div class="input-container">
+        <input type="text" id="nomeClienteVendedor12" name="nomeClienteVendedor12" class="input" placeholder=" " required>
+        <div class="cut"></div>
+        <label for="nomeClienteVendedor12" class="placeholder">Nome Cliente Vendedor 12</label>
+    </div>
+
+    <!-- CPF Vendedor 12 -->
+    <div class="input-container">
+        <input type="text" id="cpfClienteVendedor12" name="cpfClienteVendedor12" class="input" placeholder=" " required>
+        <div class="cut"></div>
+        <label for="cpfClienteVendedor12" class="placeholder">CPF Cliente Vendedor 12</label>
+    </div>
+
+    <!-- Nome Vendedor 13 -->
+    <div class="input-container">
+        <input type="text" id="nomeClienteVendedor13" name="nomeClienteVendedor13" class="input" placeholder=" " required>
+        <div class="cut"></div>
+        <label for="nomeClienteVendedor13" class="placeholder">Nome Cliente Vendedor 13</label>
+    </div>
+
+    <!-- CPF Vendedor 13 -->
+    <div class="input-container">
+        <input type="text" id="cpfClienteVendedor13" name="cpfClienteVendedor13" class="input" placeholder=" " required>
+        <div class="cut"></div>
+        <label for="cpfClienteVendedor13" class="placeholder">CPF Cliente Vendedor 13</label>
+    </div>
+
+    <!-- Nome Vendedor 14 -->
+    <div class="input-container">
+        <input type="text" id="nomeClienteVendedor14" name="nomeClienteVendedor14" class="input" placeholder=" " required>
+        <div class="cut"></div>
+        <label for="nomeClienteVendedor14" class="placeholder">Nome Cliente Vendedor 14</label>
+    </div>
+
+    <!-- CPF Vendedor 14 -->
+    <div class="input-container">
+        <input type="text" id="cpfClienteVendedor14" name="cpfClienteVendedor14" class="input" placeholder=" " required>
+        <div class="cut"></div>
+        <label for="cpfClienteVendedor14" class="placeholder">CPF Cliente Vendedor 14</label>
+    </div>
+
+    <!-- Nome Vendedor 15 -->
+    <div class="input-container">
+        <input type="text" id="nomeClienteVendedor15" name="nomeClienteVendedor15" class="input" placeholder=" " required>
+        <div class="cut"></div>
+        <label for="nomeClienteVendedor15" class="placeholder">Nome Cliente Vendedor 15</label>
+    </div>
+
+    <!-- CPF Vendedor 15 -->
+    <div class="input-container">
+        <input type="text" id="cpfClienteVendedor15" name="cpfClienteVendedor15" class="input" placeholder=" " required>
+        <div class="cut"></div>
+        <label for="cpfClienteVendedor15" class="placeholder">CPF Cliente Vendedor 15</label>
+    </div>
+
+    <!-- Seção de Compradores -->
+    <h2>Clientes Compradores</h2>
+    <div class="linha"></div>
+
+    <!-- Nome Comprador 1 -->
+    <div class="input-container">
+        <input type="text" id="nomeClienteComprador1" name="nomeClienteComprador1" class="input" placeholder=" " required>
+        <div class="cut"></div>
+        <label for="nomeClienteComprador1" class="placeholder">Nome Cliente Comprador 1</label>
+    </div>
+
+    <!-- CPF Comprador 1 -->
+    <div class="input-container">
+        <input type="text" id="cpfClienteComprador1" name="cpfClienteComprador1" class="input" placeholder=" " required>
+        <div class="cut"></div>
+        <label for="cpfClienteComprador1" class="placeholder">CPF Cliente Comprador 1</label>
+    </div>
+
+    <!-- Nome Comprador 2 -->
+    <div class="input-container">
+        <input type="text" id="nomeClienteComprador2" name="nomeClienteComprador2" class="input" placeholder=" " required>
+        <div class="cut"></div>
+        <label for="nomeClienteComprador2" class="placeholder">Nome Cliente Comprador 2</label>
+    </div>
+
+    <!-- CPF Comprador 2 -->
+    <div class="input-container">
+        <input type="text" id="cpfClienteComprador2" name="cpfClienteComprador2" class="input" placeholder=" " required>
+        <div class="cut"></div>
+        <label for="cpfClienteComprador2" class="placeholder">CPF Cliente Comprador 2</label>
+    </div>
+
+    <!-- Nome Comprador 3 -->
+    <div class="input-container">
+        <input type="text" id="nomeClienteComprador3" name="nomeClienteComprador3" class="input" placeholder=" " required>
+        <div class="cut"></div>
+        <label for="nomeClienteComprador3" class="placeholder">Nome Cliente Comprador 3</label>
+    </div>
+
+    <!-- CPF Comprador 3 -->
+    <div class="input-container">
+        <input type="text" id="cpfClienteComprador3" name="cpfClienteComprador3" class="input" placeholder=" " required>
+        <div class="cut"></div>
+        <label for="cpfClienteComprador3" class="placeholder">CPF Cliente Comprador 3</label>
+    </div>
+
+    <!-- Nome Comprador 4 -->
+    <div class="input-container">
+        <input type="text" id="nomeClienteComprador4" name="nomeClienteComprador4" class="input" placeholder=" " required>
+        <div class="cut"></div>
+        <label for="nomeClienteComprador4" class="placeholder">Nome Cliente Comprador 4</label>
+    </div>
+
+    <!-- CPF Comprador 4 -->
+    <div class="input-container">
+        <input type="text" id="cpfClienteComprador4" name="cpfClienteComprador4" class="input" placeholder=" " required>
+        <div class="cut"></div>
+        <label for="cpfClienteComprador4" class="placeholder">CPF Cliente Comprador 4</label>
+    </div>
+
+    <!-- Nome Comprador 5 -->
+    <div class="input-container">
+        <input type="text" id="nomeClienteComprador5" name="nomeClienteComprador5" class="input" placeholder=" " required>
+        <div class="cut"></div>
+        <label for="nomeClienteComprador5" class="placeholder">Nome Cliente Comprador 5</label>
+    </div>
+
+    <!-- CPF Comprador 5 -->
+    <div class="input-container">
+        <input type="text" id="cpfClienteComprador5" name="cpfClienteComprador5" class="input" placeholder=" " required>
+        <div class="cut"></div>
+        <label for="cpfClienteComprador5" class="placeholder">CPF Cliente Comprador 5</label>
+    </div>
+
+    <!-- Nome Comprador 6 -->
+    <div class="input-container">
+        <input type="text" id="nomeClienteComprador6" name="nomeClienteComprador6" class="input" placeholder=" " required>
+        <div class="cut"></div>
+        <label for="nomeClienteComprador6" class="placeholder">Nome Cliente Comprador 6</label>
+    </div>
+
+    <!-- CPF Comprador 6 -->
+    <div class="input-container">
+        <input type="text" id="cpfClienteComprador6" name="cpfClienteComprador6" class="input" placeholder=" " required>
+        <div class="cut"></div>
+        <label for="cpfClienteComprador6" class="placeholder">CPF Cliente Comprador 6</label>
+    </div>
+
+    <!-- Nome Comprador 7 -->
+    <div class="input-container">
+        <input type="text" id="nomeClienteComprador7" name="nomeClienteComprador7" class="input" placeholder=" " required>
+        <div class="cut"></div>
+        <label for="nomeClienteComprador7" class="placeholder">Nome Cliente Comprador 7</label>
+    </div>
+
+    <!-- CPF Comprador 7 -->
+    <div class="input-container">
+        <input type="text" id="cpfClienteComprador7" name="cpfClienteComprador7" class="input" placeholder=" " required>
+        <div class="cut"></div>
+        <label for="cpfClienteComprador7" class="placeholder">CPF Cliente Comprador 7</label>
+    </div>
+
+    <!-- Nome Comprador 8 -->
+    <div class="input-container">
+        <input type="text" id="nomeClienteComprador8" name="nomeClienteComprador8" class="input" placeholder=" " required>
+        <div class="cut"></div>
+        <label for="nomeClienteComprador8" class="placeholder">Nome Cliente Comprador 8</label>
+    </div>
+
+    <!-- CPF Comprador 8 -->
+    <div class="input-container">
+        <input type="text" id="cpfClienteComprador8" name="cpfClienteComprador8" class="input" placeholder=" " required>
+        <div class="cut"></div>
+        <label for="cpfClienteComprador8" class="placeholder">CPF Cliente Comprador 8</label>
+    </div>
+
+    <!-- Nome Comprador 9 -->
+    <div class="input-container">
+        <input type="text" id="nomeClienteComprador9" name="nomeClienteComprador9" class="input" placeholder=" " required>
+        <div class="cut"></div>
+        <label for="nomeClienteComprador9" class="placeholder">Nome Cliente Comprador 9</label>
+    </div>
+
+    <!-- CPF Comprador 9 -->
+    <div class="input-container">
+        <input type="text" id="cpfClienteComprador9" name="cpfClienteComprador9" class="input" placeholder=" " required>
+        <div class="cut"></div>
+        <label for="cpfClienteComprador9" class="placeholder">CPF Cliente Comprador 9</label>
+    </div>
+
+    <!-- Nome Comprador 10 -->
+    <div class="input-container">
+        <input type="text" id="nomeClienteComprador10" name="nomeClienteComprador10" class="input" placeholder=" " required>
+        <div class="cut"></div>
+        <label for="nomeClienteComprador10" class="placeholder">Nome Cliente Comprador 10</label>
+    </div>
+
+    <!-- CPF Comprador 10 -->
+    <div class="input-container">
+        <input type="text" id="cpfClienteComprador10" name="cpfClienteComprador10" class="input" placeholder=" " required>
+        <div class="cut"></div>
+        <label for="cpfClienteComprador10" class="placeholder">CPF Cliente Comprador 10</label>
+    </div>
+
+    <!-- Nome Comprador 11 -->
+    <div class="input-container">
+        <input type="text" id="nomeClienteComprador11" name="nomeClienteComprador11" class="input" placeholder=" " required>
+        <div class="cut"></div>
+        <label for="nomeClienteComprador11" class="placeholder">Nome Cliente Comprador 11</label>
+    </div>
+
+    <!-- CPF Comprador 11 -->
+    <div class="input-container">
+        <input type="text" id="cpfClienteComprador11" name="cpfClienteComprador11" class="input" placeholder=" " required>
+        <div class="cut"></div>
+        <label for="cpfClienteComprador11" class="placeholder">CPF Cliente Comprador 11</label>
+    </div>
+
+    <!-- Nome Comprador 12 -->
+    <div class="input-container">
+        <input type="text" id="nomeClienteComprador12" name="nomeClienteComprador12" class="input" placeholder=" " required>
+        <div class="cut"></div>
+        <label for="nomeClienteComprador12" class="placeholder">Nome Cliente Comprador 12</label>
+    </div>
+
+    <!-- CPF Comprador 12 -->
+    <div class="input-container">
+        <input type="text" id="cpfClienteComprador12" name="cpfClienteComprador12" class="input" placeholder=" " required>
+        <div class="cut"></div>
+        <label for="cpfClienteComprador12" class="placeholder">CPF Cliente Comprador 12</label>
+    </div>
+
+    <!-- Nome Comprador 13 -->
+    <div class="input-container">
+        <input type="text" id="nomeClienteComprador13" name="nomeClienteComprador13" class="input" placeholder=" " required>
+        <div class="cut"></div>
+        <label for="nomeClienteComprador13" class="placeholder">Nome Cliente Comprador 13</label>
+    </div>
+
+    <!-- CPF Comprador 13 -->
+    <div class="input-container">
+        <input type="text" id="cpfClienteComprador13" name="cpfClienteComprador13" class="input" placeholder=" " required>
+        <div class="cut"></div>
+        <label for="cpfClienteComprador13" class="placeholder">CPF Cliente Comprador 13</label>
+    </div>
+
+    <!-- Nome Comprador 14 -->
+    <div class="input-container">
+        <input type="text" id="nomeClienteComprador14" name="nomeClienteComprador14" class="input" placeholder=" " required>
+        <div class="cut"></div>
+        <label for="nomeClienteComprador14" class="placeholder">Nome Cliente Comprador 14</label>
+    </div>
+
+    <!-- CPF Comprador 14 -->
+    <div class="input-container">
+        <input type="text" id="cpfClienteComprador14" name="cpfClienteComprador14" class="input" placeholder=" " required>
+        <div class="cut"></div>
+        <label for="cpfClienteComprador14" class="placeholder">CPF Cliente Comprador 14</label>
+    </div>
+
+    <!-- Nome Comprador 15 -->
+    <div class="input-container">
+        <input type="text" id="nomeClienteComprador15" name="nomeClienteComprador15" class="input" placeholder=" " required>
+        <div class="cut"></div>
+        <label for="nomeClienteComprador15" class="placeholder">Nome Cliente Comprador 15</label>
+    </div>
+
+    <!-- CPF Comprador 15 -->
+    <div class="input-container">
+        <input type="text" id="cpfClienteComprador15" name="cpfClienteComprador15" class="input" placeholder=" " required>
+        <div class="cut"></div>
+        <label for="cpfClienteComprador15" class="placeholder">CPF Cliente Comprador 15</label>
+    </div>
+
+    <h2>Botões de Ação</h2>
+    <div class="linha"></div>
+
+    <!-- Botões de Envio e Menu Principal -->
+    <button type="button" class="submit" id="submitBtn">Enviar para a planilha</button>
+    <button type="button" class="btn-primary" onclick="google.script.run.showMainMenu()">Menu Principal</button>
+</form>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Popula o dropdown de contratos ao carregar a página
+    google.script.run.withSuccessHandler(function(contracts) {
+        var contratoDropdown = document.getElementById('contrato');
+        contratoDropdown.innerHTML = '<option value="">Selecione o Contrato</option>';
+        contracts.forEach(function(contract) {
+            var option = document.createElement('option');
+            option.value = JSON.stringify({ row: contract.row, idContrato: contract.idContrato });
+            option.text = contract.contract;
+            contratoDropdown.add(option);
+        });
+    }).getContractsAntigosAntigo();
+
+    // Adiciona o evento ao botão de envio
+    document.getElementById('submitBtn').addEventListener('click', enviarFormularioAntigo);
+});
+
+// Função para enviar formulário e arquivos
+function enviarFormularioAntigo() {
+    const formElement = document.getElementById('formVendas');
+    const formData = new FormData(formElement);
+    const selectedContract = document.getElementById('contrato').value;
+
+    if (!selectedContract) {
+        alert('Por favor, selecione um contrato válido.');
+        return;
+    }
+
+    const contractData = JSON.parse(selectedContract);
+    const row = contractData.row;
+    const idContrato = contractData.idContrato;
+
+    if (!row || !idContrato) {
+        alert('Contrato ou linha inválidos.');
+        return;
+    }
+
+    let files = [];
+    formData.forEach((value, key) => {
+        if (value instanceof File && value.type === 'application/pdf') {
+            files.push(value);
+        }
+    });
+
+    if (files.length === 0) {
+        alert('É necessário enviar pelo menos um arquivo PDF.');
+        return;
+    }
+
+    if (files.length > 2) {
+        alert('Por favor, envie no máximo dois arquivos PDF.');
+        return;
+    }
+
+    // Trata a concatenação de arquivos PDF se houver mais de um arquivo
+    if (files.length === 2) {
+        mergePDFsAntigo(files[0], files[1], function (mergedFile) {
+            enviarDadosGoogleScriptAntigo(formData, mergedFile, row, idContrato);
+        });
+    } else {
+        const reader = new FileReader();
+        reader.onload = function (e) {
+            const fileData = {
+                name: files[0].name,
+                mimeType: files[0].type,
+                bytes: [...new Uint8Array(e.target.result)]
+            };
+            enviarDadosGoogleScriptAntigo(formData, fileData, row, idContrato);
+        };
+        reader.readAsArrayBuffer(files[0]);
+    }
+}
+
+// Função para mesclar dois PDFs usando PDF-Lib
+function mergePDFsAntigo(file1, file2, callback) {
+    const reader1 = new FileReader();
+    const reader2 = new FileReader();
+
+    reader1.readAsArrayBuffer(file1);
+    reader2.readAsArrayBuffer(file2);
+
+    reader1.onload = function (e1) {
+        reader2.onload = function (e2) {
+            PDFLib.PDFDocument.create().then(async (mergedPdf) => {
+                const [pdfDoc1, pdfDoc2] = await Promise.all([
+                    PDFLib.PDFDocument.load(new Uint8Array(e1.target.result)),
+                    PDFLib.PDFDocument.load(new Uint8Array(e2.target.result))
+                ]);
+
+                const copiedPages1 = await mergedPdf.copyPages(pdfDoc1, pdfDoc1.getPageIndices());
+                copiedPages1.forEach(page => mergedPdf.addPage(page));
+                const copiedPages2 = await mergedPdf.copyPages(pdfDoc2, pdfDoc2.getPageIndices());
+                copiedPages2.forEach(page => mergedPdf.addPage(page));
+
+                const mergedPdfBytes = await mergedPdf.save();
+                callback({
+                    name: 'merged_' + file1.name + '_' + file2.name,
+                    mimeType: 'application/pdf',
+                    bytes: [...new Uint8Array(mergedPdfBytes)]
+                });
+            });
+        };
+    };
+}
+
+// Envia os dados e o arquivo PDF para o Google Apps Script
+function enviarDadosGoogleScriptAntigo(formData, fileData, row, idContrato) {
+    google.script.run
+        .withSuccessHandler(function(response) {
+            alert('Dados e arquivo PDF enviados com sucesso. Resposta: ' + response);
+        })
+        .withFailureHandler(function(error) {
+            alert('Erro ao enviar o formulário: ' + error.message);
+        })
+        .submitDataAntigo(JSON.stringify(Object.fromEntries(formData)), fileData, row, idContrato);
+}
+</script>
+
+</body>
+</html>

@@ -10,7 +10,6 @@ function Cadastro() {
     password: '',
     team: '',
     permissao: '',
-    id_usuarios: '',
     nome: '',
     email: '',
     telefone: '',
@@ -101,13 +100,6 @@ function Cadastro() {
           </div>
 
           <div className="ds-form-row">
-            <div className="ds-form-group">
-              <label className="ds-label" htmlFor="reg-id">ID do Usuário *</label>
-              <input id="reg-id" className="ds-input" name="id_usuarios"
-                type="text" placeholder="ID" value={formData.id_usuarios}
-                onChange={handleChange} required disabled={loading} />
-            </div>
-
             <div className="ds-form-group">
               <label className="ds-label" htmlFor="reg-team">Equipe *</label>
               <select id="reg-team" className="ds-input ds-select" name="team"

@@ -20,6 +20,7 @@ from app.models.visita import (
     ClienteVisita, ParceiroVisita, Visita, VisitaCliente, VisitaParceiro, Avaliacao,
 )
 from app.models.contrato import Contrato, DivisaoComissao, HEADER_POR_SLUG
+from app.models.estoque_legado import LeadLegado
 from app.models.eventos_imovel_legado import EventoImovelLegado
 
 
@@ -311,8 +312,32 @@ def carregar_fato_captacao() -> List[Dict[str, str]]:
         session.close()
 
 
+def carregar_fato_lead() -> List[Dict[str, str]]:
+    session = SessionLocal()
+    try:
+        return [
+            {
+                "Data": _data_str(lead.data),
+                "Fonte": _s(lead.fonte),
+                "Contato": _s(lead.contato),
+                "RelatÃ³rio": _s(lead.relatorio),
+                "Cliente": _s(lead.cliente),
+                "Telefone": _s(lead.telefone),
+                "CÃ³digo": _s(lead.codigo_imovel),
+                "Atendimento": _s(lead.atendimento),
+                "Equipe": _s(lead.equipe),
+                "Extra": _s(lead.observacao),
+                "QUAT.": _s(lead.san_observacao),
+            }
+            for lead in session.query(LeadLegado).all()
+        ]
+    finally:
+        session.close()
+
+
 LOADERS_POR_ABA.update({
     "Vendas": carregar_vendas,
     "Divisao_Comissao": carregar_divisao_comissao,
     "Fato_Captacao": carregar_fato_captacao,
+    "Fato_Lead": carregar_fato_lead,
 })

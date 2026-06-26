@@ -423,3 +423,71 @@ def editar_usuario(solicitante_id, id_corretor, dados=None, nova_senha=None):
 
     finally:
         session.close()
+
+
+def editar_rh_corretor_gerente(solicitante_id, id_corretor, dados=None):
+    """
+    Permite que um gerente preencha dados de RH dos corretores ativos da propria equipe.
+    Administradores, diretores e administrativo podem usar o mesmo fluxo sem restricao de equipe.
+    """
+    session = SessionLocal()
+    try:
+        solicitante = session.query(Usuarios).filter(
+            Usuarios.id_usuarios == solicitante_id
+        ).first()
+
+        if not solicitante:
+            return {"error": "Solicitante nao encontrado"}
+
+        permissao = str(solicitante.permissao or "").lower()
+        solicitante_admin = (
+            permissao in {"diretor", "administrador", "administrativo"}
+            or str(solicitante.team or "").lower() == "administrativo"
+        )
+        if permissao != "gerente" and not solicitante_admin:
+            return {"error": "Apenas gerentes, administradores, diretores ou RH podem preencher dados de RH."}
+
+        usuario = session.query(Usuarios).filter(
+            Usuarios.id_usuarios == id_corretor
+        ).first()
+
+        if not usuario:
+            return {"error": "Corretor nao encontrado"}
+
+        if str(usuario.permissao or "").lower() != "corretor":
+            return {"error": "Este fluxo permite editar apenas corretores."}
+
+        if usuario.ativo is not True:
+            return {"error": "Este fluxo permite editar apenas corretores ativos."}
+
+        if not solicitante_admin and str(usuario.team or "") != str(solicitante.id_usuarios or ""):
+            return {"error": "O corretor nao pertence a equipe deste gerente."}
+
+        campos_gerente = set(RH_CAMPOS_EDITAVEIS).union({"nome"}) - {"desligado", "data_desligamento"}
+
+        for campo, valor in (dados or {}).items():
+            if campo not in campos_gerente:
+                continue
+            if campo in DATE_FIELDS:
+                valor = _parse_date(valor)
+            elif campo in BOOL_FIELDS:
+                valor = _parse_bool(valor)
+            setattr(usuario, campo, valor)
+
+        if usuario.desligado:
+            usuario.status = "Desligado"
+            usuario.ativo = False
+        elif usuario.status == "Desligado":
+            usuario.status = "Ativo" if usuario.ativo else "Inativo"
+
+        session.commit()
+
+        _cache_invalidate("lista:", f"info:{id_corretor}:")
+        return {"ok": "Dados de RH atualizados com sucesso", "usuario": _usuario_to_dict(usuario)}
+
+    except Exception:
+        session.rollback()
+        return {"error": "Erro ao atualizar dados de RH"}
+
+    finally:
+        session.close()

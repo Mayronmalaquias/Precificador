@@ -112,6 +112,7 @@ function RelatorioGerente() {
   const [tipoSelecionado, setTipoSelecionado] = useState("");
 
   const detalheRef = useRef(null);
+  const carregarDadosSeqRef = useRef(0);
 
   const [loadingPdfVisita, setLoadingPdfVisita] = useState(false);
   const [loadingPdfCliente, setLoadingPdfCliente] = useState(false);
@@ -506,6 +507,10 @@ function RelatorioGerente() {
   const carregarDados = async () => {
     if (!filtros.id_gerente) return;
 
+    const requestId = carregarDadosSeqRef.current + 1;
+    carregarDadosSeqRef.current = requestId;
+    const query = buildQuery();
+
     setLoading(true);
     setErro("");
 
@@ -516,25 +521,25 @@ function RelatorioGerente() {
         rankingVisitasRes,
         rankingClientesRes,
       ] = await Promise.all([
-        fetchJson(`${API_BASE}/dashboard?${buildQuery()}`),
-        fetchJson(`${API_BASE}/corretores?${buildQuery()}`),
-        fetchJson(`${API_BASE}/ranking?${buildQuery({ tipo: "visitas" })}`),
-        fetchJson(`${API_BASE}/ranking?${buildQuery({ tipo: "clientes" })}`),
+        fetchJson(`${API_BASE}/dashboard?${query}`),
+        fetchJson(`${API_BASE}/corretores?${query}`),
+        fetchJson(`${API_BASE}/ranking?${query}&tipo=visitas`),
+        fetchJson(`${API_BASE}/ranking?${query}&tipo=clientes`),
       ]);
+
+      if (requestId !== carregarDadosSeqRef.current) return;
 
       setDashboard(dashboardRes);
       setCorretores(corretoresRes.lista || []);
       setRankingVisitas(rankingVisitasRes.lista || []);
       setRankingClientes(rankingClientesRes.lista || []);
-
-      await carregarDados();
-      if (dashboardEquipes !== null) {
-        await carregarEquipes();
-      }
     } catch (e) {
+      if (requestId !== carregarDadosSeqRef.current) return;
       setErro(e.message || "Erro ao carregar dashboard.");
     } finally {
-      setLoading(false);
+      if (requestId === carregarDadosSeqRef.current) {
+        setLoading(false);
+      }
     }
   };
 
