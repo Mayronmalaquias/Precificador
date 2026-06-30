@@ -3,6 +3,7 @@ from flask_restx import Namespace, Resource
 
 from app.services import admin_bases_service as svc
 from app.services import leads_service
+from app.services.sync_contratos_service import sync_contratos_from_sheet
 
 admin_bases_ns = Namespace("admin-bases", description="Gestao administrativa das bases (captacao/saida/estoque/venda/destaque)")
 
@@ -268,6 +269,17 @@ class BairroDetalhe(Resource):
 # =========================
 # Venda (cadastro enxuto em contratos) + Destaque
 # =========================
+@admin_bases_ns.route("/admin/bases/sync-contratos")
+class SyncContratos(Resource):
+    @admin_bases_ns.doc(description="Sincroniza a tabela contratos com a planilha Google (aba Vendas). Upsert por id_contrato.")
+    def post(self):
+        try:
+            res = sync_contratos_from_sheet(criado_por=(request.get_json(silent=True) or {}).get("criado_por"))
+            return res, (200 if res.get("ok") else 400)
+        except Exception as e:
+            return _erro(e, "Erro ao sincronizar contratos")
+
+
 @admin_bases_ns.route("/admin/bases/venda")
 class Venda(Resource):
     def get(self):

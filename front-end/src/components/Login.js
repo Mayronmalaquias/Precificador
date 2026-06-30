@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import PasswordInput from './PasswordInput';
 import { Navigate, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
@@ -63,10 +64,8 @@ function Login() {
 
           <div className="ds-form-group">
             <label className="ds-label" htmlFor="senha">Senha</label>
-            <input
+            <PasswordInput
               id="senha"
-              className="ds-input"
-              type="password"
               value={senha}
               onChange={(e) => setSenha(e.target.value)}
               placeholder="Digite sua senha"

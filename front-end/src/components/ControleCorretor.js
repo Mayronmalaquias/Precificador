@@ -178,6 +178,29 @@ function ControleCorretores() {
     }
   };
 
+  const excluirUsuario = async (c) => {
+    if (!window.confirm(
+      `Excluir o usuário "${c.nome}" (${c.id_usuarios})?\n\nRemove o cadastro permanentemente. O histórico de vendas mantém o nome.`
+    )) return;
+    setLoadingAcao(c.id_usuarios);
+    try {
+      const { ok, data } = await apiFetch("/corretor/excluir-usuario", {
+        method: "POST",
+        body: JSON.stringify({ id_corretor: c.id_usuarios }),
+      });
+      if (ok) {
+        setCorretores((prev) => prev.filter((x) => x.id_usuarios !== c.id_usuarios));
+        toast(data?.ok || "Usuário excluído.", "success");
+      } else {
+        toast(data?.error || "Erro ao excluir usuário.", "error");
+      }
+    } catch {
+      toast("Erro de comunicação com a API.", "error");
+    } finally {
+      setLoadingAcao(null);
+    }
+  };
+
   const abrirEdicao = (corretor) => {
     setEditando({
       id_usuarios: corretor.id_usuarios,
@@ -605,13 +628,23 @@ function ControleCorretores() {
 
                               {isDiretor && (
                                 <td>
-                                  <button
-                                    type="button"
-                                    className="controle-corretores__button controle-corretores__button--ghost-light"
-                                    onClick={() => abrirEdicao(c)}
-                                  >
-                                    Editar
-                                  </button>
+                                  <div className="controle-corretores__acoes">
+                                    <button
+                                      type="button"
+                                      className="controle-corretores__button controle-corretores__button--ghost-light"
+                                      onClick={() => abrirEdicao(c)}
+                                    >
+                                      Editar
+                                    </button>
+                                    <button
+                                      type="button"
+                                      className="controle-corretores__button controle-corretores__button--danger"
+                                      disabled={loadingAcao === c.id_usuarios}
+                                      onClick={() => excluirUsuario(c)}
+                                    >
+                                      Excluir
+                                    </button>
+                                  </div>
                                 </td>
                               )}
                             </tr>

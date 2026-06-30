@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import PasswordInput from "./PasswordInput";
 import { BASE } from '../services/api';
 
 export default function TrocarSenha() {
@@ -64,21 +65,21 @@ export default function TrocarSenha() {
 
           <div className="ds-form-group">
             <label className="ds-label" htmlFor="senha-atual">Senha atual</label>
-            <input id="senha-atual" className="ds-input" type="password"
+            <PasswordInput id="senha-atual"
               value={senhaAtual} onChange={(e) => setSenhaAtual(e.target.value)}
               placeholder="Digite sua senha atual" disabled={loading} />
           </div>
 
           <div className="ds-form-group">
             <label className="ds-label" htmlFor="nova-senha">Nova senha</label>
-            <input id="nova-senha" className="ds-input" type="password"
+            <PasswordInput id="nova-senha"
               value={novaSenha} onChange={(e) => setNovaSenha(e.target.value)}
               placeholder="Digite a nova senha" disabled={loading} />
           </div>
 
           <div className="ds-form-group">
             <label className="ds-label" htmlFor="confirmar-senha">Confirmar nova senha</label>
-            <input id="confirmar-senha" className="ds-input" type="password"
+            <PasswordInput id="confirmar-senha"
               value={confirmarSenha} onChange={(e) => setConfirmarSenha(e.target.value)}
               placeholder="Confirme a nova senha" disabled={loading} />
           </div>

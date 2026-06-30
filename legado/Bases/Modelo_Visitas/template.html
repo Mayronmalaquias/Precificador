@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Relatório da Visita</title>
+  <style>
+    body { font-family: Arial, sans-serif; font-size: 12px; color: #222; }
+    h1, h2 { margin: 0 0 8px; }
+    h1 { font-size: 18px; }
+    h2 { font-size: 14px; margin-top: 16px; }
+    .sec { border-top: 1px solid #ddd; padding-top: 10px; margin-top: 12px; }
+    .kv { margin: 2px 0; }
+    .grid { width: 100%; border-collapse: collapse; margin-top: 6px; }
+    .grid th, .grid td { border: 1px solid #ddd; padding: 6px; vertical-align: top; }
+    .muted { color: #666; }
+  </style>
+</head>
+<body>
+  <h1>Relatório da Visita</h1>
+  <div class="kv"><b>ID da Visita:</b> <?= data.Id_Visita ?></div>
+  <div class="kv"><b>Data/Hora de Criação:</b> <?= data.CreatedAt ?></div>
+  <div class="kv"><b>Corretor:</b> <?= data.CorretorNome ?></div>
+
+  <div class="sec">
+    <h2>Dados da Visita / Imóvel</h2>
+    <div class="kv"><b>Agrupador / Imóvel:</b> <?= data.Agrupador_Imovel ?></div>
+    <div class="kv"><b>Data da Visita:</b> <?= data.Data_Visita ?></div>
+    <div class="kv"><b>Proposta:</b> <?= data.Proposta ?></div>
+  </div>
+
+  <div class="sec">
+    <h2>Clientes vinculados</h2>
+    <? if (data.Clientes.length === 0) { ?>
+      <div class="muted">Nenhum cliente vinculado a esta visita.</div>
+    <? } else { ?>
+      <ul>
+        <? data.Clientes.forEach(c => { ?>
+          <li><?= c.Nome_Cliente ?></li>
+        <? }); ?>
+      </ul>
+    <? } ?>
+  </div>
+
+  <div class="sec">
+    <h2>Avaliações dos clientes (<?= data.TotAval ?>)</h2>
+    <? if (data.Avaliacoes.length === 0) { ?>
+      <div class="muted">Sem avaliações.</div>
+    <? } else { ?>
+      <table class="grid">
+        <thead>
+          <tr>
+            <th>Cliente</th>
+            <th>Localização</th>
+            <th>Tamanho</th>
+            <th>Planta</th>
+            <th>Acabamento</th>
+            <th>Conservação</th>
+            <th>Áreas Comuns</th>
+            <th>Preço</th>
+            <th>Preço (N10)</th>
+            <th>Nota Geral</th>
+          </tr>
+        </thead>
+        <tbody>
+          <? data.Avaliacoes.forEach(a => { ?>
+            <tr>
+              <td><?= a.Nome_Cliente ?></td>
+              <td><?= a.Localizacao ?></td>
+              <td><?= a.Tamanho ?></td>
+              <td><?= a.Planta_Imovel ?></td>
+              <td><?= a.Qualidade_Acabamento ?></td>
+              <td><?= a.Estado_Conservacao ?></td>
+              <td><?= a.Condominio_AreaComun ?></td>
+              <td><?= a.Preco ?></td>
+              <td><?= a.Preco_N10 ?></td>
+              <td><?= a.Nota_Geral ?></td>
+            </tr>
+          <? }); ?>
+        </tbody>
+      </table>
+    <? } ?>
+  </div>
+
+  <div class="sec">
+    <h2>Anexos / Links</h2>
+    <div class="kv"><b>Áudio:</b> <?= data.Link_Audio ? data.Link_Audio : '—' ?></div>
+    <div class="kv"><b>Imagem:</b> <?= data.Link_Imagem ? data.Link_Imagem : '—' ?></div>
+  </div>
+</body>
+</html>

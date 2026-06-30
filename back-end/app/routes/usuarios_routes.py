@@ -4,6 +4,7 @@ from app.services.usuarios_service import (
     retornar_lista,
     retornar_infos,
     alterar_ativo,
+    excluir_usuario,
     _usuario_to_dict,
     alterar_gerente,
     retornar_corretor_nome,
@@ -106,6 +107,20 @@ class AlterarCorretorAtivo(Resource):
         if "error" in resultado:
             return resultado, 404
 
+        return resultado, 200
+
+
+@corretor_ns.route("/corretor/excluir-usuario")
+class ExcluirUsuario(Resource):
+    @corretor_ns.doc(description="Exclui um usuário (desvincula de vendas, mantém nomes no histórico)")
+    def post(self):
+        data = request.get_json() or {}
+        id_corretor = data.get("id_corretor")
+        if not id_corretor:
+            return {"error": "id_corretor precisa ser passado"}, 400
+        resultado = excluir_usuario(id_corretor)
+        if "error" in resultado:
+            return resultado, 404
         return resultado, 200
 
 

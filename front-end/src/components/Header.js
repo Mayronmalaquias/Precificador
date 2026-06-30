@@ -73,6 +73,7 @@ function Header() {
     { to: '/ranking', label: 'Ranking', show: isLogado && isAdmin },
     { to: '/RHUsuarios', label: 'RH Usuarios', show: isLogado && isAdministrador },
     { to: '/AdminBases', label: 'Gestão de Bases', show: isLogado && isAdminOuDiretor },
+    { to: '/Vendas', label: 'Vendas', show: isLogado && isAdminOuDiretor },
     { to: '/ControleCorretor', label: 'Controle de usuarios', show: isLogado && isAdministrador },
     { to: '/register', label: isLogado ? 'Registrar Usuario' : 'Criar conta', show: !isLogado || isAdministrador },
     { to: '/JornadaCaptacao', label: 'Jornada Captação', show: isLogado },

@@ -45,6 +45,7 @@ def create_app(config_object=Config):
     from app.routes.relatorio_visita_route import relatorio_visita
     from app.routes.report_routes import report_ns
     from app.routes.usuarios_routes import corretor_ns
+    from app.routes.vendas_routes import vendas_ns
     from app.routes.visita_routes import visita_ns
 
     api_prefix = app.config["API_PREFIX"].rstrip("/")
@@ -64,6 +65,7 @@ def create_app(config_object=Config):
     api.add_namespace(ranking_ns, path=api_prefix)
     api.add_namespace(chat_ns, path=api_prefix)
     api.add_namespace(admin_bases_ns, path=api_prefix)
+    api.add_namespace(vendas_ns, path=api_prefix)
     app.register_blueprint(meta_gerente_bp, url_prefix=api_prefix)
 
     return app

@@ -1,72 +1,51 @@
-"""Popula a tabela canonica `vendas` a partir de vw_vendas (Etapa B passo 2).
+"""Refaz a tabela canonica `vendas` a partir de `contratos` (base unica 2015->hoje).
 
-Re-executavel: TRUNCATE + reload. NAO toca em contratos/vendas_legado (fontes brutas).
-- valor: parseado com to_float (BR-aware); vazio -> NULL.
-- *_nome: nome humano de usuarios quando o id resolveu; senao a ref original (nome/codigo).
+INSERT...SELECT unico (rapido) - resolve pessoa nome->id_usuarios via pessoa_alias e
+pega o nome canonico de usuarios. valores ja sao numericos em contratos. Re-executavel.
 """
 
 from sqlalchemy import text
 
 from app.database import engine
-from app.services.admin_bases_service import to_float, to_str
 
+SQL = """
+TRUNCATE TABLE vendas RESTART IDENTITY;
 
-def money(x):
-    s = to_str(x)
-    return to_float(s) if s else None
+INSERT INTO vendas (
+  fonte, id_contrato, data_venda, data_captacao, bairro, tipo, codigo_imovel,
+  valor_negocio, valor_comissao,
+  vendedor_nome, vendedor_id, captador_nome, captador_id,
+  gerente_venda_nome, gerente_venda_id, gerente_captacao_nome, gerente_captacao_id,
+  diretor_nome, diretor_id
+)
+SELECT
+  c.fonte, c.id_contrato, c.data_contrato, NULL::date, c.bairro, c.tipo, c.codigo_imovel,
+  c.valor_negocio, c.valor_comissao,
+  COALESCE(uv.nome,  c.corretor_venda_1_nome),     rv.id_usuarios,
+  COALESCE(uc.nome,  c.corretor_captador_1_nome),  rc.id_usuarios,
+  COALESCE(ugv.nome, c.gerente_venda_nome),        rgv.id_usuarios,
+  COALESCE(ugc.nome, c.gerente_captacao_nome),     rgc.id_usuarios,
+  COALESCE(ud.nome,  c.diretor_nome),              rd.id_usuarios
+FROM contratos c
+LEFT JOIN pessoa_alias rv  ON rv.alias_key  = lower(trim(c.corretor_venda_1_nome))
+LEFT JOIN usuarios     uv  ON uv.id_usuarios = rv.id_usuarios
+LEFT JOIN pessoa_alias rc  ON rc.alias_key  = lower(trim(c.corretor_captador_1_nome))
+LEFT JOIN usuarios     uc  ON uc.id_usuarios = rc.id_usuarios
+LEFT JOIN pessoa_alias rgv ON rgv.alias_key = lower(trim(c.gerente_venda_nome))
+LEFT JOIN usuarios     ugv ON ugv.id_usuarios = rgv.id_usuarios
+LEFT JOIN pessoa_alias rgc ON rgc.alias_key = lower(trim(c.gerente_captacao_nome))
+LEFT JOIN usuarios     ugc ON ugc.id_usuarios = rgc.id_usuarios
+LEFT JOIN pessoa_alias rd  ON rd.alias_key  = lower(trim(c.diretor_nome))
+LEFT JOIN usuarios     ud  ON ud.id_usuarios = rd.id_usuarios;
+"""
 
 
 def main():
-    with engine.connect() as c:
-        nome_map = {
-            r[0]: r[1]
-            for r in c.execute(text("select id_usuarios, nome from usuarios where id_usuarios is not null"))
-        }
-        rows = list(c.execute(text("""
-            select fonte, id_contrato, data_venda, data_captacao, bairro, tipo, codigo_imovel,
-                   valor_negocio, valor_comissao,
-                   vendedor_ref, vendedor_id, captador_ref, captador_id,
-                   gerente_venda_ref, gerente_venda_id, gerente_captacao_ref, gerente_captacao_id,
-                   diretor_ref, diretor_id
-            from vw_vendas
-        """)))
-
-    def nome(idv, ref):
-        return nome_map.get(idv) or (to_str(ref) or None)
-
-    payload = []
-    for r in rows:
-        (fonte, id_contrato, data_venda, data_captacao, bairro, tipo, codigo_imovel,
-         vneg, vcom, vded_ref, vded_id, cap_ref, cap_id, gv_ref, gv_id, gc_ref, gc_id, dir_ref, dir_id) = r
-        payload.append({
-            "fonte": fonte, "id_contrato": to_str(id_contrato) or None,
-            "data_venda": data_venda, "data_captacao": data_captacao,
-            "bairro": to_str(bairro) or None, "tipo": to_str(tipo) or None,
-            "codigo_imovel": to_str(codigo_imovel) or None,
-            "valor_negocio": money(vneg), "valor_comissao": money(vcom),
-            "vendedor_nome": nome(vded_id, vded_ref), "vendedor_id": vded_id,
-            "captador_nome": nome(cap_id, cap_ref), "captador_id": cap_id,
-            "gerente_venda_nome": nome(gv_id, gv_ref), "gerente_venda_id": gv_id,
-            "gerente_captacao_nome": nome(gc_id, gc_ref), "gerente_captacao_id": gc_id,
-            "diretor_nome": nome(dir_id, dir_ref), "diretor_id": dir_id,
-        })
-
-    ins = text("""
-        INSERT INTO vendas (fonte, id_contrato, data_venda, data_captacao, bairro, tipo, codigo_imovel,
-            valor_negocio, valor_comissao,
-            vendedor_nome, vendedor_id, captador_nome, captador_id,
-            gerente_venda_nome, gerente_venda_id, gerente_captacao_nome, gerente_captacao_id,
-            diretor_nome, diretor_id)
-        VALUES (:fonte,:id_contrato,:data_venda,:data_captacao,:bairro,:tipo,:codigo_imovel,
-            :valor_negocio,:valor_comissao,
-            :vendedor_nome,:vendedor_id,:captador_nome,:captador_id,
-            :gerente_venda_nome,:gerente_venda_id,:gerente_captacao_nome,:gerente_captacao_id,
-            :diretor_nome,:diretor_id)
-    """)
     with engine.begin() as c:
-        c.execute(text("TRUNCATE TABLE vendas RESTART IDENTITY"))
-        c.execute(ins, payload)
-    print(f"vendas populada: {len(payload)} linhas")
+        c.exec_driver_sql(SQL)
+    with engine.connect() as c:
+        n = c.execute(text("SELECT count(*) FROM vendas")).scalar()
+    print(f"vendas repopulada: {n} linhas")
 
 
 if __name__ == "__main__":

@@ -274,16 +274,48 @@ def alterar_ativo(id_corretor, ativo):
         usuario.ativo = ativo
         if ativo:
             usuario.status = "Ativo"
-        elif not usuario.desligado:
+            usuario.desligado = False
+        else:
+            # desativado => marca desligado automaticamente (poupa marcacao manual)
+            usuario.desligado = True
             usuario.status = "Inativo"
         session.commit()
 
         _cache_invalidate("lista:", f"info:{id_corretor}:")
-        return {"ok": "Ativo alterado com sucesso", "status": usuario.status}
+        return {"ok": "Ativo alterado com sucesso", "status": usuario.status, "desligado": usuario.desligado}
 
     except Exception:
         session.rollback()
         return {"error": "Erro ao alterar status ativo"}
+
+    finally:
+        session.close()
+
+
+def excluir_usuario(id_corretor):
+    """Exclui o usuario. Desvincula de vendas (mantem os *_nome p/ historico) e
+    remove aliases (pessoa_alias) antes, pra nao violar FK."""
+    from sqlalchemy import text
+
+    session = SessionLocal()
+    try:
+        usuario = session.query(Usuarios).filter(Usuarios.id_usuarios == id_corretor).first()
+        if not usuario:
+            return {"error": "Usuário não encontrado"}
+
+        for col in ("vendedor_id", "captador_id", "gerente_venda_id",
+                    "gerente_captacao_id", "diretor_id"):
+            session.execute(text(f"UPDATE vendas SET {col} = NULL WHERE {col} = :i"), {"i": id_corretor})
+        session.execute(text("DELETE FROM pessoa_alias WHERE id_usuarios = :i"), {"i": id_corretor})
+        session.query(Usuarios).filter(Usuarios.id_usuarios == id_corretor).delete()
+        session.commit()
+
+        _cache_invalidate("lista:", f"info:{id_corretor}:")
+        return {"ok": "Usuário excluído com sucesso"}
+
+    except Exception as e:
+        session.rollback()
+        return {"error": f"Erro ao excluir usuário: {e}"}
 
     finally:
         session.close()

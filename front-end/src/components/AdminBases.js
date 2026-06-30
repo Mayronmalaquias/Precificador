@@ -510,6 +510,44 @@ function LinhaComissao({ label, nomeKey, valorKey, ok, vt, f, set }) {
   );
 }
 
+function SyncContratosPanel() {
+  const { idCorretor } = useAuth();
+  const toast = useNotify();
+  const [loading, setLoading] = useState(false);
+  const [res, setRes] = useState(null);
+  const sync = async () => {
+    setLoading(true); setRes(null);
+    try {
+      const r = await api.post("/admin/bases/sync-contratos", { criado_por: idCorretor || "" });
+      setRes(r);
+      toast.success(`Sync: ${r.inseridos} novos, ${r.atualizados} atualizados`);
+    } catch (e) { toast.error(e.message); setRes({ erro: e.message }); }
+    finally { setLoading(false); }
+  };
+  return (
+    <div className="ds-card ab-import-card">
+      <h3>Sincronizar contratos com a planilha</h3>
+      <p className="ab-muted">
+        Puxa a aba <strong>Vendas</strong> do Google Sheets para a tabela <strong>contratos</strong>
+        (upsert por Id_Contrato). A planilha é a fonte da verdade.
+      </p>
+      <button className="ds-btn ds-btn-primary" onClick={sync} disabled={loading}>
+        {loading ? "Sincronizando..." : "Sincronizar agora"}
+      </button>
+      {res && !res.erro && (
+        <div className="ab-resumo">
+          <span className="ab-chip ok">Novos: {res.inseridos}</span>
+          <span className="ab-chip info">Atualizados: {res.atualizados}</span>
+          {res.qtd_removidos_na_planilha > 0 && (
+            <span className="ab-chip warn">Sumiram da planilha: {res.qtd_removidos_na_planilha}</span>
+          )}
+        </div>
+      )}
+      {res?.erro && <div className="ds-alert ds-alert-error">{res.erro}</div>}
+    </div>
+  );
+}
+
 function AbaVenda() {
   const { idCorretor } = useAuth();
   const toast = useNotify();
@@ -589,6 +627,7 @@ function AbaVenda() {
 
   return (
     <div className="ab-stack">
+      <SyncContratosPanel />
       <div className="ds-card">
         <h3>Dados do contrato</h3>
         <div className="ds-form-row">

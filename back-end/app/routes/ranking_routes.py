@@ -126,8 +126,7 @@ class TodosPdf(Resource):
             return {"error": "Nenhum dado encontrado para os filtros informados."}, 404
 
         buf = gerar_pdf_todos(detalhes)
-        kind_label = "vgc" if kind == "vgc_geral" else "vgv"
-        nome_arquivo = f"relatorio_{kind_label}_{start}_{end}.pdf"
+        nome_arquivo = f"relatorio_comissoes_{start}_{end}.pdf"
         return send_file(buf, as_attachment=True, download_name=nome_arquivo, mimetype="application/pdf")
 
 

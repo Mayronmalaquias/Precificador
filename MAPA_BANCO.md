@@ -232,6 +232,17 @@ Migration `20260625_add_pessoa_alias` (aplicada). Tudo aditivo/reversível.
 - **1557 vendas 2015→2026** (896 legado + 661 contrato), `*_id` com **FK → usuarios.id_usuarios**
   (0 órfãos), `*_nome` preservado, `valor_*` parseado (BR-aware). Fontes brutas intactas.
 
+### Atualização — `contratos` virou a base ÚNICA (2015→hoje)
+- Coluna nova `contratos.fonte` ('planilha' | 'legado_pre2024'). Migration `20260626_contrato_fonte`.
+- Importadas **895** vendas pré-2024 de `vendas_legado` para `contratos` (mapeadas,
+  pessoas resolvidas C→usuarios/G→equipes) via `importar_contratos_legado.py`.
+  `contratos` agora = **1560** (665 planilha + 895 legado), 2015→2026.
+- `sync_contratos_service`: marca `fonte='planilha'` e o relatório de "removidos" ignora o legado.
+  A sincronização com a planilha (2024+) **não toca** nas linhas legado.
+- `vw_vendas` e `vendas` agora leem **só de `contratos`** (não usam mais `vendas_legado` →
+  zero duplicação). `vendas_legado` continua como arquivo bruto.
+- `popula_vendas.py` reescrito como `INSERT...SELECT` único (rápido); cron de sync já refresca `vendas`.
+
 ### Próximos (pendências suas)
 1. Refs não resolvidas: preencher `pessoa_alias` manual (ou cadastrar "marcelo souza" em `usuarios`).
 2. Apontar leitores (`ranking_service`/`meta_service`/AdminBases Venda) para `vendas` e parar de

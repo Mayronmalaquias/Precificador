@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import PasswordInput from "./PasswordInput";
 import { BASE } from '../services/api';
 
 const API_BASE = `${BASE}/auth`;
@@ -62,7 +63,7 @@ export default function RecuperarSenha() {
 
           <div className="ds-form-group">
             <label className="ds-label" htmlFor="nova-senha-rec">Nova Senha</label>
-            <input id="nova-senha-rec" className="ds-input" type="password"
+            <PasswordInput id="nova-senha-rec"
               value={novaSenha} onChange={(e) => setNovaSenha(e.target.value)}
               placeholder="Digite a nova senha" disabled={loading} />
           </div>

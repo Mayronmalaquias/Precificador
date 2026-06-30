@@ -160,6 +160,8 @@ class Contrato(Base):
     data_parcela_intermediaria = Column(Date, nullable=True)  # 'Data_Parcela_Intermediaria'
     link_honorario = Column(Text, nullable=True)  # 'Link_Honorario'
 
+    fonte = Column(String(20), nullable=True)  # 'planilha' | 'legado_pre2024'
+
     created_at = Column(DateTime, server_default=func.now(), nullable=True)
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now(), nullable=True)
 

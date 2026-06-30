@@ -2,7 +2,8 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useToast } from '../context/ToastContext';
 import { api } from '../services/api';
-import { EQUIPES_OPCOES, RH_FIELDS, RH_REQUIRED_FIELDS, emptyRhForm } from './rhFields';
+import { EQUIPES_OPCOES, RH_FIELDS, emptyRhForm } from './rhFields';
+import PasswordInput from './PasswordInput';
 
 function Cadastro() {
   const [formData, setFormData] = useState({
@@ -143,8 +144,8 @@ function Cadastro() {
 
           <div className="ds-form-group">
             <label className="ds-label" htmlFor="reg-pass">Senha *</label>
-            <input id="reg-pass" className="ds-input" name="password"
-              type="password" placeholder="Mínimo 8 caracteres" value={formData.password}
+            <PasswordInput id="reg-pass" name="password"
+              placeholder="Mínimo 8 caracteres" value={formData.password}
               onChange={handleChange} required disabled={loading} autoComplete="new-password" />
           </div>
 
@@ -152,14 +153,14 @@ function Cadastro() {
 
           <div>
             <h3 className="ds-page-title" style={{ fontSize: '1.05rem', marginBottom: 4 }}>Dados de RH</h3>
-            <p className="ds-page-subtitle" style={{ marginBottom: 14 }}>Campos com * são obrigatórios para controle interno.</p>
+            <p className="ds-page-subtitle" style={{ marginBottom: 14 }}>Dados de RH são opcionais no cadastro — podem ser preenchidos depois.</p>
           </div>
 
           <div className="ds-form-row">
             {RH_FIELDS.filter((field) => field.name !== 'nome' && field.name !== 'lgpd_assinada').map((field) => {
-              const required = RH_REQUIRED_FIELDS.includes(field.name);
+              const required = false; // RH opcional no registro (por enquanto)
               const id = `reg-rh-${field.name}`;
-              const label = `${field.label}${required ? ' *' : ''}`;
+              const label = field.label;
 
               if (field.type === 'textarea') {
                 return (

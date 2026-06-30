@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Seleção de Contrato e Registro de Vendas</title>
+    <style>
+        body {
+            align-items: center;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+            font-family: Arial, sans-serif;
+        }
+        .form, .form-bv {
+            background-color: #15172b;
+            border-radius: 20px;
+            box-sizing: border-box;
+            padding: 20px;
+            width: 85%;
+            max-height: 90%;
+            overflow-y: auto;
+        }
+        .title {
+            color: #eee;
+            font-family: sans-serif;
+            font-size: 36px;
+            font-weight: 600;
+            margin-top: 30px;
+            text-align: center;
+        }
+        .input-container, .dropdown-container {
+            height: 50px;
+            position: relative;
+            width: 100%;
+            margin-top: 20px;
+        }
+        .input, select {
+            background-color: #303245;
+            border-radius: 12px;
+            border: 0;
+            box-sizing: border-box;
+            color: #eee;
+            font-size: 18px;
+            height: 100%;
+            outline: 0;
+            padding: 4px 20px 0;
+            width: 100%;
+        }
+        .cut {
+            background-color: #15172b;
+            border-radius: 10px;
+            height: 20px;
+            left: 20px;
+            position: absolute;
+            top: -20px;
+            transform: translateY(0);
+            transition: transform 200ms;
+            width: 170px;
+        }
+        .placeholder, label {
+            color: #65657b;
+            font-family: sans-serif;
+            left: 20px;
+            line-height: 14px;
+            pointer-events: none;
+            position: absolute;
+            transform-origin: 0 50%;
+            transition: transform 200ms, color 200ms;
+            top: 20px;
+        }
+        select:focus + label, select:not(:placeholder-shown) + label {
+            transform: translateY(-30px) translateX(10px) scale(0.75);
+            color: #dc2f55;
+        }
+        .submit, .btn-primary {
+            background-color: #08d;
+            border-radius: 12px;
+            border: 0;
+            box-sizing: border-box;
+            color: #eee;
+            cursor: pointer;
+            font-size: 18px;
+            height: 50px;
+            margin-top: 38px;
+            text-align: center;
+            width: 100%;
+        }
+        .submit:active, .btn-primary:hover {
+            background-color: #06b;
+        }
+    </style>
+</head>
+<body>
+    <div class="form-bv">
+        <form id="formContrato">
+            <div class="title">Seleção de Contrato</div>
+            <div class="dropdown-container">
+                <select id="dropdownContrato" name="dropdownContrato">
+                    <option value="">Selecionar Contrato</option> <!-- Opção padrão adicionada -->
+                    <!-- Outros valores serão adicionados dinamicamente -->
+                </select>
+                <label for="dropdownContrato">Selecione o Contrato:</label>
+            </div>
+            <button type="button" class="btn-primary" onclick="enviarDados()">Gerar BV</button>
+            <button type="button" class="btn-primary" onclick="google.script.run.showMainMenu()">Menu Principal</button>
+        </form>
+    </div>
+    
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            google.script.run.withSuccessHandler(populateDropdown).getContracts();
+        });
+
+        function populateDropdown(data) {
+            var dropdown = document.getElementById('dropdownContrato');
+            data.forEach(function(contract) {
+                var option = document.createElement('option');
+                option.value = contract.row;
+                option.textContent = contract.contract;
+                dropdown.appendChild(option);
+            });
+        }
+
+        function enviarDados() {
+            var selectedRow = document.getElementById('dropdownContrato').value;
+            google.script.run
+                .withSuccessHandler(function(response) {
+                    alert('Dados transferidos com sucesso!');
+                    // Abre a planilha de destino numa nova aba
+                    window.open('https://docs.google.com/spreadsheets/d/1Kbg1WVCaqx9uOAIXgZW47BazUWNJeBRgpeI8NKq87eA/edit', '_blank');
+                })
+                .withFailureHandler(function(error) {
+                    alert('Erro: ' + error);
+                })
+                .submitDataBV(selectedRow);
+        }
+    </script>
+</body>
+</html>
+
+

@@ -30,6 +30,7 @@ import JornadaCaptacao from './components/JornadaCaptacao'
 import GestaoClientesVisitas from './components/GestaoClientesVisitas'
 import RHUsuarios from './components/RHUsuarios'
 import AdminBases from './components/AdminBases'
+import Vendas from './components/Vendas'
 import GerenteRHCorretores from './components/GerenteRHCorretores'
 
 import './assets/css/styles.css';
@@ -100,6 +101,10 @@ function App() {
                 <Route
                   path="/AdminBases"
                   element={<AdministradorRoute><AdminBases /></AdministradorRoute>}
+                />
+                <Route
+                  path="/Vendas"
+                  element={<AdministradorRoute><Vendas /></AdministradorRoute>}
                 />
                 <Route
                   path="/JornadaCaptacao"

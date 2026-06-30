@@ -158,6 +158,24 @@
   color: var(--brand-dark);
 }
 
+.controle-corretores__acoes {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.controle-corretores__button--danger {
+  background: #fef2f2;
+  color: #dc2626;
+  border: 1px solid #fca5a5;
+}
+
+.controle-corretores__button--danger:hover {
+  background: #dc2626;
+  color: #fff;
+  border-color: #dc2626;
+}
+
 .controle-corretores__button--ghost {
   background: rgba(255, 255, 255, 0.12);
   color: #fff;

@@ -29,8 +29,8 @@ Y_DECL        = 258
 Y_SIG_LINE    = 268
 Y_FOOTER      = 290
 
-COL_WIDTHS  = [27, 20, 30, 27, 36, 40]   # total = 180mm
-COL_HEADERS = ["Contrato", "Data", "V. Negócio", "V. Total 61", "Papel", "Comissão"]
+COL_WIDTHS  = [24, 18, 30, 28, 28, 26, 26]   # total = 180mm
+COL_HEADERS = ["Contrato", "Data", "V. Negócio", "Parte V.Neg.", "V. Total 61", "Parte V.61", "Papel"]
 
 
 def _fmt_br(v: float) -> str:
@@ -77,7 +77,7 @@ def _render_page(pdf, detalhe: Dict[str, Any]) -> None:
     pdf.set_xy(15, Y_META)
     pdf.set_font("Arial", "", 8)
     pdf.set_text_color(*GRAY)
-    pdf.cell(0, 4, f"Categoria: {kind_label}{af_note}   |   Período: {start_fmt} a {end_fmt}   |   {len(negs)} negociação(ões)", ln=False)
+    pdf.cell(0, 4, f"Período: {start_fmt} a {end_fmt}   |   {len(negs)} negociação(ões)", ln=False)
 
     # ── Divisória ─────────────────────────────────────────────
     pdf.set_draw_color(*PINK)
@@ -104,9 +104,10 @@ def _render_page(pdf, detalhe: Dict[str, Any]) -> None:
             neg["id_contrato"],
             _fmt_date(neg["data_contrato"]),
             _fmt_br(neg["valor_negocio"]),
+            _fmt_br(neg.get("parte_valor_negocio", 0.0)),
             _fmt_br(neg["valor_total_61"]),
+            _fmt_br(neg.get("parte_valor_total_61", 0.0)),
             neg["papel"],
-            _fmt_br(neg["valor_corretor"]),
         ]
         pdf.set_xy(15, y_row)
         pdf.set_fill_color(*LIGHT_GRAY)
@@ -115,16 +116,6 @@ def _render_page(pdf, detalhe: Dict[str, Any]) -> None:
             pdf.cell(w, ROW_H, str(v), border=1, fill=fill, align="C")
         y_row += ROW_H
         fill = not fill
-
-    # Linha de total da comissão
-    pdf.set_xy(15, y_row)
-    pdf.set_fill_color(*PINK)
-    pdf.set_text_color(*WHITE)
-    pdf.set_font("Arial", "B", 7.5)
-    total_label_w = sum(COL_WIDTHS[:-1])
-    pdf.cell(total_label_w, ROW_H, "TOTAL COMISSÃO", border=1, fill=True, align="R")
-    pdf.cell(COL_WIDTHS[-1], ROW_H, _fmt_br(detalhe["total"]), border=1, fill=True, align="C")
-    y_row += ROW_H
 
     # Nota de truncamento (se houver)
     if truncado > 0:
@@ -141,9 +132,10 @@ def _render_page(pdf, detalhe: Dict[str, Any]) -> None:
     pdf.cell(0, 5, "Resumo do Período", ln=False)
 
     totais = [
-        ("VGV Total (Valor Negócio)",             detalhe.get("total_vgv", 0.0)),
-        ("VGC sem ÷0,06 (porção Valor Total 61)", detalhe.get("total_vgc_bruto", 0.0)),
-        ("VGC com ÷0,06",                         detalhe.get("total_vgc_fator", 0.0)),
+        ("Valor Negócio (cheio)",   detalhe.get("total_vn_cheio", detalhe.get("total_vgv", 0.0))),
+        ("Parte no Valor Negócio",  detalhe.get("total_parte_vn", 0.0)),
+        ("Valor Total 61 (cheio)",  detalhe.get("total_v61_cheio", 0.0)),
+        ("Parte no Valor Total 61", detalhe.get("total_parte_v61", detalhe.get("total_vgc_bruto", 0.0))),
     ]
     lw, vw = 120, 60
     y_res = y_sum + 6
@@ -158,11 +150,16 @@ def _render_page(pdf, detalhe: Dict[str, Any]) -> None:
         pdf.cell(vw, 6.5, _fmt_br(valor), border=1, fill=False, align="C")
         y_res += 6.5
 
-    # ── Declaração (posição fixa no rodapé) ───────────────────
-    pdf.set_xy(15, Y_DECL)
-    pdf.set_font("Arial", "I", 8)
+    # ── Observação (posição fixa no rodapé) ───────────────────
+    pdf.set_xy(15, Y_DECL - 4)
+    pdf.set_font("Arial", "I", 7.5)
     pdf.set_text_color(*GRAY)
-    pdf.cell(0, 5, "Declaro que estou de acordo com os valores apresentados acima.", align="C")
+    pdf.multi_cell(
+        180, 4,
+        "Observação: os dados apresentados são para fins de ranking e premiação e "
+        "NÃO representam os valores efetivamente recebidos.",
+        align="C",
+    )
 
     # ── Linha de assinatura ───────────────────────────────────
     sig_x, sig_w = 60, 90

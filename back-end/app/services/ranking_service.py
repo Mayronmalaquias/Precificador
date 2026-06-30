@@ -803,6 +803,8 @@ class RankingService:
         total_vgv = 0.0
         total_vgc_bruto = 0.0
         total_vgc_fator = 0.0
+        total_v61_cheio = 0.0
+        total_parte_vn = 0.0
 
         for _, row in vendas.iterrows():
             vendedores = {
@@ -853,16 +855,11 @@ class RankingService:
                     vgc_bruto_corretor += (v61 / n_lados) / len(captadores)
                     vgc_fator_corretor += (v61 / 0.06 / n_lados) / len(captadores)
 
-            if kind == "vgc_geral":
-                # Comissão = parte bruta do V. Total 61 (nunca excede V. Total 61)
-                # O ÷0.06 só afeta o total do ranking, não a coluna de comissão por venda
-                valor_corretor = vgc_bruto_corretor
-                if valor_corretor <= 0:
-                    continue
-            else:
-                valor_corretor = vgv_corretor
-                if valor_corretor <= 0:
-                    continue
+            # Relatorio UNIFICADO (sem diferenciar VGV/VGC): inclui se a pessoa
+            # participou de qualquer lado. valor_corretor mantido p/ compatibilidade.
+            valor_corretor = vgc_bruto_corretor if kind == "vgc_geral" else vgv_corretor
+            if vgv_corretor <= 0 and vgc_bruto_corretor <= 0:
+                continue
 
             outros = sorted((vendedores | captadores) - {nome_norm})
 
@@ -884,12 +881,16 @@ class RankingService:
                 "empreendimento": empreendimento,
                 "valor_negocio": vn,
                 "valor_total_61": v61,
+                "parte_valor_negocio": round(vgv_corretor, 2),
+                "parte_valor_total_61": round(vgc_bruto_corretor, 2),
                 "papel": papel,
                 "valor_corretor": round(valor_corretor, 2),
                 "outros_envolvidos": outros,
             })
             total += valor_corretor
             total_vgv += vn
+            total_v61_cheio += v61
+            total_parte_vn += vgv_corretor
             total_vgc_bruto += vgc_bruto_corretor
             total_vgc_fator += vgc_fator_corretor
 
@@ -905,6 +906,11 @@ class RankingService:
             "total_vgv": round(total_vgv, 2),
             "total_vgc_bruto": round(total_vgc_bruto, 2),
             "total_vgc_fator": round(total_vgc_fator, 2),
+            # cheios x partes (relatorio unificado)
+            "total_vn_cheio": round(total_vgv, 2),
+            "total_parte_vn": round(total_parte_vn, 2),
+            "total_v61_cheio": round(total_v61_cheio, 2),
+            "total_parte_v61": round(total_vgc_bruto, 2),
             "negociacoes": negociacoes,
         }
 
