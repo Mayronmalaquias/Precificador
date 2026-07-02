@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { BASE as API_BASE } from '../services/api';
 import '../assets/css/ranking.css';
 import { useToast } from '../context/ToastContext';
+import { useAuth } from '../context/AuthContext';
 
 const LOCAL_KEY = '61e_metas_form';
 
@@ -120,6 +121,8 @@ function getLastWeekRange() {
 
 function Ranking() {
   const toast = useToast();
+  const { permissao } = useAuth();
+  const podeOcultar = ['administrador', 'diretor'].includes(permissao);
 
   const GERENTES = useMemo(
     () => [
@@ -190,6 +193,9 @@ function Ranking() {
   const [hasApplied, setHasApplied] = useState(false);
   const [loading, setLoading] = useState(false);
   const [loadingPdf, setLoadingPdf] = useState(false);
+
+  const [ocultos, setOcultos] = useState([]);
+  const [showOcultos, setShowOcultos] = useState(false);
 
   const [detalheCorretor, setDetalheCorretor] = useState(null);
   const [loadingDetalhe, setLoadingDetalhe] = useState(false);
@@ -409,6 +415,46 @@ function Ranking() {
     } finally {
       setLoadingPdfTodos(false);
     }
+  };
+
+  const fetchOcultos = useCallback(async () => {
+    try {
+      const res = await fetch(`${API_BASE}/rankings/ocultos`);
+      const json = await res.json();
+      if (res.ok) setOcultos(Array.isArray(json.ocultos) ? json.ocultos : []);
+    } catch { /* silencioso */ }
+  }, []);
+
+  useEffect(() => { if (podeOcultar) fetchOcultos(); }, [podeOcultar, fetchOcultos]);
+
+  const refetchRankings = () => {
+    fetchRanking(tab, true);
+    fetchRankingEquipe(tab, true);
+  };
+
+  const ocultarCorretor = async (row) => {
+    if (!row.id_corretor) { toast('Corretor sem ID; não dá pra ocultar.', 'error'); return; }
+    try {
+      const res = await fetch(`${API_BASE}/rankings/ocultos`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id_corretor: row.id_corretor, nome: row.corretor }),
+      });
+      if (!res.ok) { const j = await res.json().catch(() => ({})); toast(j.error || 'Erro ao ocultar.', 'error'); return; }
+      toast(`${row.corretor} ocultado do ranking.`, 'success');
+      fetchOcultos();
+      refetchRankings();
+    } catch { toast('Erro ao ocultar.', 'error'); }
+  };
+
+  const mostrarCorretor = async (idCorretor) => {
+    try {
+      const res = await fetch(`${API_BASE}/rankings/ocultos/${encodeURIComponent(idCorretor)}`, { method: 'DELETE' });
+      if (!res.ok) { toast('Erro ao mostrar.', 'error'); return; }
+      toast('Corretor de volta ao ranking.', 'success');
+      fetchOcultos();
+      refetchRankings();
+    } catch { toast('Erro ao mostrar.', 'error'); }
   };
 
   const abrirDetalheCorretor = async (nomeCorretor) => {
@@ -702,6 +748,15 @@ function Ranking() {
                 </div>
                 <div className="ranking__tableHeadActions">
                   {loading && <span className="ranking__loading">Atualizando</span>}
+                  {podeOcultar && ocultos.length > 0 && (
+                    <button
+                      type="button"
+                      className="ranking__btn ranking__btn--outline"
+                      onClick={() => setShowOcultos((s) => !s)}
+                    >
+                      Ocultos ({ocultos.length})
+                    </button>
+                  )}
                   {viewMode === 'corretor' && (tab === 'vgc_geral' || tab === 'vgv_geral') && currentRows.length > 0 && (
                     <button
                       type="button"
@@ -714,6 +769,28 @@ function Ranking() {
                   )}
                 </div>
               </div>
+
+              {podeOcultar && showOcultos && (
+                <div className="ranking__ocultos">
+                  {ocultos.length === 0 ? (
+                    <span className="ranking__ocultosEmpty">Nenhum corretor oculto.</span>
+                  ) : (
+                    ocultos.map((o) => (
+                      <span key={o.id_corretor} className="ranking__ocultoChip">
+                        {o.nome || o.id_corretor}
+                        <button
+                          type="button"
+                          className="ranking__iconBtn"
+                          title="Voltar ao ranking"
+                          onClick={() => mostrarCorretor(o.id_corretor)}
+                        >
+                          👁️
+                        </button>
+                      </span>
+                    ))
+                  )}
+                </div>
+              )}
 
               <div className="ranking__tableWrap">
                 <table className="ranking__table">
@@ -740,13 +817,25 @@ function Ranking() {
                           <td className="ranking__value">{renderTotal(row)}</td>
                           {viewMode === 'corretor' && (tab === 'vgc_geral' || tab === 'vgv_geral') && (
                             <td className="ranking__detBtn">
-                              <button
-                                type="button"
-                                className="ranking__btn ranking__btn--ghost"
-                                onClick={() => abrirDetalheCorretor(row.corretor)}
-                              >
-                                Ver
-                              </button>
+                              <div className="ranking__rowActions">
+                                <button
+                                  type="button"
+                                  className="ranking__btn ranking__btn--ghost"
+                                  onClick={() => abrirDetalheCorretor(row.corretor)}
+                                >
+                                  Ver
+                                </button>
+                                {podeOcultar && (
+                                  <button
+                                    type="button"
+                                    className="ranking__iconBtn"
+                                    title="Ocultar do ranking"
+                                    onClick={() => ocultarCorretor(row)}
+                                  >
+                                    🙈
+                                  </button>
+                                )}
+                              </div>
                             </td>
                           )}
                         </tr>

@@ -78,6 +78,15 @@ class RankingService:
         self.excluded_names: Set[str] = self._parse_csv_env_to_set("RANKING_EXCLUDED_NAMES")
         self.excluded_ids: Set[str] = self._parse_csv_env_to_set("RANKING_EXCLUDED_IDS")
 
+        # Ocultos manuais (persistidos no banco, via olhinho no front)
+        try:
+            from app.services.ranking_ocultos_service import ids_e_nomes_ocultos
+            ids_db, nomes_db = ids_e_nomes_ocultos()
+            self.excluded_ids |= ids_db
+            self.excluded_names |= nomes_db
+        except Exception:
+            pass
+
     # =========================================================
     # ENV helpers
     # =========================================================
@@ -805,6 +814,7 @@ class RankingService:
         total_vgc_fator = 0.0
         total_v61_cheio = 0.0
         total_parte_vn = 0.0
+        total_parte_v61 = 0.0
 
         for _, row in vendas.iterrows():
             vendedores = {
@@ -855,10 +865,20 @@ class RankingService:
                     vgc_bruto_corretor += (v61 / n_lados) / len(captadores)
                     vgc_fator_corretor += (v61 / 0.06 / n_lados) / len(captadores)
 
+            # VGV (parte): NAO duplica quando a pessoa e vendedor E captador no mesmo
+            # contrato -> conta 1x (max dos lados). Ex: 1M vendedor+captador = 1M.
+            share_vend_vn = (vn / len(vendedores)) if (is_vend and vendedores) else 0.0
+            share_cap_vn = (vn / len(captadores)) if (is_cap and captadores) else 0.0
+            vgv_part = max(share_vend_vn, share_cap_vn)
+
+            # VGC (parte): SOMA de todas as partes da pessoa (venda + captacao).
+            # Ex: vendedor+captador sozinho = (v61/2) + (v61/2) = v61 cheio.
+            vgc_part = vgc_bruto_corretor
+
             # Relatorio UNIFICADO (sem diferenciar VGV/VGC): inclui se a pessoa
             # participou de qualquer lado. valor_corretor mantido p/ compatibilidade.
             valor_corretor = vgc_bruto_corretor if kind == "vgc_geral" else vgv_corretor
-            if vgv_corretor <= 0 and vgc_bruto_corretor <= 0:
+            if vgv_part <= 0 and vgc_part <= 0:
                 continue
 
             outros = sorted((vendedores | captadores) - {nome_norm})
@@ -875,14 +895,17 @@ class RankingService:
             raw_date = str(row.get("Data_Contrato", "")).strip()
             date_only = raw_date.split(" ")[0].split("T")[0]
 
+            contrato_nome = str(row.get("Contrato", "")).strip()
+
             negociacoes.append({
                 "id_contrato": str(row.get("Id_Contrato", "")).strip(),
+                "contrato": contrato_nome,
                 "data_contrato": date_only,
                 "empreendimento": empreendimento,
                 "valor_negocio": vn,
                 "valor_total_61": v61,
-                "parte_valor_negocio": round(vgv_corretor, 2),
-                "parte_valor_total_61": round(vgc_bruto_corretor, 2),
+                "parte_valor_negocio": round(vgv_part, 2),   # VGV (parte, sem duplicar)
+                "parte_valor_total_61": round(vgc_part, 2),  # VGC (parte, sem duplicar)
                 "papel": papel,
                 "valor_corretor": round(valor_corretor, 2),
                 "outros_envolvidos": outros,
@@ -890,7 +913,8 @@ class RankingService:
             total += valor_corretor
             total_vgv += vn
             total_v61_cheio += v61
-            total_parte_vn += vgv_corretor
+            total_parte_vn += vgv_part
+            total_parte_v61 += vgc_part
             total_vgc_bruto += vgc_bruto_corretor
             total_vgc_fator += vgc_fator_corretor
 
@@ -910,9 +934,29 @@ class RankingService:
             "total_vn_cheio": round(total_vgv, 2),
             "total_parte_vn": round(total_parte_vn, 2),
             "total_v61_cheio": round(total_v61_cheio, 2),
-            "total_parte_v61": round(total_vgc_bruto, 2),
+            "total_parte_v61": round(total_parte_v61, 2),
             "negociacoes": negociacoes,
         }
+
+    def _contadores_periodo(self, start: Optional[str], end: Optional[str]):
+        """Mapas nome(UPPER) -> qtd de captacoes e de visitas no periodo."""
+        def _to_map(df):
+            m: Dict[str, int] = {}
+            if df is not None and not df.empty and "Nome_Corretor" in df.columns:
+                for _, r in df.iterrows():
+                    k = str(r.get("Nome_Corretor", "")).strip().upper()
+                    if k:
+                        m[k] = int(round(float(r.get("total", 0) or 0)))
+            return m
+        try:
+            capt = _to_map(self._calc_captacao_rank(start, end))
+        except Exception:
+            capt = {}
+        try:
+            vis = _to_map(self._calc_visitas_rank(start, end))
+        except Exception:
+            vis = {}
+        return capt, vis
 
     def get_corretor_detalhe(
         self,
@@ -923,7 +967,12 @@ class RankingService:
         apply_factor: bool = False,
     ) -> Dict[str, Any]:
         vendas = self.load_vendas(start, end)
-        return self._detalhe_de_vendas(nome_corretor, kind, start, end, apply_factor, vendas)
+        detalhe = self._detalhe_de_vendas(nome_corretor, kind, start, end, apply_factor, vendas)
+        capt_map, vis_map = self._contadores_periodo(start, end)
+        chave = str(detalhe.get("corretor", "")).strip().upper()
+        detalhe["qtd_captacoes"] = capt_map.get(chave, 0)
+        detalhe["qtd_visitas"] = vis_map.get(chave, 0)
+        return detalhe
 
     def get_todos_detalhe(
         self,
@@ -941,6 +990,7 @@ class RankingService:
             rank_df = self._calc_vgv_geral_algoritmo(vendas) if not vendas.empty else pd.DataFrame(columns=["Id_Corretor", "Nome_Corretor", "total"])
 
         ranking = self._rank_list(rank_df, "total", "Id_Corretor", "Nome_Corretor")
+        capt_map, vis_map = self._contadores_periodo(start, end)
 
         detalhes = []
         for item in ranking:
@@ -949,6 +999,9 @@ class RankingService:
                 continue
             detalhe = self._detalhe_de_vendas(nome, kind, start, end, apply_factor, vendas)
             if detalhe.get("negociacoes"):
+                chave = str(detalhe.get("corretor", "")).strip().upper()
+                detalhe["qtd_captacoes"] = capt_map.get(chave, 0)
+                detalhe["qtd_visitas"] = vis_map.get(chave, 0)
                 detalhes.append(detalhe)
 
         return detalhes

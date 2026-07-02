@@ -3,8 +3,30 @@ from flask import request, send_file
 from flask_restx import Namespace, Resource, fields
 from app.services.ranking_service import RankingService
 from app.services.corretor_pdf_service import gerar_pdf_corretor, gerar_pdf_todos
+from app.services import ranking_ocultos_service as ocultos_svc
 
 ranking_ns = Namespace("ranking", description="Rankings (VGV, VGC, Captação, Visitas)")
+
+
+@ranking_ns.route("/rankings/ocultos")
+class RankingOcultos(Resource):
+    @ranking_ns.doc(description="Lista corretores ocultados do ranking")
+    def get(self):
+        return {"ok": True, "ocultos": ocultos_svc.listar_ocultos()}, 200
+
+    @ranking_ns.doc(description="Oculta um corretor do ranking (body: id_corretor, nome)")
+    def post(self):
+        data = request.get_json() or {}
+        res = ocultos_svc.ocultar(data.get("id_corretor"), data.get("nome", ""))
+        return res, (200 if res.get("ok") else 400)
+
+
+@ranking_ns.route("/rankings/ocultos/<path:id_corretor>")
+class RankingMostrar(Resource):
+    @ranking_ns.doc(description="Remove um corretor da lista de ocultos (volta ao ranking)")
+    def delete(self, id_corretor):
+        res = ocultos_svc.mostrar(id_corretor)
+        return res, (200 if res.get("ok") else 400)
 
 ranking_item = ranking_ns.model("RankingItem", {
     "posicao": fields.Integer,
@@ -125,7 +147,13 @@ class TodosPdf(Resource):
         if not detalhes:
             return {"error": "Nenhum dado encontrado para os filtros informados."}, 404
 
-        buf = gerar_pdf_todos(detalhes)
+        rankings = {
+            "vgv_corretor": svc.get_ranking("vgv_geral", start, end),
+            "vgc_corretor": svc.get_ranking("vgc_geral", start, end, apply_factor=apply_factor),
+            "vgv_equipe": svc.get_ranking_equipe("vgv_geral", start, end),
+            "vgc_equipe": svc.get_ranking_equipe("vgc_geral", start, end, apply_factor=apply_factor),
+        }
+        buf = gerar_pdf_todos(detalhes, rankings=rankings)
         nome_arquivo = f"relatorio_comissoes_{start}_{end}.pdf"
         return send_file(buf, as_attachment=True, download_name=nome_arquivo, mimetype="application/pdf")
 

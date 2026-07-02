@@ -13,6 +13,7 @@ from app.models import equipe, visita, contrato, venda_legado, legado_diversos, 
 from app.models import fato_bases  # noqa: F401
 from app.models import pessoa_alias  # noqa: F401
 from app.models import vendas  # noqa: F401
+from app.models import ranking_oculto  # noqa: F401
 
 
 config = context.config

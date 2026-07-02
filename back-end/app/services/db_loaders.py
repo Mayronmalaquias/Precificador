@@ -292,22 +292,39 @@ def carregar_divisao_comissao() -> List[Dict[str, str]]:
 
 
 def carregar_fato_captacao() -> List[Dict[str, str]]:
-    """Fato_Captacao foi consolidado em eventos_imovel_legado (tipo_evento='captacao')."""
+    """Captacoes p/ ranking: historico congelado (eventos_imovel_legado tipo='captacao')
+    UNIDO com as captacoes correntes (fato_captacao, geridas pelo AdminBases).
+    Dedup por (codigo, data_entrada, captador1) pra nao contar 2x."""
+    from app.models.fato_bases import FatoCaptacao
+
     session = SessionLocal()
     try:
-        return [
-            {
-                "Código": _s(c.codigo_imovel),
-                "Captador1": _s(c.captador1),
-                "Captador2": _s(c.captador2),
-                "Captador3": _s(c.captador3),
-                "Gerente": _s(c.id_gerente),
-                "DataEntrada": _data_str(c.data_evento),
-            }
-            for c in session.query(EventoImovelLegado)
-            .filter(EventoImovelLegado.tipo_evento == "captacao")
-            .all()
-        ]
+        out = []
+        vistos = set()
+
+        def _add(codigo, c1, c2, c3, ger, data):
+            data_str = _data_str(data)
+            chave = (_s(codigo), data_str, _s(c1))
+            if chave in vistos:
+                return
+            vistos.add(chave)
+            out.append({
+                "Código": _s(codigo),
+                "Captador1": _s(c1),
+                "Captador2": _s(c2),
+                "Captador3": _s(c3),
+                "Gerente": _s(ger),
+                "DataEntrada": data_str,
+            })
+
+        # histórico
+        for c in session.query(EventoImovelLegado).filter(EventoImovelLegado.tipo_evento == "captacao").all():
+            _add(c.codigo_imovel, c.captador1, c.captador2, c.captador3, c.id_gerente, c.data_evento)
+        # corrente (AdminBases)
+        for c in session.query(FatoCaptacao).all():
+            _add(c.codigo_imovel, c.captador1, c.captador2, c.captador3, c.id_gerente, c.data_entrada)
+
+        return out
     finally:
         session.close()
 

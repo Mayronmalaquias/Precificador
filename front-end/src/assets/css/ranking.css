@@ -924,3 +924,11 @@
     padding: 10px;
   }
 }
+
+/* Ocultar corretor do ranking */
+.ranking__rowActions { display: flex; align-items: center; gap: 6px; justify-content: flex-end; }
+.ranking__iconBtn { background: none; border: none; cursor: pointer; font-size: 1rem; line-height: 1; padding: 2px 4px; border-radius: 6px; opacity: 0.8; }
+.ranking__iconBtn:hover { opacity: 1; background: rgba(0,0,0,0.06); }
+.ranking__ocultos { display: flex; flex-wrap: wrap; gap: 8px; padding: 10px 0 4px; }
+.ranking__ocultosEmpty { color: #6b7280; font-size: 0.85rem; }
+.ranking__ocultoChip { display: inline-flex; align-items: center; gap: 6px; background: #f1f5f9; border: 1px solid #e2e8f0; border-radius: 9999px; padding: 4px 6px 4px 12px; font-size: 0.82rem; color: #334155; }
