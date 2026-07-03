@@ -23,14 +23,17 @@ Y_DIVIDER     = 42
 Y_TABLE_HEAD  = 46
 Y_ROWS_START  = 53
 ROW_H         = 5.5
-MAX_ROWS      = 29          # linhas visíveis máximas para caber na página
+MAX_ROWS      = 27          # reserva espaço para as cinco linhas do resumo
 # Assinatura e rodapé fixos no rodapé da página
 Y_DECL        = 258
 Y_SIG_LINE    = 268
 Y_FOOTER      = 290
 
-COL_WIDTHS  = [44, 18, 26, 26, 24, 22, 20]   # total = 180mm
-COL_HEADERS = ["Contrato (endereço)", "Data", "V. Negócio", "VGV", "V. Total 61", "VGC", "Papel"]
+COL_WIDTHS  = [35, 16, 22, 21, 20, 20, 31, 15]   # total = 180mm
+COL_HEADERS = [
+    "Contrato (endereço)", "Data", "V. Negócio", "VGV",
+    "VGC 61", "VGC", "VGV ajustado a 6%", "Papel",
+]
 
 PAPEL_ABREV = {"VENDA + CAPTAÇÃO": "V + C", "VENDA": "Venda", "CAPTAÇÃO": "Capt."}
 
@@ -77,7 +80,7 @@ def _render_page(pdf, detalhe: Dict[str, Any]) -> None:
     pdf.set_xy(15, Y_TITLE)
     pdf.set_font("Arial", "B", 13)
     pdf.set_text_color(*PINK)
-    pdf.cell(0, 6, "Relatório de Comissões", ln=False)
+    pdf.cell(0, 6, "VGV do Corretor", ln=False)
 
     # ── Nome (alinhado à direita do título) ───────────────────
     pdf.set_xy(15, Y_NAME)
@@ -106,7 +109,7 @@ def _render_page(pdf, detalhe: Dict[str, Any]) -> None:
     pdf.set_xy(15, Y_TABLE_HEAD)
     pdf.set_fill_color(*PINK)
     pdf.set_text_color(*WHITE)
-    pdf.set_font("Arial", "B", 7.5)
+    pdf.set_font("Arial", "B", 6.5)
     for w, h in zip(COL_WIDTHS, COL_HEADERS):
         pdf.cell(w, 6, h, border=1, fill=True, align="C")
 
@@ -121,12 +124,13 @@ def _render_page(pdf, detalhe: Dict[str, Any]) -> None:
         contrato_txt = neg.get("contrato") or neg.get("empreendimento") or neg.get("id_contrato", "")
         papel_txt = PAPEL_ABREV.get(neg.get("papel", ""), neg.get("papel", ""))
         row_data = [
-            _trunc(contrato_txt, 30),
+            _trunc(contrato_txt, 24),
             _fmt_date(neg["data_contrato"]),
             _fmt_br(neg["valor_negocio"]),
             _fmt_br(neg.get("parte_valor_negocio", 0.0)),   # VGV
             _fmt_br(neg["valor_total_61"]),
             _fmt_br(neg.get("parte_valor_total_61", 0.0)),  # VGC
+            _fmt_br(neg.get("parte_valor_total_61", 0.0) / 0.06),
             papel_txt,
         ]
         pdf.set_xy(15, y_row)
@@ -151,11 +155,13 @@ def _render_page(pdf, detalhe: Dict[str, Any]) -> None:
     pdf.set_text_color(*DARK)
     pdf.cell(0, 5, "Resumo do Período", ln=False)
 
+    total_parte_v61 = detalhe.get("total_parte_v61", detalhe.get("total_vgc_bruto", 0.0))
     totais = [
         ("Valor Negócio (cheio)",  detalhe.get("total_vn_cheio", detalhe.get("total_vgv", 0.0))),
         ("VGV (parte)",            detalhe.get("total_parte_vn", 0.0)),
         ("Valor Total 61 (cheio)", detalhe.get("total_v61_cheio", 0.0)),
-        ("VGC (parte)",            detalhe.get("total_parte_v61", detalhe.get("total_vgc_bruto", 0.0))),
+        ("VGC (parte)",            total_parte_v61),
+        ("VGV ajustado a 6%",      total_parte_v61 / 0.06),
     ]
     lw, vw = 120, 60
     y_res = y_sum + 6

@@ -4,6 +4,7 @@ import { BASE } from "../services/api";
 import { useToast } from "../context/ToastContext";
 import "../assets/css/JornadaCaptacao.css";
 import bookPdf from "../assets/pdf/Book Digital - Plano Piloto.pdf";
+import CaptacaoEvolucao from "./CaptacaoEvolucao";
 
 // ── Constantes ───────────────────────────────────────────────────────────────
 const ETAPA_INFO = {
@@ -1826,6 +1827,7 @@ export default function JornadaCaptacao() {
             <button className={`cap-aba-btn${aba==="kanban"?" cap-aba-btn--ativa":""}`} onClick={() => setAba("kanban")}>▦ Kanban</button>
             <button className={`cap-aba-btn${aba==="calendario"?" cap-aba-btn--ativa":""}`} onClick={() => setAba("calendario")}>📅 Calendário</button>
             {isAdmin && <button className={`cap-aba-btn${aba==="dashboard"?" cap-aba-btn--ativa":""}`} onClick={() => setAba("dashboard")}>📊 Dashboard</button>}
+            {isDiretor && <button className={`cap-aba-btn${aba==="evolucao"?" cap-aba-btn--ativa":""}`} onClick={() => setAba("evolucao")}>📈 Evolução</button>}
           </div>
         </div>
         <div className="cap-topbar-right">
@@ -1973,6 +1975,10 @@ export default function JornadaCaptacao() {
 
       {aba === "dashboard" && isAdmin && (
         <DashboardGerente captacoes={captacoesFiltradas} isDiretor={isDiretor} />
+      )}
+
+      {aba === "evolucao" && isDiretor && (
+        <CaptacaoEvolucao nomeEquipe={nomeEquipe} />
       )}
 
       {showNovo && (

@@ -63,37 +63,45 @@ def sync_contratos_from_sheet(criado_por=None) -> dict:
     resumo = {"ok": True, "linhas_planilha": len(valores) - 1, "inseridos": 0,
               "atualizados": 0, "ignorados": 0, "erros": []}
     ncols = len(header)
-    ids_planilha = set()
+
+    # monta registros dedupando por id_contrato (ultima ocorrencia vence)
+    por_id = {}
+    for n, row in enumerate(valores[1:], start=2):
+        row = list(row) + [""] * (ncols - len(row))
+        id_contrato = to_str(row[id_i]) if id_i < len(row) else ""
+        if not id_contrato:
+            resumo["ignorados"] += 1
+            continue
+        try:
+            dados = {slug: _parse(slug, row[i]) for slug, i in slug_idx.items()}
+            dados["id_contrato"] = id_contrato
+            dados["fonte"] = "planilha"
+            por_id[id_contrato] = dados
+        except Exception as e:
+            resumo["erros"].append(f"linha {n} ({id_contrato}): {e}")
+
+    registros = list(por_id.values())
+    ids_planilha = set(por_id.keys())
 
     session = SessionLocal()
     try:
-        # pre-carrega tudo numa query so (evita 1 round-trip por linha no RDS remoto)
-        objs = {c.id_contrato: c for c in session.query(Contrato).all()}
-        for n, row in enumerate(valores[1:], start=2):
-            row = list(row) + [""] * (ncols - len(row))  # padding
-            id_contrato = to_str(row[id_i]) if id_i < len(row) else ""
-            if not id_contrato:
-                resumo["ignorados"] += 1
-                continue
-            ids_planilha.add(id_contrato)
-            try:
-                dados = {slug: _parse(slug, row[i]) for slug, i in slug_idx.items()}
-                obj = objs.get(id_contrato)
-                if obj is not None:
-                    for k, v in dados.items():
-                        setattr(obj, k, v)
-                    obj.fonte = "planilha"
-                    resumo["atualizados"] += 1
-                else:
-                    novo = Contrato(id_contrato=id_contrato, fonte="planilha", **dados)
-                    session.add(novo)
-                    objs[id_contrato] = novo
-                    resumo["inseridos"] += 1
-            except Exception as e:
-                resumo["erros"].append(f"linha {n} ({id_contrato}): {e}")
-        session.commit()
-        # so conta como "removido da planilha" o que veio da planilha (ignora legado_pre2024)
-        removidos = {i for i, o in objs.items() if (o.fonte or "") == "planilha"} - ids_planilha
+        # ids ja existentes (p/ contar inseridos x atualizados e "removidos")
+        existentes = {c.id_contrato: (c.fonte or "") for c in session.query(Contrato.id_contrato, Contrato.fonte).all()}
+
+        if registros:
+            from sqlalchemy.dialects.postgresql import insert as pg_insert
+            cols_upd = [k for k in registros[0].keys() if k not in ("id_contrato", "created_at")]
+            stmt = pg_insert(Contrato.__table__).values(registros)
+            stmt = stmt.on_conflict_do_update(
+                index_elements=["id_contrato"],
+                set_={k: getattr(stmt.excluded, k) for k in cols_upd},
+            )
+            session.execute(stmt)
+            session.commit()
+
+        resumo["inseridos"] = sum(1 for i in ids_planilha if i not in existentes)
+        resumo["atualizados"] = len(registros) - resumo["inseridos"]
+        removidos = {i for i, f in existentes.items() if f == "planilha"} - ids_planilha
         resumo["removidos_na_planilha"] = sorted(removidos)[:50]
         resumo["qtd_removidos_na_planilha"] = len(removidos)
     except Exception:

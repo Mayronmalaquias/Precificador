@@ -1,0 +1,44 @@
+.ce-wrap { display: flex; flex-direction: column; gap: 14px; }
+
+.ce-controls { display: flex; flex-direction: column; gap: 10px; }
+.ce-dims { display: flex; flex-wrap: wrap; gap: 6px; }
+.ce-dim {
+  border: 1px solid #e5e7eb; background: #fff; color: #6b7280;
+  border-radius: 9999px; padding: 6px 16px; font-size: 0.85rem; font-weight: 600; cursor: pointer;
+}
+.ce-dim.is-active { background: #e1005b; color: #fff; border-color: #e1005b; }
+
+.ce-filtros { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.ce-input {
+  height: 36px; padding: 0 10px; border: 1.5px solid #e5e7eb; border-radius: 8px;
+  font-size: 0.85rem; max-width: 150px; background: #fff;
+}
+.ce-btn {
+  height: 36px; padding: 0 18px; border: none; border-radius: 8px; cursor: pointer;
+  background: #e1005b; color: #fff; font-weight: 600; font-size: 0.85rem;
+}
+
+.ce-chart { position: relative; width: 100%; background: #fff; border: 1px solid #eef0f4; border-radius: 12px; padding: 8px; }
+.ce-chart svg { width: 100%; height: auto; display: block; }
+
+.ce-tip {
+  position: absolute; top: 10px; transform: translateX(-50%);
+  background: rgba(17,24,39,0.95); color: #fff; border-radius: 8px; padding: 8px 10px;
+  font-size: 0.75rem; pointer-events: none; min-width: 120px; z-index: 5;
+}
+.ce-tip-data { font-weight: 700; margin-bottom: 4px; opacity: 0.9; }
+.ce-tip-row { display: flex; align-items: center; gap: 6px; }
+.ce-tip-nome { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 130px; }
+.ce-dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; display: inline-block; }
+
+.ce-legend { display: flex; flex-wrap: wrap; gap: 6px; }
+.ce-leg {
+  display: inline-flex; align-items: center; gap: 6px; border: 1px solid #e5e7eb; background: #fff;
+  border-radius: 9999px; padding: 4px 12px; font-size: 0.8rem; color: #334155; cursor: pointer;
+}
+.ce-leg.is-off { opacity: 0.4; text-decoration: line-through; }
+
+.ce-empty { text-align: center; color: #9ca3af; padding: 40px; background: #fff; border-radius: 12px; border: 1px solid #eef0f4; }
+
+.ce-check { display:inline-flex; align-items:center; gap:6px; font-size:0.82rem; color:#334155; margin-left:8px; cursor:pointer; }
+.ce-check input { width:15px; height:15px; accent-color:#e1005b; }

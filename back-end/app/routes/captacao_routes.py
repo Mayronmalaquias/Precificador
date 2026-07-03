@@ -13,7 +13,54 @@ from app.services.captacao_service import (
     listar_historico,
 )
 
+from app.services import captacao_snapshot_service as snap_svc
+
 captacao_ns = Namespace("captacao", description="Jornada de captacao de imoveis")
+
+
+@captacao_ns.route("/captacoes/snapshot")
+class CaptacaoSnapshotEndpoint(Resource):
+    def post(self):
+        """Gera o snapshot do dia (usar via cron diario). ?backfill=true reconstroi historico."""
+        try:
+            if (request.args.get("backfill") or "").lower() == "true":
+                return snap_svc.backfill(), 200
+            return snap_svc.gerar_snapshot(), 200
+        except Exception as e:
+            current_app.logger.exception("Erro no snapshot de captacao")
+            return {"ok": False, "error": str(e)}, 500
+
+
+@captacao_ns.route("/captacoes/evolucao/opcoes")
+class CaptacaoEvolucaoOpcoes(Resource):
+    def get(self):
+        try:
+            return snap_svc.opcoes(), 200
+        except Exception as e:
+            current_app.logger.exception("Erro nas opcoes de evolucao")
+            return {"ok": False, "error": str(e)}, 500
+
+
+@captacao_ns.route("/captacoes/evolucao")
+class CaptacaoEvolucao(Resource):
+    def get(self):
+        """Serie temporal p/ o dashboard de evolucao. Params: dimensao + filtros."""
+        filtros = {
+            "equipe": request.args.get("equipe"),
+            "corretor": request.args.get("corretor"),
+            "bairro": request.args.get("bairro"),
+            "endereco": request.args.get("endereco"),
+            "categoria": request.args.get("categoria"),
+            "status": request.args.get("status"),
+            "data_de": request.args.get("data_de"),
+            "data_ate": request.args.get("data_ate"),
+        }
+        por_estado = (request.args.get("por_estado") or "").lower() == "true"
+        try:
+            return snap_svc.evolucao(request.args.get("dimensao", "equipe"), filtros, por_estado=por_estado), 200
+        except Exception as e:
+            current_app.logger.exception("Erro na evolucao de captacao")
+            return {"ok": False, "error": str(e)}, 500
 
 
 @captacao_ns.route("/captacoes")
