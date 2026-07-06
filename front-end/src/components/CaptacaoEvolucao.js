@@ -101,6 +101,69 @@ function LineChart({ datas, series, cores }) {
   );
 }
 
+const DIAS_SEM = ["D", "S", "T", "Q", "Q", "S", "S"];
+const MES_NOME = ["", "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
+
+// Barras do mês divididas em semanas (D S T Q Q S S), com números e médias.
+function BarrasSemanas({ mes, totalPorData }) {
+  const [ano, m] = mes.split("-").map(Number);
+  const nDias = new Date(ano, m, 0).getDate();
+  const dias = [];
+  for (let d = 1; d <= nDias; d++) {
+    const dt = new Date(ano, m - 1, d);
+    const iso = `${ano}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+    dias.push({ d, wd: dt.getDay(), val: totalPorData[iso] || 0 });
+  }
+  // agrupa em semanas (nova semana no domingo)
+  const semanas = [];
+  dias.forEach((x) => {
+    if (x.wd === 0 || semanas.length === 0) semanas.push([]);
+    semanas[semanas.length - 1].push(x);
+  });
+  const maxV = Math.max(1, ...dias.map((x) => x.val));
+  const mediaMes = dias.length ? Math.round(dias.reduce((s, x) => s + x.val, 0) / dias.length) : 0;
+
+  const W = 840, H = 300, padL = 30, padR = 12, padT = 22, padB = 62;
+  const innerW = W - padL - padR, innerH = H - padT - padB;
+  const step = innerW / nDias;
+  const bw = Math.max(6, step * 0.66);
+  const bx = (i) => padL + i * step + (step - bw) / 2;
+  const by = (v) => padT + innerH - (v / maxV) * innerH;
+
+  let idx = 0;
+  return (
+    <div className="ce-chart ce-bars">
+      <svg viewBox={`0 0 ${W} ${H}`}>
+        {/* bandas de semana */}
+        {semanas.map((sem, si) => {
+          const x0 = padL + idx * step;
+          const w = sem.length * step;
+          const media = Math.round(sem.reduce((s, x) => s + x.val, 0) / sem.length);
+          const bloco = (
+            <g key={si}>
+              {si % 2 === 1 && <rect x={x0} y={padT - 4} width={w} height={innerH + 8} fill="#f8fafc" />}
+              <line x1={x0} x2={x0} y1={padT - 4} y2={padT + innerH + 30} stroke="#e5e7eb" />
+              <text x={x0 + w / 2} y={padT + innerH + 30} textAnchor="middle" fontSize="10" fontWeight="700" fill="#334155">Semana {si + 1}</text>
+              <text x={x0 + w / 2} y={padT + innerH + 44} textAnchor="middle" fontSize="9" fill="#e1005b">média {media}</text>
+            </g>
+          );
+          idx += sem.length;
+          return bloco;
+        })}
+        {/* barras + numeros + dia da semana */}
+        {dias.map((x, i) => (
+          <g key={i}>
+            <rect x={bx(i)} y={by(x.val)} width={bw} height={padT + innerH - by(x.val)} rx="2" fill="#e1005b" opacity={x.val ? 1 : 0.15} />
+            {x.val > 0 && <text x={bx(i) + bw / 2} y={by(x.val) - 3} textAnchor="middle" fontSize="8" fill="#334155">{x.val}</text>}
+            <text x={bx(i) + bw / 2} y={padT + innerH + 12} textAnchor="middle" fontSize="8" fill="#9ca3af">{DIAS_SEM[x.wd]}</text>
+          </g>
+        ))}
+        <text x={W / 2} y={H - 6} textAnchor="middle" fontSize="12" fontWeight="700" fill="#111827">{MES_NOME[m]} {ano} — média do mês: {mediaMes}</text>
+      </svg>
+    </div>
+  );
+}
+
 export default function CaptacaoEvolucao({ nomeEquipe }) {
   const toast = useToast();
   const [dimensao, setDimensao] = useState("equipe");
@@ -110,6 +173,7 @@ export default function CaptacaoEvolucao({ nomeEquipe }) {
   const [ocultas, setOcultas] = useState(() => new Set());
   const [porEstado, setPorEstado] = useState(false);
   const [opcoes, setOpcoes] = useState({ equipes: [], corretores: [], bairros: [] });
+  const [mesBar, setMesBar] = useState("");
 
   useEffect(() => {
     (async () => {
@@ -162,6 +226,22 @@ export default function CaptacaoEvolucao({ nomeEquipe }) {
     [data.series, ocultas, label, corPorNome]
   );
   const cores = CORES;
+
+  // total (soma de todas as series) por dia — base do grafico de barras
+  const totalPorData = useMemo(() => {
+    const m = {};
+    data.datas.forEach((d, i) => { m[d] = data.series.reduce((s, ser) => s + (ser.pontos[i] || 0), 0); });
+    return m;
+  }, [data]);
+  const mesesDisponiveis = useMemo(() => {
+    const set = new Set(data.datas.map((d) => d.slice(0, 7)));
+    return Array.from(set).sort();
+  }, [data.datas]);
+  useEffect(() => {
+    if (mesesDisponiveis.length && !mesesDisponiveis.includes(mesBar)) {
+      setMesBar(mesesDisponiveis[mesesDisponiveis.length - 1]);
+    }
+  }, [mesesDisponiveis, mesBar]);
 
   const setF = (k) => (e) => setFiltros((p) => ({ ...p, [k]: e.target.value }));
   const toggle = (nome) => setOcultas((prev) => { const n = new Set(prev); n.has(nome) ? n.delete(nome) : n.add(nome); return n; });
@@ -227,6 +307,21 @@ export default function CaptacaoEvolucao({ nomeEquipe }) {
               </button>
             ))}
           </div>
+
+          {mesBar && (
+            <div className="ce-barswrap">
+              <div className="ce-barshead">
+                <strong>Volume por dia (mês em semanas)</strong>
+                <select className="ce-input" value={mesBar} onChange={(e) => setMesBar(e.target.value)}>
+                  {mesesDisponiveis.map((mm) => {
+                    const [a, mn] = mm.split("-");
+                    return <option key={mm} value={mm}>{MES_NOME[Number(mn)]}/{a}</option>;
+                  })}
+                </select>
+              </div>
+              <BarrasSemanas mes={mesBar} totalPorData={totalPorData} />
+            </div>
+          )}
         </>
       )}
     </div>

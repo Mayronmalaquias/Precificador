@@ -42,3 +42,8 @@
 
 .ce-check { display:inline-flex; align-items:center; gap:6px; font-size:0.82rem; color:#334155; margin-left:8px; cursor:pointer; }
 .ce-check input { width:15px; height:15px; accent-color:#e1005b; }
+
+.ce-barswrap { display:flex; flex-direction:column; gap:8px; margin-top:6px; }
+.ce-barshead { display:flex; align-items:center; justify-content:space-between; gap:10px; }
+.ce-barshead strong { font-size:0.9rem; color:#111827; }
+.ce-bars svg { width:100%; height:auto; }
