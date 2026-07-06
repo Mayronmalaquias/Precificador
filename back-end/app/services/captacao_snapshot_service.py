@@ -234,19 +234,27 @@ def evolucao(dimensao: str, filtros: dict, max_series: int = 12, por_estado: boo
     return {"ok": True, "dimensao": dimensao, "datas": datas, "series": series}
 
 
-def opcoes() -> dict:
-    """Listas distintas p/ os dropdowns de filtro (equipe, corretor, bairro)."""
+def opcoes(equipe: str = None) -> dict:
+    """Listas distintas p/ os dropdowns de filtro (equipe, corretor, bairro).
+    Se 'equipe' for passada (gerente), restringe corretores/bairros a essa equipe."""
+    equipe = (equipe or "").strip() or None
     session = SessionLocal()
     try:
-        equipes = sorted({
-            (r[0] or "").strip()
-            for r in session.query(CaptacaoSnapshot.team).distinct().all()
-            if r[0] and str(r[0]).strip()
-        })
+        if equipe:
+            equipes = [equipe]
+        else:
+            equipes = sorted({
+                (r[0] or "").strip()
+                for r in session.query(CaptacaoSnapshot.team).distinct().all()
+                if r[0] and str(r[0]).strip()
+            })
 
         def _dedup(col):
             porkey = {}
-            for (val,) in session.query(col).distinct().all():
+            q = session.query(col).distinct()
+            if equipe:
+                q = q.filter(CaptacaoSnapshot.team == equipe)
+            for (val,) in q.all():
                 if not val or not str(val).strip():
                     continue
                 k = _norm_key(val)

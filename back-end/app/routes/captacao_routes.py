@@ -31,11 +31,20 @@ class CaptacaoSnapshotEndpoint(Resource):
             return {"ok": False, "error": str(e)}, 500
 
 
+def _equipe_forcada():
+    """Se o solicitante NAO for diretor, retorna a equipe dele (gerente ve so a propria)."""
+    perm = (request.args.get("solicitante_permissao") or "").lower()
+    team = (request.args.get("solicitante_team") or "").strip()
+    if perm != "diretor" and team:
+        return team
+    return None
+
+
 @captacao_ns.route("/captacoes/evolucao/opcoes")
 class CaptacaoEvolucaoOpcoes(Resource):
     def get(self):
         try:
-            return snap_svc.opcoes(), 200
+            return snap_svc.opcoes(equipe=_equipe_forcada()), 200
         except Exception as e:
             current_app.logger.exception("Erro nas opcoes de evolucao")
             return {"ok": False, "error": str(e)}, 500
@@ -45,8 +54,9 @@ class CaptacaoEvolucaoOpcoes(Resource):
 class CaptacaoEvolucao(Resource):
     def get(self):
         """Serie temporal p/ o dashboard de evolucao. Params: dimensao + filtros."""
+        forcada = _equipe_forcada()
         filtros = {
-            "equipe": request.args.get("equipe"),
+            "equipe": forcada or request.args.get("equipe"),
             "corretor": request.args.get("corretor"),
             "bairro": request.args.get("bairro"),
             "endereco": request.args.get("endereco"),

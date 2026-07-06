@@ -47,3 +47,5 @@
 .ce-barshead { display:flex; align-items:center; justify-content:space-between; gap:10px; }
 .ce-barshead strong { font-size:0.9rem; color:#111827; }
 .ce-bars svg { width:100%; height:auto; }
+
+.ce-equipe-fixa { display:inline-flex; align-items:center; background:#f1f5f9; color:#334155; font-weight:600; border:1px solid #e5e7eb; }

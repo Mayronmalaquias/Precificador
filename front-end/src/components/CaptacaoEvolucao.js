@@ -164,10 +164,14 @@ function BarrasSemanas({ mes, totalPorData }) {
   );
 }
 
-export default function CaptacaoEvolucao({ nomeEquipe }) {
+export default function CaptacaoEvolucao({ nomeEquipe, isDiretor = true, team = "" }) {
   const toast = useToast();
+  const soDaEquipe = !isDiretor;  // gerente ve so a propria equipe
+  const solicitante = soDaEquipe
+    ? `&solicitante_permissao=gerente&solicitante_team=${encodeURIComponent(team)}`
+    : "";
   const [dimensao, setDimensao] = useState("equipe");
-  const [filtros, setFiltros] = useState({ equipe: "", corretor: "", bairro: "", endereco: "", categoria: "", status: "", data_de: "", data_ate: "" });
+  const [filtros, setFiltros] = useState({ equipe: soDaEquipe ? team : "", corretor: "", bairro: "", endereco: "", categoria: "", status: "", data_de: "", data_ate: "" });
   const [data, setData] = useState({ datas: [], series: [] });
   const [loading, setLoading] = useState(false);
   const [ocultas, setOcultas] = useState(() => new Set());
@@ -178,12 +182,12 @@ export default function CaptacaoEvolucao({ nomeEquipe }) {
   useEffect(() => {
     (async () => {
       try {
-        const r = await fetch(`${BASE}/captacoes/evolucao/opcoes`);
+        const r = await fetch(`${BASE}/captacoes/evolucao/opcoes${solicitante ? "?" + solicitante.slice(1) : ""}`);
         const d = await r.json();
         if (r.ok && d.ok) setOpcoes({ equipes: d.equipes || [], corretores: d.corretores || [], bairros: d.bairros || [] });
       } catch { /* silencioso */ }
     })();
-  }, []);
+  }, [solicitante]);
 
   const buscar = useCallback(async () => {
     setLoading(true);
@@ -191,13 +195,13 @@ export default function CaptacaoEvolucao({ nomeEquipe }) {
       const qs = new URLSearchParams({ dimensao });
       Object.entries(filtros).forEach(([k, v]) => v && qs.append(k, v));
       if (porEstado && dimensao !== "categoria") qs.append("por_estado", "true");
-      const r = await fetch(`${BASE}/captacoes/evolucao?${qs.toString()}`);
+      const r = await fetch(`${BASE}/captacoes/evolucao?${qs.toString()}${solicitante}`);
       const d = await r.json();
       if (r.ok && d.ok) { setData({ datas: d.datas || [], series: d.series || [] }); setOcultas(new Set()); }
       else toast(d.error || "Erro ao carregar evolução", "error");
     } catch { toast("Erro de conexão", "error"); }
     finally { setLoading(false); }
-  }, [dimensao, filtros, porEstado, toast]);
+  }, [dimensao, filtros, porEstado, solicitante, toast]);
 
   useEffect(() => {
     buscar();
@@ -261,10 +265,14 @@ export default function CaptacaoEvolucao({ nomeEquipe }) {
           )}
         </div>
         <div className="ce-filtros">
-          <select className="ce-input" value={filtros.equipe} onChange={setF("equipe")}>
-            <option value="">Equipe (todas)</option>
-            {opcoes.equipes.map((o) => <option key={o.value} value={o.value}>{nomeEquipe ? nomeEquipe(o.value) : o.label}</option>)}
-          </select>
+          {soDaEquipe ? (
+            <span className="ce-input ce-equipe-fixa">Equipe: {nomeEquipe ? nomeEquipe(team) : team}</span>
+          ) : (
+            <select className="ce-input" value={filtros.equipe} onChange={setF("equipe")}>
+              <option value="">Equipe (todas)</option>
+              {opcoes.equipes.map((o) => <option key={o.value} value={o.value}>{nomeEquipe ? nomeEquipe(o.value) : o.label}</option>)}
+            </select>
+          )}
           <select className="ce-input" value={filtros.corretor} onChange={setF("corretor")}>
             <option value="">Corretor (todos)</option>
             {opcoes.corretores.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
