@@ -1,5 +1,9 @@
 from flask import request, send_file, current_app
 from flask_restx import Namespace, Resource
+from sqlalchemy import func
+
+from app.database import SessionLocal
+from app.models.usuarios import Usuarios
 
 from app.services.rela_gerentes_service import (
     dashboard_gerente,
@@ -17,6 +21,8 @@ from app.services.rela_gerentes_service import (
     dashboard_equipes,
     gerar_pdf_equipes_download,
     gestao_clientes_visitas,
+    evolucao_visitas_gerente,
+    opcoes_evolucao_visitas,
 )
 from app.services.cliente_acao_service import (
     atualizar_acao_cliente,
@@ -27,6 +33,28 @@ gerente_dashboard_ns = Namespace(
     "gerente_dashboard",
     description="Dashboard consolidado de gerentes e corretores",
 )
+
+
+def _diretor_ativo(usuario_id):
+    usuario_id = (usuario_id or "").strip()
+    if not usuario_id:
+        return False
+    session = SessionLocal()
+    try:
+        return session.query(Usuarios.id_usuarios).filter(
+            Usuarios.id_usuarios == usuario_id,
+            Usuarios.ativo.is_(True),
+            func.lower(Usuarios.permissao) == "diretor",
+        ).first() is not None
+    finally:
+        session.close()
+
+
+def _escopo_evolucao_visitas(id_gerente):
+    solicitou_todas = (request.args.get("solicitante_permissao") or "").strip().lower() == "diretor"
+    if solicitou_todas and not _diretor_ativo(id_gerente):
+        return False, ({"ok": False, "error": "Apenas diretores podem consultar todas as equipes"}, 403)
+    return solicitou_todas, None
 
 @gerente_dashboard_ns.route("/imoveis")
 class ImoveisGerente(Resource):
@@ -196,6 +224,55 @@ class SerieGerente(Resource):
 
         except Exception as e:
             current_app.logger.exception("Erro ao gerar série do gerente")
+            return {"ok": False, "error": str(e)}, 500
+
+
+@gerente_dashboard_ns.route("/visitas/evolucao/opcoes")
+class OpcoesEvolucaoVisitasGerente(Resource):
+    def get(self):
+        try:
+            id_gerente = (request.args.get("id_gerente") or "").strip()
+            todas_equipes, erro_escopo = _escopo_evolucao_visitas(id_gerente)
+            if erro_escopo:
+                return erro_escopo
+            if not id_gerente and not todas_equipes:
+                return {"ok": False, "error": "id_gerente e obrigatorio"}, 400
+            return opcoes_evolucao_visitas(id_gerente, todas_equipes=todas_equipes), 200
+        except Exception as e:
+            current_app.logger.exception("Erro nas opcoes da evolucao de visitas")
+            return {"ok": False, "error": str(e)}, 500
+
+
+@gerente_dashboard_ns.route("/visitas/evolucao")
+class EvolucaoVisitasGerente(Resource):
+    def get(self):
+        try:
+            id_gerente = (request.args.get("id_gerente") or "").strip()
+            todas_equipes, erro_escopo = _escopo_evolucao_visitas(id_gerente)
+            if erro_escopo:
+                return erro_escopo
+            if not id_gerente and not todas_equipes:
+                return {"ok": False, "error": "id_gerente e obrigatorio"}, 400
+            filtros = {
+                "equipe": (request.args.get("equipe") or "").strip(),
+                "corretor": (request.args.get("corretor") or "").strip(),
+                "proposta": (request.args.get("proposta") or "").strip(),
+                "quartos": (request.args.get("quartos") or "").strip(),
+                "cliente": (request.args.get("cliente") or "").strip(),
+                "imovel": (request.args.get("imovel") or "").strip(),
+                "tipo_captacao": (request.args.get("tipo_captacao") or "").strip(),
+                "com_parceiro": (request.args.get("com_parceiro") or "").strip(),
+            }
+            return evolucao_visitas_gerente(
+                id_gerente=id_gerente,
+                dimensao=request.args.get("dimensao") or "corretor",
+                start=(request.args.get("start") or "").strip() or None,
+                end=(request.args.get("end") or "").strip() or None,
+                filtros=filtros,
+                todas_equipes=todas_equipes,
+            ), 200
+        except Exception as e:
+            current_app.logger.exception("Erro na evolucao de visitas")
             return {"ok": False, "error": str(e)}, 500
 
 

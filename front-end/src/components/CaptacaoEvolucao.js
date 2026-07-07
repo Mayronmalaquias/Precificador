@@ -3,7 +3,7 @@ import { BASE } from "../services/api";
 import { useToast } from "../context/ToastContext";
 import "../assets/css/captacaoEvolucao.css";
 
-const CORES = [
+export const CORES = [
   "#e1005b", "#2563eb", "#16a34a", "#d97706", "#7c3aed", "#0891b2", "#dc2626",
   "#059669", "#db2777", "#4f46e5", "#ca8a04", "#0d9488", "#9333ea",
 ];
@@ -19,7 +19,7 @@ const fmtDataCurta = (iso) => {
 };
 
 // ---- Gráfico de linha SVG interativo ----
-function LineChart({ datas, series, cores }) {
+export function LineChart({ datas, series, cores }) {
   const W = 820, H = 360, padL = 46, padR = 16, padT = 16, padB = 34;
   const svgRef = useRef(null);
   const [hover, setHover] = useState(null); // índice
@@ -105,7 +105,7 @@ const DIAS_SEM = ["D", "S", "T", "Q", "Q", "S", "S"];
 const MES_NOME = ["", "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
 
 // Barras do mês divididas em semanas (D S T Q Q S S), com números e médias.
-function BarrasSemanas({ mes, totalPorData }) {
+export function BarrasSemanas({ mes, totalPorData }) {
   const [ano, m] = mes.split("-").map(Number);
   const nDias = new Date(ano, m, 0).getDate();
   const dias = [];

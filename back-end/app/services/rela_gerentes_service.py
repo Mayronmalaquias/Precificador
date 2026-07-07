@@ -5,7 +5,7 @@ import logging
 import os
 import time
 from collections import Counter, defaultdict
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
 from threading import Lock
 from typing import Any, Dict, List, Optional, Tuple, TypedDict
 
@@ -13,6 +13,8 @@ from dotenv import load_dotenv
 from googleapiclient.errors import HttpError
 from app.services.usuarios_service import retornar_lista
 from app.services.cliente_acao_service import listar_acoes_clientes
+from app.database import SessionLocal
+from app.models.imovel import Imovel
 
 load_dotenv()
 logger = logging.getLogger(__name__)
@@ -27,6 +29,9 @@ _TIPOS_RANKING_VALIDOS = frozenset({"visitas", "clientes"})
 _TIPO_RANKING_PADRAO = "visitas"
 _AGRUPAMENTOS_VALIDOS = frozenset({"dia", "semana", "mes"})
 _AGRUPAMENTO_PADRAO = "dia"
+_DIMENSOES_EVOLUCAO_VISITAS = frozenset({
+    "total", "equipe", "corretor", "proposta", "quartos", "cliente", "imovel", "tipo_captacao",
+})
 
 # ---------------------------------------------------------------------------
 # Importações reutilizadas do visita_service
@@ -62,6 +67,10 @@ _cache_lock = Lock()
 _cache_data: Optional[Dict[str, List[Dict[str, Any]]]] = None
 _cache_expires: float = 0.0
 _CACHE_TTL_SECONDS = 300
+_quartos_cache_lock = Lock()
+_quartos_cache: Dict[str, Optional[int]] = {}
+_quartos_cache_expires: float = 0.0
+_QUARTOS_CACHE_TTL_SECONDS = 3600
 
 
 # ---------------------------------------------------------------------------
@@ -1266,6 +1275,286 @@ def ranking_corretores_do_gerente(
         }
         for idx, item in enumerate(ranking, start=1)
     ]
+
+
+def _quartos_por_codigo(codigos: set) -> Dict[str, int]:
+    """Retorna o numero de quartos do anuncio mais recente de cada codigo."""
+    global _quartos_cache, _quartos_cache_expires
+    codigos = {_safe_str(c) for c in codigos if _safe_str(c)}
+    if not codigos:
+        return {}
+
+    with _quartos_cache_lock:
+        if time.time() >= _quartos_cache_expires:
+            _quartos_cache = {}
+            _quartos_cache_expires = time.time() + _QUARTOS_CACHE_TTL_SECONDS
+        faltantes = codigos.difference(_quartos_cache)
+        if faltantes:
+            session = SessionLocal()
+            try:
+                rows = (
+                    session.query(Imovel.codigo, Imovel.quartos)
+                    .filter(
+                        Imovel.codigo.in_(sorted(faltantes)),
+                        Imovel.quartos.isnot(None),
+                        Imovel.quartos >= 0,
+                        Imovel.quartos <= 20,
+                    )
+                    .distinct(Imovel.codigo)
+                    .order_by(
+                        Imovel.codigo,
+                        Imovel.data_coleta.desc().nullslast(),
+                        Imovel.id.desc(),
+                    )
+                    .all()
+                )
+                encontrados = {_safe_str(codigo): int(quartos) for codigo, quartos in rows}
+                for codigo in faltantes:
+                    _quartos_cache[codigo] = encontrados.get(codigo)
+            finally:
+                session.close()
+        return {
+            codigo: quartos
+            for codigo in codigos
+            if (quartos := _quartos_cache.get(codigo)) is not None
+        }
+
+
+def _faixa_quartos(quartos: Optional[int]) -> Tuple[str, str]:
+    if quartos is None:
+        return "nao_informado", "Não informado"
+    if quartos >= 5:
+        return "5+", "5+ quartos"
+    return str(quartos), f"{quartos} quarto" if quartos == 1 else f"{quartos} quartos"
+
+
+def _visitas_evolucao_base(
+    id_gerente: str,
+    start: Optional[str] = None,
+    end: Optional[str] = None,
+    filtros: Optional[Dict[str, Any]] = None,
+    carregar_quartos: bool = True,
+    todas_equipes: bool = False,
+) -> List[Dict[str, Any]]:
+    filtros = filtros or {}
+    data = _load_visitas_base()
+    maps = _build_maps(data)
+    corretor_map = maps["corretor_map"]
+    gerente_map = maps["gerente_map"]
+    cliente_map = maps["cliente_map"]
+    clientes_por_visita = maps["clientes_por_visita"]
+
+    scoped: List[Tuple[Dict[str, Any], Dict[str, Any], datetime]] = []
+    codigos = set()
+    for visita in data.get("Fato_Visitas", []):
+        id_corretor = _safe_str(visita.get("Id_Corretor"))
+        corretor = corretor_map.get(id_corretor)
+        if not corretor:
+            continue
+        equipe_id = _safe_str(corretor.get("IdGerente"))
+        if not todas_equipes and equipe_id != _safe_str(id_gerente):
+            continue
+        if not _in_period(visita.get("Data_Visita"), start, end):
+            continue
+        dt = _parse_date_any(visita.get("Data_Visita"))
+        if not dt:
+            continue
+        scoped.append((visita, corretor, dt))
+        codigos.add(_safe_str(visita.get("Id_Imovel")))
+
+    quartos_map = _quartos_por_codigo(codigos) if carregar_quartos else {}
+    resultado = []
+    for visita, corretor, dt in scoped:
+        visita_id = _safe_str(visita.get("Id_Visita"))
+        id_corretor = _safe_str(visita.get("Id_Corretor"))
+        equipe_id = _safe_str(corretor.get("IdGerente"))
+        gerente = gerente_map.get(equipe_id) or {}
+        equipe = _safe_str(gerente.get("Equipe")) or _safe_str(gerente.get("Nome")) or equipe_id or "Sem equipe"
+        id_imovel = _safe_str(visita.get("Id_Imovel"))
+        proposta = _safe_str(visita.get("Proposta")) or "Sem proposta"
+        tipo_captacao = _safe_str(visita.get("Tipo_Captacao")) or "Nao informado"
+        quartos = quartos_map.get(id_imovel)
+        quartos_value, quartos_label = _faixa_quartos(quartos)
+
+        clientes = []
+        for ligacao in clientes_por_visita.get(visita_id, []):
+            cliente_id = _safe_str(ligacao.get("Id_Cliente"))
+            cliente = cliente_map.get(cliente_id) or {}
+            if cliente_id and not any(c["id"] == cliente_id for c in clientes):
+                clientes.append({
+                    "id": cliente_id,
+                    "nome": _safe_str(cliente.get("Nome_Cliente")) or cliente_id,
+                })
+
+        if filtros.get("corretor") and id_corretor != _safe_str(filtros["corretor"]):
+            continue
+        if filtros.get("equipe") and equipe_id != _safe_str(filtros["equipe"]):
+            continue
+        if filtros.get("proposta") and _norm_key(proposta) != _norm_key(filtros["proposta"]):
+            continue
+        if filtros.get("quartos") and quartos_value != _safe_str(filtros["quartos"]):
+            continue
+        if filtros.get("cliente") and not any(c["id"] == _safe_str(filtros["cliente"]) for c in clientes):
+            continue
+        if filtros.get("tipo_captacao") and _norm_key(tipo_captacao) != _norm_key(filtros["tipo_captacao"]):
+            continue
+        if filtros.get("imovel"):
+            texto_imovel = " ".join([id_imovel, _safe_str(visita.get("Endereco_Externo"))])
+            if _norm_key(filtros["imovel"]) not in _norm_key(texto_imovel):
+                continue
+        if filtros.get("com_parceiro") in {"sim", "nao"}:
+            esperado = filtros["com_parceiro"] == "sim"
+            if _is_true(visita.get("Visita_Com_Parceiro")) != esperado:
+                continue
+
+        resultado.append({
+            "data": dt.strftime("%Y-%m-%d"),
+            "id_visita": visita_id,
+            "id_corretor": id_corretor,
+            "corretor": _safe_str(corretor.get("Nome")) or id_corretor,
+            "equipe_id": equipe_id,
+            "equipe": equipe,
+            "id_imovel": id_imovel,
+            "imovel": id_imovel or _safe_str(visita.get("Endereco_Externo")) or "Sem imovel",
+            "proposta": proposta,
+            "tipo_captacao": tipo_captacao,
+            "quartos_value": quartos_value,
+            "quartos_label": quartos_label,
+            "clientes": clientes,
+            "com_parceiro": _is_true(visita.get("Visita_Com_Parceiro")),
+        })
+    return resultado
+
+
+def opcoes_evolucao_visitas(id_gerente: str, todas_equipes: bool = False) -> Dict[str, Any]:
+    visitas = _visitas_evolucao_base(
+        id_gerente,
+        carregar_quartos=False,
+        todas_equipes=todas_equipes,
+    )
+    equipes = {}
+    corretores = {}
+    clientes = {}
+    propostas = set()
+    tipos_captacao = set()
+    for visita in visitas:
+        equipes[visita["equipe_id"]] = visita["equipe"]
+        corretores[visita["id_corretor"]] = {
+            "label": visita["corretor"],
+            "equipe": visita["equipe_id"],
+        }
+        propostas.add(visita["proposta"])
+        tipos_captacao.add(visita["tipo_captacao"])
+        for cliente in visita["clientes"]:
+            clientes[cliente["id"]] = cliente["nome"]
+
+    as_options = lambda values: [
+        {"value": value, "label": label}
+        for value, label in sorted(values.items(), key=lambda item: _norm_key(item[1]))
+    ]
+    return {
+        "ok": True,
+        "equipes": as_options(equipes),
+        "corretores": [
+            {"value": value, "label": meta["label"], "equipe": meta["equipe"]}
+            for value, meta in sorted(corretores.items(), key=lambda item: _norm_key(item[1]["label"]))
+        ],
+        "clientes": as_options(clientes),
+        "propostas": [{"value": v, "label": v} for v in sorted(propostas, key=_norm_key)],
+        "tipos_captacao": [{"value": v, "label": v} for v in sorted(tipos_captacao, key=_norm_key)],
+        "quartos": [
+            {"value": "0", "label": "0 quartos"},
+            {"value": "1", "label": "1 quarto"},
+            {"value": "2", "label": "2 quartos"},
+            {"value": "3", "label": "3 quartos"},
+            {"value": "4", "label": "4 quartos"},
+            {"value": "5+", "label": "5+ quartos"},
+            {"value": "nao_informado", "label": "Não informado"},
+        ],
+    }
+
+
+def evolucao_visitas_gerente(
+    id_gerente: str,
+    dimensao: str = "corretor",
+    start: Optional[str] = None,
+    end: Optional[str] = None,
+    filtros: Optional[Dict[str, Any]] = None,
+    max_series: int = 12,
+    todas_equipes: bool = False,
+) -> Dict[str, Any]:
+    dimensao = _safe_str(dimensao).lower() or "corretor"
+    if dimensao not in _DIMENSOES_EVOLUCAO_VISITAS:
+        dimensao = "corretor"
+    visitas = _visitas_evolucao_base(
+        id_gerente,
+        start=start,
+        end=end,
+        filtros=filtros,
+        todas_equipes=todas_equipes,
+    )
+
+    series_bucket: Dict[str, Counter] = defaultdict(Counter)
+    labels: Dict[str, str] = {}
+    clientes_unicos = set()
+    propostas = 0
+    for visita in visitas:
+        clientes_unicos.update(c["id"] for c in visita["clientes"])
+        if _norm_key(visita["proposta"]) not in {_norm_key("Sem proposta"), _norm_key("Nao"), _norm_key("Não")}:
+            propostas += 1
+
+        if dimensao == "total":
+            grupos = [("total", "Visitas")]
+        elif dimensao == "cliente":
+            grupos = [(c["id"], c["nome"]) for c in visita["clientes"]] or [("sem_cliente", "Sem cliente")]
+        elif dimensao == "quartos":
+            grupos = [(visita["quartos_value"], visita["quartos_label"])]
+        elif dimensao == "imovel":
+            grupos = [(visita["imovel"], visita["imovel"])]
+        else:
+            valor = visita[dimensao]
+            grupos = [(valor, valor)]
+
+        for chave, label in grupos:
+            labels[chave] = label
+            series_bucket[chave][visita["data"]] += 1
+
+    if visitas:
+        primeira = _parse_date_any(start) or _parse_date_any(min(v["data"] for v in visitas))
+        ultima = _parse_date_any(end) or _parse_date_any(max(v["data"] for v in visitas))
+        datas = []
+        cursor = primeira.date()
+        while cursor <= ultima.date():
+            datas.append(cursor.isoformat())
+            cursor += timedelta(days=1)
+    else:
+        datas = []
+
+    ordenadas = sorted(series_bucket, key=lambda k: (-sum(series_bucket[k].values()), _norm_key(labels[k])))
+    principais = ordenadas[:max_series]
+    restantes = ordenadas[max_series:]
+    series = [
+        {"nome": labels[chave], "pontos": [series_bucket[chave].get(d, 0) for d in datas]}
+        for chave in principais
+    ]
+    if restantes:
+        series.append({
+            "nome": "Outros",
+            "pontos": [sum(series_bucket[chave].get(d, 0) for chave in restantes) for d in datas],
+        })
+
+    return {
+        "ok": True,
+        "dimensao": dimensao,
+        "datas": datas,
+        "series": series,
+        "resumo": {
+            "total_visitas": len(visitas),
+            "clientes_unicos": len(clientes_unicos),
+            "visitas_com_proposta": propostas,
+            "imoveis_unicos": len({v["id_imovel"] for v in visitas if v["id_imovel"]}),
+        },
+    }
 
 
 def serie_gerente(

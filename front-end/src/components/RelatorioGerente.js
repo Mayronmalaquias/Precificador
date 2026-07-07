@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { BASE } from '../services/api';
 import "../assets/css/RelatorioGerente.css";
 import { useToast } from '../context/ToastContext';
+import VisitasEvolucao from "./VisitasEvolucao";
 
 const CRITERIOS_AV = [
   { key: "localizacao", label: "Localização" },
@@ -60,6 +61,7 @@ function RelatorioGerente() {
   const [abaAtiva, setAbaAtiva] = useState("relatoriogerente");
   const [opcaoAtiva, setOpcaoAtiva] = useState("visaoGeral");
   const [idGerenteLogado, setIdGerenteLogado] = useState("");
+  const [permissaoLogada, setPermissaoLogada] = useState("");
 
   const hoje = new Date();
   const primeiroDiaMes = new Date(hoje.getFullYear(), hoje.getMonth(), 1)
@@ -137,6 +139,7 @@ function RelatorioGerente() {
   const opcoes = [
     { id: "visaoGeral", label: "Visão Geral", labelMobile: "Visão Geral" },
     { id: "ranking", label: "Ranking", labelMobile: "Ranking" },
+    { id: "evolucaoVisitas", label: "Evolução de Visitas", labelMobile: "Evolução" },
     { id: "visitas", label: "Visitas", labelMobile: "Visitas" },
     { id: "imoveis", label: "Imóveis", labelMobile: "Imóveis" },
     { id: "clientes", label: "Clientes", labelMobile: "Clientes" },
@@ -426,6 +429,7 @@ function RelatorioGerente() {
 
     try {
       const userData = JSON.parse(userDataString);
+      setPermissaoLogada(String(userData.permissao || "").toLowerCase());
 
       const idGerente =
         userData.idCorretor ||
@@ -2081,6 +2085,16 @@ function RelatorioGerente() {
 
       case "ranking":
         return renderConteudoRanking();
+
+      case "evolucaoVisitas":
+        return (
+          <VisitasEvolucao
+            idGerente={filtros.id_gerente}
+            dataInicial={periodoEfetivo.start}
+            dataFinal={periodoEfetivo.end}
+            todasEquipes={permissaoLogada === "diretor"}
+          />
+        );
 
       case "visitas":
         return renderTabelaVisitas();

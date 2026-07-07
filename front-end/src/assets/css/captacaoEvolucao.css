@@ -2,6 +2,7 @@
 
 .ce-controls { display: flex; flex-direction: column; gap: 10px; }
 .ce-dims { display: flex; flex-wrap: wrap; gap: 6px; }
+.ce-dims-label { display: inline-flex; align-items: center; color: #475569; font-size: 0.82rem; font-weight: 700; margin-right: 4px; }
 .ce-dim {
   border: 1px solid #e5e7eb; background: #fff; color: #6b7280;
   border-radius: 9999px; padding: 6px 16px; font-size: 0.85rem; font-weight: 600; cursor: pointer;
@@ -49,3 +50,26 @@
 .ce-bars svg { width:100%; height:auto; }
 
 .ce-equipe-fixa { display:inline-flex; align-items:center; background:#f1f5f9; color:#334155; font-weight:600; border:1px solid #e5e7eb; }
+
+.ve-wrap { min-width: 0; }
+.ve-resumo {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(130px, 1fr));
+  gap: 12px;
+  margin-bottom: 2px;
+}
+.ve-resumo > div {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 14px 16px;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+}
+.ve-resumo span { color: #64748b; font-size: 12px; font-weight: 600; }
+.ve-resumo strong { color: #111827; font-size: 24px; }
+
+@media (max-width: 760px) {
+  .ve-resumo { grid-template-columns: repeat(2, minmax(120px, 1fr)); }
+}
