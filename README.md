@@ -1,79 +1,82 @@
-# Projeto Full Stack com Docker Compose
+# Inteligência Imobiliária 61 — Precificador
 
-Este projeto utiliza Docker Compose para orquestrar dois contêineres principais:
-
-* Um **back-end** em Flask (com suporte a clusterização via KMeans)
-* Um **front-end** (React)
-
-## 🔧 Tecnologias Utilizadas
-
-* Docker & Docker Compose
-* Flask + Gunicorn (back-end)
-* Front-end em React (ou outra tecnologia web)
-* Flask-RESTx, SQLAlchemy, Pandas, Scikit-Learn, entre outras libs Python
-
-## 📁 Estrutura do Projeto
+Plataforma full-stack da Imobiliária 61. Junta um **site público** (precificação de imóveis
+por mercado + captura de leads + assistente de IA) e uma **plataforma interna** para
+corretores, gerentes e administração: jornada de captação, relatórios de visita,
+vendas/comissão, rankings, RH e gestão de bases (BI).
 
 ```
-/
-├── docker-compose.yml
-├── back-end/
-│   ├── Dockerfile
-│   └── (código Python Flask)
-├── front-end/
-│   ├── Dockerfile
-│   └── (código do front-end)
+┌──────────────┐      HTTP /api/v1      ┌──────────────┐      SQLAlchemy      ┌──────────────┐
+│  front-end   │ ─────────────────────▶ │   back-end   │ ───────────────────▶ │  PostgreSQL  │
+│  React 19    │ ◀───────────────────── │  Flask API   │ ◀─────────────────── │  (AWS RDS)   │
+└──────────────┘                        └──────────────┘                      └──────────────┘
+        │                                       │
+        │                              Imoview · Google (Sheets/Drive) · Anthropic (Claude)
 ```
 
-## ▶️ Como Rodar o Projeto com Docker Compose
+## Componentes
 
-### 1. Clone o repositório e entre no diretório raiz:
+| Parte | Stack | Doc |
+|---|---|---|
+| **Back-end** | Flask + Flask-RESTx, SQLAlchemy, Pandas/scikit-learn (KMeans), fpdf2/folium | [`back-end/README.md`](back-end/README.md) |
+| **Front-end** | React 19 + react-router-dom 7, Context API | [`front-end/README.md`](front-end/README.md) |
+| **Banco** | PostgreSQL `coleta_imobiliaria` (47 tabelas, 7 domínios) | [`MAPA_BANCO.md`](MAPA_BANCO.md) · [`DIAGRAMA_BANCO.md`](DIAGRAMA_BANCO.md) |
 
-```bash
-git clone https://github.com/seu-usuario/seu-projeto.git
-cd seu-projeto
-```
+## O que o sistema faz
 
-### 2. (Opcional) Crie um arquivo `.env` com variáveis para o back-end:
+- **Precificação** — sugere faixa de venda/aluguel por bairro, tipo, quartos e cluster (KMeans
+  sobre a base de scraping de portais).
+- **Captação** — jornada do corretor por etapas, com histórico, exclusividade e evolução.
+- **Visitas** — lançamento, clientes/parceiros e geração de PDF (salvo no Google Drive).
+- **Vendas & comissão** — dashboard de contratos (2015→hoje) e divisão manual de comissão.
+- **Rankings** — VGV, VGC, captação e visitas, por corretor e equipe.
+- **RH & gestão** — CRUD de usuários, RH de equipe, gestão de bases (importação de planilhas).
+- **IA** — assistente "Sofia" (Claude) no site público.
 
-```
-DATABASE_URL=postgresql://usuario:senha@host:porta/banco
-OPENAI_API_KEY=sua-chave
-```
+Identidade de negócio: pessoa = `usuarios.id_usuarios` (`C61xxx`); equipe = `equipes.id_equipe`
+(`G61xxx`). Detalhes em [`MAPA_BANCO.md`](MAPA_BANCO.md).
 
-### 3. Construa e suba os containers:
+## Rodando
+
+### Docker (raiz)
 
 ```bash
 docker-compose up --build
+# front → http://localhost:3000   ·   API → http://localhost:5000  (Swagger em /docs)
 ```
 
-O front-end estará acessível em: [http://localhost:3000](http://localhost:3000)
-O back-end (API Flask) em: [http://localhost:5000](http://localhost:5000)
+### Local (sem Docker)
 
-## 🔄 Reiniciar sem reconstruir:
+Back-end e front-end têm instruções próprias — ver os READMEs de cada pasta.
 
 ```bash
-docker-compose up
+# back-end
+cd back-end && python -m venv venv && source venv/bin/activate
+pip install -r requirements.txt && python run.py
+
+# front-end (outro terminal)
+cd front-end && npm install && npm start
 ```
 
-Para subir em segundo plano:
+## Produção
+
+Back-end em VM via serviço systemd `precificador`; front servido como estático (mesma origem
+da API). Deploy:
 
 ```bash
-docker-compose up -d
+git pull origin dev_miron
+sudo systemctl restart precificador
+sudo journalctl -u precificador -n 100 --no-pager
 ```
 
-## ❌ Parar os containers:
+## Estrutura
 
-```bash
-docker-compose down
 ```
-
-## 📌 Observações
-
-* O `depends_on` garante que o front-end só inicie após o back-end estar disponível.
-* Certifique-se de que os ports `3000` (frontend) e `5000` (backend) estejam livres.
-* Adapte os caminhos dos `Dockerfile` e `context` conforme a estrutura real do seu projeto.
-
-## 📄 Licença
-
-Este projeto está licenciado sob os termos da **MIT License**.
+/
+├── back-end/          # API Flask (routes, services, models, migrations, sql)
+├── front-end/         # SPA React
+├── legado/            # material/documentação legada
+├── MAPA_BANCO.md      # inventário do banco + plano de normalização
+├── DIAGRAMA_BANCO.md  # diagrama ER (Mermaid)
+└── docker-compose.yml
+```

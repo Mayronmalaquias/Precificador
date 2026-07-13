@@ -535,15 +535,15 @@ class RankingService:
             vendedores = {n for n in vendedores if n}
             captadores = {n for n in captadores if n}
 
-            if vendedores:
-                por_vendedor = valor_imovel / len(vendedores)
-                for nome in vendedores:
-                    acc[nome] = acc.get(nome, 0.0) + por_vendedor
+            # NAO duplica quando a pessoa e vendedor E captador no mesmo contrato
+            # -> conta 1x (max dos lados). Ex: 1M vendedor+captador = 1M.
+            por_vendedor = valor_imovel / len(vendedores) if vendedores else 0.0
+            por_captador = valor_imovel / len(captadores) if captadores else 0.0
 
-            if captadores:
-                por_captador = valor_imovel / len(captadores)
-                for nome in captadores:
-                    acc[nome] = acc.get(nome, 0.0) + por_captador
+            for nome in (vendedores | captadores):
+                share_v = por_vendedor if nome in vendedores else 0.0
+                share_c = por_captador if nome in captadores else 0.0
+                acc[nome] = acc.get(nome, 0.0) + max(share_v, share_c)
 
         return self._finalize_rank_df(acc)
 
