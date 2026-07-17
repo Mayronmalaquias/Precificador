@@ -71,7 +71,7 @@
   display: flex;
   align-items: center;
   gap: 14px;
-  flex: 1;
+  flex: 0 0 auto;
   justify-content: flex-end;
   min-width: 0;
 }
@@ -82,6 +82,22 @@
   align-items: center;
   gap: 10px;
   position: relative;
+}
+
+/* barra de atalhos (Parcerias / 61Financeiro / Experts) */
+.brand-area {
+  margin-right: auto;
+}
+
+.atalhos-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.nav-atalho {
+  font-weight: 600;
+  flex: 0 0 auto;
 }
 
 .nav-link {
@@ -352,10 +368,10 @@
 
 @media (max-width: 640px) {
   .app-header {
-    padding: 8px 12px;
+    padding: 8px 12px 10px;
     gap: 8px;
     flex-direction: row;
-    flex-wrap: nowrap;
+    flex-wrap: wrap;
     align-items: center;
   }
 
@@ -363,6 +379,7 @@
     gap: 8px;
     min-width: 0;
     flex-shrink: 1;
+    order: 1;
   }
 
   .brand-icon {
@@ -381,15 +398,46 @@
     display: none;
   }
 
+  .brand-text {
+    min-width: 0;
+    overflow: hidden;
+  }
+
   .brand-text h1 {
     font-size: 0.95rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
   .header-right {
-    flex: 1;
+    flex: 0 0 auto;
     justify-content: flex-end;
     gap: 8px;
     min-width: 0;
+    order: 2;
+  }
+
+  /* atalhos viram tira rolável na 2ª linha */
+  .atalhos-bar {
+    order: 3;
+    flex-basis: 100%;
+    width: 100%;
+    max-width: 100%;
+    margin: 2px 0 0;
+    padding: 0 0 2px;
+    gap: 8px;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+  .atalhos-bar::-webkit-scrollbar {
+    display: none;
+  }
+
+  .nav-atalho {
+    padding: 6px 12px;
+    font-size: 0.82rem;
   }
 
   .services-button {

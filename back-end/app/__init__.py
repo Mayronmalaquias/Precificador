@@ -41,6 +41,7 @@ def create_app(config_object=Config):
     from app.routes.graph_routes import graph_ns
     from app.routes.imovel_rel_route import imovel_catalogo_ns
     from app.routes.mapa_routes import mapa_ns
+    from app.routes.parcerias_routes import parcerias_ns
     from app.routes.ranking_routes import meta_gerente_bp, ranking_ns
     from app.routes.relatorio_visita_route import relatorio_visita
     from app.routes.report_routes import report_ns
@@ -63,6 +64,7 @@ def create_app(config_object=Config):
     api.add_namespace(visita_ns, path=api_prefix)
     api.add_namespace(captacao_ns, path=api_prefix)
     api.add_namespace(ranking_ns, path=api_prefix)
+    api.add_namespace(parcerias_ns, path=api_prefix)
     api.add_namespace(chat_ns, path=api_prefix)
     api.add_namespace(admin_bases_ns, path=api_prefix)
     api.add_namespace(vendas_ns, path=api_prefix)

@@ -507,11 +507,13 @@ class RankingService:
     def _calc_vgv_geral_algoritmo(self, vendas: pd.DataFrame) -> pd.DataFrame:
         """
         REGRA OFICIAL:
-        - vendedores dividem Valor_Negocio entre si
-        - captadores dividem Valor_Negocio entre si (independente dos vendedores)
-        - 1v+1c: ambos recebem 1x Valor_Negocio
-        - 2v+1c: cada vendedor recebe 1/2, captador recebe 1x
-        - 1v+2c: vendedor recebe 1x, cada captador recebe 1/2
+        - cada lado divide o Valor_Negocio CHEIO entre seus membros
+        - venda e captacao sao independentes (sem split 50/50 entre lados)
+        - quem e vendedor E captador no mesmo contrato conta 1x (max das partes)
+        - 1v+1c (distintos): cada um recebe o valor cheio
+        - 2v+1c: cada vendedor recebe 1/2, captador recebe cheio
+        - 1v+2c: vendedor recebe cheio, cada captador recebe 1/2
+        - valor NAO e conservado: soma pode chegar a 2x o Valor_Negocio
         """
         if vendas.empty:
             return pd.DataFrame(columns=["Id_Corretor", "Nome_Corretor", "total"])
@@ -535,10 +537,15 @@ class RankingService:
             vendedores = {n for n in vendedores if n}
             captadores = {n for n in captadores if n}
 
-            # NAO duplica quando a pessoa e vendedor E captador no mesmo contrato
-            # -> conta 1x (max dos lados). Ex: 1M vendedor+captador = 1M.
-            por_vendedor = valor_imovel / len(vendedores) if vendedores else 0.0
-            por_captador = valor_imovel / len(captadores) if captadores else 0.0
+            # Cada lado divide o Valor_Negocio CHEIO entre seus membros; venda e
+            # captacao sao independentes (nao ha split 50/50). Quem esta nos dois
+            # lados conta 1x (max das partes). Ex: 3M, 1v+2c => vend 3M, cada
+            # captador 1.5M. Valor NAO e conservado (pode somar ate 2x).
+            if not (vendedores or captadores):
+                continue
+
+            por_vendedor = (valor_imovel / len(vendedores)) if vendedores else 0.0
+            por_captador = (valor_imovel / len(captadores)) if captadores else 0.0
 
             for nome in (vendedores | captadores):
                 share_v = por_vendedor if nome in vendedores else 0.0
@@ -849,24 +856,23 @@ class RankingService:
             v61 = float(row.get("Valor_Total_61", 0.0) or 0.0)
 
             # Acumula porção de cada lado em que o corretor aparece
-            vgv_corretor = 0.0
             vgc_bruto_corretor = 0.0
             vgc_fator_corretor = 0.0
 
             if is_vend and len(vendedores) > 0:
-                vgv_corretor += vn / len(vendedores)
                 if v61 > 0:
                     vgc_bruto_corretor += (v61 / n_lados) / len(vendedores)
                     vgc_fator_corretor += (v61 / 0.06 / n_lados) / len(vendedores)
 
             if is_cap and len(captadores) > 0:
-                vgv_corretor += vn / len(captadores)
                 if v61 > 0:
                     vgc_bruto_corretor += (v61 / n_lados) / len(captadores)
                     vgc_fator_corretor += (v61 / 0.06 / n_lados) / len(captadores)
 
-            # VGV (parte): NAO duplica quando a pessoa e vendedor E captador no mesmo
-            # contrato -> conta 1x (max dos lados). Ex: 1M vendedor+captador = 1M.
+            # VGV (parte): cada lado divide o Valor_Negocio CHEIO entre seus
+            # membros (venda e captacao independentes). Quem esta nos dois lados
+            # conta 1x (max). Casa com o ranking. Ex: 3M, 1v+2c => vend 3M,
+            # cada captador 1.5M.
             share_vend_vn = (vn / len(vendedores)) if (is_vend and vendedores) else 0.0
             share_cap_vn = (vn / len(captadores)) if (is_cap and captadores) else 0.0
             vgv_part = max(share_vend_vn, share_cap_vn)
@@ -877,7 +883,7 @@ class RankingService:
 
             # Relatorio UNIFICADO (sem diferenciar VGV/VGC): inclui se a pessoa
             # participou de qualquer lado. valor_corretor mantido p/ compatibilidade.
-            valor_corretor = vgc_bruto_corretor if kind == "vgc_geral" else vgv_corretor
+            valor_corretor = vgc_bruto_corretor if kind == "vgc_geral" else vgv_part
             if vgv_part <= 0 and vgc_part <= 0:
                 continue
 

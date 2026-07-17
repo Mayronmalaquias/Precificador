@@ -19,6 +19,7 @@ import FormVisita from './components/FormVisita';
 import AppVisita from './components/FormVisitaApp';
 import NovaVisita from './components/NovaVisita';
 import Experts from './components/Experts';
+import Parcerias from './components/Parcerias';
 import Ranking from './components/Ranking';
 import FormComissao from './components/FormComissao';
 import Financiamento from './components/CalculoFinanciamento';
@@ -62,6 +63,10 @@ function App() {
                 <Route path="/login" element={<Login />} />
                 <Route path="/RecuperarSenha" element={<RecuperarSenha />} />
                 <Route path="/Experts" element={<Experts />} />
+                <Route
+                  path="/Parcerias"
+                  element={<PrivateRoute><Parcerias /></PrivateRoute>}
+                />
                 <Route path="/61Financiamento" element={<Financiamento />} />
                 <Route path="/verificarImovel" element={<ReporteImovel />} />
                 <Route path="/enviarVisita" element={<FormVisita />} />

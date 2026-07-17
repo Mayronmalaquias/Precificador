@@ -435,3 +435,21 @@
   font-weight: 700;
   color: var(--ds-text);
 }
+
+/* ── Parcerias (CRUD admin) ── */
+.ab-par-checks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 18px;
+  margin: 12px 0 4px;
+}
+.ab-par-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 14px;
+}
+.ab-add .ab-muted {
+  align-self: center;
+  white-space: nowrap;
+  font-size: 0.85rem;
+}

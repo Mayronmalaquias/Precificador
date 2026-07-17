@@ -29,6 +29,7 @@ const ABAS = [
   { id: "cadastros", label: "Tipos / Bairros" },
   { id: "venda", label: "Venda" },
   { id: "destaque", label: "Destaque" },
+  { id: "parcerias", label: "Parcerias" },
 ];
 
 function AdminBases() {
@@ -60,6 +61,7 @@ function AdminBases() {
           {aba === "cadastros" && <AbaCadastros />}
           {aba === "venda" && <AbaVenda />}
           {aba === "destaque" && <AbaDestaque />}
+          {aba === "parcerias" && <AbaParcerias />}
         </div>
       </div>
     </div>
@@ -817,6 +819,156 @@ function AbaDestaque() {
       </button>
     </div>
    </div>
+  );
+}
+
+/* ============================================================
+   PARCERIAS (CRUD: adicionar / editar / remover)
+   ============================================================ */
+function AbaParcerias() {
+  const toast = useNotify();
+  const vazio = { nome: "", percentual: "", faz_parceria: true, tem_contrato: false, observacao: "" };
+  const [items, setItems] = useState([]);
+  const [f, setF] = useState(vazio);
+  const [editId, setEditId] = useState(null);
+  const [busca, setBusca] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  const set = (k) => (e) =>
+    setF((p) => ({ ...p, [k]: e.target.type === "checkbox" ? e.target.checked : e.target.value }));
+
+  const carregar = useCallback(async () => {
+    try {
+      const res = await api.get("/parcerias");
+      setItems(res.items || []);
+    } catch (e) {
+      toast.error(e.message);
+    }
+  }, [toast]);
+
+  useEffect(() => { carregar(); }, [carregar]);
+
+  const resetar = () => { setF(vazio); setEditId(null); };
+
+  const salvar = async () => {
+    if (!f.nome.trim()) { toast.error("Nome é obrigatório"); return; }
+    setLoading(true);
+    try {
+      const body = {
+        nome: f.nome.trim(),
+        percentual: f.faz_parceria ? f.percentual.trim() : "",
+        faz_parceria: f.faz_parceria,
+        tem_contrato: f.tem_contrato,
+        observacao: f.observacao.trim(),
+      };
+      const res = editId
+        ? await api.put(`/parcerias/${editId}`, body)
+        : await api.post("/parcerias", body);
+      if (res.ok === false) throw new Error(res.error || "Erro ao salvar");
+      toast.success(editId ? "Parceria atualizada" : "Parceria adicionada");
+      resetar();
+      carregar();
+    } catch (e) {
+      toast.error(e.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const editar = (p) => {
+    setEditId(p.id);
+    setF({
+      nome: p.nome || "",
+      percentual: p.percentual || "",
+      faz_parceria: !!p.faz_parceria,
+      tem_contrato: !!p.tem_contrato,
+      observacao: p.observacao || "",
+    });
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
+  const excluir = async (p) => {
+    if (!window.confirm(`Excluir a parceria "${p.nome}"?`)) return;
+    try {
+      const res = await api.delete(`/parcerias/${p.id}`);
+      if (res.ok === false) throw new Error(res.error || "Erro ao excluir");
+      toast.success("Parceria removida");
+      if (editId === p.id) resetar();
+      carregar();
+    } catch (e) { toast.error(e.message); }
+  };
+
+  const lista = items.filter(
+    (p) => !busca.trim() || p.nome.toLowerCase().includes(busca.trim().toLowerCase())
+  );
+
+  return (
+    <div className="ab-stack">
+      <div className="ds-card">
+        <h3>{editId ? "Editar parceria" : "Nova parceria"}</h3>
+        <div className="ds-form-row">
+          <Campo label="Nome da imobiliária/corretor*" value={f.nome} onChange={set("nome")} />
+          <Campo
+            label="Divisão (ex: 50/50, 35/65)"
+            value={f.percentual}
+            onChange={set("percentual")}
+          />
+          <Campo label="Observação" value={f.observacao} onChange={set("observacao")} />
+        </div>
+        <div className="ab-par-checks">
+          <label className="ab-check">
+            <input type="checkbox" checked={f.faz_parceria} onChange={set("faz_parceria")} /> Faz parceria
+          </label>
+          <label className="ab-check">
+            <input type="checkbox" checked={f.tem_contrato} onChange={set("tem_contrato")} /> Tem contrato
+          </label>
+        </div>
+        <div className="ab-par-actions">
+          <button className="ds-btn ds-btn-primary" onClick={salvar} disabled={loading || !f.nome.trim()}>
+            {loading ? "Salvando..." : editId ? "Salvar alterações" : "Adicionar parceria"}
+          </button>
+          {editId && (
+            <button className="ds-btn ds-btn-secondary" onClick={resetar} disabled={loading}>
+              Cancelar
+            </button>
+          )}
+        </div>
+      </div>
+
+      <div className="ds-card">
+        <div className="ab-add">
+          <input
+            className="ds-input"
+            placeholder="Buscar parceria..."
+            value={busca}
+            onChange={(e) => setBusca(e.target.value)}
+          />
+          <span className="ab-muted">{lista.length} de {items.length}</span>
+        </div>
+        <div className="ab-table-wrap">
+          <table className="ab-table">
+            <thead>
+              <tr><th>Nome</th><th>Divisão</th><th>Contrato</th><th>Obs</th><th></th></tr>
+            </thead>
+            <tbody>
+              {lista.map((p) => (
+                <tr key={p.id}>
+                  <td>{p.nome}</td>
+                  <td>{p.faz_parceria ? (p.percentual || "—") : <span className="ab-muted">Não faz</span>}</td>
+                  <td>{p.tem_contrato ? "Sim" : ""}</td>
+                  <td>{p.observacao || ""}</td>
+                  <td className="ab-acoes">
+                    <button className="ab-link" onClick={() => editar(p)}>editar</button>
+                    <button className="ab-link danger" onClick={() => excluir(p)}>excluir</button>
+                  </td>
+                </tr>
+              ))}
+              {lista.length === 0 && <tr><td colSpan={5} className="ab-empty">Nenhuma parceria</td></tr>}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
   );
 }
 

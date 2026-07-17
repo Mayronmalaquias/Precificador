@@ -60,10 +60,14 @@ function Header() {
   const getNavLinkClass = ({ isActive }) =>
     isActive ? 'nav-link active-link' : 'nav-link';
 
+  const atalhos = [
+    { to: '/Parcerias', label: 'Parcerias', end: false, show: isLogado },
+    { to: '/61Financiamento', label: '61Financeiro', end: false, show: true },
+    { to: '/Experts', label: 'Experts', end: false, show: true },
+  ].filter((item) => item.show);
+
   const servicos = [
     { to: '/', label: 'Início', end: true, show: true },
-    { to: '/Experts', label: 'Experts', show: true },
-    { to: '/61Financiamento', label: '61Financeiro', show: true },
     { to: '/NovaVisita', label: 'Criar Visita', show: isLogado },
     { to: '/JornadaCaptacao?novo=1', label: 'Novo Imóvel', subtitle: 'captação', show: isLogado },
     { to: '/AppVisita', label: 'Relatório de Visita', show: isLogado },
@@ -114,6 +118,23 @@ function Header() {
           <h1>Imobiliária 61</h1>
         </div>
       </div>
+
+      {atalhos.length > 0 && (
+        <nav className="atalhos-bar" aria-label="Atalhos">
+          {atalhos.map((item) => (
+            <NavLink
+              key={item.to}
+              to={item.to}
+              end={item.end}
+              className={({ isActive }) =>
+                isActive ? 'nav-link nav-atalho active-link' : 'nav-link nav-atalho'
+              }
+            >
+              {item.label}
+            </NavLink>
+          ))}
+        </nav>
+      )}
 
       <div className="header-right">
         <nav className="main-nav">
