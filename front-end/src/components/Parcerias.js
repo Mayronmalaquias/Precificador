@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { api } from "../services/api";
+import logoWordmark from "../assets/img/logo61-wordmark.png";
 import "../assets/css/Parcerias.css";
 
 const FILTROS = [
@@ -95,7 +96,9 @@ function Parcerias() {
     <div className="pc-page">
       <div className="pc-shell">
         <header className="pc-hero">
-          <span className="pc-kicker">Imobiliária 61</span>
+          <span className="pc-logo">
+            <img src={logoWordmark} alt="61 Imóveis" />
+          </span>
           <h1>Parcerias</h1>
           <p>Imobiliárias e corretores parceiros da 61 e as regras de divisão de cada um.</p>
 

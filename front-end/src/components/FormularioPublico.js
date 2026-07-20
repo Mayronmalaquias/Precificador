@@ -348,6 +348,13 @@ const buscarDados = useCallback(() => {
                 }
               </li>
               <li className="negrito">
+                <strong>Metragem Média de Venda:</strong>
+                {erroDadosVenda ?
+                  <span style={{ color: 'red' }}> {erroDadosVenda}</span> :
+                  ` ${dadosAPI?.metragemMediaVenda != null ? dadosAPI.metragemMediaVenda.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '-'} m²`
+                }
+              </li>
+              <li className="negrito">
                 <strong>Valor de M² de Locação:</strong>
                 {erroDadosAluguel ?
                   <span style={{ color: 'red' }}> {erroDadosAluguel}</span> :
@@ -359,6 +366,13 @@ const buscarDados = useCallback(() => {
                 {erroDadosAluguel ?
                   <span style={{ color: 'red' }}> {erroDadosAluguel}</span> :
                   ` R$ ${dadosAPI2?.valorAluguelNominal != null ? dadosAPI2?.valorAluguelNominal.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '-'}`
+                }
+              </li>
+              <li className="negrito">
+                <strong>Metragem Média de Locação:</strong>
+                {erroDadosAluguel ?
+                  <span style={{ color: 'red' }}> {erroDadosAluguel}</span> :
+                  ` ${dadosAPI2?.metragemMediaAluguel != null ? dadosAPI2.metragemMediaAluguel.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '-'} m²`
                 }
               </li>
               <li><strong>Rentabilidade Média: </strong>{renderRentabilidade()}</li>

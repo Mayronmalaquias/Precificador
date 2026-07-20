@@ -47,6 +47,8 @@ class Config:
                 "http://15.228.241.137:3000",
                 "http://localhost:3000",
                 "http://127.0.0.1:3000",
+                "http://localhost:8081",
+                "http://127.0.0.1:8081",
                 "http://26.126.132.200",
                 "http://127.0.0.1",
                 "https://inteligencia61imoveis.com.br",

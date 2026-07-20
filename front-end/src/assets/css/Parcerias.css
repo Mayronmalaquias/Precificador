@@ -54,19 +54,24 @@
 }
 .pc-hero > * { position: relative; z-index: 1; }
 
-.pc-kicker {
-  display: inline-block;
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: #fff;
-  background: rgba(255, 255, 255, 0.18);
-  border: 1px solid rgba(255, 255, 255, 0.24);
-  padding: 5px 12px;
-  border-radius: 999px;
-  margin-bottom: 14px;
-  backdrop-filter: blur(6px);
+.pc-logo {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #fff;
+  padding: 11px 18px;
+  border-radius: 16px;
+  margin-bottom: 18px;
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.18);
+}
+.pc-logo img {
+  display: block;
+  height: 34px;
+  width: auto;
+}
+@media (max-width: 480px) {
+  .pc-logo { padding: 9px 15px; }
+  .pc-logo img { height: 28px; }
 }
 .pc-hero h1 {
   font-size: clamp(32px, 8vw, 48px);
