@@ -57,6 +57,15 @@ def cadastrar_usuario(username, password, team,
         session.commit()
         session.refresh(usuario)
 
+        # Ao registrar um gerente, cria/reativa a equipe dele (id_equipe = id do gerente).
+        if str(permissao or "").lower() == "gerente":
+            try:
+                from app.services.equipes_service import criar_equipe
+                criar_equipe(id_equipe=id_usuarios, nome=nome or username)
+            except Exception:
+                # não bloqueia o cadastro do gerente se a criação da equipe falhar
+                pass
+
         return usuario
 
     except IntegrityError as e:

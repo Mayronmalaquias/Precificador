@@ -3,6 +3,7 @@ import React from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
 import { ToastProvider } from './context/ToastContext';
+import { EquipesProvider } from './context/EquipesContext';
 import './assets/css/design-system.css';
 import './assets/css/Toast.css';
 import Header from './components/Header';
@@ -30,6 +31,7 @@ import ControleCorretor from './components/ControleCorretor'
 import JornadaCaptacao from './components/JornadaCaptacao'
 import GestaoClientesVisitas from './components/GestaoClientesVisitas'
 import RHUsuarios from './components/RHUsuarios'
+import GerenciarEquipes from './components/GerenciarEquipes'
 import AdminBases from './components/AdminBases'
 import Vendas from './components/Vendas'
 import GerenteRHCorretores from './components/GerenteRHCorretores'
@@ -44,6 +46,7 @@ import './assets/css/FormVisita.css';
 function App() {
   return (
     <AuthProvider>
+      <EquipesProvider>
       <ToastProvider>
         <Router>
           <div className="page">
@@ -100,6 +103,10 @@ function App() {
                   element={<AdministradorRoute><RHUsuarios /></AdministradorRoute>}
                 />
                 <Route
+                  path="/GerenciarEquipes"
+                  element={<AdministradorRoute><GerenciarEquipes /></AdministradorRoute>}
+                />
+                <Route
                   path="/GerenteRH"
                   element={<AdminRoute><GerenteRHCorretores /></AdminRoute>}
                 />
@@ -125,6 +132,7 @@ function App() {
           </div>
         </Router>
       </ToastProvider>
+      </EquipesProvider>
     </AuthProvider>
   );
 }

@@ -3,21 +3,7 @@ import "../assets/css/ControleCorretores.css";
 
 import { BASE as API_BASE } from '../services/api';
 import { useToast } from '../context/ToastContext';
-const EQUIPES_MAP = {
-  G61001: "AGEF",
-  G61002: "AGUIA",
-  G61003: "PRIME",
-  G61010: "LOTUS",
-  G61014: "NOVA UNIÃO",
-  G61015: "SENNA",
-  G61016: "LIDER",
-};
-
-const IDS_EQUIPES_VALIDOS = Object.keys(EQUIPES_MAP);
-
-function getNomeEquipe(teamId) {
-  return EQUIPES_MAP[String(teamId)] || String(teamId || "-");
-}
+import { useEquipes } from '../context/EquipesContext';
 
 async function apiFetch(path, options = {}) {
   const res = await fetch(`${API_BASE}${path}`, {
@@ -31,6 +17,7 @@ async function apiFetch(path, options = {}) {
 
 function ControleCorretores() {
   const toast = useToast();
+  const { equipesOpcoes, getNomeEquipe } = useEquipes();
   const [usuario, setUsuario] = useState(null);
   const [corretores, setCorretores] = useState([]);
   const [equipes, setEquipes] = useState([]);
@@ -96,9 +83,7 @@ function ControleCorretores() {
 
       const listaOriginal = data.lista || [];
 
-      const listaFiltrada = listaOriginal.filter((c) =>
-        IDS_EQUIPES_VALIDOS.includes(String(c.team))
-      );
+      const listaFiltrada = listaOriginal.filter((c) => String(c.team || "").trim());
 
       setCorretores(listaFiltrada);
 
@@ -292,7 +277,7 @@ function ControleCorretores() {
     }
 
     return lista;
-  }, [usuario, corretores, filtroEquipe, filtroStatus, busca, podeGerenciarTodasEquipes]);
+  }, [usuario, corretores, filtroEquipe, filtroStatus, busca, podeGerenciarTodasEquipes, getNomeEquipe]);
 
   const totalAtivos = corretoresFiltrados.filter((c) => c.ativo === true).length;
   const totalInativos = corretoresFiltrados.filter((c) => c.ativo === false).length;
@@ -596,9 +581,9 @@ function ControleCorretores() {
                                     disabled={loadingAcao === c.id_usuarios}
                                     onChange={(e) => alterarEquipe(c.id_usuarios, e.target.value)}
                                   >
-                                    {equipes.map((eq) => (
-                                      <option key={eq} value={eq}>
-                                        {getNomeEquipe(eq)}
+                                    {equipesOpcoes.map((op) => (
+                                      <option key={op.value} value={op.value}>
+                                        {op.label}
                                       </option>
                                     ))}
                                   </select>
@@ -717,9 +702,9 @@ function ControleCorretores() {
                               disabled={loadingAcao === c.id_usuarios}
                               onChange={(e) => alterarEquipe(c.id_usuarios, e.target.value)}
                             >
-                              {equipes.map((eq) => (
-                                <option key={eq} value={eq}>
-                                  {getNomeEquipe(eq)}
+                              {equipesOpcoes.map((op) => (
+                                <option key={op.value} value={op.value}>
+                                  {op.label}
                                 </option>
                               ))}
                             </select>
@@ -855,9 +840,9 @@ function ControleCorretores() {
                         }
                       >
                         <option value="">Sem equipe</option>
-                        {IDS_EQUIPES_VALIDOS.map((eq) => (
-                          <option key={eq} value={eq}>
-                            {getNomeEquipe(eq)}
+                        {equipesOpcoes.map((op) => (
+                          <option key={op.value} value={op.value}>
+                            {op.label}
                           </option>
                         ))}
                       </select>

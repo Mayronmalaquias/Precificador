@@ -2,10 +2,12 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useToast } from '../context/ToastContext';
 import { api } from '../services/api';
-import { EQUIPES_OPCOES, RH_FIELDS, emptyRhForm } from './rhFields';
+import { RH_FIELDS, emptyRhForm } from './rhFields';
+import { useEquipes } from '../context/EquipesContext';
 import PasswordInput from './PasswordInput';
 
 function Cadastro() {
+  const { equipesOpcoes } = useEquipes();
   const [formData, setFormData] = useState({
     username: '',
     password: '',
@@ -106,7 +108,7 @@ function Cadastro() {
               <select id="reg-team" className="ds-input ds-select" name="team"
                 value={formData.team} onChange={handleChange} required disabled={loading}>
                 <option value="">Selecione...</option>
-                {EQUIPES_OPCOES.map((equipe) => (
+                {equipesOpcoes.map((equipe) => (
                   <option key={equipe.value} value={equipe.value}>{equipe.label}</option>
                 ))}
               </select>

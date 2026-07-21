@@ -9,9 +9,11 @@ function Header() {
   const isAdminOuDiretor = ['administrador', 'diretor'].includes(permissao);
   const profileRef = useRef(null);
   const servicosRef = useRef(null);
+  const gestaoRef = useRef(null);
 
   const [menuAberto, setMenuAberto] = useState(false);
   const [servicosAberto, setServicosAberto] = useState(false);
+  const [gestaoAberto, setGestaoAberto] = useState(false);
 
   const iniciais = useMemo(() => {
     const partes = String(nomeUsuario).trim().split(' ').filter(Boolean);
@@ -39,12 +41,17 @@ function Header() {
       if (servicosRef.current && !servicosRef.current.contains(event.target)) {
         setServicosAberto(false);
       }
+
+      if (gestaoRef.current && !gestaoRef.current.contains(event.target)) {
+        setGestaoAberto(false);
+      }
     };
 
     const handleEsc = (event) => {
       if (event.key === 'Escape') {
         setMenuAberto(false);
         setServicosAberto(false);
+        setGestaoAberto(false);
       }
     };
 
@@ -73,14 +80,18 @@ function Header() {
     { to: '/AppVisita', label: 'Relatório de Visita', show: isLogado },
     { to: '/GestaoClientes', label: 'Gestao de Clientes', show: isLogado },
     { to: '/RelatorioGerente', label: 'Relatório Gerente', show: isLogado && isAdmin },
-    { to: '/GerenteRH', label: 'RH da Equipe', show: isLogado && isAdmin },
     { to: '/ranking', label: 'Ranking', show: isLogado && isAdmin },
-    { to: '/RHUsuarios', label: 'RH Usuarios', show: isLogado && isAdministrador },
     { to: '/AdminBases', label: 'Gestão de Bases', show: isLogado && isAdminOuDiretor },
     { to: '/Vendas', label: 'Vendas', show: isLogado && isAdminOuDiretor },
-    { to: '/ControleCorretor', label: 'Controle de usuarios', show: isLogado && isAdministrador },
-    { to: '/register', label: isLogado ? 'Registrar Usuario' : 'Criar conta', show: !isLogado || isAdministrador },
     { to: '/JornadaCaptacao', label: 'Jornada Captação', show: isLogado },
+  ].filter((item) => item.show);
+
+  const gestao = [
+    { to: '/GerenteRH', label: 'Controle Equipe', show: isLogado && isAdmin },
+    { to: '/GerenciarEquipes', label: 'Equipes', show: isLogado && isAdministrador },
+    { to: '/RHUsuarios', label: 'RH Usuarios', show: isLogado && isAdministrador },
+    { to: '/ControleCorretor', label: 'Controle usuarios', show: isLogado && isAdministrador },
+    { to: '/register', label: 'Registrar Usuario', show: isLogado && isAdministrador },
   ].filter((item) => item.show);
 
   return (
@@ -175,9 +186,51 @@ function Header() {
             )}
           </div>
 
+          {gestao.length > 0 && (
+            <div
+              className={`services-dropdown ${gestaoAberto ? 'open' : ''}`}
+              ref={gestaoRef}
+            >
+              <button
+                type="button"
+                className="services-button"
+                onClick={() => setGestaoAberto((prev) => !prev)}
+                aria-expanded={gestaoAberto}
+                aria-label="Abrir menu de gestão"
+              >
+                Gestão
+                <span className={`services-chevron ${gestaoAberto ? 'open' : ''}`}>
+                  ▾
+                </span>
+              </button>
+
+              {gestaoAberto && (
+                <div className="services-menu">
+                  {gestao.map((item) => (
+                    <NavLink
+                      key={item.to}
+                      to={item.to}
+                      end={item.end}
+                      className={getNavLinkClass}
+                      onClick={() => setGestaoAberto(false)}
+                    >
+                      {item.label}
+                    </NavLink>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
           {!isLogado && (
             <NavLink to="/login" className={getNavLinkClass}>
               Login
+            </NavLink>
+          )}
+
+          {!isLogado && (
+            <NavLink to="/register" className={getNavLinkClass}>
+              Criar conta
             </NavLink>
           )}
         </nav>

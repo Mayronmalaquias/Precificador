@@ -6,8 +6,8 @@ import {
   RH_FIELDS,
   RH_REQUIRED_FIELDS,
   camposFaltantes,
-  getNomeEquipe,
 } from "./rhFields";
+import { nomeEquipe as getNomeEquipe } from "../services/equipes";
 import "../assets/css/ControleCorretores.css";
 
 const GERENTE_RH_FIELDS = RH_FIELDS.filter(

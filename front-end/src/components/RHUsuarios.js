@@ -2,12 +2,11 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { BASE as API_BASE } from "../services/api";
 import { useToast } from "../context/ToastContext";
 import {
-  EQUIPES_OPCOES,
   RH_FIELDS,
   RH_REQUIRED_FIELDS,
   camposFaltantes,
-  getNomeEquipe,
 } from "./rhFields";
+import { useEquipes } from "../context/EquipesContext";
 import "../assets/css/ControleCorretores.css";
 
 async function apiFetch(path, options = {}) {
@@ -102,6 +101,7 @@ function feriadosBrasil(ano) {
 
 function RHUsuarios() {
   const toast = useToast();
+  const { equipesOpcoes, getNomeEquipe } = useEquipes();
   const [usuario, setUsuario] = useState(null);
   const [usuarios, setUsuarios] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -160,8 +160,8 @@ function RHUsuarios() {
 
   const equipes = useMemo(() => {
     const usadas = new Set(usuarios.map((u) => String(u.team || "")).filter(Boolean));
-    return EQUIPES_OPCOES.filter((equipe) => usadas.has(equipe.value));
-  }, [usuarios]);
+    return equipesOpcoes.filter((equipe) => usadas.has(equipe.value));
+  }, [usuarios, equipesOpcoes]);
 
   const usuariosFiltrados = useMemo(() => {
     let lista = [...usuarios];
@@ -219,7 +219,7 @@ function RHUsuarios() {
   }, [
     usuarios, viewMode, filtroEquipe, filtroAtivo, filtroPermissao, filtroPendencia,
     filtroStatusRh, filtroEntradaInicio, filtroEntradaFim, filtroDesligamento,
-    filtroCreci, busca,
+    filtroCreci, busca, getNomeEquipe,
   ]);
 
   const painelRh = useMemo(() => ({
@@ -284,7 +284,7 @@ function RHUsuarios() {
     });
 
     return eventosPorDia;
-  }, [usuarios, calendarioAno]);
+  }, [usuarios, calendarioAno, getNomeEquipe]);
 
   const diasCalendario = useMemo(() => {
     const primeiroDiaMes = new Date(calendarioAno, calendarioMes, 1);
@@ -934,7 +934,7 @@ function RHUsuarios() {
                   <label className="controle-corretores__label">Equipe</label>
                   <select className="controle-corretores__select" value={editando.team || ""} onChange={(e) => setEditando((prev) => ({ ...prev, team: e.target.value }))}>
                     <option value="">Sem equipe</option>
-                    {EQUIPES_OPCOES.map((eq) => <option key={eq.value} value={eq.value}>{eq.label}</option>)}
+                    {equipesOpcoes.map((eq) => <option key={eq.value} value={eq.value}>{eq.label}</option>)}
                   </select>
                 </div>
                 <div className="controle-corretores__field">

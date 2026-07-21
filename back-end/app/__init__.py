@@ -37,6 +37,7 @@ def create_app(config_object=Config):
     from app.routes.captacao_routes import captacao_ns
     from app.routes.chat_routes import chat_ns
     from app.routes.divisao_comissao_routes import divisao_ns
+    from app.routes.equipes_routes import equipes_ns
     from app.routes.gerentes_dash_routes import gerente_dashboard_ns
     from app.routes.graph_routes import graph_ns
     from app.routes.imovel_rel_route import imovel_catalogo_ns
@@ -55,6 +56,7 @@ def create_app(config_object=Config):
     api.add_namespace(corretor_ns, path=api_prefix)
     api.add_namespace(imovel_catalogo_ns, path=api_prefix)
     api.add_namespace(divisao_ns, path=api_prefix)
+    api.add_namespace(equipes_ns, path=api_prefix)
     api.add_namespace(mapa_ns, path=api_prefix)
     api.add_namespace(gerente_dashboard_ns, path=f"{api_prefix}/gerente-dashboard")
     api.add_namespace(analise_ns, path=api_prefix)

@@ -1,18 +1,4 @@
-export const EQUIPES_MAP = {
-  G61001: "AGEF",
-  G61002: "AGUIA",
-  G61003: "PRIME",
-  G61010: "LOTUS",
-  G61014: "NOVA UNIAO",
-  G61015: "SENNA",
-  G61016: "LIDER",
-  administrativo: "ADMINISTRATIVO",
-};
-
-export const EQUIPES_OPCOES = Object.entries(EQUIPES_MAP).map(([value, label]) => ({
-  value,
-  label,
-}));
+// Equipes agora vêm do banco (ver EquipesContext / services/equipes). Nada hardcoded aqui.
 
 export const RH_REQUIRED_FIELDS = [
   "status",
@@ -68,10 +54,6 @@ export const RH_FIELDS = [
   { name: "data_desligamento", label: "Data de desligamento", type: "date" },
   { name: "observacoes", label: "Observações", type: "textarea" },
 ];
-
-export function getNomeEquipe(teamId) {
-  return EQUIPES_MAP[String(teamId)] || String(teamId || "-");
-}
 
 export function usuarioCampoVazio(usuario, fieldName) {
   const valor = usuario?.[fieldName];

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { BASE } from "../services/api";
+import { nomeEquipe } from "../services/equipes";
 import { useToast } from "../context/ToastContext";
 import "../assets/css/JornadaCaptacao.css";
 import bookPdf from "../assets/pdf/Book Digital - Plano Piloto.pdf";
@@ -23,11 +24,7 @@ const CORRETOR_PALETTE = [
 ];
 const MESES      = ["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
 const DIAS_SEM   = ["Dom","Seg","Ter","Qua","Qui","Sex","Sáb"];
-const EQUIPES_MAP = {
-  G61001: "AGEF", G61002: "AGUIA", G61003: "PRIME",
-  G61010: "LOTUS", G61014: "NOVA UNIÃO", G61015: "SENNA", G61016: "LIDER",
-};
-function nomeEquipe(teamId) { return EQUIPES_MAP[String(teamId)] || String(teamId || "—"); }
+// nomeEquipe vem de services/equipes (cache preenchido pelo EquipesProvider).
 
 // ── Utilitários ──────────────────────────────────────────────────────────────
 function toDateStr(str) {
