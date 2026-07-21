@@ -264,6 +264,14 @@ def opcoes(equipe: str = None) -> dict:
                 key=lambda x: x["label"],
             )
 
+        # Esconde equipes desativadas (ativo=False no cadastro de equipes).
+        from app.models.equipe import Equipe
+        inativas = {
+            row[0]
+            for row in session.query(Equipe.id_equipe).filter(Equipe.ativo.is_(False)).all()
+        }
+        equipes = [e for e in equipes if e not in inativas]
+
         return {
             "ok": True,
             "equipes": [{"value": e, "label": e} for e in equipes],

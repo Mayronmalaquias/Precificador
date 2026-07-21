@@ -3,17 +3,14 @@ import { fetchEquipes, setEquipesCache } from '../services/equipes';
 
 const EquipesContext = createContext(null);
 
-function mapToOpcoes(map) {
-  return Object.entries(map).map(([value, label]) => ({ value, label }));
-}
-
 export function EquipesProvider({ children }) {
   const [equipes, setEquipes] = useState([]);
   const [carregado, setCarregado] = useState(false);
 
   const reload = useCallback(async () => {
     try {
-      setEquipes(await fetchEquipes());
+      // inclui inativas: nomes históricos (ex.: gráficos) precisam resolver o rótulo
+      setEquipes(await fetchEquipes(true));
     } catch {
       // sem equipes se a API falhar (nada de lista pré-determinada)
     } finally {
@@ -25,7 +22,7 @@ export function EquipesProvider({ children }) {
     reload();
   }, [reload]);
 
-  // Fonte da verdade: banco. Sem fallback hardcoded.
+  // Mapa com TODAS as equipes (ativas + inativas) → resolução de nome/rótulo.
   const equipesMap = useMemo(
     () =>
       equipes.reduce((acc, e) => {
@@ -40,7 +37,14 @@ export function EquipesProvider({ children }) {
     setEquipesCache(equipesMap);
   }, [equipesMap]);
 
-  const equipesOpcoes = useMemo(() => mapToOpcoes(equipesMap), [equipesMap]);
+  // Opções para os selects de atribuição: SÓ ativas (não deixa escolher equipe desativada).
+  const equipesOpcoes = useMemo(
+    () =>
+      equipes
+        .filter((e) => e.ativo)
+        .map((e) => ({ value: String(e.id_equipe), label: e.nome || String(e.id_equipe) })),
+    [equipes],
+  );
 
   const getNomeEquipe = useCallback(
     (id) => equipesMap[String(id)] || String(id || '-'),
