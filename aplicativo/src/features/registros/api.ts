@@ -58,7 +58,7 @@ export type ImovelItem = {
 type ListaResp<T> = { ok?: boolean; lista?: T[] };
 
 function qs(idCorretor: string) {
-  return `id_corretor=${encodeURIComponent(idCorretor)}&q=&limit=200`;
+  return `id_corretor=${encodeURIComponent(idCorretor)}&q=&limit=100000`;
 }
 
 export async function listarVisitas(idCorretor: string): Promise<VisitaItem[]> {

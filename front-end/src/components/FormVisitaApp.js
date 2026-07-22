@@ -119,7 +119,7 @@ export default function ApiForms() {
     setError("");
 
     try {
-      const query = `id_corretor=${encodeURIComponent(corretorId)}&q=&limit=200`;
+      const query = `id_corretor=${encodeURIComponent(corretorId)}&q=&limit=100000`;
       const [respVisitas, respImoveis, respClientes] = await Promise.all([
         fetch(`${BASE}/visitas_busca?${query}`, { method: "GET" }),
         fetch(`${BASE}/imoveis_busca_corretor?${query}`, { method: "GET" }),

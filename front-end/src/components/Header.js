@@ -69,6 +69,12 @@ function Header() {
 
   const atalhos = [
     { to: '/Parcerias', label: 'Parcerias', end: false, show: isLogado },
+    {
+      href: 'https://sites.google.com/view/portal-do-corretor-61-imoveis/seja-bem-vindo',
+      label: 'Portal do Corretor',
+      external: true,
+      show: isLogado,
+    },
     { to: '/61Financiamento', label: '61Financeiro', end: false, show: true },
     { to: '/Experts', label: 'Experts', end: false, show: true },
   ].filter((item) => item.show);
@@ -132,18 +138,30 @@ function Header() {
 
       {atalhos.length > 0 && (
         <nav className="atalhos-bar" aria-label="Atalhos">
-          {atalhos.map((item) => (
-            <NavLink
-              key={item.to}
-              to={item.to}
-              end={item.end}
-              className={({ isActive }) =>
-                isActive ? 'nav-link nav-atalho active-link' : 'nav-link nav-atalho'
-              }
-            >
-              {item.label}
-            </NavLink>
-          ))}
+          {atalhos.map((item) =>
+            item.external ? (
+              <a
+                key={item.href}
+                href={item.href}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="nav-link nav-atalho"
+              >
+                {item.label}
+              </a>
+            ) : (
+              <NavLink
+                key={item.to}
+                to={item.to}
+                end={item.end}
+                className={({ isActive }) =>
+                  isActive ? 'nav-link nav-atalho active-link' : 'nav-link nav-atalho'
+                }
+              >
+                {item.label}
+              </NavLink>
+            )
+          )}
         </nav>
       )}
 
