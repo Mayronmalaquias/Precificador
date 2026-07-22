@@ -17,9 +17,7 @@
   --pc-shadow: 0 1px 2px rgba(0,0,0,0.04), 0 10px 30px rgba(225,0,91,0.06);
 
   min-height: calc(100vh - 72px);
-  background:
-    radial-gradient(1100px 480px at 50% -260px, rgba(225,0,91,0.10), transparent 70%),
-    var(--pc-bg);
+  background: transparent;
   color: var(--pc-text);
   font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", system-ui, Roboto, sans-serif;
   -webkit-font-smoothing: antialiased;
@@ -345,9 +343,6 @@
     --pc-accent: #ff2d78;
     --pc-accent-soft: rgba(255, 45, 120, 0.16);
     --pc-shadow: 0 1px 2px rgba(0,0,0,0.4), 0 12px 30px rgba(0,0,0,0.55);
-    background:
-      radial-gradient(1100px 480px at 50% -260px, rgba(225,0,91,0.22), transparent 70%),
-      var(--pc-bg);
   }
   .pc-controls { background: rgba(26, 26, 29, 0.78); }
   .pc-segment { background: rgba(120,120,128,0.24); }
