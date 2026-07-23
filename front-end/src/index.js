@@ -1,3 +1,4 @@
+import './services/authFetch'; // instala o interceptor de auth ANTES de qualquer fetch
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import './index.css';

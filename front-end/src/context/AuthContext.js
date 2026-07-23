@@ -14,9 +14,10 @@ export function AuthProvider({ children }) {
   const [isLogado, setIsLogado] = useState(() => localStorage.getItem('auth') === 'true');
   const [userData, setUserData] = useState(loadUserData);
 
-  const login = useCallback((user) => {
+  const login = useCallback((user, token) => {
     localStorage.setItem('auth', 'true');
     localStorage.setItem('userData', JSON.stringify(user));
+    if (token) localStorage.setItem('auth_token', token); // JWT p/ o interceptor
     setIsLogado(true);
     setUserData(user);
   }, []);
@@ -24,6 +25,7 @@ export function AuthProvider({ children }) {
   const logout = useCallback(() => {
     localStorage.removeItem('auth');
     localStorage.removeItem('userData');
+    localStorage.removeItem('auth_token');
     setIsLogado(false);
     setUserData({});
   }, []);

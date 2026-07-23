@@ -10,31 +10,11 @@ function normalizeBaseUrl(value) {
 
 export const BASE = normalizeBaseUrl(process.env.REACT_APP_API_URL);
 
-// Chave estatica da aplicacao (X-API-KEY), inlinada no build pelo CRA.
-const API_KEY = process.env.REACT_APP_API_KEY || '';
-
-// Monta os headers de autorizacao injetados em TODA chamada:
-// - X-API-KEY: sempre (autoriza a aplicacao web na API).
-// - Authorization: Bearer <jwt> se houver token salvo no login.
-function authHeaders() {
-  const headers = {};
-  if (API_KEY) headers['X-API-KEY'] = API_KEY;
-  try {
-    const token = localStorage.getItem('auth_token');
-    if (token) headers['Authorization'] = `Bearer ${token}`;
-  } catch (_) {
-    // localStorage indisponivel (SSR/modo restrito) -> segue so com X-API-KEY.
-  }
-  return headers;
-}
-
+// Auth (X-API-KEY / Bearer) e injetada globalmente pelo interceptor em
+// `services/authFetch.js` (instalado no index.js). Aqui so o Content-Type.
 async function request(path, options = {}) {
   const response = await fetch(`${BASE}${path}`, {
-    headers: {
-      'Content-Type': 'application/json',
-      ...authHeaders(),
-      ...options.headers,
-    },
+    headers: { 'Content-Type': 'application/json', ...options.headers },
     ...options,
   });
 

@@ -27,7 +27,7 @@ function Login() {
       const data = await api.post('/auth/login', { username, password: senha });
 
       if (data.login === true) {
-        login(data.user || {});
+        login(data.user || {}, data.token);
         navigate('/');
       } else {
         setErro(data.error || 'Credenciais inválidas.');
