@@ -124,7 +124,7 @@ export function RegistrosScreen() {
   const emptyText: Record<Seg, { title: string; desc: string; icon: keyof typeof Ionicons.glyphMap }> = {
     visitas: { title: 'Sem visitas', desc: 'Suas visitas registradas aparecem aqui.', icon: 'clipboard-outline' },
     clientes: { title: 'Sem clientes', desc: 'Clientes das suas visitas aparecem aqui.', icon: 'people-outline' },
-    imoveis: { title: 'Sem imóveis', desc: 'Imóveis visitados por você aparecem aqui.', icon: 'home-outline' },
+    imoveis: { title: 'Sem imóveis', desc: 'Imóveis no seu nome (captados por você) aparecem aqui.', icon: 'home-outline' },
   };
 
   return (

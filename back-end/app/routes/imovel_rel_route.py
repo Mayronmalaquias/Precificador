@@ -5,6 +5,7 @@ from flask_restx import Namespace, Resource
 
 from app.services.imovel_rel_service import (
     listar_imoveis_do_corretor,
+    listar_imoveis_estoque_do_corretor,
     gerar_pdf_imovel_publico,
     gerar_pdf_imovel_download,
 )
@@ -34,6 +35,44 @@ class ImoveisBuscaCorretorResource(Resource):
                 }, 400
 
             lista = listar_imoveis_do_corretor(
+                id_corretor=id_corretor,
+                q=q,
+                limit=limit,
+            )
+
+            return {
+                "ok": True,
+                "lista": lista,
+            }, 200
+
+        except Exception as e:
+            return {
+                "ok": False,
+                "error": str(e),
+            }, 500
+
+
+@imovel_catalogo_ns.route("/imoveis_estoque_corretor")
+class ImoveisEstoqueCorretorResource(Resource):
+    """Imoveis NO NOME do corretor (estoque atual, captador1/2/3). Usado pelo app."""
+
+    def get(self):
+        try:
+            id_corretor = (request.args.get("id_corretor") or "").strip()
+            q = (request.args.get("q") or "").strip()
+
+            try:
+                limit = int(request.args.get("limit") or 50)
+            except Exception:
+                limit = 50
+
+            if not id_corretor:
+                return {
+                    "ok": False,
+                    "error": "Parâmetro id_corretor é obrigatório.",
+                }, 400
+
+            lista = listar_imoveis_estoque_do_corretor(
                 id_corretor=id_corretor,
                 q=q,
                 limit=limit,

@@ -71,7 +71,9 @@ export async function listarClientes(idCorretor: string): Promise<ClienteItem[]>
   return Array.isArray(d?.lista) ? d.lista : [];
 }
 
+// App: imoveis NO NOME do corretor (estoque atual), nao os visitados.
+// Endpoint proprio do app; o site segue usando /imoveis_busca_corretor (visitados).
 export async function listarImoveis(idCorretor: string): Promise<ImovelItem[]> {
-  const d = await api.get<ListaResp<ImovelItem>>(`/imoveis_busca_corretor?${qs(idCorretor)}`);
+  const d = await api.get<ListaResp<ImovelItem>>(`/imoveis_estoque_corretor?${qs(idCorretor)}`);
   return Array.isArray(d?.lista) ? d.lista : [];
 }

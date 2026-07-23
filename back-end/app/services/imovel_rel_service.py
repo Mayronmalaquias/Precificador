@@ -802,3 +802,185 @@ def listar_imoveis_do_corretor(
     )
 
     return lista[: max(1, int(limit or 50))]
+
+
+def _norm_nome(v: Any) -> str:
+    """Normaliza nome pra casar captador (fato_estoque) com corretor (usuarios):
+    maiuscula, sem acento, espacos colapsados."""
+    s = _safe_str(v).upper()
+    repl = {
+        "Á": "A", "À": "A", "Ã": "A", "Â": "A", "Ä": "A",
+        "É": "E", "Ê": "E", "È": "E",
+        "Í": "I", "Ì": "I",
+        "Ó": "O", "Õ": "O", "Ô": "O", "Ò": "O",
+        "Ú": "U", "Ü": "U", "Ù": "U",
+        "Ç": "C",
+    }
+    for a, b in repl.items():
+        s = s.replace(a, b)
+    return " ".join(s.split())
+
+
+def listar_imoveis_estoque_do_corretor(
+    id_corretor: str,
+    q: str = "",
+    limit: int = 50,
+) -> List[Dict[str, Any]]:
+    """Imoveis QUE ESTAO NO NOME do corretor: presentes no estoque atual
+    (fato_estoque) onde ele e captador1, captador2 ou captador3.
+
+    Para cada imovel dele, agrega TODAS as visitas (de qualquer corretor) -
+    e o relatorio do imovel inteiro so se aplica aos imoveis dele.
+    Diferente de listar_imoveis_do_corretor (que lista imoveis VISITADOS por ele).
+    """
+    id_corretor = (id_corretor or "").strip()
+    qn = _norm_key(q)
+
+    if not id_corretor:
+        return []
+
+    from app.database import SessionLocal
+    from app.models.usuarios import Usuarios
+    from app.models.fato_bases import FatoEstoque
+
+    session = SessionLocal()
+    try:
+        # nomes que identificam o corretor (id + nome + username), normalizados
+        owner_norms = {_norm_nome(id_corretor)}
+        usuario = (
+            session.query(Usuarios)
+            .filter(Usuarios.id_usuarios == id_corretor)
+            .first()
+        )
+        if usuario:
+            for v in (usuario.nome, usuario.username):
+                if _safe_str(v):
+                    owner_norms.add(_norm_nome(v))
+        owner_norms = {n for n in owner_norms if n}
+
+        # estoque atual: dedupe por codigo, mantendo o registro mais recente
+        meus: Dict[str, Any] = {}  # codigo -> (data_estoque, endereco?)
+        for e in session.query(FatoEstoque).all():
+            codigo = _safe_str(e.codigo_imovel)
+            if not codigo:
+                continue
+            caps = {
+                _norm_nome(e.captador1),
+                _norm_nome(e.captador2),
+                _norm_nome(e.captador3),
+            }
+            if not (caps & owner_norms):
+                continue
+            d = e.data_estoque  # date | None
+            prev = meus.get(codigo)
+            if prev is None or (d is not None and (prev is None or d >= prev)):
+                meus[codigo] = d
+    finally:
+        session.close()
+
+    if not meus:
+        return []
+
+    from app.services import db_loaders
+
+    visitas_rows = db_loaders.carregar_aba("Fato_Visitas")
+    fato_cliente_rows = db_loaders.carregar_aba("Fato_Cliente_Visita")
+    dim_cliente_rows = db_loaders.carregar_aba("Dim_Cliente_Visita")
+
+    cliente_map = {
+        _safe_str(r.get("Id_Cliente")): _safe_str(r.get("Nome_Cliente"))
+        for r in dim_cliente_rows
+        if _safe_str(r.get("Id_Cliente"))
+    }
+
+    clientes_por_visita = defaultdict(list)
+    for r in fato_cliente_rows:
+        id_visita = _safe_str(r.get("Id_Visita"))
+        id_cliente = _safe_str(r.get("Id_Cliente"))
+        nome = cliente_map.get(id_cliente, "")
+        if not id_visita or not nome:
+            continue
+        if nome not in clientes_por_visita[id_visita]:
+            clientes_por_visita[id_visita].append(nome)
+
+    # inicializa a partir do estoque (imoveis sem visita tambem aparecem)
+    agrupado: Dict[str, Any] = {}
+    for codigo in meus:
+        agrupado[codigo] = {
+            "id_imovel": codigo,
+            "qtd_visitas": 0,
+            "ultima_data": "",
+            "ultima_data_ord": None,
+            "clientes": [],
+            "endereco_externo": "",
+        }
+
+    for r in visitas_rows:
+        id_imovel = _safe_str(r.get("Id_Imovel"))
+        item = agrupado.get(id_imovel)
+        if item is None:
+            continue
+
+        id_visita = _safe_str(r.get("Id_Visita"))
+        data_visita = _safe_str(r.get("Data_Visita"))
+        endereco_externo = _safe_str(r.get("Endereco_Externo"))
+
+        data_ord = _parse_ddmmyyyy_safe(data_visita)
+        item["qtd_visitas"] += 1
+
+        if item["ultima_data_ord"] is None or data_ord >= item["ultima_data_ord"]:
+            item["ultima_data_ord"] = data_ord
+            item["ultima_data"] = data_visita
+            if endereco_externo:
+                item["endereco_externo"] = endereco_externo
+
+        for nome_cli in clientes_por_visita.get(id_visita, []):
+            if nome_cli not in item["clientes"]:
+                item["clientes"].append(nome_cli)
+
+    lista = []
+    for item in agrupado.values():
+        label_parts = [
+            item["id_imovel"],
+            f"{item['qtd_visitas']} visita(s)",
+        ]
+        if item["ultima_data"]:
+            label_parts.append(f"Última: {item['ultima_data']}")
+        if item["endereco_externo"]:
+            label_parts.append(item["endereco_externo"])
+
+        label = " - ".join(label_parts).strip()
+
+        hay = " ".join(
+            [
+                item["id_imovel"],
+                item["ultima_data"],
+                label,
+                item["endereco_externo"],
+                " ".join(item["clientes"]),
+            ]
+        )
+
+        if qn and qn not in _norm_key(hay):
+            continue
+
+        lista.append(
+            {
+                "id_imovel": item["id_imovel"],
+                "qtd_visitas": item["qtd_visitas"],
+                "ultima_data": item["ultima_data"],
+                "clientes": item["clientes"][:5],
+                "endereco_externo": item["endereco_externo"],
+                "label": label,
+            }
+        )
+
+    lista.sort(
+        key=lambda x: (
+            _parse_ddmmyyyy_safe(x.get("ultima_data", "")),
+            x.get("id_imovel", ""),
+        ),
+        reverse=True,
+    )
+
+    return lista[: max(1, int(limit or 50))]

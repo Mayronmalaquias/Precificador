@@ -740,6 +740,106 @@ function RelatorioGerente() {
     a.remove();
   };
 
+  // ── Exportação Excel (SpreadsheetML 2003, sem dependência) ───────────────
+  const _escaparXml = (v) =>
+    String(v ?? "")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/\r?\n/g, " ");
+
+  const _juntar = (v) => (Array.isArray(v) ? v.join(", ") : v ?? "");
+
+  // colunas: [{ label, valor: (linha) => any }] — tudo exportado como texto
+  // (evita Excel destruir códigos/telefones com notação científica).
+  const baixarExcel = (nomeArquivo, colunas, linhas) => {
+    if (!linhas || !linhas.length) {
+      toast("Nada para exportar nesta aba.", "error");
+      return;
+    }
+
+    const celula = (v) =>
+      `<Cell><Data ss:Type="String">${_escaparXml(v)}</Data></Cell>`;
+
+    const cabecalho = `<Row>${colunas.map((c) => celula(c.label)).join("")}</Row>`;
+    const corpo = linhas
+      .map(
+        (linha) =>
+          `<Row>${colunas
+            .map((c) => celula(c.valor(linha)))
+            .join("")}</Row>`
+      )
+      .join("");
+
+    const xml =
+      `<?xml version="1.0" encoding="UTF-8"?>` +
+      `<?mso-application progid="Excel.Sheet"?>` +
+      `<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet" ` +
+      `xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">` +
+      `<Worksheet ss:Name="Dados"><Table>${cabecalho}${corpo}</Table></Worksheet>` +
+      `</Workbook>`;
+
+    const blob = new Blob([xml], {
+      type: "application/vnd.ms-excel;charset=UTF-8",
+    });
+    const url = URL.createObjectURL(blob);
+    _downloadViaAnchor(url, nomeArquivo);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  };
+
+  const _sufixoArquivo = () => filtros.id_gerente || "time";
+
+  const exportarVisitasExcel = () => {
+    const colunas = [
+      { label: "Data", valor: (i) => i.data_visita },
+      { label: "Corretor", valor: (i) => i.corretor },
+      { label: "Imóvel", valor: (i) => i.id_imovel },
+      { label: "Endereço externo", valor: (i) => i.endereco_externo },
+      { label: "Clientes", valor: (i) => _juntar(i.clientes) },
+      { label: "Proposta", valor: (i) => i.proposta },
+      { label: "Motivo do talvez", valor: (i) => i.motivoTalvez || i.motivo_talvez },
+      { label: "Registrado em", valor: (i) => i.created_at },
+    ];
+    baixarExcel(`visitas_${_sufixoArquivo()}.xls`, colunas, visitasFiltradas);
+  };
+
+  const exportarImoveisExcel = () => {
+    const colunas = [
+      { label: "Imóvel", valor: (i) => i.id_imovel },
+      { label: "Endereço", valor: (i) => i.endereco_externo },
+      { label: "Visitas", valor: (i) => i.qtd_visitas ?? 0 },
+      { label: "Última visita", valor: (i) => i.ultima_data },
+      { label: "Corretores", valor: (i) => _juntar(i.corretores) },
+      { label: "Clientes", valor: (i) => _juntar(i.clientes) },
+    ];
+    baixarExcel(`imoveis_${_sufixoArquivo()}.xls`, colunas, imoveisFiltrados);
+  };
+
+  const exportarClientesExcel = () => {
+    const colunas = [
+      { label: "Cliente", valor: (i) => i.nome },
+      { label: "Telefone", valor: (i) => i.telefone },
+      { label: "E-mail", valor: (i) => i.email },
+      { label: "Corretores", valor: (i) => _juntar(i.corretores) },
+      { label: "Qtd. visitas", valor: (i) => i.qtd_visitas ?? 0 },
+      { label: "Última visita", valor: (i) => i.ultima_visita },
+    ];
+    baixarExcel(`clientes_${_sufixoArquivo()}.xls`, colunas, clientesFiltrados);
+  };
+
+  const exportarRankingExcel = () => {
+    const dados = tipoRankingAtivo === "visitas" ? rankingVisitas : rankingClientes;
+    const unidade = tipoRankingAtivo === "visitas" ? "visitas" : "clientes";
+    const linhas = (dados || []).map((d, idx) => ({ ...d, _pos: idx + 1 }));
+    const colunas = [
+      { label: "Posição", valor: (i) => i._pos },
+      { label: "Corretor", valor: (i) => i.corretor },
+      { label: `Total (${unidade})`, valor: (i) => i.total },
+    ];
+    baixarExcel(`ranking_${tipoRankingAtivo}_${_sufixoArquivo()}.xls`, colunas, linhas);
+  };
+
   const abrirPdfGerente = async () => {
     if (!filtros.id_gerente) {
       toast("Selecione um gerente.", "error");
@@ -1338,6 +1438,14 @@ function RelatorioGerente() {
         >
           Limpar filtro da aba
         </button>
+
+        <button
+          type="button"
+          className="botao-secundario"
+          onClick={exportarVisitasExcel}
+        >
+          Exportar Excel
+        </button>
       </div>
 
       <p className="contador-filtros-lista">
@@ -1472,6 +1580,14 @@ function RelatorioGerente() {
         >
           Limpar filtro da aba
         </button>
+
+        <button
+          type="button"
+          className="botao-secundario"
+          onClick={exportarImoveisExcel}
+        >
+          Exportar Excel
+        </button>
       </div>
 
       <p className="contador-filtros-lista">
@@ -1572,6 +1688,14 @@ function RelatorioGerente() {
           }
         >
           Limpar filtro da aba
+        </button>
+
+        <button
+          type="button"
+          className="botao-secundario"
+          onClick={exportarClientesExcel}
+        >
+          Exportar Excel
         </button>
       </div>
 
@@ -1706,6 +1830,15 @@ function RelatorioGerente() {
             onClick={() => setTipoRankingAtivo("clientes")}
           >
             Ranking por clientes
+          </button>
+
+          <button
+            type="button"
+            className="botao-secundario"
+            onClick={exportarRankingExcel}
+            style={{ marginLeft: "auto" }}
+          >
+            Exportar Excel
           </button>
         </div>
 
