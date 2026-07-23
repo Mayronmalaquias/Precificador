@@ -4,7 +4,9 @@
  * - base configurável (aqui via EXPO_PUBLIC_API_URL, inlinado no build — docs Expo v57)
  * - erro de negócio vem em `data.error` / `data.message`
  *
- * Obs: a API não usa token/JWT — a sessão é o objeto `user` retornado no login.
+ * Auth: a API exige `X-API-KEY` (chave estática da aplicação, inlinada no build
+ * via EXPO_PUBLIC_API_KEY) em toda chamada. Após o login, um JWT pode ser
+ * anexado como `Authorization: Bearer <token>` via `setAuthToken()`.
  */
 const API_PREFIX = '/api/v1';
 
@@ -18,6 +20,26 @@ function normalizeBaseUrl(value?: string): string {
 
 // EXPO_PUBLIC_* precisa de acesso estático por dot notation (docs Expo v57).
 export const BASE = normalizeBaseUrl(process.env.EXPO_PUBLIC_API_URL);
+
+// Chave estática da aplicação (X-API-KEY), inlinada no bundle no build.
+const API_KEY = process.env.EXPO_PUBLIC_API_KEY ?? '';
+
+// JWT do usuário (opcional). O login chama setAuthToken(resp.token).
+let authToken: string | null = null;
+export function setAuthToken(token: string | null): void {
+  authToken = token;
+}
+export function getAuthToken(): string | null {
+  return authToken;
+}
+
+// Headers de autorização injetados em TODA chamada.
+function authHeaders(): Record<string, string> {
+  const headers: Record<string, string> = {};
+  if (API_KEY) headers['X-API-KEY'] = API_KEY;
+  if (authToken) headers['Authorization'] = `Bearer ${authToken}`;
+  return headers;
+}
 
 if (!process.env.EXPO_PUBLIC_API_URL && __DEV__) {
   console.warn(
@@ -49,7 +71,7 @@ async function request<T = any>(path: string, options: RequestOptions = {}): Pro
   try {
     response = await fetch(`${BASE}${path}`, {
       signal: controller.signal,
-      headers: { 'Content-Type': 'application/json', ...headers },
+      headers: { 'Content-Type': 'application/json', ...authHeaders(), ...headers },
       ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
       ...rest,
     });

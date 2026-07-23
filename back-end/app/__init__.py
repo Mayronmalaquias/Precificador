@@ -21,7 +21,13 @@ def create_app(config_object=Config):
     CORS(
         app,
         resources={r"/*": {"origins": app.config["CORS_ORIGINS"]}},
+        allow_headers=["Content-Type", "Authorization", "X-API-KEY"],
+        methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+        max_age=86400,
     )
+
+    from app.utils.auth_middleware import register_auth_middleware
+    register_auth_middleware(app)
 
     api = Api(
         app,

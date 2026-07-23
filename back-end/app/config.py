@@ -39,20 +39,32 @@ class Config:
     SQLALCHEMY_ENGINE_OPTIONS = {"pool_pre_ping": True}
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     CACHE_TYPE = os.getenv("CACHE_TYPE", "simple")
+
+    # --- Autenticacao da API -------------------------------------------------
+    # Liga/desliga o middleware global de auth (kill-switch de emergencia).
+    AUTH_ENABLED = os.getenv("AUTH_ENABLED", "true").lower() == "true"
+    # Chave estatica de aplicacao (header X-API-KEY). Compartilhada por web+app.
+    API_SECRET_KEY = os.getenv("API_SECRET_KEY", "")
+    # Assinatura dos JWT emitidos no login (Bearer token por usuario).
+    JWT_SECRET = os.getenv("JWT_SECRET") or SECRET_KEY
+    JWT_ALGORITHM = os.getenv("JWT_ALGORITHM", "HS256")
+    JWT_EXPIRES_SECONDS = int(os.getenv("JWT_EXPIRES_SECONDS", str(60 * 60 * 12)))  # 12h
+
+    # CORS: apenas origens de navegador (web). App nativo NAO passa por CORS.
+    # Sobrescreva por ambiente via CORS_ORIGINS no .env.
     CORS_ORIGINS = _csv_env(
         "CORS_ORIGINS",
         ",".join(
             [
+                "https://inteligencia61imoveis.com.br",
+                "https://www.inteligencia61imoveis.com.br",
+                "http://inteligencia61imoveis.com.br",
                 "http://15.228.241.137",
                 "http://15.228.241.137:3000",
                 "http://localhost:3000",
                 "http://127.0.0.1:3000",
                 "http://localhost:8081",
-                "http://127.0.0.1:8081",
-                "http://26.126.132.200",
-                "http://127.0.0.1",
-                "https://inteligencia61imoveis.com.br",
-                "http://inteligencia61imoveis.com.br",
+                "http://localhost:19006",
             ]
         ),
     )

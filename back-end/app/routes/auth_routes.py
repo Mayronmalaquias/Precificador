@@ -3,6 +3,7 @@ from flask_restx import Namespace, Resource
 
 from app.services.auth_service import cadastrar_usuario, login, registrar_nova_senha
 from app.services.usuarios_service import CAMPOS_EDITAVEIS, retornar_infos
+from app.utils.auth_middleware import gerar_jwt
 from app.utils.helpers import normalizar_user
 from app.utils.security import validate_password_strength
 
@@ -80,10 +81,15 @@ class LoginUsuario(Resource):
             return {"error": "Cadastro aguardando validação do RH."}, 403
 
         if usuario:
+            token = gerar_jwt(
+                usuario.get("id_usuarios") or username,
+                {"username": username, "permissao": usuario.get("permissao")},
+            )
             return {
                 "login": True,
                 "message": "Login realizado com sucesso",
                 "user": usuario,
+                "token": token,
             }, 200
 
         return {"error": "Usuario ou senha incorretos"}, 401
