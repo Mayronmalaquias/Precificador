@@ -1876,17 +1876,15 @@ export default function JornadaCaptacao() {
       {/* Kanban */}
       {aba === "kanban" && (
         <>
-          {isAdmin && (
-            <div className="cap-gerente-abas">
-              <button className={`cap-gaba${abaGerente==="ativo"?" cap-gaba--ativa":""}`} onClick={() => setAbaGerente("ativo")}>Ativos</button>
-              <button className={`cap-gaba${abaGerente==="fechado"?" cap-gaba--ativa":""}`} onClick={() => setAbaGerente("fechado")}>Encerrados</button>
-              <button className={`cap-gaba cap-gaba--exclusividade${abaGerente==="exclusividade"?" cap-gaba--ativa":""}`} onClick={() => setAbaGerente("exclusividade")}>
-                🔒 Exclusividade {captacoesExclusividade.length > 0 && <span className="cap-gaba-badge">{captacoesExclusividade.length}</span>}
-              </button>
-            </div>
-          )}
+          <div className="cap-gerente-abas">
+            <button className={`cap-gaba${abaGerente==="ativo"?" cap-gaba--ativa":""}`} onClick={() => setAbaGerente("ativo")}>Ativos</button>
+            <button className={`cap-gaba${abaGerente==="fechado"?" cap-gaba--ativa":""}`} onClick={() => setAbaGerente("fechado")}>Encerrados</button>
+            <button className={`cap-gaba cap-gaba--exclusividade${abaGerente==="exclusividade"?" cap-gaba--ativa":""}`} onClick={() => setAbaGerente("exclusividade")}>
+              🔒 Exclusividade {captacoesExclusividade.length > 0 && <span className="cap-gaba-badge">{captacoesExclusividade.length}</span>}
+            </button>
+          </div>
 
-          {(!isAdmin || abaGerente === "ativo") && abaGerente !== "exclusividade" && (
+          {abaGerente === "ativo" && (
             <div className="cap-board">
               {ETAPAS.map(etapa => (
                 <div key={etapa.key} className="cap-coluna">
@@ -1915,7 +1913,7 @@ export default function JornadaCaptacao() {
             </div>
           )}
 
-          {isAdmin && abaGerente === "fechado" && (
+          {abaGerente === "fechado" && (
             <div className="cap-fechados-lista">
               {captacoesFechadas.length === 0
                 ? <div className="cap-empty-state">Nenhuma captação encerrada.</div>
@@ -1939,7 +1937,7 @@ export default function JornadaCaptacao() {
             </div>
           )}
 
-          {isAdmin && abaGerente === "exclusividade" && (
+          {abaGerente === "exclusividade" && (
             <div className="cap-fechados-lista">
               {captacoesExclusividade.length === 0
                 ? <div className="cap-empty-state">Nenhum imóvel com exclusividade.</div>
