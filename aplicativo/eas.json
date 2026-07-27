@@ -14,13 +14,15 @@
     "preview": {
       "distribution": "internal",
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://api.inteligencia61imoveis.com.br"
+        "EXPO_PUBLIC_API_URL": "https://api.inteligencia61imoveis.com.br",
+        "EXPO_PUBLIC_API_KEY": "3y20y3xOVqd8jVVnIbIWOrI1YVjdgCbvwjQYouGBFJaCruH5Fg_bbetycU0RWhQd"
       }
     },
     "production": {
       "autoIncrement": true,
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://api.inteligencia61imoveis.com.br"
+        "EXPO_PUBLIC_API_URL": "https://api.inteligencia61imoveis.com.br",
+        "EXPO_PUBLIC_API_KEY": "3y20y3xOVqd8jVVnIbIWOrI1YVjdgCbvwjQYouGBFJaCruH5Fg_bbetycU0RWhQd"
       }
     }
   },

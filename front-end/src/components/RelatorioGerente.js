@@ -247,7 +247,7 @@ function RelatorioGerente() {
       return (
         <button
           className={className}
-          onClick={() => abrirUrl(montarUrlPdf(recurso, id, true), mensagemErro)}
+          onClick={() => baixarPdfRecurso(recurso, id, false, mensagemErro)}
         >
           Download
         </button>
@@ -259,14 +259,14 @@ function RelatorioGerente() {
         {!todoPeriodo && (
           <button
             className={className}
-            onClick={() => abrirUrl(montarUrlPdf(recurso, id, true, true), mensagemErro)}
+            onClick={() => baixarPdfRecurso(recurso, id, true, mensagemErro)}
           >
             Baixar período
           </button>
         )}
         <button
           className={className}
-          onClick={() => abrirUrl(montarUrlPdf(recurso, id, true, false), mensagemErro)}
+          onClick={() => baixarPdfRecurso(recurso, id, false, mensagemErro)}
         >
           Baixar tudo
         </button>
@@ -282,15 +282,6 @@ function RelatorioGerente() {
 
   const obterIdCliente = (item) =>
     primeiroValor(item?.id_cliente, item?.Id_Cliente, item?.cliente_id);
-
-  const abrirUrl = (url, mensagemErro = "Link não disponível.") => {
-    if (!url) {
-      toast(mensagemErro, "error");
-      return;
-    }
-
-    window.open(url, "_blank");
-  };
 
   const listaCorretoresFiltro = useMemo(() => {
     const mapa = new Map();
@@ -740,6 +731,39 @@ function RelatorioGerente() {
     a.remove();
   };
 
+  // Download de arquivo protegido pela API. Usa fetch (passa pelo interceptor
+  // global window.fetch → injeta X-API-KEY/Bearer), baixa o blob e o entrega via
+  // anchor. <a download> e window.open direto na URL da API são navegações do
+  // browser e NÃO carregam headers de auth, por isso a API fechada devolvia 401.
+  const baixarArquivoApi = async (url, filename) => {
+    try {
+      const resp = await fetch(url);
+      if (!resp.ok) {
+        let msg = `Erro ao baixar (${resp.status}).`;
+        try {
+          const data = await resp.json();
+          msg = data?.message || data?.error || msg;
+        } catch {}
+        throw new Error(msg);
+      }
+      const blob = await resp.blob();
+      const objectUrl = URL.createObjectURL(blob);
+      _downloadViaAnchor(objectUrl, filename);
+      setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
+    } catch (e) {
+      toast(e.message || "Erro ao baixar arquivo.", "error");
+    }
+  };
+
+  const baixarPdfRecurso = (recurso, id, comPeriodo, mensagemErro) => {
+    const url = montarUrlPdf(recurso, id, true, comPeriodo);
+    if (!url) {
+      toast(mensagemErro, "error");
+      return;
+    }
+    baixarArquivoApi(url, `${recurso}_${id}.pdf`);
+  };
+
   // ── Exportação Excel (SpreadsheetML 2003, sem dependência) ───────────────
   const _escaparXml = (v) =>
     String(v ?? "")
@@ -868,7 +892,7 @@ function RelatorioGerente() {
     setLoadingBaixarGerente(true);
     try {
       const url = `${API_BASE}/gerente/pdf/download?${buildQuery()}`;
-      _downloadViaAnchor(url, `relatorio_gerente_${filtros.id_gerente}.pdf`);
+      await baixarArquivoApi(url, `relatorio_gerente_${filtros.id_gerente}.pdf`);
     } finally {
       setLoadingBaixarGerente(false);
     }
@@ -904,7 +928,7 @@ function RelatorioGerente() {
     try {
       const params = new URLSearchParams({ id_corretor: corretorSelecionado });
       const url = `${API_BASE}/corretor/pdf/download?${params.toString()}`;
-      _downloadViaAnchor(url, `relatorio_corretor_${corretorSelecionado}.pdf`);
+      await baixarArquivoApi(url, `relatorio_corretor_${corretorSelecionado}.pdf`);
     } finally {
       setLoadingBaixarCorretor(false);
     }
@@ -1030,8 +1054,10 @@ function RelatorioGerente() {
   function baixarPdfVisita() {
     if (!itemSelecionado || tipoSelecionado !== "visita") return;
 
-    abrirUrl(
-      montarUrlPdf("visitas", obterIdVisita(itemSelecionado), true),
+    baixarPdfRecurso(
+      "visitas",
+      obterIdVisita(itemSelecionado),
+      false,
       "Não foi encontrado o id da visita para download."
     );
   }
@@ -1530,8 +1556,10 @@ function RelatorioGerente() {
                         onClick={() => {
                           const id = obterIdVisita(item);
                           if (id) marcarComoVisualizada(String(id), item?.id_gerente_corretor);
-                          abrirUrl(
-                            montarUrlPdf("visitas", id, true),
+                          baixarPdfRecurso(
+                            "visitas",
+                            id,
+                            false,
                             "Não foi encontrado o id da visita para download."
                           );
                         }}
@@ -2156,7 +2184,7 @@ function RelatorioGerente() {
       const params = new URLSearchParams();
       if (periodoEfetivo.start) params.set('start', periodoEfetivo.start);
       if (periodoEfetivo.end) params.set('end', periodoEfetivo.end);
-      window.open(`${API_BASE}/equipes/pdf/download?${params.toString()}`, '_blank');
+      baixarArquivoApi(`${API_BASE}/equipes/pdf/download?${params.toString()}`, 'relatorio_equipes.pdf');
     };
 
     const rankingEquipesVisitas = equipes.map((e) => ({

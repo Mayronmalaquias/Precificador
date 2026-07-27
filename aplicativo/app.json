@@ -1,16 +1,17 @@
 {
   "expo": {
-    "name": "aplicativo",
-    "slug": "aplicativo",
+    "name": "Inteligência 61",
+    "slug": "inteligencia-61",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "aplicativo",
     "userInterfaceStyle": "automatic",
     "ios": {
-      "icon": "./assets/expo.icon"
+      "bundleIdentifier": "com.inteligencia61imoveis.app"
     },
     "android": {
+      "package": "com.inteligencia61imoveis.app",
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/images/android-icon-foreground.png",

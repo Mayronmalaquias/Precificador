@@ -1,4 +1,4 @@
-import { api } from '@/services/api';
+import { api, setAuthToken } from '@/services/api';
 
 /** Objeto de usuário retornado por `_usuario_to_dict` no back-end (campos variáveis). */
 export type AppUser = {
@@ -18,6 +18,7 @@ type LoginResponse = {
   login: boolean;
   message?: string;
   user?: AppUser;
+  token?: string;
 };
 
 /**
@@ -30,5 +31,6 @@ export async function loginRequest(username: string, password: string): Promise<
   if (!data?.login || !data.user) {
     throw new Error(data?.message || 'Usuário ou senha incorretos.');
   }
+  setAuthToken(data.token ?? null); // anexa o Bearer JWT nas chamadas seguintes
   return data.user;
 }
