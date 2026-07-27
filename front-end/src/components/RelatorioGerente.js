@@ -124,6 +124,10 @@ function RelatorioGerente() {
   const [loadingVerCorretor, setLoadingVerCorretor] = useState(false);
   const [loadingBaixarCorretor, setLoadingBaixarCorretor] = useState(false);
 
+  // Overlay global de download (bloqueia a tela e evita cliques múltiplos).
+  const [baixandoArquivo, setBaixandoArquivo] = useState(false);
+  const baixandoArquivoRef = useRef(false);
+
   const [visitasVisualizadas, setVisitasVisualizadas] = useState(new Set());
   const [modalViewer, setModalViewer] = useState(null);
   const [loadingPdfModal, setLoadingPdfModal] = useState(false);
@@ -736,6 +740,9 @@ function RelatorioGerente() {
   // anchor. <a download> e window.open direto na URL da API são navegações do
   // browser e NÃO carregam headers de auth, por isso a API fechada devolvia 401.
   const baixarArquivoApi = async (url, filename) => {
+    if (baixandoArquivoRef.current) return; // já baixando: ignora clique repetido
+    baixandoArquivoRef.current = true;
+    setBaixandoArquivo(true);
     try {
       const resp = await fetch(url);
       if (!resp.ok) {
@@ -752,6 +759,9 @@ function RelatorioGerente() {
       setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
     } catch (e) {
       toast(e.message || "Erro ao baixar arquivo.", "error");
+    } finally {
+      baixandoArquivoRef.current = false;
+      setBaixandoArquivo(false);
     }
   };
 
@@ -2289,6 +2299,16 @@ function RelatorioGerente() {
 
   return (
     <div className="pagina-relatorio">
+      {baixandoArquivo && (
+        <div className="rel-download-overlay" role="alert" aria-busy="true">
+          <div className="rel-download-box">
+            <div className="rel-download-spinner" />
+            <span className="rel-download-txt">Gerando relatório…</span>
+            <span className="rel-download-sub">Aguarde, não feche a página.</span>
+          </div>
+        </div>
+      )}
+
       <div className="titulo-pagina">Relatório Gerente</div>
 
       <div className="aba-topo" onClick={() => setAbaAtiva("relatoriogerente")}>
