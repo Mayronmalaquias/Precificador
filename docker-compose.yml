@@ -4,20 +4,20 @@ services:
 
   backend:
     build:
-      context: ./back-end
+      context: ./backend
       dockerfile: Dockerfile
     container_name: meu-backend
     ports:
       - "5000:5000"
     env_file:
-      - ./back-end/.env
+      - ./backend/.env
     volumes:
-      - ./back-end/app/utils/asserts:/app/app/utils/asserts:ro
+      - ./backend/app/utils/asserts:/app/app/utils/asserts:ro
     restart: unless-stopped
 
   frontend:
     build:
-      context: ./front-end
+      context: ./frontend
       dockerfile: Dockerfile
       args:
         REACT_APP_API_URL: ${REACT_APP_API_URL:-http://localhost:5000}
