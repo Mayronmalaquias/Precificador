@@ -262,6 +262,7 @@ class EvolucaoVisitasGerente(Resource):
                 "imovel": (request.args.get("imovel") or "").strip(),
                 "tipo_captacao": (request.args.get("tipo_captacao") or "").strip(),
                 "com_parceiro": (request.args.get("com_parceiro") or "").strip(),
+                "revisita": (request.args.get("revisita") or "").strip(),
             }
             return evolucao_visitas_gerente(
                 id_gerente=id_gerente,
@@ -270,6 +271,7 @@ class EvolucaoVisitasGerente(Resource):
                 end=(request.args.get("end") or "").strip() or None,
                 filtros=filtros,
                 todas_equipes=todas_equipes,
+                granularidade=(request.args.get("granularidade") or "dia").strip(),
             ), 200
         except Exception as e:
             current_app.logger.exception("Erro na evolucao de visitas")

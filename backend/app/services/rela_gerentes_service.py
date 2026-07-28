@@ -942,6 +942,7 @@ def listar_visitas_do_gerente(
             "motivoTalvez": motivo_talvez,
             "visita_com_parceiro": _is_true(visita.get("Visita_Com_Parceiro")),
             "imovel_nao_captado": _is_true(visita.get("Imovel_Nao_Captado")),
+            "revisita": _is_true(visita.get("Revisita")),
             "avaliacoes": avaliacoes,
             "pdf_url": f"{API_BASE}/visitas/pdf?visita_id={visita_id}",
             "pdf_download_url": f"{API_BASE}/visitas/pdf/download?visita_id={visita_id}",
@@ -1205,6 +1206,7 @@ def detalhe_visita_gerente(visita_id: str) -> Dict[str, Any]:
         "anexo_ficha": _safe_str(visita.get("Anexo_Ficha_Visita")),
         "link_audio": _safe_str(visita.get("Link_Audio")),
         "assinatura": _safe_str(visita.get("Assinatura")),
+        "revisita": _is_true(visita.get("Revisita")),
         "avaliacoes": avaliacoes,
     }
 
@@ -1406,6 +1408,10 @@ def _visitas_evolucao_base(
             esperado = filtros["com_parceiro"] == "sim"
             if _is_true(visita.get("Visita_Com_Parceiro")) != esperado:
                 continue
+        if filtros.get("revisita") in {"sim", "nao"}:
+            esperado = filtros["revisita"] == "sim"
+            if _is_true(visita.get("Revisita")) != esperado:
+                continue
 
         resultado.append({
             "data": dt.strftime("%Y-%m-%d"),
@@ -1474,6 +1480,38 @@ def opcoes_evolucao_visitas(id_gerente: str, todas_equipes: bool = False) -> Dic
     }
 
 
+def _bucket_data_visita(data_iso: str, gran: str) -> str:
+    """Data ISO representativa do bucket: dia=próprio, semana=segunda-feira, mês=dia 1."""
+    d = date.fromisoformat(data_iso)
+    if gran == "mes":
+        return d.replace(day=1).isoformat()
+    if gran == "semana":
+        return (d - timedelta(days=d.weekday())).isoformat()
+    return d.isoformat()
+
+
+def _eixo_datas(primeira: date, ultima: date, gran: str) -> List[str]:
+    """Eixo X completo (inclui buckets vazios) na granularidade escolhida."""
+    out: List[str] = []
+    if gran == "mes":
+        cursor = primeira.replace(day=1)
+        while cursor <= ultima:
+            out.append(cursor.isoformat())
+            cursor = (cursor.replace(year=cursor.year + 1, month=1)
+                      if cursor.month == 12 else cursor.replace(month=cursor.month + 1))
+    elif gran == "semana":
+        cursor = primeira - timedelta(days=primeira.weekday())
+        while cursor <= ultima:
+            out.append(cursor.isoformat())
+            cursor += timedelta(weeks=1)
+    else:
+        cursor = primeira
+        while cursor <= ultima:
+            out.append(cursor.isoformat())
+            cursor += timedelta(days=1)
+    return out
+
+
 def evolucao_visitas_gerente(
     id_gerente: str,
     dimensao: str = "corretor",
@@ -1482,10 +1520,14 @@ def evolucao_visitas_gerente(
     filtros: Optional[Dict[str, Any]] = None,
     max_series: int = 12,
     todas_equipes: bool = False,
+    granularidade: str = "dia",
 ) -> Dict[str, Any]:
     dimensao = _safe_str(dimensao).lower() or "corretor"
     if dimensao not in _DIMENSOES_EVOLUCAO_VISITAS:
         dimensao = "corretor"
+    gran = _safe_str(granularidade).lower() or "dia"
+    if gran not in _AGRUPAMENTOS_VALIDOS:
+        gran = "dia"
     visitas = _visitas_evolucao_base(
         id_gerente,
         start=start,
@@ -1515,18 +1557,15 @@ def evolucao_visitas_gerente(
             valor = visita[dimensao]
             grupos = [(valor, valor)]
 
+        bucket = _bucket_data_visita(visita["data"], gran)
         for chave, label in grupos:
             labels[chave] = label
-            series_bucket[chave][visita["data"]] += 1
+            series_bucket[chave][bucket] += 1
 
     if visitas:
         primeira = _parse_date_any(start) or _parse_date_any(min(v["data"] for v in visitas))
         ultima = _parse_date_any(end) or _parse_date_any(max(v["data"] for v in visitas))
-        datas = []
-        cursor = primeira.date()
-        while cursor <= ultima.date():
-            datas.append(cursor.isoformat())
-            cursor += timedelta(days=1)
+        datas = _eixo_datas(primeira.date(), ultima.date(), gran)
     else:
         datas = []
 
@@ -1546,6 +1585,7 @@ def evolucao_visitas_gerente(
     return {
         "ok": True,
         "dimensao": dimensao,
+        "granularidade": gran,
         "datas": datas,
         "series": series,
         "resumo": {

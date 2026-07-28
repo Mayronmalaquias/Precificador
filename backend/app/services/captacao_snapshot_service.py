@@ -9,7 +9,7 @@
 import unicodedata
 from datetime import date, timedelta
 
-from sqlalchemy import func
+from sqlalchemy import func, or_
 
 from app.database import SessionLocal, engine
 from app.models.captacao import Captacao
@@ -186,6 +186,18 @@ def evolucao(dimensao: str, filtros: dict, max_series: int = 12, por_estado: boo
 
         q = session.query(*cols)
         q = _aplicar_filtros(q, filtros)
+        # Esconde equipes desativadas (ativo=False) do grafico por equipe — mesma regra do opcoes().
+        if dimensao == "equipe":
+            from app.models.equipe import Equipe
+            inativas = [
+                row[0]
+                for row in session.query(Equipe.id_equipe).filter(Equipe.ativo.is_(False)).all()
+            ]
+            if inativas:
+                q = q.filter(or_(
+                    CaptacaoSnapshot.team.is_(None),
+                    CaptacaoSnapshot.team.notin_(inativas),
+                ))
         q = q.group_by(*group_cols).order_by(CaptacaoSnapshot.data_snapshot)
         rows = q.all()
     finally:

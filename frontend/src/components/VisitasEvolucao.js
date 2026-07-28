@@ -32,13 +32,15 @@ export default function VisitasEvolucao({ idGerente, dataInicial = "", dataFinal
     imovel: "",
     tipo_captacao: "",
     com_parceiro: "",
+    revisita: "",
+    granularidade: "dia",
     start: dataInicial,
     end: dataFinal,
   });
   const [opcoes, setOpcoes] = useState({
     equipes: [], corretores: [], clientes: [], propostas: [], quartos: [], tipos_captacao: [],
   });
-  const [dados, setDados] = useState({ datas: [], series: [], resumo: {} });
+  const [dados, setDados] = useState({ datas: [], series: [], resumo: {}, granularidade: "dia" });
   const [ocultas, setOcultas] = useState(() => new Set());
   const [loading, setLoading] = useState(false);
   const [mesBar, setMesBar] = useState("");
@@ -91,7 +93,7 @@ export default function VisitasEvolucao({ idGerente, dataInicial = "", dataFinal
       const resposta = await fetch(`${BASE}/gerente-dashboard/visitas/evolucao?${params.toString()}`);
       const json = await resposta.json();
       if (!resposta.ok || json.ok === false) throw new Error(json.error || "Erro ao carregar evolucao");
-      setDados({ datas: json.datas || [], series: json.series || [], resumo: json.resumo || {} });
+      setDados({ datas: json.datas || [], series: json.series || [], resumo: json.resumo || {}, granularidade: json.granularidade || "dia" });
       setOcultas(new Set());
     } catch (erro) {
       toast(erro.message || "Erro ao carregar evolução de visitas", "error");
@@ -209,6 +211,16 @@ export default function VisitasEvolucao({ idGerente, dataInicial = "", dataFinal
             <option value="sim">Com parceiro</option>
             <option value="nao">Sem parceiro</option>
           </select>
+          <select className="ce-input" value={filtros.revisita} onChange={setFiltro("revisita")}>
+            <option value="">Revisita (todas)</option>
+            <option value="sim">Só revisitas</option>
+            <option value="nao">Só 1ª visita</option>
+          </select>
+          <select className="ce-input" value={filtros.granularidade} onChange={setFiltro("granularidade")}>
+            <option value="dia">Por dia</option>
+            <option value="semana">Por semana</option>
+            <option value="mes">Por mês</option>
+          </select>
           <input className="ce-input" type="date" value={filtros.start} onChange={setFiltro("start")} />
           <input className="ce-input" type="date" value={filtros.end} onChange={setFiltro("end")} />
           <button className="ce-btn" onClick={buscar} disabled={loading}>{loading ? "..." : "Aplicar"}</button>
@@ -229,7 +241,7 @@ export default function VisitasEvolucao({ idGerente, dataInicial = "", dataFinal
             ))}
           </div>
 
-          {mesBar && (
+          {mesBar && dados.granularidade === "dia" && (
             <div className="ce-barswrap">
               <div className="ce-barshead">
                 <strong>Visitas por dia (mês em semanas)</strong>

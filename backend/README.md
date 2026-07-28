@@ -190,12 +190,15 @@ dimensões (`/admin/bases/tipos`, `/admin/bases/bairros` com PUT/DELETE por id) 
 
 - **Schema atual:** ver [`../MAPA_BANCO.md`](../MAPA_BANCO.md) (inventário + redundâncias +
   plano de normalização) e [`../DIAGRAMA_BANCO.md`](../DIAGRAMA_BANCO.md) (ER Mermaid).
-- **Migrations:** Alembic via Flask-Migrate, em `migrations/versions/`. A URL vem de
-  `Config.SQLALCHEMY_DATABASE_URI` (`migrations/env.py`).
+- **Migrations:** Alembic **direto** (não há Flask-Migrate / `flask db`), em
+  `migrations/versions/`. A URL vem de `Config.SQLALCHEMY_DATABASE_URI` (`migrations/env.py`,
+  que importa `app.config`). Rode a partir da raiz do backend com `PYTHONPATH=.`:
   ```bash
-  flask db upgrade          # aplica
-  flask db migrate -m "..." # gera nova (revise antes de aplicar)
+  PYTHONPATH=. alembic -c migrations/alembic.ini upgrade head        # aplica
+  PYTHONPATH=. alembic -c migrations/alembic.ini revision -m "..."   # cria nova (edite antes)
   ```
+  Cada migration nova aponta `down_revision` pra HEAD atual; migration é obrigatória ao
+  adicionar/alterar coluna, senão a API dá `UndefinedColumn` no boot.
 - **Views SQL** (`sql/`): `vw_vendas` (vendas contínuas 2015→hoje), `vw_usuarios_duplicados`,
   `vw_pessoa_nao_resolvida`, `dedup_usuarios.sql`. Base canônica de vendas = `contratos`
   (coluna `fonte`), lida por `vendas`.

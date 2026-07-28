@@ -1179,6 +1179,10 @@ function RelatorioGerente() {
               <span className="detalhe-label">Imóvel não captado</span>
               <strong>{item.imovel_nao_captado ? "Sim" : "Não"}</strong>
             </div>
+            <div className="detalhe-box">
+              <span className="detalhe-label">Revisita</span>
+              <strong>{item.revisita ? "Sim" : "Não"}</strong>
+            </div>
             <div className="detalhe-box detalhe-box-full">
               <span className="detalhe-label">Clientes</span>
               <strong>

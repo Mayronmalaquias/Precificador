@@ -20,6 +20,7 @@ export default function VisitaForm() {
     dataVisita: new Date().toISOString().split("T")[0],
     parceiroExterno: "NAO",
     situacaoImovel: "CAPTACAO_61",
+    revisita: "NAO",
 
     clienteNome: "",
     clienteTelefone: "",
@@ -484,6 +485,29 @@ export default function VisitaForm() {
                 className={`vf-toggle vf-toggle-yes${form.parceiroExterno === "SIM" ? " vf-toggle-active" : ""}`}
                 onClick={setRadio("parceiroExterno", "SIM")}
                 aria-pressed={form.parceiroExterno === "SIM"}
+              >
+                Sim
+              </button>
+            </div>
+          </div>
+
+          {/* Revisita */}
+          <div className="vf-group">
+            <label>É uma revisita? (imóvel já visitado antes)</label>
+            <div className="vf-toggle-row">
+              <button
+                type="button"
+                className={`vf-toggle vf-toggle-no${form.revisita === "NAO" ? " vf-toggle-active" : ""}`}
+                onClick={setRadio("revisita", "NAO")}
+                aria-pressed={form.revisita === "NAO"}
+              >
+                Nao
+              </button>
+              <button
+                type="button"
+                className={`vf-toggle vf-toggle-yes${form.revisita === "SIM" ? " vf-toggle-active" : ""}`}
+                onClick={setRadio("revisita", "SIM")}
+                aria-pressed={form.revisita === "SIM"}
               >
                 Sim
               </button>
