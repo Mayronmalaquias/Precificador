@@ -11,10 +11,14 @@
             "id": "eb0b6ae46fbfe7bb",
             "type": "leaf",
             "state": {
-              "type": "graph",
-              "state": {},
-              "icon": "lucide-git-fork",
-              "title": "Visualização em gráfico"
+              "type": "markdown",
+              "state": {
+                "file": "processos/_Backlog - Análise Futura.md",
+                "mode": "source",
+                "source": false
+              },
+              "icon": "lucide-file",
+              "title": "_Backlog - Análise Futura"
             }
           }
         ]
@@ -178,6 +182,7 @@
   },
   "active": "eb0b6ae46fbfe7bb",
   "lastOpenFiles": [
+    "processos/MOC - Processos Inteligência.md",
     "processos/_Backlog - Análise Futura.md"
   ]
 }

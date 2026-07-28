@@ -160,6 +160,11 @@ def situacao_eh_vago_disponivel(situacao: Any) -> bool:
     return norm(situacao) in {"VAGO/DISPONIVEL", "VAGO / DISPONIVEL", "VAGO", "DISPONIVEL"}
 
 
+def situacao_eh_moderacao(situacao: Any) -> bool:
+    # Imovel em moderacao ainda nao saiu do estoque -> nao conta como saida.
+    return "MODERACAO" in norm(situacao)
+
+
 # --- Destaque: categorias dos portais (de Trasfer_Destaque.gs) ---
 def filtra_portal(valor: Any) -> str:
     if not valor:
@@ -567,8 +572,12 @@ def processar_saida(file_storage, criado_por=None, finalidade="Venda") -> dict:
         for i, row in df.iterrows():
             if finalidade and col_fin and norm(row.get(col_fin)) != norm(finalidade):
                 continue
-            # regra: tudo que NAO for vago/disponivel e saida
-            if col_sit and situacao_eh_vago_disponivel(row.get(col_sit)):
+            # regra: tudo que NAO for vago/disponivel e saida.
+            # Excecao: "Em moderacao" ainda nao saiu do estoque -> nao conta.
+            if col_sit and (
+                situacao_eh_vago_disponivel(row.get(col_sit))
+                or situacao_eh_moderacao(row.get(col_sit))
+            ):
                 continue
             motivo = to_str(row.get(col_motivo)) if col_motivo else ""
             if not motivo and col_sit:

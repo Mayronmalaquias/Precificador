@@ -6,9 +6,10 @@ visitas, jornada de captação, rankings, RH, vendas, gestão de bases e o chat 
 
 - **React 19** + **react-router-dom 7** (roteamento client-side)
 - **Context API** para autenticação (`AuthContext`) e toasts (`ToastContext`)
-- **fetch** encapsulado em `src/services/api.js`
+- **fetch** encapsulado em `src/services/api.js`; interceptor global de auth em
+  `src/services/authFetch.js` (injeta `X-API-KEY` + `Bearer` em toda chamada `/api/v1`)
 - Estilo próprio (design system em CSS, sem framework de UI)
-- Servido em produção como estáticos (`serve`/reverse proxy)
+- Servido em produção pelo **nginx como build estático** em `/var/www/html` (ver §Produção)
 
 ---
 
@@ -24,8 +25,23 @@ no topo, `<Footer />` embaixo e as rotas no `<main>`. O **Header** exibe o menu 
 
 ### Autenticação e permissões
 
-`AuthContext` guarda o login em `localStorage` (`auth` + `userData`). Não há token JWT: o
-estado é client-side e a permissão vem do `userData.permissao` retornado no login.
+`AuthContext` guarda o login em `localStorage` (`auth` + `userData`) e a permissão vem do
+`userData.permissao` retornado no login.
+
+**API fechada (2026-07-23).** Toda chamada precisa de `X-API-KEY` **ou** `Authorization:
+Bearer <jwt>`. Quem injeta é o interceptor global `src/services/authFetch.js` (instalado uma
+vez no `index.js`): ele faz *monkeypatch* do `window.fetch` e adiciona os headers em qualquer
+URL que contenha `/api/v1` — cobrindo o `api.js` e os `fetch()` crus dos componentes.
+
+- `X-API-KEY` = chave estática da app (`REACT_APP_API_KEY`, **inlined no build** pelo CRA;
+  mesma `API_SECRET_KEY` do backend). Como fica no bundle, é legível por quem usa o site —
+  fecha a API só pra chamador não-browser.
+- `Bearer` = JWT do usuário salvo no login (`localStorage.auth_token`), quando houver.
+
+> ⚠️ **Downloads (PDF/relatórios)** têm que ir por `fetch`→blob, **nunca** `window.open` ou
+> `<a href download>` direto na URL da API: navegação do browser não carrega o `X-API-KEY` →
+> 401. Ver `baixarArquivoApi` em `components/RelatorioGerente.js` e o padrão fetch→blob→anchor
+> no `Ranking.js`.
 
 Hierarquia (crescente): **corretor → gerente → administrador → diretor**. Há ainda o perfil
 **administrativo** (por `permissao` ou `team === 'administrativo'`). Flags derivadas:
@@ -85,7 +101,7 @@ Hierarquia (crescente): **corretor → gerente → administrador → diretor**. 
 - `FormularioPublico` — landing pública com precificador e captura de lead.
 - `Tabs` → `Formulario`, `Mapa`, `Relatorio` — as três abas do estudo de precificação.
 - `ReporteImovelWidget`, `Experts`, `CalculoFinanciamento`, `FormComissao`, `ChatWidget`
-  (assistente Sofia).
+  (assistente **Renata**).
 
 **Autenticação**
 - `Login`, `Register`, `RecuperarSenha`, `TrocarSenha`, `PasswordInput`.
@@ -145,28 +161,50 @@ npm run build  # build de produção (pasta build/)
 npm test       # testes (react-scripts)
 ```
 
-Configuração de ambiente:
+Configuração de ambiente (`.env.local`, **não versionado**):
 
 ```
-REACT_APP_API_URL=https://inteligencia61imoveis.com.br   # opcional; default = /api/v1 relativo
+REACT_APP_API_URL=https://api.inteligencia61imoveis.com.br
+REACT_APP_API_KEY=<mesma API_SECRET_KEY do backend>   # inlined no build pelo CRA
 ```
 
-### Produção
+> As `REACT_APP_*` são **inlined no build** (`npm run build`), não lidas em runtime. Trocar a
+> URL/key exige rebuild. Sem `.env.local` com a key → interceptor manda header vazio → 401.
 
-Build estático servido por `serve`/reverse proxy (mesma origem da API, por isso o default
-relativo funciona). O back-end roda na VM via `sudo systemctl restart precificador`.
-`Dockerfile` (multi-stage: build React → `serve`) e `../docker-compose.yml` disponíveis.
+### Produção — nginx serve o build estático
+
+O nginx da VM do front (`inteligencia61imoveis.com.br`) serve **`/var/www/html`** (build
+estático), atrás de um `proxy_pass` de `/api/v1` pra API. O processo `react-scripts start` na
+`:3000` é **legado e não serve nada** — não confie nele.
+
+Deploy (na VM do front):
+```bash
+cd ~/Precificador && git pull origin dev_miron
+cd frontend && npm run build
+sudo rm -rf /var/www/html/static && sudo cp -r build/* /var/www/html/
+```
+
+> ⚠️ **`npm run build` sozinho não muda o site** — nada é servido até copiar `build/` pra
+> `/var/www/html`. O bundle tem hash no nome (`main.<hash>.js`), então o cache do browser
+> quebra sozinho ao trocar o `index.html`. Se algo "não atualiza", confira **onde o nginx
+> aponta** (`sudo nginx -T | grep -E 'root|proxy_pass'`), não o build.
+
+`Dockerfile` (multi-stage: build React → `serve`) e `../docker-compose.yml` existem para uso
+local, mas **não** são o que roda em produção.
 
 ---
 
 ## Estrutura de pastas
 
 ```
-front-end/src/
+frontend/src/
 ├── App.js                 # rotas + providers + layout
+├── index.js               # instala o interceptor authFetch antes do render
 ├── auth/                  # PrivateRoute, AdminRoute, AdministradorRoute
 ├── context/               # AuthContext, ToastContext
 ├── components/            # telas e widgets (ver catálogo acima)
-├── services/api.js        # cliente HTTP (base /api/v1)
+├── services/
+│   ├── api.js             # cliente HTTP (base /api/v1)
+│   └── authFetch.js       # interceptor global: injeta X-API-KEY + Bearer
 └── assets/                # css (design system), img, pdf, data
 ```

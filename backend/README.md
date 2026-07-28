@@ -10,7 +10,9 @@ rankings, RH de corretores, gestão de bases (BI) e um assistente de IA.
 - **Análise:** Pandas + NumPy + scikit-learn (KMeans, clusterização de imóveis)
 - **PDF/Mapas/Gráficos:** fpdf2, folium, matplotlib
 - **Integrações externas:** Imoview (CRM), Google Sheets/Drive, Anthropic (Claude)
-- **Prod:** Gunicorn + gevent, atrás de reverse proxy, serviço systemd `precificador`
+- **Auth:** API fechada — `X-API-KEY` (chave da app) **ou** `Bearer` JWT (ver §Autenticação)
+- **Prod:** Gunicorn (workers `gthread`) em `127.0.0.1:5000`, atrás do nginx, serviço systemd
+  `precificador.service` — roda na **VM de backend**, separada da VM do front
 
 > **Banco de dados:** o mapa completo (47 tabelas, 7 domínios, FKs e relações por valor)
 > está em [`../MAPA_BANCO.md`](../MAPA_BANCO.md) e o diagrama ER em
@@ -66,10 +68,31 @@ documentação interativa (Swagger UI) fica em **`/docs`** e é a fonte canônic
 
 ---
 
+## Autenticação (API fechada — 2026-07-23)
+
+Guard global em `app/utils/auth_middleware.py` (`before_request`). **Toda** requisição precisa
+de **um** dos dois (regra "OU"):
+
+1. `X-API-KEY: <API_SECRET_KEY>` — chave estática da aplicação, compartilhada por web + mobile.
+2. `Authorization: Bearer <jwt>` — JWT por usuário, emitido no login (`gerar_jwt`, HS256 com
+   `JWT_SECRET`).
+
+Sem credencial válida → **HTTP 401** `{"error":"Nao autorizado", ...}`.
+
+- **Rotas públicas** (sem auth): preflight `OPTIONS`, `/`, `/health` (e `{prefix}/health`),
+  `/swagger.json`, `/docs`, `/swaggerui`.
+- **Kill-switch:** `AUTH_ENABLED=false` reabre a API inteira sem redeploy.
+- O front injeta os headers via interceptor (`frontend/src/services/authFetch.js`); o app
+  mobile manda `X-API-KEY` em `app/src/services/api.ts`. **Downloads não podem ser navegação
+  do browser** (`window.open`/`<a download>`) — não levam o header → 401; usar `fetch`→blob.
+
+---
+
 ## Referência da API
 
 Prefixo global: **`/api/v1`**. Todas as rotas abaixo são relativas a ele
 (ex.: `POST /api/v1/auth/login`). Fonte canônica e testável: **Swagger em `/docs`**.
+Login (`POST /auth/login`) devolve, além do usuário, um `token` (JWT) usado como `Bearer`.
 
 ### `auth` — autenticação
 | Método | Rota | Descrição |
@@ -180,7 +203,7 @@ dimensões (`/admin/bases/tipos`, `/admin/bases/bairros` com PUT/DELETE por id) 
   `equipes.id_equipe` (`G61xxx`) = `usuarios.team`. `pessoa_alias` resolve nome/código →
   `id_usuarios`.
 
-Scripts de dados (raiz do back-end): `popula_vendas.py` (recarrega `vendas`),
+Scripts de dados (raiz do backend): `popula_vendas.py` (recarrega `vendas`),
 `importar_contratos_legado.py` (importa histórico pré-2024), `sync_contratos.py`.
 
 ---
@@ -209,6 +232,13 @@ CORS_ORIGINS=http://localhost:3000,https://inteligencia61imoveis.com.br
 CACHE_TYPE=simple
 SQLALCHEMY_ECHO=false
 
+# Auth (API fechada) — ver §Autenticação
+AUTH_ENABLED=true
+API_SECRET_KEY=...          # mesma chave usada como REACT_APP_API_KEY no front + app mobile
+JWT_SECRET=...              # assina os JWT do login
+JWT_ALGORITHM=HS256
+JWT_EXPIRES_SECONDS=...
+
 IMOVIEW_CHAVE=...
 ANTHROPIC_API_KEY=...
 GOOGLE_SA_JSON=/caminho/service_account.json
@@ -226,49 +256,65 @@ python -m venv venv
 source venv/bin/activate          # Windows: venv\Scripts\activate
 pip install -r requirements.txt
 
-# .env configurado na raiz do back-end
+# .env configurado na raiz do backend
 python run.py                      # dev, porta 5000 (host 0.0.0.0)
 ```
 
 Swagger: http://localhost:5000/docs
 
-### Produção (VM / systemd)
+### Produção (VM backend / systemd)
+
+Roda na **VM de backend** (separada da do front). Serviço `precificador.service` com
+`WorkingDirectory=~/Precificador/backend` e Gunicorn do `backend/venv`. Deploy:
 
 ```bash
-git pull origin dev_miron
-sudo systemctl restart precificador
-sudo journalctl -u precificador -n 100 --no-pager   # logs
+cd ~/Precificador && git pull origin dev_miron
+sudo systemctl restart precificador.service
+sudo journalctl -u precificador.service -n 100 --no-pager   # logs
 
 # renovar token OAuth do Google (Drive de visitas), quando necessário:
 python -c "from app.services.visita_service import ensure_oauth_token; ensure_oauth_token()"
 ```
 
-Gunicorn (usado pelo serviço):
+Gunicorn (linha real do `ExecStart`):
 
 ```bash
-gunicorn --bind 0.0.0.0:5000 --timeout 240 -k gevent run:app
+backend/venv/bin/gunicorn --workers 5 --worker-class gthread --threads 4 \
+  --timeout 240 --max-requests 200 --max-requests-jitter 20 \
+  --bind 127.0.0.1:5000 run:app
 ```
 
-Docker (opcional): `Dockerfile` na raiz do back-end; orquestração em `../docker-compose.yml`.
+**Cron:** `sync_contratos.py` roda a cada 30 min (`crontab -e`), com caminho absoluto pra
+`~/Precificador/backend/venv/bin/python`.
+
+> ⚠️ **venv não é relocável.** Ao mover/renomear a pasta do backend, os shebangs em
+> `venv/bin/*` continuam apontando pro caminho antigo → `systemctl` dá `status=203/EXEC`.
+> Conserte com `sed -i 's#/caminho/antigo#/caminho/novo#g'` nos `venv/bin/*` + `pyvenv.cfg`,
+> ou recrie o venv (`python3 -m venv venv && venv/bin/pip install -r requirements.txt`).
+> `pd.read_excel(.xlsx)` (import de bases) exige `openpyxl` instalado no venv.
+
+Docker (opcional): `Dockerfile` na raiz do backend; orquestração em `../docker-compose.yml`.
+**Não** é o que roda em produção.
 
 ---
 
 ## Estrutura de pastas
 
 ```
-back-end/
+backend/
 ├── app/
-│   ├── __init__.py          # app factory + registro de namespaces
-│   ├── config.py            # env, URI do banco, CORS, cache
+│   ├── __init__.py          # app factory + registro de namespaces + auth middleware
+│   ├── config.py            # env, URI do banco, CORS, cache, auth (API_SECRET_KEY/JWT)
 │   ├── database.py          # engine + SessionLocal
 │   ├── extensions.py        # cache
 │   ├── models/              # ORM (ver MAPA_BANCO.md)
-│   ├── routes/              # 18 namespaces Flask-RESTx (a API)
+│   ├── routes/              # namespaces Flask-RESTx (a API)
 │   ├── services/            # regra de negócio + integrações
-│   └── utils/               # cache, asserts (credenciais), auxiliares
+│   └── utils/               # auth_middleware (X-API-KEY/JWT), cache, asserts (credenciais)
 ├── migrations/versions/     # Alembic
 ├── sql/                     # views e scripts de manutenção
-├── dados/                   # CSVs + precomputed_analise.json (precificação)
+├── dados/                   # CSVs, precomputed_analise.json + planilhas Imoview (xlsx)
+├── sync_contratos.py        # sync de contratos (roda no cron, 30 min)
 ├── requirements.txt
 ├── run.py
 └── Dockerfile
