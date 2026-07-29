@@ -431,9 +431,10 @@ function RelatorioGerente() {
 
     try {
       const userData = JSON.parse(userDataString);
-      setPermissaoLogada(String(userData.permissao || "").toLowerCase());
+      const permissao = String(userData.permissao || "").toLowerCase();
+      setPermissaoLogada(permissao);
 
-      const idGerente =
+      const idPessoa =
         userData.idCorretor ||
         userData.id_gerente ||
         userData.codigoGerente ||
@@ -442,18 +443,22 @@ function RelatorioGerente() {
         userData.id_usuarios ||
         "";
 
-      if (!idGerente) {
+      if (!idPessoa) {
         setErro("Não foi encontrado um id de gerente no usuário logado.");
         return;
       }
 
-      const idGerenteStr = String(idGerente);
+      // A equipe é identificada pelo `team` (corretores compartilham o team do gerente).
+      // Na maioria id_usuarios == team; casos novos (ex.: Fernando C61134 / team G61017)
+      // têm id != team — por isso o gerente escopa pelo TEAM, não pelo id.
+      const idEscopo =
+        permissao === "gerente" && userData.team ? String(userData.team) : String(idPessoa);
 
-      setIdGerenteLogado(idGerenteStr);
+      setIdGerenteLogado(String(idPessoa)); // mantém o id p/ o gate do dropdown (admin/diretor)
 
       setFiltros((prev) => ({
         ...prev,
-        id_gerente: idGerenteStr,
+        id_gerente: idEscopo,
       }));
     } catch (err) {
       console.error(err);

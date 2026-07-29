@@ -264,7 +264,10 @@ def _resolver_ids_corretor_gestao(
             }
             modo = "61"
     elif permissao in {"gerente", "administrador"}:
-        gerente_id = usuario_id
+        # A equipe do gerente é o `team` dele (corretores compartilham esse team), NÃO o
+        # usuario_id — ex.: Fernando id=C61134 mas team=G61017. usuarios_por_time é indexado
+        # por team, então escopamos por team (fallback usuario_id p/ legado id==team).
+        gerente_id = team or usuario_id
         ids_equipe = {_safe_str(u.get("id_usuarios")) for u in usuarios_por_time.get(gerente_id, []) if _safe_str(u.get("id_usuarios"))}
         if escopo == "corretor" and id_corretor and id_corretor in ids_equipe:
             ids = {id_corretor}

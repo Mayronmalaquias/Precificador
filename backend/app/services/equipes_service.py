@@ -53,6 +53,38 @@ def criar_equipe(id_equipe: str, nome: str, email: str = None) -> dict:
         session.close()
 
 
+def definir_gerente_equipe(id_gerente: str, id_equipe: str) -> dict:
+    """Alinha um usuário como gerente da equipe: seta team=id_equipe e permissao='gerente'.
+    Usado ao criar/editar uma equipe escolhendo o gerente dela."""
+    from app.models.usuarios import Usuarios
+
+    id_gerente = str(id_gerente or "").strip()
+    id_equipe = str(id_equipe or "").strip()
+    if not id_gerente or not id_equipe:
+        return {"ok": False, "error": "id_gerente e id_equipe são obrigatórios"}
+
+    session = SessionLocal()
+    try:
+        u = session.query(Usuarios).filter_by(id_usuarios=id_gerente).first()
+        if not u:
+            return {"ok": False, "error": "Usuário do gerente não encontrado"}
+        u.team = id_equipe
+        u.permissao = "gerente"
+        session.commit()
+        # invalida cache de listagem de usuarios (best-effort)
+        try:
+            from app.services.usuarios_service import _cache_invalidate
+            _cache_invalidate("lista:", f"info:{id_gerente}:")
+        except Exception:
+            pass
+        return {"ok": True, "id_gerente": id_gerente, "id_equipe": id_equipe}
+    except Exception:
+        session.rollback()
+        raise
+    finally:
+        session.close()
+
+
 def atualizar_equipe(id_equipe: str, nome=None, email=None, ativo=None) -> dict:
     session = SessionLocal()
     try:

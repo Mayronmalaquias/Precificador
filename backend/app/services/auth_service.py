@@ -57,11 +57,17 @@ def cadastrar_usuario(username, password, team,
         session.commit()
         session.refresh(usuario)
 
-        # Ao registrar um gerente, cria/reativa a equipe dele (id_equipe = id do gerente).
+        # Ao registrar um gerente, garante a equipe dele. Equipe = `team` (corretores
+        # compartilham o team do gerente); se team vazio, cai no id do gerente. So cria se
+        # faltar — nunca renomeia uma equipe ja cadastrada.
         if str(permissao or "").lower() == "gerente":
             try:
-                from app.services.equipes_service import criar_equipe
-                criar_equipe(id_equipe=id_usuarios, nome=nome or username)
+                id_equipe_gerente = str(team or "").strip() or id_usuarios
+                from app.models.equipe import Equipe
+                ja_existe = session.query(Equipe.id_equipe).filter_by(id_equipe=id_equipe_gerente).first()
+                if id_equipe_gerente and not ja_existe:
+                    from app.services.equipes_service import criar_equipe
+                    criar_equipe(id_equipe=id_equipe_gerente, nome=nome or username)
             except Exception:
                 # não bloqueia o cadastro do gerente se a criação da equipe falhar
                 pass

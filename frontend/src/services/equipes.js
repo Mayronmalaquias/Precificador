@@ -22,8 +22,8 @@ export async function fetchEquipes(incluirInativas = false) {
   return Array.isArray(data?.equipes) ? data.equipes : [];
 }
 
-export function criarEquipe({ id_equipe, nome, email }) {
-  return api.post('/equipes', { id_equipe, nome, email });
+export function criarEquipe({ id_equipe, nome, email, id_gerente }) {
+  return api.post('/equipes', { id_equipe, nome, email, id_gerente });
 }
 
 export function atualizarEquipe(id_equipe, patch) {

@@ -1673,12 +1673,13 @@ export default function JornadaCaptacao() {
     }
   }, [location.search, navigate]);
 
-  // Carrega corretores ativos (apenas para admin, ao montar)
+  // Carrega corretores ativos (apenas para admin, ao montar).
+  // Gerente escopa pela equipe dele (`team`), não pelo id — corretores compartilham o team.
   useEffect(() => {
     if (!isAdmin || !userInfo.id) return;
     const url = isDiretor
       ? `${BASE}/corretor/retornar-lista?ativo=true`
-      : `${BASE}/corretor/retornar-lista?ativo=true&gerente=${encodeURIComponent(userInfo.id)}`;
+      : `${BASE}/corretor/retornar-lista?ativo=true&gerente=${encodeURIComponent(userInfo.team || userInfo.id)}`;
     fetch(url)
       .then(r => r.json())
       .then(d => {
@@ -1688,7 +1689,7 @@ export default function JornadaCaptacao() {
         }
       })
       .catch(() => {});
-  }, [isAdmin, isDiretor, userInfo.id]);
+  }, [isAdmin, isDiretor, userInfo.id, userInfo.team]);
 
   // Stats
   const stats = useMemo(() => {

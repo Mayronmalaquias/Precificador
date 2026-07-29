@@ -444,7 +444,25 @@ def editar_usuario(solicitante_id, id_corretor, dados=None, nova_senha=None):
         if nova_senha:
             usuario.password = generate_password_hash(nova_senha)
 
+        # Captura antes do commit: ao virar gerente, garante a equipe dele. A equipe e
+        # identificada pelo `team` (corretores compartilham o team do gerente), NAO pelo
+        # id_usuarios. Ex.: Fernando id=C61134 mas team=G61017 -> equipe = G61017.
+        virou_gerente = str(usuario.permissao or "").lower() == "gerente"
+        gerente_team = str(usuario.team or "").strip()
+        gerente_nome = usuario.nome or usuario.username
+
         session.commit()
+
+        # Cria a equipe SO se ainda nao existir — nunca renomeia/sobrescreve uma ja cadastrada.
+        if virou_gerente and gerente_team:
+            try:
+                from app.models.equipe import Equipe
+                ja_existe = session.query(Equipe.id_equipe).filter_by(id_equipe=gerente_team).first()
+                if not ja_existe:
+                    from app.services.equipes_service import criar_equipe
+                    criar_equipe(id_equipe=gerente_team, nome=gerente_nome)
+            except Exception:
+                pass  # nao bloqueia a edicao se a criacao da equipe falhar
 
         _cache_invalidate("lista:", f"info:{id_corretor}:")
         return {"ok": "Usuário atualizado com sucesso", "usuario": _usuario_to_dict(usuario)}

@@ -38,6 +38,7 @@ function formatarBoolean(value) {
 function GerenteRHCorretores() {
   const toast = useToast();
   const { userData, permissao, isGerente } = useAuth();
+  // gerenteId = id do usuário logado (usado como solicitante_id nas edições de RH).
   const gerenteId = String(
     userData?.id_usuarios ||
     userData?.idCorretor ||
@@ -45,6 +46,9 @@ function GerenteRHCorretores() {
     userData?.codigo ||
     ""
   );
+  // equipeId = a equipe do gerente (`team`). Os corretores compartilham esse team, então o
+  // escopo da lista é por team, não pelo id do gerente (ex.: Fernando id C61134 / team G61017).
+  const equipeId = String(userData?.team || gerenteId);
 
   const [corretores, setCorretores] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -57,7 +61,7 @@ function GerenteRHCorretores() {
     setLoading(true);
     try {
       const query = new URLSearchParams({
-        gerente: gerenteId,
+        gerente: equipeId,
         ativo: "true",
         per_page: "1000",
       });
@@ -250,7 +254,7 @@ function GerenteRHCorretores() {
           </div>
           <div className="rh-usuarios__hero-panel">
             <span className="rh-usuarios__hero-label">Equipe</span>
-            <strong>{getNomeEquipe(gerenteId)}</strong>
+            <strong>{getNomeEquipe(equipeId)}</strong>
             <span>{userData?.nome || userData?.username || gerenteId} - {permissao || "gerente"}</span>
           </div>
         </section>

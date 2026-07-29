@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { useToast } from "../context/ToastContext";
 import { useEquipes } from "../context/EquipesContext";
+import { api } from "../services/api";
 import {
   fetchEquipes,
   criarEquipe,
@@ -16,8 +17,11 @@ function GerenciarEquipes() {
   const [loading, setLoading] = useState(true);
   const [salvando, setSalvando] = useState(false);
 
+  // Usuários (para escolher o gerente da equipe)
+  const [usuarios, setUsuarios] = useState([]);
+
   // Form de criação
-  const [novo, setNovo] = useState({ id_equipe: "", nome: "", email: "" });
+  const [novo, setNovo] = useState({ id_equipe: "", nome: "", email: "", id_gerente: "" });
 
   // Edição inline de nome
   const [editandoId, setEditandoId] = useState(null);
@@ -39,6 +43,19 @@ function GerenciarEquipes() {
     carregar();
   }, [carregar]);
 
+  // Lista de usuários ativos p/ escolher quem é o gerente da equipe.
+  useEffect(() => {
+    api
+      .get("/corretor/retornar-lista?ativo=true&per_page=1000")
+      .then((data) => {
+        const lista = (data?.lista || [])
+          .filter((u) => String(u.id_usuarios || "").trim())
+          .sort((a, b) => String(a.nome || a.id_usuarios).localeCompare(String(b.nome || b.id_usuarios)));
+        setUsuarios(lista);
+      })
+      .catch(() => {});
+  }, []);
+
   async function aposMutacao(msg) {
     toast(msg, "success");
     await carregar();
@@ -56,9 +73,14 @@ function GerenciarEquipes() {
     }
     setSalvando(true);
     try {
-      await criarEquipe({ id_equipe, nome, email: novo.email.trim() || undefined });
-      setNovo({ id_equipe: "", nome: "", email: "" });
-      await aposMutacao("Equipe criada.");
+      await criarEquipe({
+        id_equipe,
+        nome,
+        email: novo.email.trim() || undefined,
+        id_gerente: novo.id_gerente.trim() || undefined,
+      });
+      setNovo({ id_equipe: "", nome: "", email: "", id_gerente: "" });
+      await aposMutacao(novo.id_gerente ? "Equipe criada e gerente definido." : "Equipe criada.");
     } catch (err) {
       toast(err.message || "Erro ao criar equipe.", "error");
     } finally {
@@ -139,7 +161,28 @@ function GerenciarEquipes() {
               disabled={salvando}
             />
           </div>
+          <div className="ds-form-group" style={{ flex: "2 1 220px" }}>
+            <label className="ds-label">Gerente (opcional)</label>
+            <select
+              className="ds-input"
+              value={novo.id_gerente}
+              onChange={(e) => setNovo((p) => ({ ...p, id_gerente: e.target.value }))}
+              disabled={salvando}
+            >
+              <option value="">Sem gerente por enquanto</option>
+              {usuarios.map((u) => (
+                <option key={u.id_usuarios} value={u.id_usuarios}>
+                  {(u.nome || u.id_usuarios)}{u.permissao ? ` — ${u.permissao}` : ""}
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
+        <p className="ds-help" style={{ fontSize: 12, color: "#71717a", marginTop: 4 }}>
+          Ao escolher um gerente, ele passa a ter <strong>permissão gerente</strong> e o
+          <strong> team</strong> da equipe — vira o gerente dela. Os corretores dessa equipe
+          devem ter o mesmo team (via "Alterar gerente").
+        </p>
         <button type="submit" className="ds-btn ds-btn-primary" disabled={salvando} style={{ marginTop: 12 }}>
           {salvando ? "Salvando..." : "Criar equipe"}
         </button>
