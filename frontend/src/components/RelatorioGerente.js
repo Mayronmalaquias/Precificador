@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { BASE } from '../services/api';
 import "../assets/css/RelatorioGerente.css";
 import { useToast } from '../context/ToastContext';
+import { fetchEquipes } from '../services/equipes';
 import VisitasEvolucao from "./VisitasEvolucao";
 
 const CRITERIOS_AV = [
@@ -150,15 +151,21 @@ function RelatorioGerente() {
     { id: "pdfs", label: "Relatórios PDF", labelMobile: "PDFs" },
   ];
 
-  const gerentesFixos = [
-    { id: "G61010", nome: "Thais Tannús" },
-    { id: "G61001", nome: "José Marques" },
-    { id: "G61002", nome: "Marcelo Souza" },
-    { id: "G61003", nome: "Luana Salvinski" },
-    { id: "G61014", nome: "Marcelo Pincinato" },
-    { id: "G61015", nome: "Helio Junio" },
-    { id: "G61016", nome: "Paolla Gardenia" },
-  ];
+  // Gerentes do dropdown — dinâmico da tabela `equipes` (só ativas), não mais fixo.
+  // Cada equipe (id_equipe = IdGerente = usuarios.team) tem um gerente.
+  const [gerentes, setGerentes] = useState([]);
+
+  useEffect(() => {
+    fetchEquipes()
+      .then((lista) =>
+        setGerentes(
+          (lista || [])
+            .map((e) => ({ id: e.id_equipe, nome: e.nome || e.id_equipe }))
+            .sort((a, b) => String(a.nome).localeCompare(String(b.nome)))
+        )
+      )
+      .catch(() => {});
+  }, []);
 
   const normalizarTexto = (valor) => {
     return String(valor || "")
@@ -1178,6 +1185,10 @@ function RelatorioGerente() {
             <div className="detalhe-box">
               <span className="detalhe-label">Imóvel não captado</span>
               <strong>{item.imovel_nao_captado ? "Sim" : "Não"}</strong>
+            </div>
+            <div className="detalhe-box">
+              <span className="detalhe-label">Revisita</span>
+              <strong>{item.revisita ? "Sim" : "Não"}</strong>
             </div>
             <div className="detalhe-box">
               <span className="detalhe-label">Revisita</span>
@@ -2331,7 +2342,7 @@ function RelatorioGerente() {
             >
               <option value="">Selecione</option>
 
-              {gerentesFixos.map((g) => (
+              {gerentes.map((g) => (
                 <option key={g.id} value={g.id}>
                   {g.nome}
                 </option>
