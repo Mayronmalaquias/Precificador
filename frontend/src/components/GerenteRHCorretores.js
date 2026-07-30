@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { BASE as API_BASE } from "../services/api";
 import { useAuth } from "../context/AuthContext";
+import { useEquipes } from "../context/EquipesContext";
 import { useToast } from "../context/ToastContext";
 import {
   RH_FIELDS,
@@ -37,7 +38,8 @@ function formatarBoolean(value) {
 
 function GerenteRHCorretores() {
   const toast = useToast();
-  const { userData, permissao, isGerente } = useAuth();
+  const { userData, permissao, isGerente, isDiretor } = useAuth();
+  const { equipesOpcoes } = useEquipes();
   // gerenteId = id do usuário logado (usado como solicitante_id nas edições de RH).
   const gerenteId = String(
     userData?.id_usuarios ||
@@ -50,6 +52,10 @@ function GerenteRHCorretores() {
   // escopo da lista é por team, não pelo id do gerente (ex.: Fernando id C61134 / team G61017).
   const equipeId = String(userData?.team || gerenteId);
 
+  // Diretor não tem equipe fixa: escolhe qual equipe ver. Gerente usa a própria (equipeId).
+  const [equipeSelecionada, setEquipeSelecionada] = useState("");
+  const escopoTeam = isDiretor ? equipeSelecionada : equipeId;
+
   const [corretores, setCorretores] = useState([]);
   const [loading, setLoading] = useState(false);
   const [busca, setBusca] = useState("");
@@ -57,11 +63,11 @@ function GerenteRHCorretores() {
   const [salvando, setSalvando] = useState(false);
 
   const carregarCorretores = useCallback(async () => {
-    if (!gerenteId) return;
+    if (!escopoTeam) { setCorretores([]); return; }  // diretor sem equipe escolhida: nada a carregar
     setLoading(true);
     try {
       const query = new URLSearchParams({
-        gerente: equipeId,
+        gerente: escopoTeam,
         ativo: "true",
         per_page: "1000",
       });
@@ -80,7 +86,7 @@ function GerenteRHCorretores() {
     } finally {
       setLoading(false);
     }
-  }, [gerenteId, toast]);
+  }, [escopoTeam, toast]);
 
   useEffect(() => {
     carregarCorretores();
@@ -228,13 +234,13 @@ function GerenteRHCorretores() {
     );
   };
 
-  if (!isGerente) {
+  if (!isGerente && !isDiretor) {
     return (
       <div className="controle-corretores rh-usuarios">
         <div className="controle-corretores__container">
           <section className="controle-corretores__panel">
             <h1 className="controle-corretores__panel-title">Acesso restrito</h1>
-            <p className="controle-corretores__panel-subtitle">Esta tela e exclusiva para gerentes.</p>
+            <p className="controle-corretores__panel-subtitle">Esta tela e exclusiva para gerentes e diretores.</p>
           </section>
         </div>
       </div>
@@ -254,7 +260,20 @@ function GerenteRHCorretores() {
           </div>
           <div className="rh-usuarios__hero-panel">
             <span className="rh-usuarios__hero-label">Equipe</span>
-            <strong>{getNomeEquipe(equipeId)}</strong>
+            {isDiretor ? (
+              <select
+                className="rh-usuarios__hero-select"
+                value={equipeSelecionada}
+                onChange={(e) => setEquipeSelecionada(e.target.value)}
+              >
+                <option value="">Selecione uma equipe…</option>
+                {equipesOpcoes.map((o) => (
+                  <option key={o.value} value={o.value}>{o.label}</option>
+                ))}
+              </select>
+            ) : (
+              <strong>{getNomeEquipe(equipeId)}</strong>
+            )}
             <span>{userData?.nome || userData?.username || gerenteId} - {permissao || "gerente"}</span>
           </div>
         </section>

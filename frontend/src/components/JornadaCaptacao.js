@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { BASE } from "../services/api";
 import { nomeEquipe } from "../services/equipes";
+import { useEquipes } from "../context/EquipesContext";
 import { useToast } from "../context/ToastContext";
 import "../assets/css/JornadaCaptacao.css";
 import bookPdf from "../assets/pdf/Book Digital - Plano Piloto.pdf";
@@ -1610,6 +1611,7 @@ export default function JornadaCaptacao() {
   const toast = useToast();
   const location = useLocation();
   const navigate = useNavigate();
+  const { equipesOpcoes } = useEquipes();
   const [userInfo, setUserInfo] = useState({ id: "", nome: "", team: "", permissao: "" });
   const [captacoes, setCaptacoes] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -1703,11 +1705,20 @@ export default function JornadaCaptacao() {
     };
   }, [captacoes]);
 
-  // Equipes únicas disponíveis (para diretores que vêem tudo)
+  // Equipes únicas disponíveis (usadas p/ colorir os cards a partir dos dados carregados)
   const equipesDisponiveis = useMemo(() => {
     const teams = [...new Set(captacoes.map(c => c.team).filter(Boolean))];
     return teams.sort((a, b) => nomeEquipe(a).localeCompare(nomeEquipe(b)));
   }, [captacoes]);
+
+  // Opções do FILTRO de equipe: diretor vê a lista mestra (tabela equipes) — inclui equipes
+  // novas sem captação ainda; demais caem nas equipes presentes nos dados.
+  const equipesFiltroOpcoes = useMemo(() => {
+    if (isDiretor && equipesOpcoes?.length) {
+      return [...equipesOpcoes].sort((a, b) => String(a.label).localeCompare(String(b.label)));
+    }
+    return equipesDisponiveis.map(t => ({ value: t, label: nomeEquipe(t) }));
+  }, [isDiretor, equipesOpcoes, equipesDisponiveis]);
 
   // Filtros
   const captacoesFiltradas = useMemo(() => captacoes.filter(c => {
@@ -1829,11 +1840,11 @@ export default function JornadaCaptacao() {
           </div>
         </div>
         <div className="cap-topbar-right">
-          {isAdmin && equipesDisponiveis.length > 1 && (
+          {isAdmin && equipesFiltroOpcoes.length > 1 && (
             <select className="cap-search-input cap-filtro-equipe" value={filtroEquipe} onChange={e => setFiltroEquipe(e.target.value)}>
               <option value="">Todas as equipes</option>
-              {equipesDisponiveis.map(t => (
-                <option key={t} value={t}>{nomeEquipe(t)}</option>
+              {equipesFiltroOpcoes.map(o => (
+                <option key={o.value} value={o.value}>{o.label}</option>
               ))}
             </select>
           )}

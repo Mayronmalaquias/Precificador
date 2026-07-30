@@ -386,6 +386,15 @@ def alterar_gerente(manager, id_corretor):
             return {"error": "O usuário informado não tem permissão de gerente"}
 
         user.team = manager
+
+        # As captações seguem o corretor: ao mudar de equipe, o team gravado nas captações
+        # dele (usado pra escopar a visão do gerente) é atualizado p/ a equipe nova — senão o
+        # gerente novo não veria os processos antigos do corretor (feitos antes de entrar).
+        from app.models.captacao import Captacao
+        session.query(Captacao).filter(Captacao.id_corretor == id_corretor).update(
+            {Captacao.team: manager}, synchronize_session=False
+        )
+
         session.commit()
 
         _cache_invalidate("lista:", f"info:{id_corretor}:")

@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { BASE } from "../services/api";
 import { useAuth } from "../context/AuthContext";
+import { useEquipes } from "../context/EquipesContext";
 import "../assets/css/GestaoClientesVisitas.css";
 
 const hoje = new Date();
@@ -15,16 +16,6 @@ const statusAcaoConfig = {
   a_fazer: { label: "A fazer", className: "is-todo" },
   feita: { label: "Feita", className: "is-done" },
 };
-
-const gerentesFixos = [
-  { id: "G61010", nome: "Thais Tannus" },
-  { id: "G61001", nome: "Jose Marques" },
-  { id: "G61002", nome: "Marcelo Souza" },
-  { id: "G61003", nome: "Luana Salvinski" },
-  { id: "G61014", nome: "Marcelo Pincinato" },
-  { id: "G61015", nome: "Helio Junio" },
-  { id: "G61016", nome: "Paolla Gardenia" },
-];
 
 function texto(valor, fallback = "-") {
   const limpo = String(valor ?? "").trim();
@@ -330,6 +321,7 @@ function CalendarioAcoes({ mes, setMes, dias, onSelecionarCliente, onAtualizarSt
 
 function GestaoClientesVisitas() {
   const { userData, permissao, isDiretor, isGerente, idCorretor } = useAuth();
+  const { equipesOpcoes } = useEquipes();
   const [filtros, setFiltros] = useState({
     escopo: isDiretor ? "61" : isGerente ? "equipe" : "corretor",
     id_corretor: "",
@@ -623,8 +615,8 @@ function GestaoClientesVisitas() {
               onChange={(e) => setFiltros((f) => ({ ...f, id_gerente: e.target.value }))}
             >
               <option value="">Todas as equipes</option>
-              {gerentesFixos.map((g) => (
-                <option key={g.id} value={g.id}>{g.id} - {g.nome}</option>
+              {equipesOpcoes.map((o) => (
+                <option key={o.value} value={o.value}>{o.label}</option>
               ))}
             </select>
           </label>
