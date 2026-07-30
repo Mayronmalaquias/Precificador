@@ -1,5 +1,21 @@
+import re
+
 from app.database import SessionLocal
 from app.models.equipe import Equipe
+
+
+def proximo_id_equipe() -> str:
+    """Gera o próximo id de equipe no padrão G61xxx (maior G-numérico existente + 1)."""
+    session = SessionLocal()
+    try:
+        maior = 61000
+        for (idv,) in session.query(Equipe.id_equipe).all():
+            m = re.fullmatch(r"G(\d+)", str(idv or "").strip().upper())
+            if m:
+                maior = max(maior, int(m.group(1)))
+        return f"G{maior + 1}"
+    finally:
+        session.close()
 
 
 def _to_dict(e: Equipe) -> dict:

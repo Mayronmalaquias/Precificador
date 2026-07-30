@@ -6,6 +6,7 @@ from app.services.equipes_service import (
     criar_equipe,
     definir_gerente_equipe,
     listar_equipes,
+    proximo_id_equipe,
 )
 
 equipes_ns = Namespace("equipes", description="Gestão de equipes")
@@ -23,11 +24,12 @@ class Equipes(Resource):
 
     def post(self):
         data = request.get_json() or {}
-        id_equipe = (data.get("id_equipe") or "").strip()
         nome = (data.get("nome") or "").strip()
         id_gerente = (data.get("id_gerente") or "").strip()
-        if not id_equipe or not nome:
-            return {"ok": False, "error": "id_equipe e nome são obrigatórios"}, 400
+        if not nome:
+            return {"ok": False, "error": "nome é obrigatório"}, 400
+        # ID é automático (padrão G61xxx); só usa o enviado se vier explícito (retrocompat).
+        id_equipe = (data.get("id_equipe") or "").strip() or proximo_id_equipe()
         try:
             equipe = criar_equipe(id_equipe, nome, data.get("email"))
             # Alinha o gerente escolhido à equipe (team=id_equipe + permissao=gerente).

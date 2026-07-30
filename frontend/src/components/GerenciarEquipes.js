@@ -21,7 +21,7 @@ function GerenciarEquipes() {
   const [usuarios, setUsuarios] = useState([]);
 
   // Form de criação
-  const [novo, setNovo] = useState({ id_equipe: "", nome: "", email: "", id_gerente: "" });
+  const [novo, setNovo] = useState({ nome: "", email: "", id_gerente: "" });
 
   // Edição inline de nome
   const [editandoId, setEditandoId] = useState(null);
@@ -65,22 +65,24 @@ function GerenciarEquipes() {
   async function handleCriar(e) {
     e.preventDefault();
     if (salvando) return;
-    const id_equipe = novo.id_equipe.trim();
     const nome = novo.nome.trim();
-    if (!id_equipe || !nome) {
-      toast("Informe id da equipe e nome.", "error");
+    if (!nome) {
+      toast("Informe o nome da equipe.", "error");
       return;
     }
     setSalvando(true);
     try {
-      await criarEquipe({
-        id_equipe,
+      // ID é gerado automaticamente pelo backend (padrão G61xxx).
+      const resp = await criarEquipe({
         nome,
         email: novo.email.trim() || undefined,
         id_gerente: novo.id_gerente.trim() || undefined,
       });
-      setNovo({ id_equipe: "", nome: "", email: "", id_gerente: "" });
-      await aposMutacao(novo.id_gerente ? "Equipe criada e gerente definido." : "Equipe criada.");
+      const idGerado = resp?.equipe?.id_equipe || "";
+      setNovo({ nome: "", email: "", id_gerente: "" });
+      await aposMutacao(
+        `Equipe criada${idGerado ? ` (${idGerado})` : ""}${novo.id_gerente ? " e gerente definido" : ""}.`
+      );
     } catch (err) {
       toast(err.message || "Erro ao criar equipe.", "error");
     } finally {
@@ -131,16 +133,6 @@ function GerenciarEquipes() {
       <form className="ds-card" onSubmit={handleCriar} style={{ padding: 16, marginBottom: 24 }}>
         <h3 style={{ marginTop: 0 }}>Nova equipe</h3>
         <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
-          <div className="ds-form-group" style={{ flex: "1 1 160px" }}>
-            <label className="ds-label">ID da equipe</label>
-            <input
-              className="ds-input"
-              placeholder="Ex: G61020"
-              value={novo.id_equipe}
-              onChange={(e) => setNovo((p) => ({ ...p, id_equipe: e.target.value }))}
-              disabled={salvando}
-            />
-          </div>
           <div className="ds-form-group" style={{ flex: "2 1 220px" }}>
             <label className="ds-label">Nome</label>
             <input
