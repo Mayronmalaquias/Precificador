@@ -400,12 +400,17 @@ function GestaoClientesVisitas() {
   const clientesBase = useMemo(() => dados?.clientes || [], [dados]);
   const corretores = dados?.corretores || [];
   const clientes = useMemo(() => {
-    const minVisitas = Number(filtros.minVisitas || 0);
+    // Filtro de visitas: "N" = N ou mais (N+); "=N" = exatamente N.
+    const filtroVisitas = String(filtros.minVisitas || "0");
+    const visitasExato = filtroVisitas.startsWith("=");
+    const nVisitas = Number(visitasExato ? filtroVisitas.slice(1) : filtroVisitas) || 0;
     const propostaFiltro = filtros.proposta;
 
     return clientesBase
       .filter((cliente) => {
-        if ((Number(cliente.qtd_visitas) || 0) < minVisitas) return false;
+        const qtd = Number(cliente.qtd_visitas) || 0;
+        if (visitasExato) { if (qtd !== nVisitas) return false; }
+        else if (qtd < nVisitas) return false;
         if (!propostaFiltro || propostaFiltro === "todas") return true;
         return Object.keys(cliente.propostas || {}).some(
           (proposta) => normalizarProposta(proposta) === propostaFiltro
@@ -654,6 +659,8 @@ function GestaoClientesVisitas() {
             onChange={(e) => setFiltros((f) => ({ ...f, minVisitas: e.target.value }))}
           >
             <option value="0">Todas</option>
+            <option value="=1">Exatamente 1</option>
+            <option value="=3">Exatamente 3</option>
             <option value="1">1+</option>
             <option value="3">3+</option>
             <option value="5">5+</option>

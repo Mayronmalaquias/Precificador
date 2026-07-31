@@ -1,4 +1,5 @@
-.ce-wrap { display: flex; flex-direction: column; gap: 14px; }
+.ce-wrap { display: flex; flex-direction: column; gap: 14px; box-sizing: border-box; max-width: 100%; min-width: 0; }
+.ce-wrap *, .ce-wrap *::before, .ce-wrap *::after { box-sizing: border-box; }
 
 .ce-controls { display: flex; flex-direction: column; gap: 10px; }
 .ce-dims { display: flex; flex-wrap: wrap; gap: 6px; }

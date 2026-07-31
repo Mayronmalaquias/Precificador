@@ -1628,6 +1628,11 @@ export default function JornadaCaptacao() {
 
   const [filtroCorretor, setFiltroCorretor] = useState("");
   const [filtroEquipe,   setFiltroEquipe]   = useState("");
+  const [filtroBairro,   setFiltroBairro]   = useState("");
+  const [filtroBook,     setFiltroBook]     = useState("");   // "" | "sim" | "nao"
+  const [filtroAcao,     setFiltroAcao]     = useState("");   // "" | "pendente" | "feita"
+  const [filtroParados,  setFiltroParados]  = useState("");   // "" | "7" | "14" | "30"
+  const [filtroEndereco, setFiltroEndereco] = useState("");
   const [abaGerente, setAbaGerente]         = useState("ativo");
 
   const isAdmin   = ["gerente", "administrador", "diretor"].includes(userInfo.permissao);
@@ -1720,12 +1725,34 @@ export default function JornadaCaptacao() {
     return equipesDisponiveis.map(t => ({ value: t, label: nomeEquipe(t) }));
   }, [isDiretor, equipesOpcoes, equipesDisponiveis]);
 
+  // Bairros presentes nas captações (opções do filtro de bairro)
+  const bairrosDisponiveis = useMemo(
+    () => [...new Set(captacoes.map(c => (c.bairro || "").trim()).filter(Boolean))]
+      .sort((a, b) => a.localeCompare(b)),
+    [captacoes]
+  );
+
   // Filtros
   const captacoesFiltradas = useMemo(() => captacoes.filter(c => {
-    if (filtroCorretor && !((c.nome_corretor || "").toLowerCase().includes(filtroCorretor.toLowerCase()))) return false;
+    if (filtroCorretor && c.id_corretor !== filtroCorretor) return false;
     if (filtroEquipe && c.team !== filtroEquipe) return false;
+    if (filtroBairro && (c.bairro || "").trim() !== filtroBairro) return false;
+    if (filtroBook === "sim" && c.book_enviado !== true) return false;
+    if (filtroBook === "nao" && c.book_enviado !== false) return false;
+    if (filtroEndereco && !((c.endereco || "").toLowerCase().includes(filtroEndereco.toLowerCase()))) return false;
+    if (filtroParados) {
+      const d = diasDesde(c.data_entrada_etapa);
+      if (d === null || d < Number(filtroParados)) return false;
+    }
+    if (filtroAcao) {
+      const campoObje = CAMP_OBJE_KANBAN[c.etapa_atual];
+      const temAcao = !!(c[CAMP_ACAO_KANBAN[c.etapa_atual]] || (campoObje && c[campoObje]));
+      const acaoFeita = c[CAMP_REAL_KANBAN[c.etapa_atual]] === true;
+      if (filtroAcao === "pendente" && !(temAcao && !acaoFeita)) return false;
+      if (filtroAcao === "feita" && !(temAcao && acaoFeita)) return false;
+    }
     return true;
-  }), [captacoes, filtroCorretor, filtroEquipe]);
+  }), [captacoes, filtroCorretor, filtroEquipe, filtroBairro, filtroBook, filtroEndereco, filtroParados, filtroAcao]);
 
   const captacoesAtivas        = useMemo(() => captacoesFiltradas.filter(c => c.status !== "fechado" && c.status !== "exclusividade"), [captacoesFiltradas]);
   const captacoesFechadas      = useMemo(() => captacoesFiltradas.filter(c => c.status === "fechado"),      [captacoesFiltradas]);
@@ -1849,8 +1876,38 @@ export default function JornadaCaptacao() {
             </select>
           )}
           {isAdmin && (
-            <input className="cap-search-input" placeholder="Filtrar corretor…" value={filtroCorretor} onChange={e => setFiltroCorretor(e.target.value)} />
+            <select className="cap-search-input cap-filtro-corretor" value={filtroCorretor} onChange={e => setFiltroCorretor(e.target.value)}>
+              <option value="">Todos os corretores</option>
+              {corretoresAtivos
+                .filter(c => !filtroEquipe || c.team === filtroEquipe)
+                .map(c => (
+                  <option key={c.id_usuarios} value={c.id_usuarios}>{c.nome || c.username}</option>
+                ))}
+            </select>
           )}
+          {bairrosDisponiveis.length > 0 && (
+            <select className="cap-search-input" value={filtroBairro} onChange={e => setFiltroBairro(e.target.value)}>
+              <option value="">Todos os bairros</option>
+              {bairrosDisponiveis.map(b => <option key={b} value={b}>{b}</option>)}
+            </select>
+          )}
+          <select className="cap-search-input" value={filtroBook} onChange={e => setFiltroBook(e.target.value)}>
+            <option value="">Book (todos)</option>
+            <option value="sim">Book enviado</option>
+            <option value="nao">Book não enviado</option>
+          </select>
+          <select className="cap-search-input" value={filtroAcao} onChange={e => setFiltroAcao(e.target.value)}>
+            <option value="">Ação (todas)</option>
+            <option value="pendente">Ação pendente</option>
+            <option value="feita">Ação feita</option>
+          </select>
+          <select className="cap-search-input" value={filtroParados} onChange={e => setFiltroParados(e.target.value)}>
+            <option value="">Parados (todos)</option>
+            <option value="7">Parados +7 dias</option>
+            <option value="14">Parados +14 dias</option>
+            <option value="30">Parados +30 dias</option>
+          </select>
+          <input className="cap-search-input" placeholder="Endereço…" value={filtroEndereco} onChange={e => setFiltroEndereco(e.target.value)} />
 {!isAdmin && <button className="cap-primary-btn" onClick={() => setShowNovo(true)}>+ Novo imóvel</button>}
           {isAdmin  && <button className="cap-primary-btn" onClick={() => setShowNovo(true)}>+ Novo imóvel</button>}
           <button className="cap-refresh-btn" onClick={carregarCaptacoes} title="Atualizar">↻</button>

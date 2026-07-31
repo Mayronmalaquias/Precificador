@@ -80,8 +80,13 @@ export function LineChart({ datas, series, cores }) {
         ))}
       </svg>
 
-      {hover != null && (
-        <div className="ce-tip" style={{ left: `${(x(hover) / W) * 100}%` }}>
+      {hover != null && (() => {
+        // Ancora o tooltip conforme a posição pra não vazar nas bordas do gráfico:
+        // ponto à direita → tooltip cresce p/ esquerda; à esquerda → cresce p/ direita.
+        const frac = W ? x(hover) / W : 0.5;
+        const tx = frac > 0.7 ? "-100%" : frac < 0.3 ? "0%" : "-50%";
+        return (
+        <div className="ce-tip" style={{ left: `${frac * 100}%`, transform: `translateX(${tx})` }}>
           <div className="ce-tip-data">{fmtDataCurta(datas[hover])}</div>
           {series
             .map((s, si) => ({ nome: s.label || s.nome, v: s.pontos[hover], cor: s.cor || cores[si % cores.length] }))
@@ -96,7 +101,8 @@ export function LineChart({ datas, series, cores }) {
               </div>
             ))}
         </div>
-      )}
+        );
+      })()}
     </div>
   );
 }
