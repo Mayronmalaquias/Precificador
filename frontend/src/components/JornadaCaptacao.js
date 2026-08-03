@@ -1725,18 +1725,41 @@ export default function JornadaCaptacao() {
     return equipesDisponiveis.map(t => ({ value: t, label: nomeEquipe(t) }));
   }, [isDiretor, equipesOpcoes, equipesDisponiveis]);
 
-  // Bairros presentes nas captações (opções do filtro de bairro)
-  const bairrosDisponiveis = useMemo(
-    () => [...new Set(captacoes.map(c => (c.bairro || "").trim()).filter(Boolean))]
-      .sort((a, b) => a.localeCompare(b)),
-    [captacoes]
-  );
+  // Chave normalizada de bairro: minúscula, sem acento, espaços colapsados. Agrupa
+  // "Águas Claras", "AGUAS CLARAS", "aguas claras" etc. numa opção só (não mescla
+  // grafias com palavras diferentes, ex.: "Águas Claras Norte" continua separado).
+  const bairroKey = (b) => String(b || "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")  // remove acentos
+    .replace(/\s+/g, " ")             // colapsa espaços
+    .trim();
+
+  // Bairros presentes nas captações (dedupe por chave; label = grafia mais comum do grupo)
+  const bairrosDisponiveis = useMemo(() => {
+    const grupos = new Map(); // key -> Map(grafiaOriginal -> contagem)
+    for (const c of captacoes) {
+      const raw = (c.bairro || "").trim();
+      const key = bairroKey(raw);
+      if (!key) continue;
+      const cont = grupos.get(key) || new Map();
+      cont.set(raw, (cont.get(raw) || 0) + 1);
+      grupos.set(key, cont);
+    }
+    return [...grupos.entries()]
+      .map(([key, cont]) => ({
+        value: key,
+        label: [...cont.entries()].sort((a, b) => b[1] - a[1])[0][0], // grafia mais frequente
+      }))
+      .sort((a, b) => a.label.localeCompare(b.label, "pt-BR"));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [captacoes]);
 
   // Filtros
   const captacoesFiltradas = useMemo(() => captacoes.filter(c => {
     if (filtroCorretor && c.id_corretor !== filtroCorretor) return false;
     if (filtroEquipe && c.team !== filtroEquipe) return false;
-    if (filtroBairro && (c.bairro || "").trim() !== filtroBairro) return false;
+    if (filtroBairro && bairroKey(c.bairro) !== filtroBairro) return false;
     if (filtroBook === "sim" && c.book_enviado !== true) return false;
     if (filtroBook === "nao" && c.book_enviado !== false) return false;
     if (filtroEndereco && !((c.endereco || "").toLowerCase().includes(filtroEndereco.toLowerCase()))) return false;
@@ -1888,7 +1911,7 @@ export default function JornadaCaptacao() {
           {bairrosDisponiveis.length > 0 && (
             <select className="cap-search-input" value={filtroBairro} onChange={e => setFiltroBairro(e.target.value)}>
               <option value="">Todos os bairros</option>
-              {bairrosDisponiveis.map(b => <option key={b} value={b}>{b}</option>)}
+              {bairrosDisponiveis.map(b => <option key={b.value} value={b.value}>{b.label}</option>)}
             </select>
           )}
           <select className="cap-search-input" value={filtroBook} onChange={e => setFiltroBook(e.target.value)}>
