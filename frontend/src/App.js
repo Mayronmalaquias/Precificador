@@ -15,6 +15,7 @@ import ReporteImovel from './components/ReporteImovelWidget';
 import PrivateRoute from './auth/PrivateRoute';
 import AdminRoute from './auth/AdminRoute';
 import AdministradorRoute from './auth/AdministradorRoute';
+import AssistenteRoute from './auth/AssistenteRoute';
 import PaginaPublica from './components/FormularioPublico';
 import FormVisita from './components/FormVisita';
 import AppVisita from './components/FormVisitaApp';
@@ -35,6 +36,7 @@ import GerenciarEquipes from './components/GerenciarEquipes'
 import AdminBases from './components/AdminBases'
 import Vendas from './components/Vendas'
 import GerenteRHCorretores from './components/GerenteRHCorretores'
+import LancarImovel from './components/LancarImovel'
 
 import './assets/css/styles.css';
 import './assets/css/report.css';
@@ -105,6 +107,10 @@ function App() {
                 <Route
                   path="/GerenciarEquipes"
                   element={<AdministradorRoute><GerenciarEquipes /></AdministradorRoute>}
+                />
+                <Route
+                  path="/LancarImovel"
+                  element={<AssistenteRoute><LancarImovel /></AssistenteRoute>}
                 />
                 <Route
                   path="/GerenteRH"

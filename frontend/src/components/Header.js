@@ -5,7 +5,7 @@ import '../assets/css/Header.css';
 
 function Header() {
   const navigate = useNavigate();
-  const { isLogado, isAdmin, isAdministrador, permissao, nomeUsuario, idCorretor, logout } = useAuth();
+  const { isLogado, isAdmin, isAdministrador, isAssistente, permissao, nomeUsuario, idCorretor, logout } = useAuth();
   const isAdminOuDiretor = ['administrador', 'diretor'].includes(permissao);
   const profileRef = useRef(null);
   const servicosRef = useRef(null);
@@ -90,6 +90,7 @@ function Header() {
     { to: '/AdminBases', label: 'Gestão de Bases', show: isLogado && isAdminOuDiretor },
     { to: '/Vendas', label: 'Vendas', show: isLogado && isAdminOuDiretor },
     { to: '/JornadaCaptacao', label: 'Jornada Captação', show: isLogado },
+    { to: '/LancarImovel', label: 'Lançar Imóvel', subtitle: 'Imoview + Trello', show: isLogado && (isAssistente || isAdministrador) },
   ].filter((item) => item.show);
 
   const gestao = [
