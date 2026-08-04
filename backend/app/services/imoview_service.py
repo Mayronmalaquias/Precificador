@@ -1,6 +1,7 @@
 # app/services/imoview_service.py
 from __future__ import annotations
 
+import json as _json
 import os
 import requests
 from typing import Any, Dict, List, Optional
@@ -115,3 +116,88 @@ def buscar_imoveis_por_endereco(
             }
 
     return list(resultados.values())
+
+
+# ============================================================================
+# Inclusão de imóvel (lançamento pelos assistentes) + listas de lookup
+# ============================================================================
+
+def _get_imoview(endpoint: str, params: Optional[Dict[str, Any]] = None) -> Any:
+    """GET nos endpoints de lista (RetornarLista*). Header `chave`."""
+    resp = requests.get(
+        f"{IMOVIEW_BASE}{endpoint}",
+        headers=_headers(),
+        params=params or {},
+        timeout=30,
+    )
+    if resp.status_code >= 400:
+        raise RuntimeError(f"Imoview HTTP {resp.status_code} em {endpoint}: {resp.text[:500]}")
+    try:
+        return resp.json()
+    except ValueError:
+        return []
+
+
+def _lista(endpoint: str) -> List[Any]:
+    """Imoview devolve {'quantidade': n, 'lista': [...]} — desembrulha p/ lista pura."""
+    data = _get_imoview(endpoint)
+    if isinstance(data, dict):
+        return data.get("lista") or []
+    return data if isinstance(data, list) else []
+
+
+# Listas para popular os dropdowns do formulário de lançamento (itens {codigo, nome}).
+def listar_unidades() -> List[Any]:
+    return _lista("/Imovel/RetornarListaUnidades")
+
+
+def listar_finalidades() -> List[Any]:
+    return _lista("/Imovel/RetornarListaFinalidades")
+
+
+def listar_destinacoes() -> List[Any]:
+    return _lista("/Imovel/RetornarListaDestinacoes")
+
+
+def listar_tipos() -> List[Any]:
+    return _lista("/Imovel/RetornarTiposImoveisDisponiveis")
+
+
+def listar_localchaves() -> List[Any]:
+    return _lista("/Imovel/RetornarListaLocalChaves")
+
+
+def incluir_imovel(parametros: Dict[str, Any], fotos: Optional[List[Any]] = None) -> Dict[str, Any]:
+    """
+    POST /Imovel/IncluirImovel — cria um imóvel no Imoview CRM.
+
+    Contrato do Imoview: os campos vão como JSON na QUERY (`parametros`); as fotos
+    (opcionais) vão no corpo multipart/form-data no campo `fotos`. Retorna
+    `{ "mensagem": str, "codigo": int }`.
+
+    `fotos` pode ser uma lista de FileStorage (Flask) ou tuplas (nome, bytes, mime).
+    """
+    url = f"{IMOVIEW_BASE}/Imovel/IncluirImovel"
+
+    files: List[Any] = []
+    for f in (fotos or []):
+        if hasattr(f, "read"):  # werkzeug FileStorage / file-like
+            nome = getattr(f, "filename", None) or "foto.jpg"
+            mime = getattr(f, "mimetype", None) or "image/jpeg"
+            files.append(("fotos", (nome, f.stream if hasattr(f, "stream") else f, mime)))
+        elif isinstance(f, (tuple, list)) and len(f) >= 2:
+            files.append(("fotos", tuple(f)))
+
+    resp = requests.post(
+        url,
+        headers=_headers(),
+        params={"parametros": _json.dumps(parametros, ensure_ascii=False)},
+        files=files or None,
+        timeout=60,
+    )
+    if resp.status_code >= 400:
+        raise RuntimeError(f"Imoview HTTP {resp.status_code}: {resp.text[:800]}")
+    try:
+        return resp.json() or {}
+    except ValueError:
+        return {"mensagem": resp.text[:500], "codigo": None}
