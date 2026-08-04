@@ -119,6 +119,68 @@ function getLastWeekRange() {
   };
 }
 
+// Gerador do texto de fechamento do mês (por equipe) p/ copiar no grupo.
+function FechamentoMes({ apiBase, toast }) {
+  const hoje = new Date();
+  const mesAtual = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}`;
+  const [mes, setMes] = useState(mesAtual);
+  const [texto, setTexto] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [copiado, setCopiado] = useState(false);
+
+  const gerar = useCallback(async () => {
+    setLoading(true);
+    setCopiado(false);
+    try {
+      const r = await fetch(`${apiBase}/rankings/fechamento?mes=${encodeURIComponent(mes)}`);
+      const d = await r.json();
+      if (!r.ok || d.ok === false) throw new Error(d.error || 'Erro ao gerar fechamento.');
+      setTexto(d.texto || '');
+    } catch (e) {
+      toast(e.message || 'Erro ao gerar fechamento.', 'error');
+    } finally {
+      setLoading(false);
+    }
+  }, [apiBase, mes, toast]);
+
+  const copiar = () => {
+    if (!texto) return;
+    navigator.clipboard.writeText(texto)
+      .then(() => { setCopiado(true); toast('Texto copiado!', 'success'); })
+      .catch(() => toast('Não consegui copiar — selecione e copie manual.', 'error'));
+  };
+
+  return (
+    <div className="ranking__panel" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+      <div style={{ display: 'flex', alignItems: 'flex-end', gap: 12, flexWrap: 'wrap' }}>
+        <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 13, fontWeight: 600, color: '#475569' }}>
+          Mês do fechamento
+          <input type="month" value={mes} onChange={(e) => setMes(e.target.value)}
+            style={{ height: 40, padding: '0 10px', border: '1.5px solid #e5e7eb', borderRadius: 8 }} />
+        </label>
+        <button type="button" onClick={gerar} disabled={loading}
+          style={{ height: 40, padding: '0 22px', border: 'none', borderRadius: 8, background: '#e1005b', color: '#fff', fontWeight: 700, cursor: 'pointer' }}>
+          {loading ? 'Gerando…' : 'Gerar texto'}
+        </button>
+        {texto && (
+          <button type="button" onClick={copiar}
+            style={{ height: 40, padding: '0 22px', border: 'none', borderRadius: 8, background: '#111827', color: '#fff', fontWeight: 700, cursor: 'pointer' }}>
+            {copiado ? '✓ Copiado' : 'Copiar'}
+          </button>
+        )}
+      </div>
+      {texto && (
+        <textarea readOnly value={texto} rows={Math.min(30, texto.split('\n').length + 1)}
+          style={{ width: '100%', fontFamily: 'ui-monospace, Consolas, monospace', fontSize: 13, lineHeight: 1.55,
+            padding: 14, border: '1px dashed #e5e7eb', borderRadius: 12, background: '#f8fafc', color: '#111827', resize: 'vertical' }} />
+      )}
+      <p className="ranking__hint" style={{ margin: 0, fontSize: 12, color: '#9ca3af' }}>
+        Captações vêm da planilha de estoque (mês selecionado); corretor com 0 aparece como <code>/4</code>. Nome que não bate no cadastro pode não contar.
+      </p>
+    </div>
+  );
+}
+
 function Ranking() {
   const toast = useToast();
   const { permissao } = useAuth();
@@ -624,7 +686,16 @@ function Ranking() {
         >
           Metas
         </button>
+        <button
+          type="button"
+          className={`ranking__sectionTab ${section === 'fechamento' ? 'is-active' : ''}`}
+          onClick={() => setSection('fechamento')}
+        >
+          Fechamento
+        </button>
       </div>
+
+      {section === 'fechamento' && <FechamentoMes apiBase={API_BASE} toast={toast} />}
 
       {section === 'rankings' ? (
         <>
@@ -866,7 +937,7 @@ function Ranking() {
             </aside>
           </div>
         </>
-      ) : (
+      ) : section === 'metas' ? (
         <form className="ranking__panel ranking__panel--metas" onSubmit={visualizarMetas}>
           <div className="ranking__tableHead">
             <div>
@@ -982,7 +1053,7 @@ function Ranking() {
             </button>
           </div>
         </form>
-      )}
+      ) : null}
 
       {showPreview && (
         <div className="ranking__modalOverlay" onClick={() => setShowPreview(false)}>

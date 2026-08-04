@@ -14,6 +14,24 @@ function opt(item) {
 }
 const asOpts = (lista) => (Array.isArray(lista) ? lista.map(opt).filter(Boolean) : []);
 
+// Formata "880000" / "880.000,00" → "R$ 880.000,00"
+function fmtValorBR(v) {
+  const n = Number(String(v ?? "").replace(/\./g, "").replace(",", "."));
+  return isFinite(n) && n ? n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" }) : String(v ?? "");
+}
+
+// Texto do grupo de captação (mesmo padrão do WhatsApp).
+function textoAviso(a, foco) {
+  return [
+    foco ? "FOCO" : "NÃO FOCO",
+    a.codigo ?? "",
+    String(a.endereco || "").toUpperCase(),
+    fmtValorBR(a.valor),
+    a.comissao ? `${a.comissao}%` : "",
+    String(a.corretor || "").toUpperCase(),
+  ].filter((x) => String(x).trim() !== "").join("\n");
+}
+
 const VAZIO = {
   codigousuario: "", corretor_nome: "",
   finalidade: "", destinacao: "", codigotipo: "", codigounidade: "", localchave: "",
@@ -36,13 +54,15 @@ export default function LancarImovel() {
   const [carregandoListas, setCarregandoListas] = useState(true);
   const [enviando, setEnviando] = useState(false);
   const [resultado, setResultado] = useState(null);
+  const [aviso, setAviso] = useState(null);   // snapshot p/ o texto do grupo
+  const [foco, setFoco] = useState(true);
+  const [copiado, setCopiado] = useState(false);
 
   const set = (k) => (e) => {
     const v = e.target.type === "checkbox" ? e.target.checked : e.target.value;
     setForm((f) => ({ ...f, [k]: v }));
   };
 
-  // Corretores (para o codigousuario = id_imoview do corretor)
   useEffect(() => {
     fetch(`${BASE}/corretor/retornar-lista?ativo=true&per_page=1000`)
       .then((r) => r.json())
@@ -50,7 +70,6 @@ export default function LancarImovel() {
       .catch(() => {});
   }, []);
 
-  // Listas do Imoview
   useEffect(() => {
     setCarregandoListas(true);
     fetch(`${BASE}/assistente/imoview/listas`)
@@ -68,6 +87,13 @@ export default function LancarImovel() {
       .catch(() => toast("Erro ao carregar listas do Imoview.", "error"))
       .finally(() => setCarregandoListas(false));
   }, [toast]);
+
+  const copiarAviso = () => {
+    if (!aviso) return;
+    navigator.clipboard.writeText(textoAviso(aviso, foco))
+      .then(() => { setCopiado(true); toast("Texto copiado!", "success"); })
+      .catch(() => toast("Não consegui copiar — selecione e copie manual.", "error"));
+  };
 
   const onCorretor = (e) => {
     const codigousuario = e.target.value;
@@ -103,13 +129,23 @@ export default function LancarImovel() {
       fd.append("assistente_nome", userData?.nome || userData?.username || "");
       fotos.forEach((foto) => fd.append("fotos", foto));
 
-      // fetch direto (multipart) — o interceptor injeta X-API-KEY sem tocar no Content-Type.
       const resp = await fetch(`${BASE}/assistente/incluir-imovel`, { method: "POST", body: fd });
       const d = await resp.json().catch(() => ({}));
       if (!resp.ok || d.ok === false) throw new Error(d.error || "Erro ao lançar o imóvel.");
 
       setResultado(d);
+      // snapshot p/ o aviso do grupo (antes de limpar o form)
+      setAviso({
+        codigo: d.codigo,
+        endereco: [form.rua, form.numero, form.bloco, form.complemento].filter(Boolean).join(" - "),
+        valor: form.valor,
+        comissao: form.comissao,
+        corretor: form.corretor_nome,
+      });
+      setFoco(true);
+      setCopiado(false);
       toast(`Imóvel lançado! Código ${d.codigo ?? "—"}.`, "success");
+      window.scrollTo({ top: 0, behavior: "smooth" });
       setForm(VAZIO);
       setFotos([]);
     } catch (err) {
@@ -120,127 +156,200 @@ export default function LancarImovel() {
   }, [enviando, form, fotos, userData, toast]);
 
   return (
-    <div className="li-page">
-      <div className="li-header">
-        <h1>Lançar Imóvel</h1>
-        <p>Lançamento único: inclui no <strong>Imoview</strong> e cria o cartão no <strong>Trello</strong>.</p>
-      </div>
+    <div className="li-shell">
+      <header className="li-hero">
+        <div className="li-hero-main">
+          <span className="li-eyebrow">Captação · Assistentes</span>
+          <h1 className="li-title">Lançar imóvel</h1>
+          <p className="li-subtitle">
+            Um único lançamento publica no <strong>Imoview</strong>, registra no <strong>estoque</strong> e
+            cria o <strong>cartão no Trello</strong> — chega de digitar duas vezes.
+          </p>
+        </div>
+        <div className="li-hero-chips" aria-hidden="true">
+          <span className="li-chip"><i>🏢</i> Imoview</span>
+          <span className="li-chip"><i>📊</i> Estoque</span>
+          <span className="li-chip"><i>🗂️</i> Trello</span>
+        </div>
+      </header>
 
       {resultado && (
-        <div className="li-resultado">
-          ✅ Imóvel lançado no Imoview — código <strong>{resultado.codigo ?? "—"}</strong>.
-          {" "}Planilha: {resultado.sheet?.ok ? "gravada ✓" : `⚠️ ${resultado.sheet?.error || "falhou"}`}.
-          {" "}Trello: {resultado.trello?.ok
-            ? <a href={resultado.trello.url} target="_blank" rel="noreferrer">cartão criado ✓</a>
-            : <>⚠️ {resultado.trello?.error || "falhou"}</>}.
+        <div className="li-success" role="status">
+          <div className="li-success-badge">✓</div>
+          <div className="li-success-body">
+            <strong>Imóvel lançado no Imoview — código {resultado.codigo ?? "—"}.</strong>
+            <div className="li-success-tags">
+              <Tag ok={resultado.sheet?.ok} label={resultado.sheet?.ok ? "Estoque gravado" : `Estoque: ${resultado.sheet?.error || "falhou"}`} />
+              {resultado.trello?.ok
+                ? <a className="li-tag li-tag--ok" href={resultado.trello.url} target="_blank" rel="noreferrer">Cartão Trello ↗</a>
+                : <Tag ok={false} label={`Trello: ${resultado.trello?.error || "falhou"}`} />}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {aviso && (
+        <div className="li-aviso">
+          <div className="li-aviso-head">
+            <span className="li-aviso-titulo">📣 Aviso pro grupo de captação</span>
+            <div className="li-foco-seg">
+              <button type="button" className={foco ? "is-on" : ""} onClick={() => { setFoco(true); setCopiado(false); }}>FOCO</button>
+              <button type="button" className={!foco ? "is-on is-off" : ""} onClick={() => { setFoco(false); setCopiado(false); }}>NÃO FOCO</button>
+            </div>
+          </div>
+          <pre className="li-aviso-texto">{textoAviso(aviso, foco)}</pre>
+          <button type="button" className="li-copiar" onClick={copiarAviso}>
+            {copiado ? "✓ Copiado" : "Copiar texto"}
+          </button>
         </div>
       )}
 
       <form className="li-form" onSubmit={enviar}>
-        <fieldset className="li-fs">
-          <legend>Identificação</legend>
-          <label className="li-field li-col2">
-            <span>Corretor *</span>
+        <Section n={1} icon="👤" title="Identificação" desc="Corretor responsável e classificação do imóvel no Imoview.">
+          <Field label="Corretor" req span={2}>
             <select value={form.codigousuario} onChange={onCorretor} required>
-              <option value="">Selecione…</option>
+              <option value="">Selecione o corretor…</option>
               {corretoresOpts.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
             </select>
-          </label>
-          <Select label="Finalidade *" value={form.finalidade} onChange={set("finalidade")} opts={listas.finalidades} loading={carregandoListas} req />
-          <Select label="Destinação *" value={form.destinacao} onChange={set("destinacao")} opts={listas.destinacoes} loading={carregandoListas} req />
-          <Select label="Tipo *" value={form.codigotipo} onChange={set("codigotipo")} opts={listas.tipos} loading={carregandoListas} req />
-          <Select label="Unidade *" value={form.codigounidade} onChange={set("codigounidade")} opts={listas.unidades} loading={carregandoListas} req />
-          <Select label="Local da chave *" value={form.localchave} onChange={set("localchave")} opts={listas.localchaves} loading={carregandoListas} req />
-          <label className="li-check"><input type="checkbox" checked={form.exclusivo} onChange={set("exclusivo")} /> Exclusivo</label>
-        </fieldset>
+          </Field>
+          <SelectField label="Finalidade" value={form.finalidade} onChange={set("finalidade")} opts={listas.finalidades} loading={carregandoListas} req />
+          <SelectField label="Destinação" value={form.destinacao} onChange={set("destinacao")} opts={listas.destinacoes} loading={carregandoListas} req />
+          <SelectField label="Tipo" value={form.codigotipo} onChange={set("codigotipo")} opts={listas.tipos} loading={carregandoListas} req />
+          <SelectField label="Unidade" value={form.codigounidade} onChange={set("codigounidade")} opts={listas.unidades} loading={carregandoListas} req />
+          <SelectField label="Local da chave" value={form.localchave} onChange={set("localchave")} opts={listas.localchaves} loading={carregandoListas} req />
+          <Toggle label="Imóvel exclusivo" checked={form.exclusivo} onChange={set("exclusivo")} />
+        </Section>
 
-        <fieldset className="li-fs">
-          <legend>Endereço</legend>
-          <Txt label="Rua *" value={form.rua} onChange={set("rua")} cls="li-col2" />
-          <Txt label="Número" value={form.numero} onChange={set("numero")} />
-          <Txt label="Complemento" value={form.complemento} onChange={set("complemento")} />
-          <Txt label="Bloco" value={form.bloco} onChange={set("bloco")} />
-          <Txt label="Bairro *" value={form.bairro} onChange={set("bairro")} />
-          <Txt label="Cidade" value={form.cidade} onChange={set("cidade")} />
-          <Txt label="Estado" value={form.estado} onChange={set("estado")} />
-        </fieldset>
+        <Section n={2} icon="📍" title="Endereço" desc="Onde o imóvel fica.">
+          <TextField label="Rua" value={form.rua} onChange={set("rua")} req span={2} />
+          <TextField label="Número" value={form.numero} onChange={set("numero")} />
+          <TextField label="Complemento" value={form.complemento} onChange={set("complemento")} />
+          <TextField label="Bloco" value={form.bloco} onChange={set("bloco")} />
+          <TextField label="Bairro" value={form.bairro} onChange={set("bairro")} req />
+          <TextField label="Cidade" value={form.cidade} onChange={set("cidade")} />
+          <TextField label="Estado" value={form.estado} onChange={set("estado")} />
+        </Section>
 
-        <fieldset className="li-fs">
-          <legend>Valores e áreas</legend>
-          <Txt label="Valor *" value={form.valor} onChange={set("valor")} type="text" />
-          <Txt label="Condomínio" value={form.valorcondominio} onChange={set("valorcondominio")} />
-          <Txt label="IPTU (valor)" value={form.valoriptu} onChange={set("valoriptu")} />
-          <Txt label="Comissão %" value={form.comissao} onChange={set("comissao")} />
-          <Txt label="Área interna *" value={form.areainterna} onChange={set("areainterna")} />
-          <Txt label="Área externa" value={form.areaexterna} onChange={set("areaexterna")} />
-        </fieldset>
+        <Section n={3} icon="💰" title="Valores e áreas" desc="Preço, encargos e metragem.">
+          <TextField label="Valor" value={form.valor} onChange={set("valor")} req prefix="R$" />
+          <TextField label="Condomínio" value={form.valorcondominio} onChange={set("valorcondominio")} prefix="R$" />
+          <TextField label="IPTU (valor)" value={form.valoriptu} onChange={set("valoriptu")} prefix="R$" />
+          <TextField label="Comissão" value={form.comissao} onChange={set("comissao")} suffix="%" />
+          <TextField label="Área interna" value={form.areainterna} onChange={set("areainterna")} req suffix="m²" />
+          <TextField label="Área externa" value={form.areaexterna} onChange={set("areaexterna")} suffix="m²" />
+        </Section>
 
-        <fieldset className="li-fs">
-          <legend>Características</legend>
-          <Txt label="Quartos" value={form.numeroquartos} onChange={set("numeroquartos")} />
-          <Txt label="Suítes" value={form.numerosuites} onChange={set("numerosuites")} />
-          <Txt label="Banheiros" value={form.numerobanhos} onChange={set("numerobanhos")} />
-          <Txt label="Salas" value={form.numerosalas} onChange={set("numerosalas")} />
-          <Txt label="Varandas" value={form.numerovarandas} onChange={set("numerovarandas")} />
-          <Txt label="Vagas" value={form.numerovagas} onChange={set("numerovagas")} />
-        </fieldset>
+        <Section n={4} icon="🛏️" title="Características" desc="Cômodos e vagas (opcional).">
+          <TextField label="Quartos" value={form.numeroquartos} onChange={set("numeroquartos")} />
+          <TextField label="Suítes" value={form.numerosuites} onChange={set("numerosuites")} />
+          <TextField label="Banheiros" value={form.numerobanhos} onChange={set("numerobanhos")} />
+          <TextField label="Salas" value={form.numerosalas} onChange={set("numerosalas")} />
+          <TextField label="Varandas" value={form.numerovarandas} onChange={set("numerovarandas")} />
+          <TextField label="Vagas" value={form.numerovagas} onChange={set("numerovagas")} />
+        </Section>
 
-        <fieldset className="li-fs">
-          <legend>Proprietário (obrigatório)</legend>
-          <Txt label="Nome *" value={form.prop_nome} onChange={set("prop_nome")} cls="li-col2" />
-          <Txt label="CPF/CNPJ *" value={form.prop_cpf} onChange={set("prop_cpf")} />
-          <Txt label="Telefone *" value={form.prop_telefone} onChange={set("prop_telefone")} />
-          <Txt label="E-mail" value={form.prop_email} onChange={set("prop_email")} />
-          <Txt label="% participação" value={form.prop_percentual} onChange={set("prop_percentual")} />
-        </fieldset>
+        <Section n={5} icon="🧾" title="Proprietário" desc="Obrigatório — o Imoview não cadastra sem." required>
+          <TextField label="Nome" value={form.prop_nome} onChange={set("prop_nome")} req span={2} />
+          <TextField label="CPF / CNPJ" value={form.prop_cpf} onChange={set("prop_cpf")} req />
+          <TextField label="Telefone" value={form.prop_telefone} onChange={set("prop_telefone")} req />
+          <TextField label="E-mail" value={form.prop_email} onChange={set("prop_email")} />
+          <TextField label="% participação" value={form.prop_percentual} onChange={set("prop_percentual")} suffix="%" />
+        </Section>
 
-        <fieldset className="li-fs">
-          <legend>Documentação / Trello</legend>
-          <Txt label="Matrícula" value={form.matricula} onChange={set("matricula")} />
-          <Txt label="Inscrição IPTU" value={form.inscricao_iptu} onChange={set("inscricao_iptu")} />
-          <label className="li-check"><input type="checkbox" checked={form.cessao_direitos} onChange={set("cessao_direitos")} /> Cessão de direitos</label>
-        </fieldset>
+        <Section n={6} icon="📄" title="Documentação" desc="Dados que vão pro cartão do Trello.">
+          <TextField label="Matrícula" value={form.matricula} onChange={set("matricula")} />
+          <TextField label="Inscrição IPTU" value={form.inscricao_iptu} onChange={set("inscricao_iptu")} />
+          <Toggle label="Cessão de direitos" checked={form.cessao_direitos} onChange={set("cessao_direitos")} />
+        </Section>
 
-        <fieldset className="li-fs">
-          <legend>Descrição e fotos</legend>
-          <label className="li-field li-col-full">
-            <span>Descrição *</span>
-            <textarea rows={4} value={form.descricao} onChange={set("descricao")} required />
-          </label>
-          <label className="li-field li-col-full">
-            <span>Fotos</span>
-            <input type="file" accept="image/*" multiple onChange={(e) => setFotos(Array.from(e.target.files || []))} />
-            {fotos.length > 0 && <small>{fotos.length} foto(s) selecionada(s)</small>}
-          </label>
-        </fieldset>
+        <Section n={7} icon="📝" title="Descrição e fotos" desc="Texto do anúncio e imagens do imóvel.">
+          <Field label="Descrição" req span={3}>
+            <textarea rows={4} value={form.descricao} onChange={set("descricao")} placeholder="Descreva as características e diferenciais do imóvel…" required />
+          </Field>
+          <Field label="Fotos" span={3}>
+            <label className="li-drop">
+              <input type="file" accept="image/*" multiple onChange={(e) => setFotos(Array.from(e.target.files || []))} />
+              <span className="li-drop-icon">📷</span>
+              <span className="li-drop-text">
+                {fotos.length > 0 ? <b>{fotos.length} foto(s) selecionada(s)</b> : <>Clique para selecionar as fotos</>}
+              </span>
+            </label>
+          </Field>
+        </Section>
+      </form>
 
-        <div className="li-acoes">
-          <button type="submit" className="li-btn" disabled={enviando || carregandoListas}>
-            {enviando ? "Lançando…" : "Lançar imóvel"}
+      <div className="li-actionbar">
+        <div className="li-actionbar-inner">
+          <span className="li-actionbar-hint">Campos com <b>*</b> são obrigatórios.</span>
+          <button type="button" className="li-cta" onClick={enviar} disabled={enviando || carregandoListas}>
+            {enviando ? <><span className="li-spinner" /> Lançando…</> : "Lançar imóvel"}
           </button>
         </div>
-      </form>
+      </div>
     </div>
   );
 }
 
-function Txt({ label, value, onChange, type = "text", cls = "" }) {
+/* ── Subcomponentes de UI ─────────────────────────────────────────────── */
+
+function Section({ n, icon, title, desc, required, children }) {
   return (
-    <label className={`li-field ${cls}`}>
-      <span>{label}</span>
-      <input type={type} value={value} onChange={onChange} />
+    <section className="li-card">
+      <div className="li-card-head">
+        <span className="li-step">{n}</span>
+        <div className="li-card-title">
+          <h2><span className="li-card-icon" aria-hidden="true">{icon}</span> {title}
+            {required && <span className="li-req-pill">obrigatório</span>}</h2>
+          {desc && <p>{desc}</p>}
+        </div>
+      </div>
+      <div className="li-grid">{children}</div>
+    </section>
+  );
+}
+
+function Field({ label, req, span, children }) {
+  return (
+    <label className={`li-field ${span === 2 ? "li-span2" : span === 3 ? "li-span3" : ""}`}>
+      <span className="li-label">{label}{req && <i className="li-star">*</i>}</span>
+      {children}
     </label>
   );
 }
 
-function Select({ label, value, onChange, opts, loading, req }) {
+function TextField({ label, value, onChange, req, span, prefix, suffix, type = "text" }) {
   return (
-    <label className="li-field">
-      <span>{label}</span>
+    <Field label={label} req={req} span={span}>
+      <div className={`li-input-wrap ${prefix ? "has-prefix" : ""} ${suffix ? "has-suffix" : ""}`}>
+        {prefix && <span className="li-affix li-prefix">{prefix}</span>}
+        <input type={type} value={value} onChange={onChange} />
+        {suffix && <span className="li-affix li-suffix">{suffix}</span>}
+      </div>
+    </Field>
+  );
+}
+
+function SelectField({ label, value, onChange, opts, loading, req }) {
+  return (
+    <Field label={label} req={req}>
       <select value={value} onChange={onChange} required={req}>
         <option value="">{loading ? "Carregando…" : "Selecione…"}</option>
         {opts.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
       </select>
+    </Field>
+  );
+}
+
+function Toggle({ label, checked, onChange }) {
+  return (
+    <label className="li-toggle">
+      <input type="checkbox" checked={checked} onChange={onChange} />
+      <span className="li-toggle-track"><span className="li-toggle-thumb" /></span>
+      <span className="li-toggle-label">{label}</span>
     </label>
   );
+}
+
+function Tag({ ok, label }) {
+  return <span className={`li-tag ${ok ? "li-tag--ok" : "li-tag--warn"}`}>{label}</span>;
 }

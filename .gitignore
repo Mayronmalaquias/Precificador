@@ -41,3 +41,6 @@ venv/
 # Frontend
 node_modules/
 build/
+
+# Legado AppSheet — contem token do Trello (trelo.gs) e planilha modelo
+legado/appsheet/

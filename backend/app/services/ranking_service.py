@@ -393,21 +393,39 @@ class RankingService:
         return df
 
     def load_captacao(self, start: Optional[str], end: Optional[str]) -> pd.DataFrame:
-        df = self.read_sheet_df(self.cfg.SHEET_BASE_INTELIGENCIA_ID, self.cfg.ABA_CAPTACAO)
-        if df.empty:
-            return df
+        """Ranking de captação lê da PLANILHA DE ESTOQUE (Google Sheet real "Planilha -
+        Geral"), não do banco. Cada linha = 1 captação: coluna 'Corretor' + 'Data da
+        Captação'. Onde os assistentes lançam o imóvel (ver lancamento_service)."""
+        sheet_id = os.getenv("GSHEET_ESTOQUE_ID", "1869RJIoK064xnXjMHDXP0tNan5bkbJPZa-_jVfwY1cY")
+        aba = os.getenv("GSHEET_ESTOQUE_ABA", "Planilha - Geral")
+        try:
+            from app.services.google_service import get_services
+            sheets, _, _ = get_services()
+            vals = sheets.values().get(
+                spreadsheetId=sheet_id, range=f"'{aba}'!A:AF"
+            ).execute().get("values", [])
+        except Exception:
+            return pd.DataFrame()
 
-        if "DataEntrada" not in df.columns:
+        if not vals or len(vals) < 2:
+            return pd.DataFrame()
+
+        header = [str(h).strip() for h in vals[0]]
+        largura = len(header)
+        linhas = [r + [""] * (largura - len(r)) for r in vals[1:]]
+        df = pd.DataFrame(linhas, columns=header)
+
+        col_data = next((c for c in df.columns if "data da capta" in c.lower()), None)
+        if col_data:
+            df = self._filter_date_range(df, col_data, start, end)
+
+        col_corr = next((c for c in df.columns if c.strip().lower() == "corretor"), None)
+        if not col_corr:
             return pd.DataFrame()
 
         df = df.copy()
-        df = self._filter_date_range(df, "DataEntrada", start, end)
-
-        for c in ["Captador1", "Captador2", "Captador3"]:
-            if c not in df.columns:
-                df[c] = ""
-            df[c] = df[c].astype(str).fillna("").str.strip()
-
+        df["Corretor"] = df[col_corr].astype(str).fillna("").str.strip()
+        df = df[df["Corretor"].ne("")]
         return df
 
     def load_visitas(self, start: Optional[str], end: Optional[str]) -> pd.DataFrame:
@@ -613,41 +631,23 @@ class RankingService:
     # =========================================================
     def _calc_captacao_rank(self, start: Optional[str], end: Optional[str]) -> pd.DataFrame:
         df = self.load_captacao(start, end)
-        if df.empty:
+        if df.empty or "Corretor" not in df.columns:
             return pd.DataFrame(columns=["Id_Corretor", "Nome_Corretor", "total"])
 
-        id_to_name, name_to_id = self._maps_corretores()
+        _, name_to_id = self._maps_corretores()
         rows = []
 
-        def _resolve_captador(value: Any) -> Dict[str, str]:
-            raw = str(value or "").strip()
-            key = raw.upper()
-            if not key or key in {"-", "NAN", "NONE"}:
-                return {}
-
-            if key in id_to_name:
-                return {
-                    "Id_Corretor": key,
-                    "Nome_Corretor": id_to_name[key],
-                }
-
-            nome = self._limpar_nome(raw)
-            if not nome:
-                return {}
-
-            return {
-                "Id_Corretor": name_to_id.get(nome, ""),
-                "Nome_Corretor": nome,
-            }
-
-        for c in ["Captador1", "Captador2", "Captador3"]:
-            if c not in df.columns:
+        # Estoque: 1 corretor por linha (não há Captador1/2/3). Cada linha = 1 captação.
+        # Usa o NOME COMO ESTÁ na planilha (não normaliza p/ o cadastro); só resolve o id
+        # quando bate, p/ o filtro de exclusão / agrupamento por equipe.
+        for value in df["Corretor"].tolist():
+            nome = str(value or "").strip()
+            if not nome or nome.upper() in {"-", "NAN", "NONE"}:
                 continue
-
-            for value in df[c].tolist():
-                captador = _resolve_captador(value)
-                if captador:
-                    rows.append(captador)
+            rows.append({
+                "Id_Corretor": name_to_id.get(self._limpar_nome(nome), ""),
+                "Nome_Corretor": nome,
+            })
 
         if not rows:
             return pd.DataFrame(columns=["Id_Corretor", "Nome_Corretor", "total"])
@@ -712,6 +712,75 @@ class RankingService:
         agg["total"] = pd.to_numeric(agg["total"], errors="coerce").fillna(0).astype(float)
 
         return agg[["Id_Corretor", "Nome_Corretor", "total"]]
+
+    # =========================================================
+    # Texto de fechamento do mês (por equipe) p/ o grupo
+    # =========================================================
+    def gerar_texto_fechamento(self, mes: str, meta: int = 4) -> str:
+        """Monta o texto de fechamento por equipe (captações do mês / meta), no padrão do
+        grupo. `mes` = 'YYYY-MM'. Captações vêm do ranking (planilha de estoque); os membros
+        e equipes vêm do cadastro. Corretor com 0 aparece como '/{meta}'; gerente sem /meta."""
+        from calendar import monthrange
+        from app.database import SessionLocal
+        from app.models.equipe import Equipe
+        from app.models.usuarios import Usuarios
+
+        MESES = ["", "JANEIRO", "FEVEREIRO", "MARÇO", "ABRIL", "MAIO", "JUNHO",
+                 "JULHO", "AGOSTO", "SETEMBRO", "OUTUBRO", "NOVEMBRO", "DEZEMBRO"]
+        try:
+            ano, m = int(str(mes)[:4]), int(str(mes)[5:7])
+            assert 1 <= m <= 12
+        except Exception:
+            raise ValueError("mes deve ser 'YYYY-MM'")
+
+        start = f"{ano}-{m:02d}-01"
+        end = f"{ano}-{m:02d}-{monthrange(ano, m)[1]:02d}"
+
+        rank = self._calc_captacao_rank(start, end)
+        counts: Dict[str, int] = {}
+        for _, r in rank.iterrows():
+            k = self._limpar_nome(r["Nome_Corretor"])
+            counts[k] = counts.get(k, 0) + int(round(float(r["total"])))
+
+        session = SessionLocal()
+        try:
+            equipes = session.query(Equipe).filter(Equipe.ativo.is_(True)).order_by(Equipe.nome.asc()).all()
+            usuarios = session.query(Usuarios).filter(Usuarios.ativo.is_(True)).all()
+        finally:
+            session.close()
+
+        por_time: Dict[str, List[Any]] = {}
+        for u in usuarios:
+            por_time.setdefault(str(u.team or ""), []).append(u)
+
+        def _cnt(u) -> int:
+            return counts.get(self._limpar_nome(u.nome or ""), 0)
+
+        linhas = [f"FECHAMENTO {MESES[m]}/{str(ano)[2:]}", ""]
+        for eq in equipes:
+            membros = por_time.get(str(eq.id_equipe), [])
+            if not membros:
+                continue
+            corretores = sorted(
+                [u for u in membros if str(u.permissao or "").lower() == "corretor"],
+                key=lambda u: (u.nome or "").lower(),
+            )
+            gerentes = [u for u in membros if str(u.permissao or "").lower() == "gerente"]
+
+            linhas.append(f"Equipe {eq.nome}")
+            total = 0
+            for u in corretores:
+                n = _cnt(u)
+                total += n
+                linhas.append(f"{u.nome}: {n or ''}/{meta}")
+            for g in gerentes:
+                n = _cnt(g)
+                total += n
+                linhas.append(f"{g.nome} Gerente: {n}")
+            linhas.append(f"TOTAL Equipe {eq.nome} - {total}")
+            linhas.append("")
+
+        return "\n".join(linhas).rstrip()
 
     # =========================================================
     # Público: rankings

@@ -48,6 +48,28 @@ ranking_response = ranking_ns.model("RankingResponse", {
 })
 
 
+@ranking_ns.route("/rankings/fechamento")
+class RankingFechamento(Resource):
+    @ranking_ns.doc(params={
+        "mes": "Mês do fechamento (YYYY-MM). Padrão: mês atual.",
+        "meta": "Meta de captações por corretor (padrão 4).",
+    })
+    def get(self):
+        from datetime import date
+        mes = (request.args.get("mes") or date.today().strftime("%Y-%m")).strip()
+        try:
+            meta = int(request.args.get("meta") or 4)
+        except ValueError:
+            meta = 4
+        try:
+            texto = RankingService().gerar_texto_fechamento(mes, meta=meta)
+            return {"ok": True, "mes": mes, "texto": texto}, 200
+        except ValueError as e:
+            return {"ok": False, "error": str(e)}, 400
+        except Exception as e:
+            return {"ok": False, "error": str(e)}, 500
+
+
 @ranking_ns.route("/rankings")
 class Rankings(Resource):
     @ranking_ns.doc(
