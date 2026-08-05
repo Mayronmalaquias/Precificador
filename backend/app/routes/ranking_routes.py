@@ -3,6 +3,7 @@ from flask import request, send_file
 from flask_restx import Namespace, Resource, fields
 from app.services.ranking_service import RankingService
 from app.services.corretor_pdf_service import gerar_pdf_corretor, gerar_pdf_todos
+from app.services.ranking_xlsx_service import gerar_xlsx_vgc_captacao
 from app.services import ranking_ocultos_service as ocultos_svc
 
 ranking_ns = Namespace("ranking", description="Rankings (VGV, VGC, Captação, Visitas)")
@@ -46,6 +47,36 @@ ranking_response = ranking_ns.model("RankingResponse", {
     "visitas": fields.List(fields.Nested(ranking_item)),
     "meta": fields.Raw,
 })
+
+
+@ranking_ns.route("/rankings/vgc-foco/xlsx")
+class VgcFocoXlsx(Resource):
+    @ranking_ns.doc(params={
+        "start": "Data inicial (YYYY-MM-DD). Opcional.",
+        "end": "Data final (YYYY-MM-DD). Opcional.",
+    })
+    def get(self):
+        import io
+        import pandas as pd
+        from flask import send_file
+
+        start = request.args.get("start")
+        end = request.args.get("end")
+        try:
+            df = RankingService().relatorio_vgc_foco(start, end)
+            bio = io.BytesIO()
+            with pd.ExcelWriter(bio, engine="openpyxl") as writer:
+                df.to_excel(writer, index=False, sheet_name="VGC Foco")
+            bio.seek(0)
+            nome = f"vgc_foco_{start or 'inicio'}_{end or 'fim'}.xlsx"
+            return send_file(
+                bio,
+                mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                as_attachment=True,
+                download_name=nome,
+            )
+        except Exception as e:
+            return {"ok": False, "error": str(e)}, 500
 
 
 @ranking_ns.route("/rankings/fechamento")
@@ -178,6 +209,31 @@ class TodosPdf(Resource):
         buf = gerar_pdf_todos(detalhes, rankings=rankings)
         nome_arquivo = f"relatorio_comissoes_{start}_{end}.pdf"
         return send_file(buf, as_attachment=True, download_name=nome_arquivo, mimetype="application/pdf")
+
+
+@ranking_ns.route("/rankings/vgc-captacao/xlsx")
+class VgcCaptacaoXlsx(Resource):
+    @ranking_ns.doc(params={
+        "start": "Data inicial (YYYY-MM-DD).",
+        "end": "Data final (YYYY-MM-DD).",
+        "apply_factor": "Divide o VGC por 0.06. Padrão: false.",
+    })
+    def get(self):
+        start = request.args.get("start")
+        end = request.args.get("end")
+        apply_factor = request.args.get("apply_factor", "false").lower() == "true"
+        relatorio = RankingService().get_relatorio_vgc_captacao(start, end, apply_factor)
+        if not relatorio["detalhes"]:
+            return {"error": "Nenhum contrato com captação encontrado para os filtros informados."}, 404
+
+        buf = gerar_xlsx_vgc_captacao(relatorio)
+        nome = f"vgc_captacao_{start or 'inicio'}_{end or 'fim'}.xlsx"
+        return send_file(
+            buf,
+            as_attachment=True,
+            download_name=nome,
+            mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
 
 
 @ranking_ns.route("/rankings/corretor/detalhe")

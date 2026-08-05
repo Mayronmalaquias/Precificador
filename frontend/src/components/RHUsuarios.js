@@ -8,6 +8,7 @@ import {
 } from "./rhFields";
 import { useEquipes } from "../context/EquipesContext";
 import "../assets/css/ControleCorretores.css";
+import "../assets/css/RHUsuarios.css";
 
 async function apiFetch(path, options = {}) {
   const res = await fetch(`${API_BASE}${path}`, {
@@ -116,6 +117,7 @@ function RHUsuarios() {
   const [filtroEntradaFim, setFiltroEntradaFim] = useState("");
   const [filtroDesligamento, setFiltroDesligamento] = useState("");
   const [filtroCreci, setFiltroCreci] = useState("");
+  const [filtrosAbertos, setFiltrosAbertos] = useState(false);
   const [calendarioData, setCalendarioData] = useState(() => new Date());
   const [calendarioAberto, setCalendarioAberto] = useState(false);
   const [editando, setEditando] = useState(null);
@@ -506,18 +508,6 @@ function RHUsuarios() {
           </div>
         </section>
 
-        <section className="controle-corretores__header">
-          <div className="controle-corretores__header-top">
-            <div className="controle-corretores__header-left">
-              <span className="controle-corretores__tag">RH</span>
-              <h1 className="controle-corretores__header-title">Controle de usuários e equipes</h1>
-              <p className="controle-corretores__header-text">
-                Administre corretores por equipe, usuários ativos e inativos, diretores e pendências cadastrais.
-              </p>
-            </div>
-          </div>
-        </section>
-
         <div className="rh-usuarios__workspace">
           <aside className="rh-usuarios__nav" aria-label="Filas de RH">
             <div className="rh-usuarios__nav-title">Filas de trabalho</div>
@@ -673,81 +663,106 @@ function RHUsuarios() {
             </div>
           </div>
 
-          <div className="controle-corretores__toolbar rh-usuarios__toolbar">
-            <div className="controle-corretores__field">
-              <label className="controle-corretores__label">Equipe</label>
-              <select className="controle-corretores__select" value={filtroEquipe} onChange={(e) => setFiltroEquipe(e.target.value)}>
-                <option value="">Todas</option>
-                {equipes.map((eq) => <option key={eq.value} value={eq.value}>{eq.label}</option>)}
-              </select>
+          <div className="rh-filtros">
+            <div className="rh-filtros__search-row">
+              <div className="rh-filtros__searchbox">
+                <span className="rh-filtros__search-icon" aria-hidden="true">🔍</span>
+                <input
+                  className="rh-filtros__search-input"
+                  value={busca}
+                  onChange={(e) => setBusca(e.target.value)}
+                  placeholder="Buscar por nome, CPF, ID ou e-mail…"
+                />
+                {busca && <button type="button" className="rh-filtros__search-clear" onClick={() => setBusca("")} aria-label="Limpar busca">✕</button>}
+              </div>
+              <button
+                type="button"
+                className={`rh-filtros__toggle ${filtrosAbertos ? "is-open" : ""}`}
+                onClick={() => setFiltrosAbertos((v) => !v)}
+                aria-expanded={filtrosAbertos}
+              >
+                {filtrosAbertos ? "Menos filtros" : "Mais filtros"}
+                <span className="rh-filtros__toggle-caret">{filtrosAbertos ? "▲" : "▼"}</span>
+              </button>
             </div>
-            <div className="controle-corretores__field">
-              <label className="controle-corretores__label">Ativo</label>
-              <select className="controle-corretores__select" value={filtroAtivo} onChange={(e) => setFiltroAtivo(e.target.value)}>
-                <option value="">Todos</option>
-                <option value="true">Ativos</option>
-                <option value="false">Inativos</option>
-              </select>
-            </div>
-            <div className="controle-corretores__field">
-              <label className="controle-corretores__label">Permissão</label>
-              <select className="controle-corretores__select" value={filtroPermissao} onChange={(e) => setFiltroPermissao(e.target.value)}>
-                <option value="">Todas</option>
-                <option value="corretor">Corretores</option>
-                <option value="gerente">Gerentes</option>
-                <option value="administrativo">Administrativo</option>
-                <option value="administrador">Administradores</option>
-                <option value="diretor">Diretores</option>
-              </select>
-            </div>
-            <div className="controle-corretores__field">
-              <label className="controle-corretores__label">Cadastro</label>
-              <select className="controle-corretores__select" value={filtroPendencia} onChange={(e) => setFiltroPendencia(e.target.value)}>
-                <option value="">Todos</option>
-                <option value="faltando">Com faltantes</option>
-                <option value="completo">Completos</option>
-              </select>
-            </div>
-            <div className="controle-corretores__field">
-              <label className="controle-corretores__label">Status RH</label>
-              <select className="controle-corretores__select" value={filtroStatusRh} onChange={(e) => setFiltroStatusRh(e.target.value)}>
-                <option value="">Todos</option>
-                <option value="Ativo">Ativo</option>
-                <option value="Inativo">Inativo</option>
-                <option value="Desligado">Desligado</option>
-              </select>
-            </div>
-            <div className="controle-corretores__field">
-              <label className="controle-corretores__label">Entrada de</label>
-              <input className="controle-corretores__search" type="date" value={filtroEntradaInicio} onChange={(e) => setFiltroEntradaInicio(e.target.value)} />
-            </div>
-            <div className="controle-corretores__field">
-              <label className="controle-corretores__label">Entrada até</label>
-              <input className="controle-corretores__search" type="date" value={filtroEntradaFim} onChange={(e) => setFiltroEntradaFim(e.target.value)} />
-            </div>
-            <div className="controle-corretores__field">
-              <label className="controle-corretores__label">Saída</label>
-              <select className="controle-corretores__select" value={filtroDesligamento} onChange={(e) => setFiltroDesligamento(e.target.value)}>
-                <option value="">Todos</option>
-                <option value="desligado">Desligado: sim</option>
-                <option value="nao_desligado">Desligado: nao</option>
-                <option value="com_data">Com data registrada</option>
-                <option value="sem_data">Sem data registrada</option>
-              </select>
-            </div>
-            <div className="controle-corretores__field">
-              <label className="controle-corretores__label">CRECI</label>
-              <select className="controle-corretores__select" value={filtroCreci} onChange={(e) => setFiltroCreci(e.target.value)}>
-                <option value="">Todos</option>
-                <option value="sem_validade">Sem validade</option>
-                <option value="vencido">Vencido</option>
-                <option value="vence_30">Vence em 30 dias</option>
-                <option value="valido">Válido</option>
-              </select>
-            </div>
-            <div className="controle-corretores__field">
-              <label className="controle-corretores__label">Buscar</label>
-              <input className="controle-corretores__search" value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Nome, CPF, ID, e-mail" />
+
+            <div className="rh-filtros__grid">
+              <div className="rh-filtros__field">
+                <label>Equipe</label>
+                <select value={filtroEquipe} onChange={(e) => setFiltroEquipe(e.target.value)}>
+                  <option value="">Todas</option>
+                  {equipes.map((eq) => <option key={eq.value} value={eq.value}>{eq.label}</option>)}
+                </select>
+              </div>
+              <div className="rh-filtros__field">
+                <label>Permissão</label>
+                <select value={filtroPermissao} onChange={(e) => setFiltroPermissao(e.target.value)}>
+                  <option value="">Todas</option>
+                  <option value="corretor">Corretores</option>
+                  <option value="gerente">Gerentes</option>
+                  <option value="administrativo">Administrativo</option>
+                  <option value="administrador">Administradores</option>
+                  <option value="diretor">Diretores</option>
+                </select>
+              </div>
+              <div className="rh-filtros__field">
+                <label>Status</label>
+                <select value={filtroAtivo} onChange={(e) => setFiltroAtivo(e.target.value)}>
+                  <option value="">Todos</option>
+                  <option value="true">Ativos</option>
+                  <option value="false">Inativos</option>
+                </select>
+              </div>
+              <div className="rh-filtros__field">
+                <label>Cadastro</label>
+                <select value={filtroPendencia} onChange={(e) => setFiltroPendencia(e.target.value)}>
+                  <option value="">Todos</option>
+                  <option value="faltando">Com pendências</option>
+                  <option value="completo">Completos</option>
+                </select>
+              </div>
+
+              {filtrosAbertos && (
+                <>
+                  <div className="rh-filtros__field">
+                    <label>Status RH</label>
+                    <select value={filtroStatusRh} onChange={(e) => setFiltroStatusRh(e.target.value)}>
+                      <option value="">Todos</option>
+                      <option value="Ativo">Ativo</option>
+                      <option value="Inativo">Inativo</option>
+                      <option value="Desligado">Desligado</option>
+                    </select>
+                  </div>
+                  <div className="rh-filtros__field">
+                    <label>Entrada de</label>
+                    <input type="date" value={filtroEntradaInicio} onChange={(e) => setFiltroEntradaInicio(e.target.value)} />
+                  </div>
+                  <div className="rh-filtros__field">
+                    <label>Entrada até</label>
+                    <input type="date" value={filtroEntradaFim} onChange={(e) => setFiltroEntradaFim(e.target.value)} />
+                  </div>
+                  <div className="rh-filtros__field">
+                    <label>Saída</label>
+                    <select value={filtroDesligamento} onChange={(e) => setFiltroDesligamento(e.target.value)}>
+                      <option value="">Todos</option>
+                      <option value="desligado">Desligado: sim</option>
+                      <option value="nao_desligado">Desligado: não</option>
+                      <option value="com_data">Com data registrada</option>
+                      <option value="sem_data">Sem data registrada</option>
+                    </select>
+                  </div>
+                  <div className="rh-filtros__field">
+                    <label>CRECI</label>
+                    <select value={filtroCreci} onChange={(e) => setFiltroCreci(e.target.value)}>
+                      <option value="">Todos</option>
+                      <option value="sem_validade">Sem validade</option>
+                      <option value="vencido">Vencido</option>
+                      <option value="vence_30">Vence em 30 dias</option>
+                      <option value="valido">Válido</option>
+                    </select>
+                  </div>
+                </>
+              )}
             </div>
           </div>
 
@@ -777,33 +792,33 @@ function RHUsuarios() {
                     const emailPrincipal = item.email_corporativo || item.email_pessoal || item.email || "-";
                     return (
                       <tr key={item.id_usuarios || item.id}>
-                        <td>
+                        <td data-label="Usuário">
                           <div className="controle-corretores__nome-wrap">
                             <span className="controle-corretores__nome">{item.nome || item.username || "-"}</span>
                             <span className="controle-corretores__nome-sub">{item.id_usuarios || "-"} · {item.email_corporativo || item.email || "-"}</span>
                           </div>
                         </td>
-                        <td><span className="controle-corretores__team">{getNomeEquipe(item.team)}</span></td>
-                        <td>{item.permissao || "-"}</td>
-                        <td>
+                        <td data-label="Equipe"><span className="controle-corretores__team">{getNomeEquipe(item.team)}</span></td>
+                        <td data-label="Permissão">{item.permissao || "-"}</td>
+                        <td data-label="Status">
                           <span className={`controle-corretores__badge ${item.ativo ? "controle-corretores__badge--ativo" : "controle-corretores__badge--inativo"}`}>
                             {statusOperacional}
                           </span>
                         </td>
-                        <td>
+                        <td data-label="Contato">
                           <div className="rh-usuarios__contact">
                             <span>{contatoPrincipal}</span>
                             <small>{emailPrincipal}</small>
                           </div>
                         </td>
-                        <td>
+                        <td data-label="Pendências">
                           {faltantes.length === 0 ? (
                             <span className="rh-usuarios__ok">Completo</span>
                           ) : (
                             <div className="rh-usuarios__missing">{faltantes.slice(0, 4).map((f) => f.label).join(", ")}{faltantes.length > 4 ? ` +${faltantes.length - 4}` : ""}</div>
                           )}
                         </td>
-                        <td>
+                        <td data-label="Ações">
                           <div className="rh-usuarios__actions">
                             <button type="button" className="controle-corretores__button controle-corretores__button--ghost-light" onClick={() => abrirDetalhes(item)}>Detalhes</button>
                             <button type="button" className="controle-corretores__button controle-corretores__button--ghost-light" onClick={() => abrirEdicao(item)}>Editar</button>

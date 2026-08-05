@@ -179,6 +179,7 @@ export default function LancarImovel() {
           <div className="li-success-body">
             <strong>Imóvel lançado no Imoview — código {resultado.codigo ?? "—"}.</strong>
             <div className="li-success-tags">
+              {resultado.foco?.classificacao && <Tag ok label={`Foco: ${resultado.foco.classificacao}`} />}
               <Tag ok={resultado.sheet?.ok} label={resultado.sheet?.ok ? "Estoque gravado" : `Estoque: ${resultado.sheet?.error || "falhou"}`} />
               {resultado.trello?.ok
                 ? <a className="li-tag li-tag--ok" href={resultado.trello.url} target="_blank" rel="noreferrer">Cartão Trello ↗</a>

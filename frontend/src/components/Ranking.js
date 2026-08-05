@@ -254,6 +254,7 @@ function Ranking() {
   const [loadedKeyByTabEquipe, setLoadedKeyByTabEquipe] = useState({});
   const [hasApplied, setHasApplied] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [exportando, setExportando] = useState(false);
   const [loadingPdf, setLoadingPdf] = useState(false);
 
   const [ocultos, setOcultos] = useState([]);
@@ -263,6 +264,7 @@ function Ranking() {
   const [loadingDetalhe, setLoadingDetalhe] = useState(false);
   const [loadingPdfCorretor, setLoadingPdfCorretor] = useState(false);
   const [loadingPdfTodos, setLoadingPdfTodos] = useState(false);
+  const [loadingXlsxCaptacao, setLoadingXlsxCaptacao] = useState(false);
 
   const activeTab = RANKING_TABS.find((item) => item.id === tab) || RANKING_TABS[0];
   const currentRows = viewMode === 'equipe' ? (dataByTabEquipe[tab] || []) : (dataByTab[tab] || []);
@@ -476,6 +478,36 @@ function Ranking() {
       toast('Erro de conexão ao gerar relatório.', 'error');
     } finally {
       setLoadingPdfTodos(false);
+    }
+  };
+
+  const baixarXlsxCaptacao = async () => {
+    const params = new URLSearchParams({
+      ...(appliedFormData.start && { start: appliedFormData.start }),
+      ...(appliedFormData.end && { end: appliedFormData.end }),
+      apply_factor: appliedFormData.apply_factor ? 'true' : 'false',
+    });
+    setLoadingXlsxCaptacao(true);
+    try {
+      const res = await fetch(`${API_BASE}/rankings/vgc-captacao/xlsx?${params}`);
+      if (!res.ok) {
+        const json = await res.json().catch(() => ({}));
+        toast(json?.error || 'Erro ao gerar XLSX de captação.', 'error');
+        return;
+      }
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `vgc_captacao_${appliedFormData.start || 'inicio'}_${appliedFormData.end || 'fim'}.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+    } catch {
+      toast('Erro de conexão ao gerar XLSX de captação.', 'error');
+    } finally {
+      setLoadingXlsxCaptacao(false);
     }
   };
 
@@ -758,6 +790,40 @@ function Ranking() {
                 <button className="ranking__btn ranking__btn--secondary" type="button" onClick={setLastWeek}>
                   Ultima semana
                 </button>
+                <button
+                  className="ranking__btn ranking__btn--secondary"
+                  type="button"
+                  disabled={exportando}
+                  title="Relatório VGC do captador com quebra Foco / Não Foco (regra por ano)"
+                  onClick={async () => {
+                    setExportando(true);
+                    try {
+                      const params = new URLSearchParams();
+                      if (formData.start) params.set('start', formData.start);
+                      if (formData.end) params.set('end', formData.end);
+                      const resp = await fetch(`${API_BASE}/rankings/vgc-foco/xlsx?${params.toString()}`);
+                      if (!resp.ok) {
+                        const j = await resp.json().catch(() => ({}));
+                        throw new Error(j.error || 'Erro ao gerar o xlsx.');
+                      }
+                      const blob = await resp.blob();
+                      const url = URL.createObjectURL(blob);
+                      const a = document.createElement('a');
+                      a.href = url;
+                      a.download = `vgc_foco_${formData.start || 'inicio'}_${formData.end || 'fim'}.xlsx`;
+                      document.body.appendChild(a);
+                      a.click();
+                      a.remove();
+                      setTimeout(() => URL.revokeObjectURL(url), 1000);
+                    } catch (e) {
+                      toast(e.message || 'Erro ao gerar o xlsx.', 'error');
+                    } finally {
+                      setExportando(false);
+                    }
+                  }}
+                >
+                  {exportando ? 'Gerando…' : '⬇ XLSX VGC + Foco'}
+                </button>
                 <button className="ranking__btn ranking__btn--primary" type="submit" disabled={loading}>
                   {loading ? 'Carregando...' : 'Aplicar'}
                 </button>
@@ -836,6 +902,16 @@ function Ranking() {
                       disabled={loadingPdfTodos}
                     >
                       {loadingPdfTodos ? 'Gerando...' : 'Baixar Relatório'}
+                    </button>
+                  )}
+                  {viewMode === 'corretor' && tab === 'vgc_geral' && currentRows.length > 0 && (
+                    <button
+                      type="button"
+                      className="ranking__btn ranking__btn--outline"
+                      onClick={baixarXlsxCaptacao}
+                      disabled={loadingXlsxCaptacao}
+                    >
+                      {loadingXlsxCaptacao ? 'Gerando XLSX...' : 'XLSX VGC Captação'}
                     </button>
                   )}
                 </div>

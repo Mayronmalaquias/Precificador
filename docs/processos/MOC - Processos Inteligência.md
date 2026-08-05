@@ -23,6 +23,7 @@ tipo: MOC (Map of Content)
 | 1.6 | Divisão de Comissão (manual) | 🟨 🤖 | [[1.6 - Divisão de Comissão]] |
 | 1.7 | Preparação de Estoque (Imoview → `Fato_Estoque`) | 🟨 🤖 📦 | [[1.7 - Preparação de Estoque (Imoview)]] |
 | 1.8 | Cadastro em massa de usuários (corretores) | 🟨 🤖 📦 | [[1.8 - Cadastro em Massa de Usuários]] |
+| 1.9 | Lançamento de imóvel pelos assistentes (Imoview + estoque + Trello) | ✅ 🆕 | [[1.9 - Lançamento de Imóvel pelos Assistentes]] |
 
 ## Nível 2 — Média complexidade
 | # | Processo | Status | Nota |

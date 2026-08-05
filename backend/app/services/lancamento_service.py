@@ -18,7 +18,49 @@ SHEET_ESTOQUE_ID = os.getenv("GSHEET_ESTOQUE_ID", "1869RJIoK064xnXjMHDXP0tNan5bk
 SHEET_ESTOQUE_ABA = os.getenv("GSHEET_ESTOQUE_ABA", "Planilha - Geral")
 
 
-def _gravar_estoque_sheet(dados: Dict[str, Any], codigo: Any) -> Dict[str, Any]:
+def _persistir_foco(dados: Dict[str, Any], codigo: Any) -> Dict[str, Any]:
+    """Classifica o foco (regra de bairro/valor/comissão) e grava em `imovel_legado`
+    (foco_pp/foco_ac), keyado pelo código do Imoview. É o que a classificação de foco do
+    ranking lê — sem isso o imóvel aparece como 'NÃO LOCALIZADO'."""
+    from app.database import SessionLocal
+    from app.services import admin_bases_service as abs_
+
+    session = SessionLocal()
+    try:
+        bairro = dados.get("bairro") or ""
+        valor = _num(dados.get("valor")) or 0.0
+        comissao = _num(dados.get("comissao")) or 0.0
+        # residencial pela destinação do Imoview (1=Residencial, 3=Residencial/Comercial)
+        is_res = str(dados.get("destinacao") or "").strip() in {"1", "3"}
+
+        foco_pp, foco_ac = abs_.classificar_foco(bairro, valor, comissao, is_res)
+
+        mapas = abs_.carregar_mapas(session)
+        bairro_id, _ = abs_.ensure_bairro(session, mapas, bairro)
+        abs_.upsert_imovel_legado(session, str(codigo), None, valor, bairro_id, foco_pp, foco_ac)
+        session.commit()
+        return {"ok": True, "foco_pp": foco_pp, "foco_ac": foco_ac}
+    except Exception as e:
+        session.rollback()
+        return {"ok": False, "error": str(e)}
+    finally:
+        session.close()
+
+
+def _foco_label(foco: Dict[str, Any]) -> str:
+    """Rótulo p/ a coluna Foco da planilha de estoque."""
+    if not foco or not foco.get("ok"):
+        return ""
+    if foco.get("foco_pp") and foco.get("foco_ac"):
+        return "FOCO PP + AC"
+    if foco.get("foco_pp"):
+        return "FOCO PP"
+    if foco.get("foco_ac"):
+        return "FOCO AC"
+    return "NÃO FOCO"
+
+
+def _gravar_estoque_sheet(dados: Dict[str, Any], codigo: Any, foco_label: str = "") -> Dict[str, Any]:
     """Anexa uma linha na planilha de estoque (mesma ordem de colunas do cabeçalho)."""
     from app.services.google_service import get_services
 
@@ -36,7 +78,8 @@ def _gravar_estoque_sheet(dados: Dict[str, Any], codigo: Any) -> Dict[str, Any]:
         date.today().strftime("%d/%m/%Y"),            # 7  Data da Captação
         "", "", "", "", "", "",                       # 8-13 Status..Imóvel Seguro
         dados.get("comissao") or "",                  # 14 Comissão
-        "", "",                                       # 15-16 Foco, Roleta
+        foco_label,                                   # 15 Foco (classificação computada)
+        "",                                           # 16 Roleta
         dados.get("valoriptu") or "",                 # 17 IPTU
         dados.get("valorcondominio") or "",           # 18 Condomínio
         "", "",                                       # 19-20 Obs. Internas, Características
@@ -160,10 +203,14 @@ def lancar_imovel(
     resultado_imoview = imoview_service.incluir_imovel(parametros, fotos=fotos)
     codigo = resultado_imoview.get("codigo")
 
+    # Classifica e persiste o foco em imovel_legado (é o que a classificação de foco lê;
+    # sem isso o imóvel entra como 'NÃO LOCALIZADO'). Não-fatal.
+    foco = _persistir_foco(dados, codigo)
+
     # Grava na planilha de estoque (não derruba o lançamento se falhar — imóvel já entrou).
     sheet: Dict[str, Any] = {"ok": False}
     try:
-        sheet = _gravar_estoque_sheet(dados, codigo)
+        sheet = _gravar_estoque_sheet(dados, codigo, foco_label=_foco_label(foco))
     except Exception as e:
         sheet = {"ok": False, "error": str(e)}
 
@@ -187,6 +234,7 @@ def lancar_imovel(
         "ok": True,
         "codigo": codigo,
         "mensagem": resultado_imoview.get("mensagem"),
+        "foco": {"classificacao": _foco_label(foco), **foco},
         "sheet": sheet,
         "trello": trello,
     }

@@ -1,7 +1,9 @@
 """Cria os usuários assistentes (permissao=assistente, senha 61Imoveis).
 
-Idempotente: pula quem já existe (por username). Username = nome.sobrenome (sem acento,
-minúsculo); nome só → primeiro nome. id_usuarios gerado no padrão C61xxx.
+Idempotente: pula quem já existe (por username). Username = nome_sobrenome (sem acento,
+minúsculo, espaço→underscore) — MESMO formato que `normalizar_user` produz do nome digitado
+no login (ex.: "Lucas Oliveira" → "lucas_oliveira"). Nome simples → primeiro nome.
+id_usuarios gerado no padrão C61xxx.
 
 Rodar (raiz do backend): PYTHONPATH=. python seed_assistentes.py
 """
@@ -22,10 +24,11 @@ ASSISTENTES = [
 
 
 def _slug(nome: str) -> str:
+    # Mesmo formato do normalizar_user (login): sem acento, minúsculo, espaço→underscore.
     s = unicodedata.normalize("NFKD", nome).encode("ascii", "ignore").decode().lower().strip()
     partes = s.split()
     if len(partes) >= 2:
-        return f"{partes[0]}.{partes[1]}"
+        return f"{partes[0]}_{partes[1]}"
     return partes[0] if partes else ""
 
 

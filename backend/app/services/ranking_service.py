@@ -783,6 +783,86 @@ class RankingService:
         return "\n".join(linhas).rstrip()
 
     # =========================================================
+    # Relatório VGC (captador) por foco — regra por ano (DAX Power BI)
+    # =========================================================
+    def relatorio_vgc_foco(self, start: Optional[str] = None, end: Optional[str] = None) -> pd.DataFrame:
+        """VGV do CAPTADOR por corretor, seguindo a regra do Power BI:
+          - ano <= 2025: valor pré-calculado V3 (captador 1) / V4 (captador 2);
+          - ano >= 2026: Valor do negócio ÷ nº de captadores.
+        Fonte: `vendas_legado` (Fato_Venda, tem o flag `foco`). Quebra em Foco / Não Foco."""
+        from app.database import SessionLocal
+        from app.models.venda_legado import VendaLegado
+
+        s_dt = self._parse_date(start) if start else None
+        e_dt = self._parse_date(end) if end else None
+
+        session = SessionLocal()
+        try:
+            vendas = session.query(VendaLegado).all()
+        finally:
+            session.close()
+
+        id_to_name, _ = self._maps_corretores()
+        acc: Dict[str, Dict[str, float]] = {}
+
+        for v in vendas:
+            d = v.data_venda
+            if not d:
+                continue
+            dts = pd.Timestamp(d)
+            if s_dt is not None and dts < s_dt:
+                continue
+            if e_dt is not None and dts > e_dt:
+                continue
+            ano = d.year
+
+            cap1 = str(v.captador_1 or "").strip()
+            cap2 = str(v.captador_2 or "").strip()
+            tem1 = cap1 not in ("", "0")
+            tem2 = cap2 not in ("", "0") and cap2 != cap1
+            ncap = (1 if tem1 else 0) + (1 if tem2 else 0)
+            vn = self._to_float_br(v.valor_do_negocio)
+            foco = bool(v.foco)
+
+            for is_cap, cap, vcol in ((tem1, cap1, v.v3), (tem2, cap2, v.v4)):
+                if not is_cap:
+                    continue
+                if ano <= 2025:
+                    val = self._to_float_br(vcol)
+                else:  # 2026 em diante
+                    val = (vn / ncap) if ncap else 0.0
+                a = acc.setdefault(cap, {"total": 0.0, "foco": 0.0, "nao_foco": 0.0, "n": 0.0, "n_foco": 0.0})
+                a["total"] += val
+                a["n"] += 1
+                if foco:
+                    a["foco"] += val
+                    a["n_foco"] += 1
+                else:
+                    a["nao_foco"] += val
+
+        rows = []
+        for cap, a in acc.items():
+            nome = id_to_name.get(cap.upper(), cap)
+            # NÃO aplica a exclusão do ranking ao vivo: este relatório é histórico e
+            # bate com o Power BI (que inclui todos os captadores).
+            rows.append({
+                "Corretor": nome,
+                "VGV Captador (Total)": round(a["total"], 2),
+                "VGV Captador (Foco)": round(a["foco"], 2),
+                "VGV Captador (Não Foco)": round(a["nao_foco"], 2),
+                "Captações": int(a["n"]),
+                "Captações no Foco": int(a["n_foco"]),
+            })
+
+        df = pd.DataFrame(rows, columns=[
+            "Corretor", "VGV Captador (Total)", "VGV Captador (Foco)",
+            "VGV Captador (Não Foco)", "Captações", "Captações no Foco",
+        ])
+        if not df.empty:
+            df = df.sort_values("VGV Captador (Foco)", ascending=False).reset_index(drop=True)
+        return df
+
+    # =========================================================
     # Público: rankings
     # =========================================================
     def get_ranking(
@@ -1080,6 +1160,149 @@ class RankingService:
                 detalhes.append(detalhe)
 
         return detalhes
+
+    def get_relatorio_vgc_captacao(
+        self,
+        start: Optional[str],
+        end: Optional[str],
+        apply_factor: bool = False,
+    ) -> Dict[str, Any]:
+        """Cruza o VGC dos contratos com a classificação de foco da Dim_Imovel."""
+        from app.database import SessionLocal
+        from app.models.legado_diversos import ImovelLegado
+
+        vendas = self.load_vendas(start, end)
+        detalhes: List[Dict[str, Any]] = []
+        por_corretor: Dict[tuple, Dict[str, float]] = {}
+        por_foco: Dict[str, Dict[str, float]] = {}
+        _, name_to_id = self._maps_corretores()
+
+        session = SessionLocal()
+        try:
+            foco_por_codigo: Dict[str, Dict[str, bool]] = {}
+            for imovel in session.query(ImovelLegado).filter(ImovelLegado.codigo.isnot(None)).all():
+                codigo = str(imovel.codigo or "").strip().upper()
+                if not codigo:
+                    continue
+                foco = foco_por_codigo.setdefault(codigo, {"pp": False, "ac": False})
+                # O código pode se repetir por reanúncio; preserva qualquer marcação positiva.
+                foco["pp"] = foco["pp"] or bool(imovel.foco_pp)
+                foco["ac"] = foco["ac"] or bool(imovel.foco_ac)
+        finally:
+            session.close()
+
+        for _, row in vendas.iterrows():
+            vendedores = {
+                self._limpar_nome(row.get("Corretor_Venda_1_Nome")),
+                self._limpar_nome(row.get("Corretor_Venda_2_Nome")),
+            }
+            captadores = {
+                self._limpar_nome(row.get("Corretor_Captador_1_Nome")),
+                self._limpar_nome(row.get("Corretor_Captador_2_Nome")),
+            }
+            vendedores = {nome for nome in vendedores if nome}
+            captadores = {nome for nome in captadores if nome}
+            if not captadores:
+                continue
+
+            valor_negocio = float(row.get("Valor_Negocio", 0.0) or 0.0)
+            vgc_contrato = float(row.get("Valor_Total_61", 0.0) or 0.0)
+            if apply_factor and vgc_contrato > 0:
+                vgc_contrato /= 0.06
+
+            numero_lados = 1 + (1 if vendedores else 0)
+            codigo_imovel = str(row.get("Codigo_Imovel", "")).strip()
+            foco = foco_por_codigo.get(codigo_imovel.upper())
+            if foco is None:
+                classificacao = "NÃO LOCALIZADO"
+            elif foco["pp"] and foco["ac"]:
+                classificacao = "FOCO PP + AC"
+            elif foco["pp"]:
+                classificacao = "FOCO PP"
+            elif foco["ac"]:
+                classificacao = "FOCO AC"
+            else:
+                classificacao = "NÃO FOCO"
+
+            participantes = vendedores | captadores
+            shares: Dict[str, float] = {}
+            valor_por_lado = vgc_contrato / numero_lados
+            for nome in vendedores:
+                shares[nome] = shares.get(nome, 0.0) + valor_por_lado / len(vendedores)
+            for nome in captadores:
+                shares[nome] = shares.get(nome, 0.0) + valor_por_lado / len(captadores)
+
+            empreendimento = ""
+            for coluna in ["Empreendimento", "empreendimento", "Endereco", "Endereco_Imovel", "Descricao"]:
+                valor = str(row.get(coluna, "")).strip()
+                if valor and valor.lower() not in {"nan", "none"}:
+                    empreendimento = valor
+                    break
+
+            data_contrato = str(row.get("Data_Contrato", "")).strip().split(" ")[0].split("T")[0]
+            for corretor in sorted(participantes):
+                if self._is_excluded(
+                    nome=corretor,
+                    id_corretor=name_to_id.get(corretor, ""),
+                ):
+                    continue
+                detalhes.append({
+                    "data_contrato": data_contrato,
+                    "id_contrato": str(row.get("Id_Contrato", "")).strip(),
+                    "contrato": str(row.get("Contrato", "")).strip(),
+                    "empreendimento": empreendimento,
+                    "codigo_imovel": codigo_imovel,
+                    "classificacao_foco": classificacao,
+                    "foco": classificacao.startswith("FOCO"),
+                    "corretor": corretor,
+                    "papel": "VENDA + CAPTAÇÃO" if corretor in vendedores and corretor in captadores else ("VENDA" if corretor in vendedores else "CAPTAÇÃO"),
+                    "captadores": ", ".join(sorted(captadores)),
+                    "vendedores": ", ".join(sorted(vendedores)),
+                    "valor_negocio": round(valor_negocio, 2),
+                    "vgc_61_contrato": round(vgc_contrato, 2),
+                    "vgc_do_corretor": round(shares[corretor], 2),
+                })
+                chave = (classificacao, corretor)
+                acc = por_corretor.setdefault(chave, {"qtd": 0, "vgc": 0.0, "vgv": 0.0})
+                acc["qtd"] += 1
+                acc["vgc"] += shares[corretor]
+                acc["vgv"] += valor_negocio
+
+            foco_acc = por_foco.setdefault(classificacao, {"qtd": 0, "vgc": 0.0, "vgv": 0.0})
+            foco_acc["qtd"] += 1
+            foco_acc["vgc"] += vgc_contrato
+            foco_acc["vgv"] += valor_negocio
+
+        ordenado = sorted(por_corretor.items(), key=lambda item: (item[0][0], -item[1]["vgc"], item[0][1]))
+        ranking = [
+            {
+                "classificacao_foco": chave[0],
+                "corretor": chave[1],
+                "qtd_negocios": int(valores["qtd"]),
+                "vgc_corretor": round(valores["vgc"], 2),
+                "vgv_imoveis": round(valores["vgv"], 2),
+            }
+            for chave, valores in ordenado
+        ]
+        resumo = [
+            {
+                "classificacao_foco": classificacao,
+                "qtd_negocios": int(valores["qtd"]),
+                "vgc_total": round(valores["vgc"], 2),
+                "vgv_total": round(valores["vgv"], 2),
+            }
+            for classificacao, valores in sorted(por_foco.items())
+        ]
+        detalhes.sort(key=lambda item: (item["classificacao_foco"], item["data_contrato"], item["corretor"]))
+        return {
+            "start": start,
+            "end": end,
+            "apply_factor": apply_factor,
+            "total_vgc": round(sum(item["vgc_total"] for item in resumo), 2),
+            "resumo": resumo,
+            "ranking": ranking,
+            "detalhes": detalhes,
+        }
 
     def get_ranking_equipe(
         self,
