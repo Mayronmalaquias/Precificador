@@ -16,6 +16,9 @@ import PrivateRoute from './auth/PrivateRoute';
 import AdminRoute from './auth/AdminRoute';
 import AdministradorRoute from './auth/AdministradorRoute';
 import AssistenteRoute from './auth/AssistenteRoute';
+import DiretorRoute from './auth/DiretorRoute';
+import GerenteOperacionalRoute from './auth/GerenteOperacionalRoute';
+import VendasRoute from './auth/VendasRoute';
 import PaginaPublica from './components/FormularioPublico';
 import FormVisita from './components/FormVisita';
 import AppVisita from './components/FormVisitaApp';
@@ -37,6 +40,7 @@ import AdminBases from './components/AdminBases'
 import Vendas from './components/Vendas'
 import GerenteRHCorretores from './components/GerenteRHCorretores'
 import LancarImovel from './components/LancarImovel'
+import VisaoDiretor from './components/VisaoDiretor'
 
 import './assets/css/styles.css';
 import './assets/css/report.css';
@@ -90,11 +94,15 @@ function App() {
                 />
                 <Route
                   path="/register"
-                  element={<Register />}
+                  element={<AdministradorRoute><Register /></AdministradorRoute>}
                 />
                 <Route
                   path="/RelatorioGerente"
                   element={<AdminRoute><RelatorioGerente /></AdminRoute>}
+                />
+                <Route
+                  path="/VisaoDiretor"
+                  element={<DiretorRoute><VisaoDiretor /></DiretorRoute>}
                 />
                 <Route
                   path="/ControleCorretor"
@@ -114,7 +122,7 @@ function App() {
                 />
                 <Route
                   path="/GerenteRH"
-                  element={<AdminRoute><GerenteRHCorretores /></AdminRoute>}
+                  element={<GerenteOperacionalRoute><GerenteRHCorretores /></GerenteOperacionalRoute>}
                 />
                 <Route
                   path="/AdminBases"
@@ -122,7 +130,7 @@ function App() {
                 />
                 <Route
                   path="/Vendas"
-                  element={<AdministradorRoute><Vendas /></AdministradorRoute>}
+                  element={<VendasRoute><Vendas /></VendasRoute>}
                 />
                 <Route
                   path="/JornadaCaptacao"

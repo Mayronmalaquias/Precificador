@@ -339,6 +339,12 @@ function GestaoClientesVisitas() {
   const [motivoPorVisita, setMotivoPorVisita] = useState({});
   const [editandoMotivoId, setEditandoMotivoId] = useState("");
   const [salvandoMotivoId, setSalvandoMotivoId] = useState("");
+  // paralelo p/ o motivo do "sim"
+  const [motivoSimPorVisita, setMotivoSimPorVisita] = useState({});
+  const [editandoMotivoSimId, setEditandoMotivoSimId] = useState("");
+  const [salvandoMotivoSimId, setSalvandoMotivoSimId] = useState("");
+  // overrides otimistas das flags de revisão (viu_anexo/viu_notas/add_motivo) por visita
+  const [flagOverrides, setFlagOverrides] = useState({});
   const [calendarioMes, setCalendarioMes] = useState(mesAtualStr);
   const [abaAtiva, setAbaAtiva] = useState("clientes");
   const [salvandoAcao, setSalvandoAcao] = useState(false);
@@ -532,10 +538,94 @@ function GestaoClientesVisitas() {
       if (!resp.ok || !json.ok) throw new Error(json.error || "Erro ao salvar motivo.");
       setEditandoMotivoId("");
       setDados((atual) => aplicarMotivoTalvezLocal(atual, idVisita, motivo, visita));
+      if (motivo.trim()) marcarFlagVisita(visita, { add_motivo: true });
     } catch (err) {
       setErro(err.message || "Erro ao salvar motivo.");
     } finally {
       setSalvandoMotivoId("");
+    }
+  };
+
+  // Flags efetivas = as do banco (visita.flags) + overrides otimistas locais.
+  const flagsDaVisita = (visita) => ({
+    ...(visita?.flags || {}),
+    ...(flagOverrides[visita?.id_visita] || {}),
+  });
+
+  // Marca flag(s) de revisão do gerente. Grava sob o gerente RESPONSÁVEL pelo corretor
+  // (id_gerente_corretor) p/ o diretor enxergar; cai no usuário logado se faltar.
+  const marcarFlagVisita = (visita, flags = {}) => {
+    const idVisita = visita?.id_visita;
+    if (!idVisita) return;
+    const gerenteKey = visita?.id_gerente_corretor || usuarioId;
+    if (!gerenteKey) return;
+    const viu_anexo = !!flags.viu_anexo;
+    const viu_notas = !!flags.viu_notas;
+    const add_motivo = !!flags.add_motivo;
+    setFlagOverrides((prev) => {
+      const cur = prev[idVisita] || {};
+      return {
+        ...prev,
+        [idVisita]: {
+          viu_anexo: cur.viu_anexo || viu_anexo || !!(visita.flags || {}).viu_anexo,
+          viu_notas: cur.viu_notas || viu_notas || !!(visita.flags || {}).viu_notas,
+          add_motivo: cur.add_motivo || add_motivo || !!(visita.flags || {}).add_motivo,
+        },
+      };
+    });
+    fetch(`${BASE}/visitas/vistas`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id_gerente: gerenteKey, id_visita: idVisita, viu_anexo, viu_notas, add_motivo }),
+    })
+      .then((r) => r.json())
+      .then((d) => { if (!d.ok) console.error("[vistas POST] erro:", d); })
+      .catch((e) => console.error("[vistas POST] fetch falhou:", e));
+  };
+
+  const aplicarMotivoSimLocal = (dadosAtual, idVisita, motivo, visitaRef) => {
+    if (!dadosAtual?.clientes) return dadosAtual;
+    const clientes = dadosAtual.clientes.map((cliente) => {
+      const temVisita = (cliente.visitas || []).some((v) => v.id_visita === idVisita);
+      if (!temVisita) return cliente;
+      const visitas = cliente.visitas.map((v) =>
+        v.id_visita === idVisita ? { ...v, motivo_sim: motivo } : v
+      );
+      const motivosSim = (cliente.motivos_sim || []).filter((m) => m.id_visita !== idVisita);
+      if (motivo) {
+        motivosSim.push({
+          motivo,
+          id_imovel: visitaRef.id_imovel,
+          endereco_externo: visitaRef.endereco_externo,
+          id_visita: idVisita,
+        });
+      }
+      return { ...cliente, visitas, motivos_sim: motivosSim };
+    });
+    return { ...dadosAtual, clientes };
+  };
+
+  const salvarMotivoSim = async (visita) => {
+    const idVisita = visita?.id_visita;
+    if (!idVisita) return;
+    const motivo = motivoSimPorVisita[idVisita] ?? visita.motivo_sim ?? "";
+    setSalvandoMotivoSimId(idVisita);
+    setErro("");
+    try {
+      const resp = await fetch(`${BASE}/visitas/${encodeURIComponent(idVisita)}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ motivoSim: motivo }),
+      });
+      const json = await resp.json().catch(() => ({}));
+      if (!resp.ok || !json.ok) throw new Error(json.error || "Erro ao salvar motivo.");
+      setEditandoMotivoSimId("");
+      setDados((atual) => aplicarMotivoSimLocal(atual, idVisita, motivo, visita));
+      if (motivo.trim()) marcarFlagVisita(visita, { add_motivo: true });
+    } catch (err) {
+      setErro(err.message || "Erro ao salvar motivo.");
+    } finally {
+      setSalvandoMotivoSimId("");
     }
   };
 
@@ -927,6 +1017,18 @@ function GestaoClientesVisitas() {
                 </div>
               )}
 
+              {!!clienteSelecionado.motivos_sim?.length && (
+                <div className="gcv-note">
+                  <strong>Motivos do sim</strong>
+                  {clienteSelecionado.motivos_sim.map((item, index) => (
+                    <p key={`sim-${item.id_visita || index}-${index}`}>
+                      <strong>Imovel {texto(item.id_imovel)}</strong>
+                      {item.endereco_externo ? ` (${item.endereco_externo})` : ""}: {item.motivo}
+                    </p>
+                  ))}
+                </div>
+              )}
+
               <div className="gcv-visits">
                 {clienteSelecionado.visitas.map((visita) => (
                   <article key={visita.id_visita} className="gcv-visit-card">
@@ -994,6 +1096,104 @@ function GestaoClientesVisitas() {
                         </div>
                       )
                     )}
+
+                    {normalizarProposta(visita.proposta) === "sim" && (
+                      editandoMotivoSimId === visita.id_visita ? (
+                        <div className="gcv-motive-editor">
+                          <label htmlFor={`motivosim-${visita.id_visita}`}>Motivo do sim</label>
+                          <textarea
+                            id={`motivosim-${visita.id_visita}`}
+                            value={motivoSimPorVisita[visita.id_visita] ?? visita.motivo_sim ?? ""}
+                            onChange={(e) =>
+                              setMotivoSimPorVisita((prev) => ({
+                                ...prev,
+                                [visita.id_visita]: e.target.value,
+                              }))
+                            }
+                            placeholder="Informe por que o cliente disse sim nessa visita."
+                            rows={3}
+                          />
+                          <div className="gcv-motive-actions">
+                            <button
+                              type="button"
+                              className="gcv-motive-cancel"
+                              onClick={() => setEditandoMotivoSimId("")}
+                              disabled={salvandoMotivoSimId === visita.id_visita}
+                            >
+                              Cancelar
+                            </button>
+                            <button
+                              type="button"
+                              className="gcv-motive-save"
+                              onClick={() => salvarMotivoSim(visita)}
+                              disabled={salvandoMotivoSimId === visita.id_visita}
+                            >
+                              {salvandoMotivoSimId === visita.id_visita ? "Salvando..." : "Salvar motivo"}
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="gcv-motive-view">
+                          <div>
+                            <span>Motivo do sim</span>
+                            <p>{texto(visita.motivo_sim, "Nenhum motivo informado.")}</p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setMotivoSimPorVisita((prev) => ({
+                                ...prev,
+                                [visita.id_visita]: prev[visita.id_visita] ?? visita.motivo_sim ?? "",
+                              }));
+                              setEditandoMotivoSimId(visita.id_visita);
+                            }}
+                          >
+                            {visita.motivo_sim ? "Editar motivo" : "Adicionar motivo"}
+                          </button>
+                        </div>
+                      )
+                    )}
+
+                    <div className="gcv-review" style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center", marginTop: 8 }}>
+                      {visita.anexo_ficha && (
+                        <button
+                          type="button"
+                          className="gcv-motive-save"
+                          onClick={() => {
+                            marcarFlagVisita(visita, { viu_anexo: true });
+                            if (/^https?:/i.test(visita.anexo_ficha)) window.open(visita.anexo_ficha, "_blank", "noopener");
+                          }}
+                        >
+                          Ver anexo
+                        </button>
+                      )}
+                      {visita.notas && (
+                        <details onToggle={(e) => { if (e.currentTarget.open) marcarFlagVisita(visita, { viu_notas: true }); }}>
+                          <summary style={{ cursor: "pointer" }}>Ver notas</summary>
+                          <p style={{ whiteSpace: "pre-wrap" }}>{visita.notas}</p>
+                        </details>
+                      )}
+                      {(() => {
+                        const f = flagsDaVisita(visita);
+                        const badge = (ok, label, short) => (
+                          <span
+                            key={short}
+                            title={`${label}: ${ok ? "sim" : "pendente"}`}
+                            style={{ display: "inline-block", minWidth: 22, textAlign: "center", padding: "1px 6px", borderRadius: 6, fontSize: 11, fontWeight: 700, background: ok ? "#dcfce7" : "#fee2e2", color: ok ? "#15803d" : "#b91c1c" }}
+                          >
+                            {short}{ok ? "✓" : "!"}
+                          </span>
+                        );
+                        return (
+                          <span style={{ display: "inline-flex", gap: 4, marginLeft: "auto" }}>
+                            {badge(f.viu_anexo, "Viu anexo", "A")}
+                            {badge(f.viu_notas, "Viu notas", "N")}
+                            {badge(f.add_motivo, "Adicionou motivo", "M")}
+                          </span>
+                        );
+                      })()}
+                    </div>
+
                     <div className="gcv-score-grid">
                       {(visita.avaliacoes || []).map((av, index) => (
                         <div key={`${visita.id_visita}-${index}`}>

@@ -53,10 +53,10 @@ function ControleCorretores() {
     }
   }, []);
 
-  const isAdministrativo = String(usuario?.team || "").toLowerCase() === "administrativo";
+  const isAdministrativo = usuario?.permissao === "administrativo" || String(usuario?.team || "").toLowerCase() === "administrativo";
   const podeGerenciarTodasEquipes = ['administrador', 'diretor'].includes(usuario?.permissao) || isAdministrativo;
   const isGerente = usuario?.permissao === "gerente";
-  const isDiretor = usuario?.permissao === "diretor";
+  const isDiretor = usuario?.permissao === "diretor" || usuario?.permissao === "administrativo" || isAdministrativo;
 
   const carregarCorretores = useCallback(async (usuarioAtual) => {
     if (!usuarioAtual) return;
@@ -64,7 +64,7 @@ function ControleCorretores() {
     setLoading(true);
 
     try {
-      const usuarioEhAdministrativo =
+      const usuarioEhAdministrativo = usuarioAtual.permissao === "administrativo" ||
         String(usuarioAtual.team || "").toLowerCase() === "administrativo";
       const podeVerTodas = ['administrador', 'diretor'].includes(usuarioAtual.permissao) || usuarioEhAdministrativo;
 

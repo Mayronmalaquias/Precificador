@@ -240,7 +240,7 @@ function GerenteRHCorretores() {
         <div className="controle-corretores__container">
           <section className="controle-corretores__panel">
             <h1 className="controle-corretores__panel-title">Acesso restrito</h1>
-            <p className="controle-corretores__panel-subtitle">Esta tela e exclusiva para gerentes e diretores.</p>
+            <p className="controle-corretores__panel-subtitle">Esta tela é exclusiva para gerentes e perfis administrativos.</p>
           </section>
         </div>
       </div>

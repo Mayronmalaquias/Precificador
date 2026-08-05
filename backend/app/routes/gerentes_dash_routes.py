@@ -1,6 +1,6 @@
 from flask import request, send_file, current_app
 from flask_restx import Namespace, Resource
-from sqlalchemy import func
+from sqlalchemy import func, or_
 
 from app.database import SessionLocal
 from app.models.usuarios import Usuarios
@@ -44,7 +44,10 @@ def _diretor_ativo(usuario_id):
         return session.query(Usuarios.id_usuarios).filter(
             Usuarios.id_usuarios == usuario_id,
             Usuarios.ativo.is_(True),
-            func.lower(Usuarios.permissao) == "diretor",
+            or_(
+                func.lower(Usuarios.permissao).in_(["diretor", "administrativo"]),
+                func.lower(Usuarios.team) == "administrativo",
+            ),
         ).first() is not None
     finally:
         session.close()
@@ -53,7 +56,7 @@ def _diretor_ativo(usuario_id):
 def _escopo_evolucao_visitas(id_gerente):
     solicitou_todas = (request.args.get("solicitante_permissao") or "").strip().lower() == "diretor"
     if solicitou_todas and not _diretor_ativo(id_gerente):
-        return False, ({"ok": False, "error": "Apenas diretores podem consultar todas as equipes"}, 403)
+        return False, ({"ok": False, "error": "Apenas diretoria ou administrativo podem consultar todas as equipes"}, 403)
     return solicitou_todas, None
 
 @gerente_dashboard_ns.route("/imoveis")

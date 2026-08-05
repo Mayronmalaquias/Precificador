@@ -56,6 +56,7 @@ class Visita(Base):
     )
     imovel_nao_captado = Column(Boolean, nullable=True)
     motivo_talvez = Column(Text, nullable=True)
+    motivo_sim = Column(Text, nullable=True)  # motivo do "Sim" (paralelo ao motivo_talvez), preenchido pelo gerente
     revisita = Column(Boolean, nullable=True, server_default="false")
 
 

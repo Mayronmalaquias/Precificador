@@ -3,6 +3,7 @@ from flask_restx import Namespace, Resource
 
 from app.services import admin_bases_service as svc
 from app.services import leads_service
+from app.services import dfimoveis_service
 from app.services.sync_contratos_service import sync_contratos_from_sheet
 
 admin_bases_ns = Namespace("admin-bases", description="Gestao administrativa das bases (captacao/saida/estoque/venda/destaque)")
@@ -89,6 +90,26 @@ class ImportarEstoque(Resource):
             return {"ok": False, "error": str(e)}, 400
         except Exception as e:
             return _erro(e, "Erro ao importar estoque")
+
+
+@admin_bases_ns.route("/admin/bases/importar/dfimoveis-acessos")
+class ImportarDfImoveisAcessos(Resource):
+    @admin_bases_ns.doc(description="Importa o XLSX semanal de acessos e impressões do DFImóveis.")
+    def post(self):
+        f = _arquivo()
+        if not f:
+            return {"ok": False, "error": "Envie o XLSX no campo 'arquivo'"}, 400
+        try:
+            resumo = dfimoveis_service.importar_relatorio(
+                f,
+                data_relatorio=request.form.get("data_relatorio"),
+                criado_por=request.form.get("criado_por"),
+            )
+            return {"ok": True, **resumo}, 200
+        except ValueError as e:
+            return {"ok": False, "error": str(e)}, 400
+        except Exception as e:
+            return _erro(e, "Erro ao importar relatório DFImóveis")
 
 
 @admin_bases_ns.route("/admin/bases/importar/leads-contact2sale")

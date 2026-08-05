@@ -184,7 +184,7 @@ function FechamentoMes({ apiBase, toast }) {
 function Ranking() {
   const toast = useToast();
   const { permissao } = useAuth();
-  const podeOcultar = ['administrador', 'diretor'].includes(permissao);
+  const podeOcultar = ['administrador', 'diretor', 'administrativo'].includes(permissao);
 
   const GERENTES = useMemo(
     () => [

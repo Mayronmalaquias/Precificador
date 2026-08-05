@@ -49,9 +49,14 @@ Hierarquia (crescente): **corretor → gerente → administrador → diretor**. 
 | Flag | Verdadeiro para |
 |---|---|
 | `isLogado` | qualquer usuário autenticado |
-| `isGerente` / `isAdmin` | gerente, administrador, diretor |
-| `isAdministrador` | administrador, diretor **ou** administrativo |
-| `isDiretor` | diretor |
+| `isGerente` / `isAdmin` | gerente, administrador, diretor **ou** administrativo |
+| `isAdministrador` | administrador **ou** administrativo |
+| `isDiretor` | diretor **ou** administrativo (capacidade executiva/multi-equipe) |
+
+> Atualização 2026-08-05: `administrativo` acumula operação administrativa e escopo executivo
+> multi-equipe. `isAdministrador` não inclui mais diretor; `isDiretor` representa capacidade
+> executiva e é verdadeiro para diretor ou administrativo. O diretor não acessa as telas
+> operacionais de RH, usuários, equipes, bases e lançamento de imóvel.
 
 ### Guardas de rota (`src/auth/`)
 

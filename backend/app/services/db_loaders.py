@@ -155,6 +155,7 @@ def carregar_fato_visitas() -> List[Dict[str, str]]:
                 "Id_Parceiro": _s(v.id_parceiro),
                 "Imovel_Nao_Captado": _bool_str(v.imovel_nao_captado),
                 "Motivo_Talvez": _s(v.motivo_talvez),
+                "Motivo_Sim": _s(v.motivo_sim),
                 "Revisita": _bool_str(v.revisita),
             }
             for v in session.query(Visita).all()

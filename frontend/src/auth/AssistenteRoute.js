@@ -2,7 +2,7 @@ import React from 'react';
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
-// Página de lançamento de imóvel: só assistentes (+ administrador/diretor, que supervisionam).
+// Página operacional: assistentes, administradores e administrativo. Diretor não acessa.
 function AssistenteRoute({ children }) {
   const { isLogado, isAssistente, isAdministrador } = useAuth();
 

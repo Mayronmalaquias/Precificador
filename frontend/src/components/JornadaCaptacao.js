@@ -1635,8 +1635,9 @@ export default function JornadaCaptacao() {
   const [filtroEndereco, setFiltroEndereco] = useState("");
   const [abaGerente, setAbaGerente]         = useState("ativo");
 
-  const isAdmin   = ["gerente", "administrador", "diretor"].includes(userInfo.permissao);
-  const isDiretor = userInfo.permissao === "diretor";
+  const isAdministrativo = userInfo.permissao === "administrativo" || String(userInfo.team || "").toLowerCase() === "administrativo";
+  const isAdmin   = ["gerente", "administrador", "diretor"].includes(userInfo.permissao) || isAdministrativo;
+  const isDiretor = userInfo.permissao === "diretor" || isAdministrativo;
 
   useEffect(() => {
     const raw = localStorage.getItem("userData");

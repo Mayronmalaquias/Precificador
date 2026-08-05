@@ -382,7 +382,7 @@ def alterar_gerente(manager, id_corretor):
             return {"error": "Corretor inválido"}
         if not man:
             return {"error": "Gerente inválido"}
-        if man.permissao not in ("gerente", "administrador", "diretor"):
+        if man.permissao not in ("gerente", "administrador", "diretor", "administrativo"):
             return {"error": "O usuário informado não tem permissão de gerente"}
 
         user.team = manager

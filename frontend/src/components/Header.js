@@ -5,8 +5,7 @@ import '../assets/css/Header.css';
 
 function Header() {
   const navigate = useNavigate();
-  const { isLogado, isAdmin, isAdministrador, isAssistente, permissao, nomeUsuario, idCorretor, logout } = useAuth();
-  const isAdminOuDiretor = ['administrador', 'diretor'].includes(permissao);
+  const { isLogado, isAdmin, isAdministrador, isDiretor, isAssistente, permissao, nomeUsuario, idCorretor, logout } = useAuth();
   const profileRef = useRef(null);
   const servicosRef = useRef(null);
   const gestaoRef = useRef(null);
@@ -86,15 +85,16 @@ function Header() {
     { to: '/AppVisita', label: 'Relatório de Visita', show: isLogado },
     { to: '/GestaoClientes', label: 'Gestao de Clientes', show: isLogado },
     { to: '/RelatorioGerente', label: 'Relatório Gerente', show: isLogado && isAdmin },
+    { to: '/VisaoDiretor', label: 'Visão do Diretor', show: isLogado && isDiretor },
     { to: '/ranking', label: 'Ranking', show: isLogado && isAdmin },
-    { to: '/AdminBases', label: 'Gestão de Bases', show: isLogado && isAdminOuDiretor },
-    { to: '/Vendas', label: 'Vendas', show: isLogado && isAdminOuDiretor },
+    { to: '/AdminBases', label: 'Gestão de Bases', show: isLogado && isAdministrador },
+    { to: '/Vendas', label: 'Vendas', show: isLogado && (isAdministrador || isDiretor) },
     { to: '/JornadaCaptacao', label: 'Jornada Captação', show: isLogado },
     { to: '/LancarImovel', label: 'Lançar Imóvel', subtitle: 'Imoview + Trello', show: isLogado && (isAssistente || isAdministrador) },
   ].filter((item) => item.show).filter((item) => !isAssistente || item.to === '/LancarImovel');
 
   const gestao = [
-    { to: '/GerenteRH', label: 'Controle Equipe', show: isLogado && isAdmin },
+    { to: '/GerenteRH', label: 'Controle Equipe', show: isLogado && (permissao === 'gerente' || isAdministrador) },
     { to: '/GerenciarEquipes', label: 'Equipes', show: isLogado && isAdministrador },
     { to: '/RHUsuarios', label: 'RH Usuarios', show: isLogado && isAdministrador },
     { to: '/ControleCorretor', label: 'Controle usuarios', show: isLogado && isAdministrador },

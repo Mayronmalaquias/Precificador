@@ -601,6 +601,7 @@ def registrar_visita(payload: Dict[str, Any]) -> str:
             endereco_externo=_safe_str(payload.get("enderecoExterno")),
             proposta=_safe_str(payload.get("proposta")),
             motivo_talvez=_safe_str(payload.get("motivoTalvez")),
+            motivo_sim=_safe_str(payload.get("motivoSim")),
             revisita=_is_true(payload.get("revisita")),
             created_at=created_at,
             created_by=created_by,
@@ -862,6 +863,7 @@ def buscar_visitas_do_corretor(id_corretor: str, q: str = "", limit: int = 30) -
             "imovelId": id_imovel,
             "proposta": _safe_str(r.get("Proposta")),
             "motivoTalvez": _safe_str(r.get("Motivo_Talvez")),
+            "motivoSim": _safe_str(r.get("Motivo_Sim")),
             "tipoCaptacao": _safe_str(r.get("Tipo_Captacao")),
             "enderecoExterno": _safe_str(r.get("Endereco_Externo")),
             "visitaComParceiro": _safe_str(r.get("Visita_Com_Parceiro")),
@@ -1644,6 +1646,9 @@ def editar_visita(id_visita: str, payload: Dict[str, Any]) -> None:
 
         if "motivoTalvez" in payload:
             visita.motivo_talvez = _safe_str(payload["motivoTalvez"])
+
+        if "motivoSim" in payload:
+            visita.motivo_sim = _safe_str(payload["motivoSim"])
 
         for av in payload.get("avaliacoes", []):
             id_av = _safe_str(av.get("id_avaliacao"))

@@ -95,11 +95,18 @@ function AbaImportar() {
         extras={[{ name: "data_estoque", label: "Data do estoque", type: "date" }]}
         ManualForm={ManualEstoque}
       />
+      <ImportCard
+        titulo="Acessos DFImóveis"
+        descricao="Relatório XLSX semanal do DFImóveis. Atualiza acessos, impressões e interações do painel da diretoria."
+        endpoint="/admin/bases/importar/dfimoveis-acessos"
+        extras={[{ name: "data_relatorio", label: "Data do relatório", type: "date" }]}
+        accept=".xlsx"
+      />
     </div>
   );
 }
 
-function ImportCard({ titulo, descricao, endpoint, extras = [], ManualForm }) {
+function ImportCard({ titulo, descricao, endpoint, extras = [], ManualForm, accept = ".csv,.xls,.xlsx" }) {
   const { idCorretor } = useAuth();
   const toast = useNotify();
   const [arquivo, setArquivo] = useState(null);
@@ -140,7 +147,7 @@ function ImportCard({ titulo, descricao, endpoint, extras = [], ManualForm }) {
 
       <input
         type="file"
-        accept=".csv,.xls,.xlsx"
+        accept={accept}
         className="ab-file"
         onChange={(e) => setArquivo(e.target.files?.[0] || null)}
       />
@@ -178,10 +185,12 @@ function ImportCard({ titulo, descricao, endpoint, extras = [], ManualForm }) {
       )}
       {resumo?.erro && <div className="ds-alert ds-alert-error">{resumo.erro}</div>}
 
-      <button className="ab-link" onClick={() => setManual((m) => !m)}>
-        {manual ? "▾ Ocultar lançamento manual" : "▸ Lançamento manual avulso"}
-      </button>
-      {manual && <ManualForm />}
+      {ManualForm && <>
+        <button className="ab-link" onClick={() => setManual((m) => !m)}>
+          {manual ? "▾ Ocultar lançamento manual" : "▸ Lançamento manual avulso"}
+        </button>
+        {manual && <ManualForm />}
+      </>}
     </div>
   );
 }

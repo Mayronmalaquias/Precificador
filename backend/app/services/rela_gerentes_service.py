@@ -249,7 +249,7 @@ def _resolver_ids_corretor_gestao(
 
     usuario_map, usuarios_por_time = _usuario_lookup()
 
-    if permissao == "diretor":
+    if permissao in {"diretor", "administrativo"} or team.lower() == "administrativo":
         if escopo == "corretor" and id_corretor:
             ids = {id_corretor}
             modo = "corretor"
@@ -362,6 +362,7 @@ def gestao_clientes_visitas(
             "notas": [],
             "propostas": Counter(),
             "motivos_talvez": [],
+            "motivos_sim": [],
             "ultima_data_ord": None,
         }
 
@@ -388,6 +389,9 @@ def gestao_clientes_visitas(
             or _safe_str(visita.get("Motivo Talvez"))
             or _safe_str(visita.get("Motivo_Talvez_Proposta"))
         )
+        motivo_sim = _safe_str(visita.get("Motivo_Sim"))
+        anexo_ficha = _safe_str(visita.get("Anexo_Ficha_Visita"))
+        notas_visita = _safe_str(visita.get("AudiodescricaoClienteVisita"))
         if visita_no_periodo:
             if data_ord:
                 visitas_por_dia[data_ord.strftime("%Y-%m-%d")] += 1
@@ -438,6 +442,7 @@ def gestao_clientes_visitas(
                     "notas": [],
                     "propostas": Counter(),
                     "motivos_talvez": [],
+                    "motivos_sim": [],
                     "ultima_data_ord": None,
                 }
 
@@ -454,6 +459,15 @@ def gestao_clientes_visitas(
                     "endereco_externo": endereco_externo,
                     "id_visita": id_visita,
                 })
+            if motivo_sim and proposta.strip().lower() not in {
+                "", "nao", "não", "talvez", "talves", "sem informacao", "sem informação"
+            }:
+                cli["motivos_sim"].append({
+                    "motivo": motivo_sim,
+                    "id_imovel": id_imovel,
+                    "endereco_externo": endereco_externo,
+                    "id_visita": id_visita,
+                })
             if proposta.strip().lower() not in {"", "nao", "não", "sem informacao", "sem informação"}:
                 clientes_com_proposta.add(cid)
             if data_ord and (cli["ultima_data_ord"] is None or data_ord > cli["ultima_data_ord"]):
@@ -466,8 +480,12 @@ def gestao_clientes_visitas(
                 "endereco_externo": _safe_str(visita.get("Endereco_Externo")),
                 "id_corretor": id_visit_corretor,
                 "corretor": _usuario_label(usuario_map.get(id_visit_corretor, {})),
+                "id_gerente_corretor": _safe_str((usuario_map.get(id_visit_corretor, {}) or {}).get("team")),
                 "proposta": proposta,
                 "motivo_talvez": motivo_talvez,
+                "motivo_sim": motivo_sim,
+                "anexo_ficha": anexo_ficha,
+                "notas": notas_visita,
                 "nota_media": _media(notas_cliente),
                 "avaliacoes": [a for a in avaliacoes_payload if not a["id_cliente"] or a["id_cliente"] == cid],
                 "pdf_download_url": f"{API_BASE}/visitas/pdf/download?visita_id={id_visita}",
@@ -495,6 +513,7 @@ def gestao_clientes_visitas(
             "houve_proposta": any(k.strip().lower() not in {"", "nao", "não", "sem informacao", "sem informação"} for k in cli["propostas"]),
             "propostas": dict(cli["propostas"]),
             "motivos_talvez": cli["motivos_talvez"],
+            "motivos_sim": cli["motivos_sim"],
             "visitas": visitas,
             "pdf_download_url": f"{API_BASE}/clientes/pdf/download?id_cliente={cli['id_cliente']}",
         }
@@ -516,6 +535,18 @@ def gestao_clientes_visitas(
     )
     if limit:
         rows = rows[: max(1, int(limit))]
+
+    # flags de revisao do gerente por visita (importante p/ o diretor)
+    try:
+        from app.services.visita_vistas_service import mapa_flags_por_visitas
+        ids_vis = [v["id_visita"] for r in rows for v in r.get("visitas", []) if v.get("id_visita")]
+        fmap = mapa_flags_por_visitas(ids_vis)
+        _default_flags = {"visto": False, "viu_anexo": False, "viu_notas": False, "add_motivo": False}
+        for r in rows:
+            for v in r.get("visitas", []):
+                v["flags"] = fmap.get(v["id_visita"], dict(_default_flags))
+    except Exception:
+        pass
 
     serie_clientes = Counter()
     for cli in rows:
@@ -927,6 +958,9 @@ def listar_visitas_do_gerente(
             or _safe_str(visita.get("Motivo Talvez"))
             or _safe_str(visita.get("Motivo_Talvez_Proposta"))
         )
+        motivo_sim = _safe_str(visita.get("Motivo_Sim"))
+        anexo_ficha = _safe_str(visita.get("Anexo_Ficha_Visita"))
+        notas_cliente_visita = _safe_str(visita.get("AudiodescricaoClienteVisita"))
 
         item = {
             "id_visita": visita_id,
@@ -943,6 +977,10 @@ def listar_visitas_do_gerente(
             "proposta": _safe_str(visita.get("Proposta")),
             "motivo_talvez": motivo_talvez,
             "motivoTalvez": motivo_talvez,
+            "motivo_sim": motivo_sim,
+            "motivoSim": motivo_sim,
+            "anexo_ficha": anexo_ficha,
+            "notas": notas_cliente_visita,
             "visita_com_parceiro": _is_true(visita.get("Visita_Com_Parceiro")),
             "imovel_nao_captado": _is_true(visita.get("Imovel_Nao_Captado")),
             "revisita": _is_true(visita.get("Revisita")),
@@ -1973,7 +2011,7 @@ def _build_pdf_gerente_bytes(ctx: Dict[str, Any]) -> bytes:
 
     doc.section("Visitas do periodo")
     doc.table(
-        ["Data", "Corretor", "Imovel", "Proposta", "Motivo talvez", "Clientes"],
+        ["Data", "Corretor", "Imovel", "Proposta", "Motivo talvez", "Motivo sim", "Clientes"],
         [
             [
                 _display(v.get("data_visita")),
@@ -1981,11 +2019,12 @@ def _build_pdf_gerente_bytes(ctx: Dict[str, Any]) -> bytes:
                 _display(v.get("id_imovel")),
                 _display(v.get("proposta")),
                 _display(v.get("motivo_talvez")),
+                _display(v.get("motivo_sim")),
                 ", ".join(v.get("clientes", [])) if v.get("clientes") else "-",
             ]
             for v in visitas[:200]
         ],
-        [20, 34, 20, 22, 44, 40],
+        [18, 30, 16, 18, 34, 34, 30],
     )
 
     return doc.to_bytes()

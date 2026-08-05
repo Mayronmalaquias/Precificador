@@ -48,9 +48,13 @@ class VisitasVistas(Resource):
             return {"ok": False, "error": "id_gerente e obrigatorio"}, 400
         ids_gerente = [i.strip() for i in raw.split(",") if i.strip()]
         try:
-            from app.services.visita_vistas_service import listar_visitas_vistas
+            from app.services.visita_vistas_service import (
+                listar_visitas_vistas, mapa_visitas_vistas,
+            )
             ids = listar_visitas_vistas(ids_gerente)
-            return {"ok": True, "ids": ids}, 200
+            flags = mapa_visitas_vistas(ids_gerente)
+            # `ids` mantido p/ compat; `flags` traz viu_anexo/viu_notas/add_motivo por visita.
+            return {"ok": True, "ids": ids, "flags": flags}, 200
         except Exception as e:
             current_app.logger.exception("Erro ao listar visitas vistas")
             return {"ok": False, "error": str(e)}, 500
@@ -63,7 +67,13 @@ class VisitasVistas(Resource):
             return {"ok": False, "error": "id_gerente e id_visita sao obrigatorios"}, 400
         try:
             from app.services.visita_vistas_service import marcar_visita_vista
-            marcar_visita_vista(id_gerente, id_visita)
+            marcar_visita_vista(
+                id_gerente,
+                id_visita,
+                viu_anexo=bool(payload.get("viu_anexo")),
+                viu_notas=bool(payload.get("viu_notas")),
+                add_motivo=bool(payload.get("add_motivo")),
+            )
             return {"ok": True}, 200
         except Exception as e:
             current_app.logger.exception("Erro ao marcar visita como vista")

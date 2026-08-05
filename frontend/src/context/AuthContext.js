@@ -35,9 +35,11 @@ export function AuthProvider({ children }) {
   const isAdministrativo = useMemo(() => permissao === 'administrativo' || equipe === 'administrativo', [permissao, equipe]);
 
   // Hierarquia: corretor < gerente < administrador < diretor
-  const isGerente      = useMemo(() => ['gerente', 'administrador', 'diretor'].includes(permissao), [permissao]);
-  const isAdministrador = useMemo(() => ['administrador', 'diretor'].includes(permissao) || isAdministrativo, [permissao, isAdministrativo]);
-  const isDiretor      = useMemo(() => permissao === 'diretor', [permissao]);
+  const isGerente      = useMemo(() => ['gerente', 'administrador', 'diretor'].includes(permissao) || isAdministrativo, [permissao, isAdministrativo]);
+  // Operação administrativa: administrador/RH, mas não diretor.
+  const isAdministrador = useMemo(() => permissao === 'administrador' || isAdministrativo, [permissao, isAdministrativo]);
+  // Capacidade executiva/multi-equipe: diretor e administrativo.
+  const isDiretor      = useMemo(() => permissao === 'diretor' || isAdministrativo, [permissao, isAdministrativo]);
   const isAssistente   = useMemo(() => permissao === 'assistente', [permissao]);
 
   // Mantém isAdmin como alias de isGerente para compatibilidade interna

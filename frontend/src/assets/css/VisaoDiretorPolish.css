@@ -1,0 +1,42 @@
+.ev-executive-header {
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  overflow: hidden;
+  margin-bottom: 22px;
+  padding: 25px 27px;
+  border: 1px solid #e5e2f6;
+  border-radius: 17px;
+  background: linear-gradient(135deg, #fff 0%, #faf9ff 62%, #f0edff 100%);
+  box-shadow: 0 8px 28px rgba(53, 45, 105, 0.07);
+}
+
+.ev-executive-header::after {
+  content: "";
+  position: absolute;
+  right: -55px;
+  top: -75px;
+  width: 210px;
+  height: 210px;
+  border: 35px solid rgba(109, 92, 231, 0.055);
+  border-radius: 50%;
+  pointer-events: none;
+}
+
+.ev-executive-header > div { position: relative; z-index: 1; }
+.ev-executive-header h1 { margin: 8px 0 7px; color: var(--ink); font-size: 34px; line-height: 1.05; letter-spacing: -1.15px; }
+.ev-executive-header p { max-width: 720px; margin: 0; color: #737b91; font-size: 13px; line-height: 1.5; }
+.ev-neighborhood-label { margin-bottom: 4px !important; color: var(--purple) !important; font-size: 7px !important; font-weight: 800; text-transform: uppercase; letter-spacing: .9px; }
+.ev-profile-list button { grid-template-columns: 1.2fr 1.8fr; }
+.ev-media-grid { align-items: start; }
+.ev-media-grid > .ev-card { align-self: start; }
+.ev-profile-list button > div:first-child > strong {
+  color: #18213b !important;
+}
+
+@media (max-width: 700px) {
+  .ev-executive-header { align-items: flex-start; flex-direction: column; gap: 15px; padding: 20px; }
+  .ev-executive-header h1 { font-size: 28px; }
+  .ev-executive-header .ev-updated { display: flex; }
+}

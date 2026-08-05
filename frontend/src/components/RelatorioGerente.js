@@ -130,6 +130,8 @@ function RelatorioGerente() {
   const baixandoArquivoRef = useRef(false);
 
   const [visitasVisualizadas, setVisitasVisualizadas] = useState(new Set());
+  // flags de revisão do gerente por visita: { [idVisita]: {viu_anexo, viu_notas, add_motivo} }
+  const [flagsVisitas, setFlagsVisitas] = useState({});
   const [modalViewer, setModalViewer] = useState(null);
   const [loadingPdfModal, setLoadingPdfModal] = useState(false);
   const [detalheVisita, setDetalheVisita] = useState(null);
@@ -473,8 +475,10 @@ function RelatorioGerente() {
     fetch(`${BASE}/visitas/vistas?id_gerente=${encodeURIComponent(ids.join(","))}`)
       .then(r => r.json())
       .then(d => {
-        if (d.ok) setVisitasVisualizadas(new Set(d.ids));
-        else console.error("[vistas GET] erro:", d);
+        if (d.ok) {
+          setVisitasVisualizadas(new Set(d.ids));
+          setFlagsVisitas(d.flags || {});
+        } else console.error("[vistas GET] erro:", d);
       })
       .catch(e => console.error("[vistas GET] fetch falhou:", e));
   }, [visitas]);
@@ -692,6 +696,7 @@ function RelatorioGerente() {
       enderecoExterno: item.endereco_externo || "",
       proposta: item.proposta || "",
       motivoTalvez: item.motivoTalvez || item.motivo_talvez || "",
+      motivoSim: item.motivoSim || item.motivo_sim || "",
       situacaoImovel: situacao,
       avaliacoes,
     });
@@ -711,6 +716,9 @@ function RelatorioGerente() {
       });
       const data = await resp.json();
       if (!resp.ok || !data.ok) throw new Error(data.error || "Erro ao salvar.");
+      // gerente preencheu um motivo (talvez/sim) -> marca a flag p/ o diretor
+      const temMotivo = !!(editVisitaForm.motivoTalvez || editVisitaForm.motivoSim || "").trim();
+      if (temMotivo) marcarComoVisualizada(String(id), editVisitaModal?.id_gerente_corretor, { add_motivo: true });
       setEditVisitaModal(null);
       await carregarListas();
     } catch (err) {
@@ -845,6 +853,10 @@ function RelatorioGerente() {
       { label: "Clientes", valor: (i) => _juntar(i.clientes) },
       { label: "Proposta", valor: (i) => i.proposta },
       { label: "Motivo do talvez", valor: (i) => i.motivoTalvez || i.motivo_talvez },
+      { label: "Motivo do sim", valor: (i) => i.motivoSim || i.motivo_sim },
+      { label: "Viu anexo", valor: (i) => ((flagsVisitas[String(obterIdVisita(i))] || {}).viu_anexo ? "Sim" : "Não") },
+      { label: "Viu notas", valor: (i) => ((flagsVisitas[String(obterIdVisita(i))] || {}).viu_notas ? "Sim" : "Não") },
+      { label: "Adicionou motivo", valor: (i) => ((flagsVisitas[String(obterIdVisita(i))] || {}).add_motivo ? "Sim" : "Não") },
       { label: "Registrado em", valor: (i) => i.created_at },
     ];
     baixarExcel(`visitas_${_sufixoArquivo()}.xls`, colunas, visitasFiltradas);
@@ -983,25 +995,69 @@ function RelatorioGerente() {
     rolarParaDetalhes();
   };
 
-  const marcarComoVisualizada = useCallback((idVisita, idGerenteVisita) => {
+  const marcarComoVisualizada = useCallback((idVisita, idGerenteVisita, flags = {}) => {
     if (!idVisita) return;
     const gerenteKey = idGerenteVisita || idGerenteLogado;
     if (!gerenteKey) return;
+    const idStr = String(idVisita);
+    const viu_anexo = !!flags.viu_anexo;
+    const viu_notas = !!flags.viu_notas;
+    const add_motivo = !!flags.add_motivo;
+
     setVisitasVisualizadas((prev) => {
-      if (prev.has(String(idVisita))) return prev;
+      if (prev.has(idStr)) return prev;
       const next = new Set(prev);
-      next.add(String(idVisita));
+      next.add(idStr);
       return next;
     });
+
+    if (viu_anexo || viu_notas || add_motivo) {
+      setFlagsVisitas((prev) => {
+        const cur = prev[idStr] || {};
+        return {
+          ...prev,
+          [idStr]: {
+            viu_anexo: cur.viu_anexo || viu_anexo,
+            viu_notas: cur.viu_notas || viu_notas,
+            add_motivo: cur.add_motivo || add_motivo,
+          },
+        };
+      });
+    }
+
     fetch(`${BASE}/visitas/vistas`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id_gerente: gerenteKey, id_visita: String(idVisita) }),
+      body: JSON.stringify({ id_gerente: gerenteKey, id_visita: idStr, viu_anexo, viu_notas, add_motivo }),
     })
       .then(r => r.json())
       .then(d => { if (!d.ok) console.error("[vistas POST] erro:", d); })
       .catch(e => console.error("[vistas POST] fetch falhou:", e));
   }, [idGerenteLogado]);
+
+  // Badges de revisão do gerente (importante p/ o diretor): A=anexo, N=notas, M=motivo.
+  const FlagsRevisao = ({ id }) => {
+    const f = flagsVisitas[String(id)] || {};
+    const badge = (ok, label, short) => (
+      <span
+        title={`${label}: ${ok ? "sim" : "pendente"}`}
+        style={{
+          display: "inline-block", minWidth: 22, textAlign: "center", padding: "1px 5px",
+          marginRight: 3, borderRadius: 6, fontSize: 11, fontWeight: 700,
+          background: ok ? "#dcfce7" : "#fee2e2", color: ok ? "#15803d" : "#b91c1c",
+        }}
+      >
+        {short}{ok ? "✓" : "!"}
+      </span>
+    );
+    return (
+      <span style={{ whiteSpace: "nowrap" }}>
+        {badge(f.viu_anexo, "Viu anexo", "A")}
+        {badge(f.viu_notas, "Viu notas", "N")}
+        {badge(f.add_motivo, "Adicionou motivo", "M")}
+      </span>
+    );
+  };
 
   const abrirModalViewer = useCallback(async (tipo, item) => {
     setModalViewer({ tipo, item });
@@ -1195,10 +1251,46 @@ function RelatorioGerente() {
               <span className="detalhe-label">Revisita</span>
               <strong>{item.revisita ? "Sim" : "Não"}</strong>
             </div>
-            <div className="detalhe-box">
-              <span className="detalhe-label">Revisita</span>
-              <strong>{item.revisita ? "Sim" : "Não"}</strong>
-            </div>
+            {(item.motivoTalvez || item.motivo_talvez) && (
+              <div className="detalhe-box detalhe-box-full">
+                <span className="detalhe-label">Motivo do talvez</span>
+                <strong>{item.motivoTalvez || item.motivo_talvez}</strong>
+              </div>
+            )}
+            {(item.motivoSim || item.motivo_sim) && (
+              <div className="detalhe-box detalhe-box-full">
+                <span className="detalhe-label">Motivo do sim</span>
+                <strong>{item.motivoSim || item.motivo_sim}</strong>
+              </div>
+            )}
+            {item.anexo_ficha && (
+              <div className="detalhe-box detalhe-box-full">
+                <span className="detalhe-label">Anexo da ficha</span>
+                <button
+                  type="button"
+                  className="link-ficha-btn"
+                  onClick={() => {
+                    marcarComoVisualizada(String(obterIdVisita(item)), item?.id_gerente_corretor, { viu_anexo: true });
+                    if (/^https?:/i.test(item.anexo_ficha)) window.open(item.anexo_ficha, "_blank", "noopener");
+                  }}
+                >
+                  Ver anexo →
+                </button>
+              </div>
+            )}
+            {item.notas && (
+              <details
+                className="detalhe-box detalhe-box-full"
+                onToggle={(e) => {
+                  if (e.currentTarget.open) {
+                    marcarComoVisualizada(String(obterIdVisita(item)), item?.id_gerente_corretor, { viu_notas: true });
+                  }
+                }}
+              >
+                <summary className="detalhe-label" style={{ cursor: "pointer" }}>Ver notas do cliente</summary>
+                <strong style={{ whiteSpace: "pre-wrap" }}>{item.notas}</strong>
+              </details>
+            )}
             <div className="detalhe-box detalhe-box-full">
               <span className="detalhe-label">Clientes</span>
               <strong>
@@ -1519,6 +1611,8 @@ function RelatorioGerente() {
               <th>Clientes</th>
               <th>Proposta</th>
               <th>Motivo do talvez</th>
+              <th>Motivo do sim</th>
+              <th>Revisão</th>
               <th>Ações</th>
             </tr>
           </thead>
@@ -1526,7 +1620,7 @@ function RelatorioGerente() {
           <tbody>
             {!visitasFiltradas.length ? (
               <tr>
-                <td colSpan="8">Nenhuma visita encontrada.</td>
+                <td colSpan="10">Nenhuma visita encontrada.</td>
               </tr>
             ) : (
               visitasFiltradas.map((item) => (
@@ -1556,6 +1650,8 @@ function RelatorioGerente() {
                   </td>
                   <td>{item.proposta || "-"}</td>
                   <td>{item.motivoTalvez || item.motivo_talvez || "-"}</td>
+                  <td>{item.motivoSim || item.motivo_sim || "-"}</td>
+                  <td><FlagsRevisao id={obterIdVisita(item)} /></td>
 
                   <td>
                     <div className="acoes-tabela">
@@ -2283,7 +2379,7 @@ function RelatorioGerente() {
             idGerente={filtros.id_gerente}
             dataInicial={periodoEfetivo.start}
             dataFinal={periodoEfetivo.end}
-            todasEquipes={permissaoLogada === "diretor"}
+            todasEquipes={["diretor", "administrativo"].includes(permissaoLogada)}
           />
         );
 
@@ -2313,6 +2409,7 @@ function RelatorioGerente() {
   };
 
   const podeVerFiltroGerente =
+    ["administrador", "diretor", "administrativo"].includes(permissaoLogada) ||
     idGerenteLogado === "12345678" ||
     idGerenteLogado === "G61001" ||
     idGerenteLogado === "ADM001";
@@ -2535,6 +2632,16 @@ function RelatorioGerente() {
                   type="text"
                   value={editVisitaForm.motivoTalvez}
                   onChange={(e) => setEditVisitaForm((f) => ({ ...f, motivoTalvez: e.target.value }))}
+                />
+              </label>
+
+              <label>
+                Motivo do sim
+                <input
+                  type="text"
+                  value={editVisitaForm.motivoSim || ""}
+                  placeholder="Por que o cliente disse sim?"
+                  onChange={(e) => setEditVisitaForm((f) => ({ ...f, motivoSim: e.target.value }))}
                 />
               </label>
             </div>
