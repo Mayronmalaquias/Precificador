@@ -1,31 +1,37 @@
-Flask==2.1.0
-Werkzeug==2.0.3
-flask-caching==1.10.1
-flask-cors==3.0.10
-flask-migrate==3.1.0
-flask-restx==0.5.1
-flask-sqlalchemy==2.5.1
-gunicorn==20.1.0
-numpy==2.0.2
-openai==0.27.0
-openpyxl>=3.1          # leitura de .xlsx (gestao de bases)
-lxml>=5.0             # leitura do .xls (HTML do Imoview) via read_html
+# Stack validada no dev local (Flask 3 / Werkzeug 3 / SQLAlchemy 2.0).
+# Werkzeug>=3 lê hashes scrypt — necessário p/ a VM não estourar no login (era 2.0.3).
+# Deploy na VM: pip install -r requirements.txt DENTRO do venv + testar rotas antes de subir
+# (flask-restx 0.5->1.3, SQLAlchemy 1.4->2.0 e flask-sqlalchemy 2.5->3.1 têm breaking changes).
+Flask==3.0.3
+Werkzeug==3.0.3
+flask-caching==2.3.0
+flask-cors==5.0.1
+flask-migrate==4.1.0          # projeto usa alembic direto; mantido por compatibilidade
+flask-restx==1.3.0
+flask-sqlalchemy==3.1.1
+numpy==2.1.1
+openai==2.30.0                # não é usado no código (dead dep); pinado só p/ não flutuar
+openpyxl==3.1.5               # leitura de .xlsx (gestao de bases)
+lxml==6.0.1                   # leitura do .xls (HTML do Imoview) via read_html
 pandas==2.2.3
-psycopg2-binary>=2.9
-python-dotenv==0.19.2
-requests>=2.31
-#scikit-learn==1.4.2
-SQLAlchemy==1.4.49
-folium==0.12.1
-matplotlib
-Pillow          # necessário p/ salvar JPG com o matplotlib
+psycopg2-binary==2.9.9        # driver Postgres (build binário; dev local usa psycopg2 2.9.9)
+python-dotenv==1.1.1
+requests==2.32.5
+Unidecode==1.4.0             # usado em app/utils/helpers.normalizar_user (faltava no arquivo)
+#scikit-learn==1.5.2         # NÃO instalar em prod (puxa scipy; quebra o boot). Só p/ estudos.
+SQLAlchemy==2.0.40
+folium==0.17.0
+matplotlib==3.9.2
+Pillow==10.4.0               # necessário p/ salvar JPG com o matplotlib
 fpdf2==2.8.7
-google-api-python-client
-google-auth
-google-auth-httplib2
-httplib2 
-google_auth_oauthlib
-gspread
-anthropic>=0.40.0
-gevent>=23.9.1
-PyJWT>=2.8.0
+google-api-python-client==2.122.0
+google-auth==2.40.3
+google-auth-httplib2==0.2.0
+httplib2==0.22.0
+google-auth-oauthlib==1.2.2
+gspread==6.2.1
+anthropic==0.86.0
+PyJWT==2.13.0
+# --- prod-only (não instalados no dev local; validar versão na VM) ---
+gunicorn==23.0.0
+gevent==24.2.1               # worker atual é gthread; gevent fica disponível se precisar

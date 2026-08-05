@@ -46,7 +46,7 @@ def main() -> None:
                 continue
             u = Usuarios(
                 username=username,
-                password=generate_password_hash(SENHA),
+                password=generate_password_hash(SENHA, method="pbkdf2:sha256"),
                 nome=nome,
                 permissao="assistente",
                 ativo=True,

@@ -451,7 +451,7 @@ def editar_usuario(solicitante_id, id_corretor, dados=None, nova_senha=None):
             usuario.status = "Ativo" if usuario.ativo else "Inativo"
 
         if nova_senha:
-            usuario.password = generate_password_hash(nova_senha)
+            usuario.password = generate_password_hash(nova_senha, method="pbkdf2:sha256")
 
         # Captura antes do commit: ao virar gerente, garante a equipe dele. A equipe e
         # identificada pelo `team` (corretores compartilham o team do gerente), NAO pelo

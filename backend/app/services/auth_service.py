@@ -27,7 +27,7 @@ def cadastrar_usuario(username, password, team,
 
     session = SessionLocal()
     try:
-        hashed_pw = generate_password_hash(password)
+        hashed_pw = generate_password_hash(password, method="pbkdf2:sha256")
         id_usuarios = (id_usuarios or "").strip() or _gerar_proximo_id_usuario(session)
 
         campos_extras = {}
@@ -111,7 +111,7 @@ def registrar_nova_senha(username, newpass):
         if not usuario:
             return {"error": "Usuario invalido!"}
         
-        usuario.password = generate_password_hash(newpass)
+        usuario.password = generate_password_hash(newpass, method="pbkdf2:sha256")
         session.commit()
         return {"ok": "Senha alterada!"}
 
