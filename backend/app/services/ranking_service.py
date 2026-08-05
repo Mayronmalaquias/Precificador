@@ -785,11 +785,115 @@ class RankingService:
     # =========================================================
     # Relatório VGC (captador) por foco — regra por ano (DAX Power BI)
     # =========================================================
+    def _foco_por_codigo(self) -> Dict[str, bool]:
+        """Mapa código do imóvel -> tem foco (foco_pp OU foco_ac), da Dim_Imovel
+        (`imoveis_legado`). O código tem duplicatas (reanúncios) -> True prevalece."""
+        from app.database import SessionLocal
+        from app.models.legado_diversos import ImovelLegado
+
+        session = SessionLocal()
+        try:
+            rows = session.query(
+                ImovelLegado.codigo, ImovelLegado.foco_pp, ImovelLegado.foco_ac
+            ).all()
+        finally:
+            session.close()
+
+        mapa: Dict[str, bool] = {}
+        for codigo, pp, ac in rows:
+            cod = str(codigo or "").strip()
+            if not cod:
+                continue
+            foco = bool(pp) or bool(ac)
+            if foco or cod not in mapa:
+                mapa[cod] = foco
+        return mapa
+
+    def _captacoes_foco_por_captador(
+        self, start: Optional[str], end: Optional[str]
+    ) -> Dict[str, Dict[str, int]]:
+        """Captações por captador em TODO o período, da base histórica de captação —
+        NÃO da venda. Fonte: `eventos_imovel_legado` (tipo_evento='captacao', importada
+        da planilha Base Inteligência, ~5,4k desde 2022) UNIÃO `fato_captacao`
+        (lançamentos correntes do site). Cada captador1/2/3 conta 1 captação. O foco de
+        cada captação vem da Dim_Imovel (`imoveis_legado`) pelo código; se o código não
+        existir lá, cai no snapshot de foco do próprio registro (quando houver, caso do
+        fato_captacao). Dedup por (código, captador, data) entre as duas fontes.
+
+        Se o banco estiver vazio nessas tabelas, o resultado vem vazio — a Base
+        Inteligência (Google Sheet) seria o fallback a implementar."""
+        from app.database import SessionLocal
+        from app.models.eventos_imovel_legado import EventoImovelLegado
+        from app.models.fato_bases import FatoCaptacao
+
+        s_dt = self._parse_date(start) if start else None
+        e_dt = self._parse_date(end) if end else None
+        foco_map = self._foco_por_codigo()
+
+        acc: Dict[str, Dict[str, int]] = {}
+        seen = set()
+        _INVALIDOS = {"", "0", "-", "NAN", "NONE"}
+
+        def _dentro(d) -> Optional[bool]:
+            # None se sem data E há filtro de período (descarta); senão True/False.
+            if d is None:
+                return None if (s_dt is not None or e_dt is not None) else True
+            dts = pd.Timestamp(d)
+            if s_dt is not None and dts < s_dt:
+                return False
+            if e_dt is not None and dts > e_dt:
+                return False
+            return True
+
+        def _add(codigo, caps, data, foco_snapshot):
+            if not _dentro(data):
+                return
+            cod = str(codigo or "").strip()
+            foco = foco_map.get(cod)
+            if foco is None:  # imóvel fora da Dim_Imovel -> usa snapshot do registro
+                foco = bool(foco_snapshot)
+            diso = data.isoformat() if data is not None else ""
+            for cap in caps:
+                c = str(cap or "").strip().upper()
+                if c in _INVALIDOS:
+                    continue
+                chave = (cod, c, diso)
+                if chave in seen:
+                    continue
+                seen.add(chave)
+                a = acc.setdefault(c, {"n": 0, "n_foco": 0})
+                a["n"] += 1
+                if foco:
+                    a["n_foco"] += 1
+
+        session = SessionLocal()
+        try:
+            eventos = session.query(EventoImovelLegado).filter(
+                EventoImovelLegado.tipo_evento == "captacao"
+            ).all()
+            for e in eventos:
+                _add(e.codigo_imovel, (e.captador1, e.captador2, e.captador3),
+                     e.data_evento, None)
+
+            for f in session.query(FatoCaptacao).all():
+                snap = bool(f.foco_pp) or bool(f.foco_ac)
+                _add(f.codigo_imovel, (f.captador1, f.captador2, f.captador3),
+                     f.data_entrada, snap)
+        finally:
+            session.close()
+
+        return acc
+
     def relatorio_vgc_foco(self, start: Optional[str] = None, end: Optional[str] = None) -> pd.DataFrame:
         """VGV do CAPTADOR por corretor, seguindo a regra do Power BI:
           - ano <= 2025: valor pré-calculado V3 (captador 1) / V4 (captador 2);
           - ano >= 2026: Valor do negócio ÷ nº de captadores.
-        Fonte: `vendas_legado` (Fato_Venda, tem o flag `foco`). Quebra em Foco / Não Foco."""
+        Fonte do VGV: `vendas_legado` (Fato_Venda, flag `foco`).
+
+        **Captações e Captações no Foco NÃO vêm da venda** — vêm da base histórica de
+        captação (`eventos_imovel_legado` + `fato_captacao`) cruzada com a Dim_Imovel
+        p/ o foco. Assim contam TODO o período (imóvel captado que nunca vendeu também
+        entra), não só o que virou venda. Ver `_captacoes_foco_por_captador`."""
         from app.database import SessionLocal
         from app.models.venda_legado import VendaLegado
 
@@ -803,7 +907,7 @@ class RankingService:
             session.close()
 
         id_to_name, _ = self._maps_corretores()
-        acc: Dict[str, Dict[str, float]] = {}
+        vgv: Dict[str, Dict[str, float]] = {}
 
         for v in vendas:
             d = v.data_venda
@@ -831,27 +935,30 @@ class RankingService:
                     val = self._to_float_br(vcol)
                 else:  # 2026 em diante
                     val = (vn / ncap) if ncap else 0.0
-                a = acc.setdefault(cap, {"total": 0.0, "foco": 0.0, "nao_foco": 0.0, "n": 0.0, "n_foco": 0.0})
+                a = vgv.setdefault(cap.upper(), {"total": 0.0, "foco": 0.0, "nao_foco": 0.0})
                 a["total"] += val
-                a["n"] += 1
                 if foco:
                     a["foco"] += val
-                    a["n_foco"] += 1
                 else:
                     a["nao_foco"] += val
 
+        # Captações (todo período) da base histórica de captação, cruzada c/ Dim_Imovel.
+        capt = self._captacoes_foco_por_captador(start, end)
+
         rows = []
-        for cap, a in acc.items():
+        # NÃO aplica a exclusão do ranking ao vivo: este relatório é histórico e bate
+        # com o Power BI (que inclui todos os captadores).
+        for cap in set(vgv) | set(capt):
             nome = id_to_name.get(cap.upper(), cap)
-            # NÃO aplica a exclusão do ranking ao vivo: este relatório é histórico e
-            # bate com o Power BI (que inclui todos os captadores).
+            a = vgv.get(cap, {"total": 0.0, "foco": 0.0, "nao_foco": 0.0})
+            c = capt.get(cap, {"n": 0, "n_foco": 0})
             rows.append({
                 "Corretor": nome,
                 "VGV Captador (Total)": round(a["total"], 2),
                 "VGV Captador (Foco)": round(a["foco"], 2),
                 "VGV Captador (Não Foco)": round(a["nao_foco"], 2),
-                "Captações": int(a["n"]),
-                "Captações no Foco": int(a["n_foco"]),
+                "Captações": int(c["n"]),
+                "Captações no Foco": int(c["n_foco"]),
             })
 
         df = pd.DataFrame(rows, columns=[
