@@ -156,11 +156,19 @@
   .rh-filtros__grid { grid-template-columns: 1fr 1fr; }
 }
 
-@media (max-width: 680px) {
+@media (max-width: 768px) {
   .rh-usuarios .controle-corretores__container { padding: 14px 12px 56px; }
   .rh-filtros__grid { grid-template-columns: 1fr; }
   .rh-filtros__search-row { flex-wrap: wrap; }
   .rh-filtros__toggle { flex: 1; justify-content: center; }
+
+  /* O base (ControleCorretores.css) faz .table-wrapper display:none no mobile
+     pq usa uma .mobile-list — que o RH NÃO renderiza. Reexibe o wrapper e zera o
+     min-width (base força 1320px) p/ o card-layout abaixo funcionar. */
+  .rh-usuarios .controle-corretores__table-wrapper { display: block; }
+  .rh-usuarios .controle-corretores__table-scroll { overflow-x: visible; }
+  .rh-usuarios .controle-corretores__table,
+  .rh-usuarios .rh-usuarios__table { min-width: 0; }
 
   /* Tabela -> cards */
   .rh-usuarios .controle-corretores__table thead { display: none; }

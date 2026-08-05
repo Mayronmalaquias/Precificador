@@ -77,7 +77,7 @@ function Header() {
     },
     { to: '/61Financiamento', label: '61Financeiro', end: false, show: true },
     { to: '/Experts', label: 'Experts', end: false, show: true },
-  ].filter((item) => item.show);
+  ].filter((item) => item.show && !isAssistente);
 
   const servicos = [
     { to: '/', label: 'Início', end: true, show: true },
@@ -91,7 +91,7 @@ function Header() {
     { to: '/Vendas', label: 'Vendas', show: isLogado && isAdminOuDiretor },
     { to: '/JornadaCaptacao', label: 'Jornada Captação', show: isLogado },
     { to: '/LancarImovel', label: 'Lançar Imóvel', subtitle: 'Imoview + Trello', show: isLogado && (isAssistente || isAdministrador) },
-  ].filter((item) => item.show);
+  ].filter((item) => item.show).filter((item) => !isAssistente || item.to === '/LancarImovel');
 
   const gestao = [
     { to: '/GerenteRH', label: 'Controle Equipe', show: isLogado && isAdmin },
@@ -99,7 +99,7 @@ function Header() {
     { to: '/RHUsuarios', label: 'RH Usuarios', show: isLogado && isAdministrador },
     { to: '/ControleCorretor', label: 'Controle usuarios', show: isLogado && isAdministrador },
     { to: '/register', label: 'Registrar Usuario', show: isLogado && isAdministrador },
-  ].filter((item) => item.show);
+  ].filter((item) => item.show && !isAssistente);
 
   return (
     <header className="app-header">
