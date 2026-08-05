@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { api } from '../services/api';
 import '../assets/css/VisaoDiretor.css';
@@ -51,6 +52,7 @@ function Modal({ item, onClose }) {
 }
 
 function VisaoDiretor() {
+  const navigate = useNavigate();
   const { idCorretor } = useAuth();
   const [periodo, setPeriodo] = useState('mes');
   const [equipe, setEquipe] = useState('todas');
@@ -168,7 +170,7 @@ function VisaoDiretor() {
       </section>
 
       <section className="ev-card ev-sales">
-        <CardTitle eyebrow="Fechamentos" title="Vendas recentes" description="Últimos contratos realizados pelas equipes" action={<button className="ev-text-button">Ver todas as vendas <Icon name="arrow" size={14} /></button>} />
+        <CardTitle eyebrow="Fechamentos" title="Vendas recentes" description="Últimos contratos realizados pelas equipes" action={<button type="button" className="ev-text-button ev-sales-link" onClick={() => navigate('/Vendas')}>Ver todas as vendas <Icon name="arrow" size={14} /></button>} />
         <div className="ev-table-wrap"><table><thead><tr><th>Imóvel</th><th>Equipe / gerente</th><th>Valor de fechamento</th><th>Data</th><th>Valor Total 61</th><th /></tr></thead><tbody>{vendas.map((item) => <tr key={item.id} onClick={() => setDetail(item)}><td><strong>{item.imovel}</strong><span>{item.codigo}</span></td><td><strong>{item.equipe}</strong><span>{item.gerente}</span></td><td><strong>{currency(item.valor)}</strong></td><td>{dateLabel(item.data)}</td><td><strong>{currency(item.valor_total_61 || 0)}</strong></td><td><Icon name="arrow" size={15} /></td></tr>)}</tbody></table>{!vendas.length && <p className="ev-empty">Nenhum contrato cadastrado.</p>}</div>
       </section>
 

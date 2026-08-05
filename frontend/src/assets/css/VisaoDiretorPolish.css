@@ -35,6 +35,32 @@
   color: #18213b !important;
 }
 
+.ev-card-title .ev-sales-link {
+  margin-left: 0;
+  padding: 8px 11px;
+  border: 1px solid #e2e5ec;
+  border-radius: 8px;
+  background: #f7f8fa;
+  color: #252b3d;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+  box-shadow: none;
+  transition: background .16s ease, border-color .16s ease, transform .16s ease;
+}
+
+.ev-card-title .ev-sales-link:hover {
+  border-color: #cfd3dd;
+  background: #eef0f4;
+  color: #111827 !important;
+  transform: translateY(-1px);
+}
+
+.ev-card-title .ev-sales-link:focus-visible {
+  outline: 3px solid rgba(109, 92, 231, .18);
+  outline-offset: 2px;
+}
+
 @media (max-width: 700px) {
   .ev-executive-header { align-items: flex-start; flex-direction: column; gap: 15px; padding: 20px; }
   .ev-executive-header h1 { font-size: 28px; }
