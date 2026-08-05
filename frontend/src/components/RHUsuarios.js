@@ -171,7 +171,8 @@ function RHUsuarios() {
     hoje.setHours(0, 0, 0, 0);
 
     if (viewMode === "pendentes") lista = lista.filter((u) => u.ativo === false && !usuarioEmSaida(u));
-    if (viewMode === "pendencias") lista = lista.filter((u) => camposFaltantes(u).length > 0);
+    if (viewMode === "todos") lista = lista.filter((u) => u.ativo === true && !usuarioEmSaida(u));
+    if (viewMode === "pendencias") lista = lista.filter((u) => u.ativo === true && !usuarioEmSaida(u) && camposFaltantes(u).length > 0);
     if (viewMode === "saidas") lista = lista.filter((u) => usuarioEmSaida(u));
 
     if (filtroEquipe) lista = lista.filter((u) => String(u.team || "") === filtroEquipe);
@@ -227,7 +228,7 @@ function RHUsuarios() {
   const painelRh = useMemo(() => ({
     pendentesAtivacao: usuarios.filter((u) => u.ativo === false && !usuarioEmSaida(u)).length,
     ativos: usuarios.filter((u) => u.ativo === true && !usuarioEmSaida(u)).length,
-    pendencias: usuarios.filter((u) => camposFaltantes(u).length > 0).length,
+    pendencias: usuarios.filter((u) => u.ativo === true && !usuarioEmSaida(u) && camposFaltantes(u).length > 0).length,
     saidas: usuarios.filter((u) => usuarioEmSaida(u)).length,
     diretores: usuarios.filter((u) => u.permissao === "diretor").length,
   }), [usuarios]);
@@ -513,7 +514,7 @@ function RHUsuarios() {
             <div className="rh-usuarios__nav-title">Filas de trabalho</div>
             {[
               ["pendentes", "Pendentes de ativacao", painelRh.pendentesAtivacao],
-              ["todos", "Todos os usuarios", usuarios.length],
+              ["todos", "Usuarios ativos", painelRh.ativos],
               ["pendencias", "Documentacao pendente", painelRh.pendencias],
               ["saidas", "Saidas e desligamentos", painelRh.saidas],
             ].map(([key, label, count]) => (
