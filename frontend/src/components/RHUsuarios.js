@@ -371,6 +371,7 @@ function RHUsuarios() {
         descricao: editando.descricao,
         permissao: editando.permissao,
         team: editando.team,
+        id_imoview: editando.id_imoview,
       };
 
       RH_FIELDS.forEach((field) => {
@@ -872,6 +873,7 @@ function RHUsuarios() {
                   ["Gerente responsavel", detalhando.gerente_responsavel],
                   ["Data de entrada", detalhando.data_entrada_61],
                   ["Status RH", detalhando.status],
+                  ["Codigo Imoview", detalhando.id_imoview],
                 ])}
                 {renderDetalheSecao("Contatos", [
                   ["Telefone corporativo", detalhando.telefone_corporativo],
@@ -934,6 +936,16 @@ function RHUsuarios() {
                 <div className="controle-corretores__field">
                   <label className="controle-corretores__label">ID usuário</label>
                   <input className="controle-corretores__search" value={editando.id_usuarios || ""} disabled />
+                </div>
+                <div className="controle-corretores__field">
+                  <label className="controle-corretores__label">Código Imoview</label>
+                  <input
+                    className="controle-corretores__search"
+                    inputMode="numeric"
+                    placeholder="Ex: 112"
+                    value={editando.id_imoview || ""}
+                    onChange={(e) => setEditando((prev) => ({ ...prev, id_imoview: e.target.value }))}
+                  />
                 </div>
                 <div className="controle-corretores__field">
                   <label className="controle-corretores__label">Permissão</label>
