@@ -62,6 +62,12 @@
 }
 .li-success-body strong { color: #14532d; font-size: 0.95rem; }
 .li-success-tags { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+.li-success-nota {
+  margin-top: 10px; padding: 8px 10px; border-radius: var(--ds-radius-sm, 10px);
+  background: var(--ds-warning-bg, #fffbeb); border: 1px solid var(--ds-warning-border, #fcd34d);
+  color: #92400e; font-size: 0.82rem; line-height: 1.4;
+}
+.li-success-nota strong { color: #92400e; }
 .li-tag {
   font-size: 0.78rem; font-weight: 600; padding: 4px 10px; border-radius: var(--ds-radius-full, 9999px);
   text-decoration: none;

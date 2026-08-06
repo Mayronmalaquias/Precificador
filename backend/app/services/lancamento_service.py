@@ -16,6 +16,57 @@ from app.services import imoview_service, trello_service
 # Planilha "Estoque - Geral" (aba onde o lançamento grava). ID configurável via env.
 SHEET_ESTOQUE_ID = os.getenv("GSHEET_ESTOQUE_ID", "1869RJIoK064xnXjMHDXP0tNan5bkbJPZa-_jVfwY1cY")
 SHEET_ESTOQUE_ABA = os.getenv("GSHEET_ESTOQUE_ABA", "Planilha - Geral")
+# Aba de-para "nome do corretor" <-> "código Imoview" (mesma planilha).
+SHEET_CORRETORES_ABA = os.getenv("GSHEET_CORRETORES_ABA", "Corretores")
+
+# Código 0/1/vazio é placeholder de "sem Imoview ainda" no legado — não é de-para válido.
+CODIGOS_PLACEHOLDER = {"", "0", "1"}
+
+
+def codigo_imoview(v: Any) -> str:
+    """Normaliza o código do Imoview: 112, '112', '112.0' -> '112'."""
+    try:
+        f = float(v)
+        return str(int(f)) if f.is_integer() else str(v).strip()
+    except (TypeError, ValueError):
+        return str(v or "").strip()
+
+
+def carregar_corretores_estoque() -> Dict[str, str]:
+    """Lê a aba "Corretores" da planilha de estoque -> {codigo_imoview: nome_na_planilha}.
+
+    A planilha é a fonte do NOME que vai pra coluna Corretor do estoque: `usuarios.nome`
+    pode estar escrito diferente (acento, espaço duplo) e furar PROCV/validação da aba.
+    """
+    from app.services.google_service import get_services
+
+    sheets, _, _ = get_services()
+    valores = sheets.values().get(
+        spreadsheetId=SHEET_ESTOQUE_ID,
+        range=f"'{SHEET_CORRETORES_ABA}'!A:B",
+    ).execute().get("values", [])
+
+    mapa: Dict[str, str] = {}
+    for linha in valores[1:]:  # pula o cabeçalho
+        nome = str(linha[0] if len(linha) > 0 else "").strip()
+        codigo = codigo_imoview(linha[1] if len(linha) > 1 else "")
+        if nome and codigo not in CODIGOS_PLACEHOLDER:
+            mapa.setdefault(codigo, nome)  # código repetido: vale o primeiro
+    return mapa
+
+
+def _nome_corretor_planilha(cod_usuario: Any) -> str:
+    """Nome do corretor como está na aba "Corretores". "" se o código não estiver lá.
+
+    Falha de leitura não pode derrubar o lançamento — cai no nome do banco.
+    """
+    codigo = codigo_imoview(cod_usuario)
+    if codigo in CODIGOS_PLACEHOLDER:
+        return ""
+    try:
+        return carregar_corretores_estoque().get(codigo, "")
+    except Exception:
+        return ""
 
 
 def _persistir_foco(dados: Dict[str, Any], codigo: Any) -> Dict[str, Any]:
@@ -66,9 +117,15 @@ def _gravar_estoque_sheet(dados: Dict[str, Any], codigo: Any, foco_label: str = 
 
     endereco = " ".join(str(x) for x in [dados.get("rua"), dados.get("numero")] if x).strip()
     cessao = "Sim" if _bool(dados.get("cessao_direitos")) else "Não"
+
+    # Nome do corretor: manda o da aba "Corretores" (casado pelo código Imoview), não o do
+    # banco — é o que a planilha usa nas fórmulas. Sem match, cai no do banco.
+    nome_planilha = _nome_corretor_planilha(dados.get("codigousuario"))
+    corretor = nome_planilha or dados.get("corretor_nome") or ""
+
     # 32 colunas, na ordem da aba "Planilha - Geral".
     linha = [
-        dados.get("corretor_nome") or "",            # 0  Corretor
+        corretor,                                     # 0  Corretor
         str(codigo or ""),                            # 1  Código
         dados.get("matricula") or "",                 # 2  Matrícula
         dados.get("inscricao_iptu") or "",            # 3  Inscrição IPTU
@@ -98,7 +155,12 @@ def _gravar_estoque_sheet(dados: Dict[str, Any], codigo: Any, foco_label: str = 
         insertDataOption="INSERT_ROWS",
         body={"values": [linha]},
     ).execute()
-    return {"ok": True}
+    return {
+        "ok": True,
+        "corretor": corretor,
+        # False = código não está na aba "Corretores"; gravou com o nome do banco.
+        "corretor_na_planilha": bool(nome_planilha),
+    }
 
 
 def _num(v: Any) -> Optional[float]:

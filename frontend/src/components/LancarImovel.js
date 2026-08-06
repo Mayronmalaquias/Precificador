@@ -185,6 +185,13 @@ export default function LancarImovel() {
                 ? <a className="li-tag li-tag--ok" href={resultado.trello.url} target="_blank" rel="noreferrer">Cartão Trello ↗</a>
                 : <Tag ok={false} label={`Trello: ${resultado.trello?.error || "falhou"}`} />}
             </div>
+            {resultado.sheet?.ok && resultado.sheet?.corretor_na_planilha === false && (
+              <div className="li-success-nota">
+                Corretor não está na aba "Corretores" da planilha — gravei como
+                {" "}<strong>{resultado.sheet.corretor}</strong> (nome do cadastro). Adicione ele na aba
+                com o código Imoview p/ as fórmulas baterem.
+              </div>
+            )}
           </div>
         </div>
       )}
