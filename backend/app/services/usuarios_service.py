@@ -53,6 +53,9 @@ BOOL_FIELDS = {
 CAMPOS_EDITAVEIS = {
     "nome", "email", "telefone", "instagram", "descricao",
     "username", "permissao", "team",
+    # Codigo do corretor no Imoview (aba "Corretores" do xlsx do AppSheet).
+    # Sem ele o corretor nao aparece no seletor do Lancar Imovel.
+    "id_imoview",
 }.union(RH_CAMPOS_EDITAVEIS)
 
 # Cache simples em memória: { chave: (timestamp, resultado) }
@@ -435,6 +438,21 @@ def editar_usuario(solicitante_id, id_corretor, dados=None, nova_senha=None):
 
         if not usuario:
             return {"error": "Usuário não encontrado"}
+
+        # Codigo Imoview e unico: repetido faria o Lancar Imovel atribuir ao corretor errado.
+        if "id_imoview" in (dados or {}):
+            cod_imoview = str(dados.get("id_imoview") or "").strip()
+            dados = {**dados, "id_imoview": cod_imoview or None}
+            if cod_imoview:
+                em_uso = session.query(Usuarios.nome).filter(
+                    Usuarios.id_imoview == cod_imoview,
+                    Usuarios.id_usuarios != id_corretor,
+                ).first()
+                if em_uso:
+                    return {
+                        "error": f"Código Imoview {cod_imoview} já está em uso por "
+                                 f"{em_uso[0] or 'outro usuário'}."
+                    }
 
         for campo, valor in (dados or {}).items():
             if campo in CAMPOS_EDITAVEIS:

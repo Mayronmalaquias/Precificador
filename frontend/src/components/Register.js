@@ -4,20 +4,40 @@ import { useToast } from '../context/ToastContext';
 import { api } from '../services/api';
 import { RH_FIELDS, emptyRhForm } from './rhFields';
 import { useEquipes } from '../context/EquipesContext';
+import { useAuth } from '../context/AuthContext';
 import PasswordInput from './PasswordInput';
+
+const FORM_VAZIO = {
+  username: '',
+  password: '',
+  team: '',
+  permissao: '',
+  nome: '',
+  email: '',
+  telefone: '',
+  instagram: '',
+  descricao: '',
+  id_imoview: '',
+};
+
+// Assistente cadastra o operacional; papel administrativo continua so com administrador.
+const PERMISSOES = [
+  { value: 'corretor', label: 'Corretor', assistente: true },
+  { value: 'gerente', label: 'Gerente', assistente: true },
+  { value: 'assistente', label: 'Assistente', assistente: true },
+  { value: 'administrativo', label: 'Administrativo', assistente: false },
+  { value: 'administrador', label: 'Administrador', assistente: false },
+  { value: 'diretor', label: 'Diretor', assistente: false },
+];
 
 function Cadastro() {
   const { equipesOpcoes } = useEquipes();
+  const { isAssistente, isAdministrador } = useAuth();
+  const permissoesDisponiveis = isAdministrador
+    ? PERMISSOES
+    : PERMISSOES.filter((p) => !isAssistente || p.assistente);
   const [formData, setFormData] = useState({
-    username: '',
-    password: '',
-    team: '',
-    permissao: '',
-    nome: '',
-    email: '',
-    telefone: '',
-    instagram: '',
-    descricao: '',
+    ...FORM_VAZIO,
     ...emptyRhForm(),
   });
   const [aceiteLgpd, setAceiteLgpd] = useState(false);
@@ -53,8 +73,10 @@ function Cadastro() {
     setLoading(true);
     try {
       await api.post('/auth/cadastro', payload);
-      toast('Usuário cadastrado com sucesso!', 'success');
-      navigate('/login');
+      toast('Usuário cadastrado e já liberado para login!', 'success');
+      setFormData({ ...FORM_VAZIO, ...emptyRhForm() });
+      setAceiteLgpd(false);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
     } catch (error) {
       toast(error.message || 'Erro de conexão com o servidor.', 'error');
     } finally {
@@ -67,7 +89,9 @@ function Cadastro() {
       <div className="ds-auth-card ds-auth-card--wide">
         <span className="ds-auth-accent" />
         <h2 className="ds-auth-title">Cadastro de Usuário</h2>
-        <p className="ds-auth-subtitle">Preencha os dados para criar uma nova conta</p>
+        <p className="ds-auth-subtitle">
+          Preencha os dados do novo usuário. O acesso já nasce liberado — não precisa passar pelo RH.
+        </p>
 
         <form className="ds-form" onSubmit={handleSubmit}>
           <div className="ds-form-row">
@@ -113,6 +137,16 @@ function Cadastro() {
                 ))}
               </select>
             </div>
+
+            <div className="ds-form-group">
+              <label className="ds-label" htmlFor="reg-imoview">Código Imoview</label>
+              <input id="reg-imoview" className="ds-input" name="id_imoview"
+                type="text" inputMode="numeric" placeholder="Ex: 112"
+                value={formData.id_imoview} onChange={handleChange} disabled={loading} />
+              <small className="ds-hint">
+                Código do corretor no Imoview. Sem ele o corretor não aparece no seletor do Lançar Imóvel.
+              </small>
+            </div>
           </div>
 
           <div className="ds-form-row">
@@ -128,11 +162,9 @@ function Cadastro() {
               <select id="reg-perm" className="ds-input ds-select" name="permissao"
                 value={formData.permissao} onChange={handleChange} required disabled={loading}>
                 <option value="">Selecione...</option>
-                <option value="corretor">Corretor</option>
-                <option value="gerente">Gerente</option>
-                <option value="administrativo">Administrativo</option>
-                <option value="administrador">Administrador</option>
-                <option value="diretor">Diretor</option>
+                {permissoesDisponiveis.map((p) => (
+                  <option key={p.value} value={p.value}>{p.label}</option>
+                ))}
               </select>
             </div>
           </div>
@@ -243,7 +275,7 @@ function Cadastro() {
             <button type="submit" className="ds-btn ds-btn-primary" style={{ flex: 1 }} disabled={loading}>
               {loading ? <><span className="ds-spinner" /> Cadastrando...</> : 'Cadastrar'}
             </button>
-            <button type="button" className="ds-btn ds-btn-secondary" onClick={() => navigate('/login')} disabled={loading}>
+            <button type="button" className="ds-btn ds-btn-secondary" onClick={() => navigate('/')} disabled={loading}>
               Voltar
             </button>
           </div>

@@ -98,8 +98,8 @@ function Header() {
     { to: '/GerenciarEquipes', label: 'Equipes', show: isLogado && isAdministrador },
     { to: '/RHUsuarios', label: 'RH Usuarios', show: isLogado && isAdministrador },
     { to: '/ControleCorretor', label: 'Controle usuarios', show: isLogado && isAdministrador },
-    { to: '/register', label: 'Registrar Usuario', show: isLogado && isAdministrador },
-  ].filter((item) => item.show && !isAssistente);
+    { to: '/register', label: 'Registrar Usuario', show: isLogado && (isAdministrador || isAssistente) },
+  ].filter((item) => item.show).filter((item) => !isAssistente || item.to === '/register');
 
   return (
     <header className="app-header">
@@ -244,12 +244,6 @@ function Header() {
           {!isLogado && (
             <NavLink to="/login" className={getNavLinkClass}>
               Login
-            </NavLink>
-          )}
-
-          {!isLogado && (
-            <NavLink to="/register" className={getNavLinkClass}>
-              Criar conta
             </NavLink>
           )}
         </nav>

@@ -173,7 +173,13 @@ class EditarUsuario(Resource):
         resultado = editar_usuario(solicitante_id, id_corretor, campos, nova_senha)
 
         if "error" in resultado:
-            status = 403 if "diretor" in resultado["error"].lower() else 404
+            erro = resultado["error"].lower()
+            if "diretor" in erro:
+                status = 403
+            elif "em uso" in erro:
+                status = 409
+            else:
+                status = 404
             return resultado, status
 
         return resultado, 200

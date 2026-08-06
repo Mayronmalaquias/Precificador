@@ -94,7 +94,7 @@ function App() {
                 />
                 <Route
                   path="/register"
-                  element={<AdministradorRoute><Register /></AdministradorRoute>}
+                  element={<AssistenteRoute><Register /></AssistenteRoute>}
                 />
                 <Route
                   path="/RelatorioGerente"

@@ -38,11 +38,31 @@ def cadastrar_usuario(username, password, team,
                 valor = _parse_bool(valor)
             campos_extras[campo] = valor
 
+        # Espelha o alterar_ativo(True) do RH, pra nao nascer com status vazio.
+        if not campos_extras.get("status"):
+            campos_extras["status"] = "Ativo"
+        if campos_extras.get("desligado") is None:
+            campos_extras["desligado"] = False
+
+        # Codigo Imoview: unico, senao o Lancar Imovel atribui o imovel ao corretor errado.
+        cod_imoview = str(campos_extras.get("id_imoview") or "").strip()
+        campos_extras["id_imoview"] = cod_imoview or None
+        if cod_imoview:
+            em_uso = session.query(Usuarios.nome).filter(
+                Usuarios.id_imoview == cod_imoview
+            ).first()
+            if em_uso:
+                raise ValueError(
+                    f"Código Imoview {cod_imoview} já está em uso por {em_uso[0] or 'outro usuário'}."
+                )
+
         usuario = Usuarios(
             username=username,
             password=hashed_pw,
             team=team,
-            ativo=False,
+            # Nasce liberado: o cadastro so e feito por quem ja esta logado
+            # (administrador/assistente), entao nao passa mais pela fila do RH.
+            ativo=True,
             nome=nome,
             email=email,
             telefone=telefone,

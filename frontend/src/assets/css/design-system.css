@@ -173,6 +173,12 @@
   color: var(--ds-text);
 }
 
+.ds-hint {
+  font-size: 0.8rem;
+  line-height: 1.35;
+  color: var(--ds-text-secondary);
+}
+
 .ds-input,
 .ds-select,
 .ds-textarea {
