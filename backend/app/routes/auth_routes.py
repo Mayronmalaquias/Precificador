@@ -18,7 +18,7 @@ class CadastroUsuario(Resource):
 
         username = normalizar_user(data.get("username") or "")
         password = data.get("password")
-        # Equipe e opcional: administrativo/inteligencia/estagiario nao pertencem a time.
+        # Equipe pode ficar vazia para perfis internos sem equipe comercial.
         team = data.get("team") or ""
 
         if not all([username, password]):

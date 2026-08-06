@@ -1,15 +1,13 @@
 // Equipes agora vêm do banco (ver EquipesContext / services/equipes). Nada hardcoded aqui.
 
 // Permissões do sistema — fonte única dos selects (Register, RHUsuarios, ControleCorretor).
-// `podeCriarComoAssistente`: assistente cadastra só o operacional; papel administrativo
+// `podeCriarComoAssistente`: assistente cadastra só o operacional; perfis de gestão
 // continua exclusivo de administrador (ver [1.3 - Cadastro de Usuários]).
-// Sem equipe é válido (administrativo/inteligência não pertencem a time de corretor).
+// Sem equipe é válido para usuários internos que não pertencem a um time comercial.
 export const PERMISSOES = [
   { value: "corretor", label: "Corretor", podeCriarComoAssistente: true },
-  { value: "estagiario", label: "Estagiário", podeCriarComoAssistente: true },
   { value: "assistente", label: "Assistente", podeCriarComoAssistente: true },
   { value: "gerente", label: "Gerente", podeCriarComoAssistente: true },
-  { value: "administrativo", label: "Administrativo", podeCriarComoAssistente: false },
   { value: "administrador", label: "Administrador", podeCriarComoAssistente: false },
   { value: "diretor", label: "Diretor", podeCriarComoAssistente: false },
 ];
@@ -17,10 +15,8 @@ export const PERMISSOES = [
 // Rótulo no plural p/ os filtros ("Corretores", "Gerentes"...).
 export const PERMISSOES_PLURAL = {
   corretor: "Corretores",
-  estagiario: "Estagiários",
   assistente: "Assistentes",
   gerente: "Gerentes",
-  administrativo: "Administrativo",
   administrador: "Administradores",
   diretor: "Diretores",
 };

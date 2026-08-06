@@ -4,6 +4,19 @@ from werkzeug.security import generate_password_hash
 from datetime import date, datetime
 import time
 
+PERMISSOES_VALIDAS = {
+    "corretor", "assistente", "gerente", "administrador", "diretor",
+}
+
+
+def normalizar_permissao(valor):
+    permissao = str(valor or "").strip().lower()
+    if permissao not in PERMISSOES_VALIDAS:
+        opcoes = ", ".join(sorted(PERMISSOES_VALIDAS))
+        raise ValueError(f"Permissão inválida. Use uma destas opções: {opcoes}.")
+    return permissao
+
+
 RH_CAMPOS_OBRIGATORIOS = {
     "status",
     "nome",
@@ -439,6 +452,9 @@ def editar_usuario(solicitante_id, id_corretor, dados=None, nova_senha=None):
         if not usuario:
             return {"error": "Usuário não encontrado"}
 
+        if "permissao" in (dados or {}):
+            dados = {**dados, "permissao": normalizar_permissao(dados.get("permissao"))}
+
         # Codigo Imoview e unico: repetido faria o Lancar Imovel atribuir ao corretor errado.
         if "id_imoview" in (dados or {}):
             cod_imoview = str(dados.get("id_imoview") or "").strip()
@@ -493,6 +509,10 @@ def editar_usuario(solicitante_id, id_corretor, dados=None, nova_senha=None):
 
         _cache_invalidate("lista:", f"info:{id_corretor}:")
         return {"ok": "Usuário atualizado com sucesso", "usuario": _usuario_to_dict(usuario)}
+
+    except ValueError as exc:
+        session.rollback()
+        return {"error": str(exc)}
 
     except Exception:
         session.rollback()

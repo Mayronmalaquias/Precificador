@@ -13,6 +13,23 @@ function opt(item) {
   return value == null ? null : { value, label };
 }
 const asOpts = (lista) => (Array.isArray(lista) ? lista.map(opt).filter(Boolean) : []);
+const CAMPOS_MOEDA = new Set(["valor", "valorcondominio", "valoriptu"]);
+
+const somenteDigitos = (valor) => String(valor ?? "").replace(/\D/g, "");
+
+// Mesmo comportamento do Criar Visita: os dígitos representam centavos.
+function formatarMoedaInput(valor) {
+  const digitos = somenteDigitos(valor);
+  if (!digitos) return "";
+  return (Number(digitos) / 100).toLocaleString("pt-BR", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+}
+
+const moedaParaNumero = (valor) => somenteDigitos(valor)
+  ? String(Number(somenteDigitos(valor)) / 100)
+  : "";
 
 // Rótulo de um código dentro de uma lista já carregada do Imoview.
 const rotulo = (opts, value) =>
@@ -58,7 +75,7 @@ export default function LancarImovel() {
   const { userData } = useAuth();
   const [form, setForm] = useState(VAZIO);
   const [corretores, setCorretores] = useState([]);
-  const [listas, setListas] = useState({ unidades: [], finalidades: [], destinacoes: [], tipos: [], localchaves: [] });
+  const [listas, setListas] = useState({ unidades: [], finalidades: [], destinacoes: [], tipos: [], localchaves: [], bairros: [] });
   const [fotos, setFotos] = useState([]);
   const [carregandoListas, setCarregandoListas] = useState(true);
   const [enviando, setEnviando] = useState(false);
@@ -69,6 +86,11 @@ export default function LancarImovel() {
 
   const set = (k) => (e) => {
     const v = e.target.type === "checkbox" ? e.target.checked : e.target.value;
+    setForm((f) => ({ ...f, [k]: v }));
+  };
+
+  const setMoeda = (k) => (e) => {
+    const v = somenteDigitos(e.target.value);
     setForm((f) => ({ ...f, [k]: v }));
   };
 
@@ -88,6 +110,7 @@ export default function LancarImovel() {
           setListas({
             unidades: asOpts(d.unidades), finalidades: asOpts(d.finalidades),
             destinacoes: asOpts(d.destinacoes), tipos: asOpts(d.tipos), localchaves: asOpts(d.localchaves),
+            bairros: asOpts(d.bairros),
           });
         } else {
           toast(d?.error || "Erro ao carregar listas do Imoview.", "error");
@@ -167,7 +190,8 @@ export default function LancarImovel() {
       const fd = new FormData();
       Object.entries(form).forEach(([k, v]) => {
         if (Array.isArray(v) || v === "" || v == null) return;
-        fd.append(k, typeof v === "boolean" ? String(v) : v);
+        const valorEnvio = CAMPOS_MOEDA.has(k) ? moedaParaNumero(v) : v;
+        fd.append(k, typeof valorEnvio === "boolean" ? String(valorEnvio) : valorEnvio);
       });
       // Array não passa em multipart — vai como JSON e o back desserializa.
       fd.append("proprietarios", JSON.stringify(props));
@@ -188,7 +212,7 @@ export default function LancarImovel() {
       setAviso({
         codigo: d.codigo,
         endereco: [form.rua, form.numero, form.bloco, form.complemento].filter(Boolean).join(" - "),
-        valor: form.valor,
+        valor: moedaParaNumero(form.valor),
         comissao: form.comissao,
         corretor: form.corretor_nome,
       });
@@ -297,15 +321,15 @@ export default function LancarImovel() {
           <TextField label="Complemento" value={form.complemento} onChange={set("complemento")} />
           <TextField label="Bloco" value={form.bloco} onChange={set("bloco")} />
           <TextField label="Edifício" value={form.edificio} onChange={set("edificio")} span={2} />
-          <TextField label="Bairro" value={form.bairro} onChange={set("bairro")} req />
+          <SelectField label="Bairro" value={form.bairro} onChange={set("bairro")} opts={listas.bairros} loading={carregandoListas} req />
           <TextField label="Cidade" value={form.cidade} onChange={set("cidade")} />
           <TextField label="Estado" value={form.estado} onChange={set("estado")} />
         </Section>
 
         <Section n={3} icon="💰" title="Valores e áreas" desc="Preço, encargos e metragem.">
-          <TextField label="Valor" value={form.valor} onChange={set("valor")} req prefix="R$" />
-          <TextField label="Condomínio" value={form.valorcondominio} onChange={set("valorcondominio")} prefix="R$" />
-          <TextField label="IPTU (valor)" value={form.valoriptu} onChange={set("valoriptu")} prefix="R$" />
+          <TextField label="Valor" value={formatarMoedaInput(form.valor)} onChange={setMoeda("valor")} req prefix="R$" inputMode="numeric" />
+          <TextField label="Condomínio" value={formatarMoedaInput(form.valorcondominio)} onChange={setMoeda("valorcondominio")} prefix="R$" inputMode="numeric" />
+          <TextField label="IPTU (valor)" value={formatarMoedaInput(form.valoriptu)} onChange={setMoeda("valoriptu")} prefix="R$" inputMode="numeric" />
           <TextField label="Comissão" value={form.comissao} onChange={set("comissao")} suffix="%" />
           <TextField label="Área interna" value={form.areainterna} onChange={set("areainterna")} req suffix="m²" />
           <TextField label="Área externa" value={form.areaexterna} onChange={set("areaexterna")} suffix="m²" />
@@ -414,12 +438,12 @@ function Field({ label, req, span, children }) {
   );
 }
 
-function TextField({ label, value, onChange, req, span, prefix, suffix, type = "text" }) {
+function TextField({ label, value, onChange, req, span, prefix, suffix, type = "text", inputMode }) {
   return (
     <Field label={label} req={req} span={span}>
       <div className={`li-input-wrap ${prefix ? "has-prefix" : ""} ${suffix ? "has-suffix" : ""}`}>
         {prefix && <span className="li-affix li-prefix">{prefix}</span>}
-        <input type={type} value={value} onChange={onChange} />
+        <input type={type} inputMode={inputMode} value={value} onChange={onChange} required={req} />
         {suffix && <span className="li-affix li-suffix">{suffix}</span>}
       </div>
     </Field>

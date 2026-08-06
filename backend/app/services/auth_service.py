@@ -2,7 +2,10 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from sqlalchemy.exc import IntegrityError
 from app import SessionLocal
 from app.models.usuarios import Usuarios
-from app.services.usuarios_service import DATE_FIELDS, BOOL_FIELDS, _parse_bool, _parse_date, _usuario_to_dict
+from app.services.usuarios_service import (
+    DATE_FIELDS, BOOL_FIELDS, _parse_bool, _parse_date, _usuario_to_dict,
+    normalizar_permissao,
+)
 
 
 def _gerar_proximo_id_usuario(session):
@@ -27,6 +30,7 @@ def cadastrar_usuario(username, password, team,
 
     session = SessionLocal()
     try:
+        permissao = normalizar_permissao(permissao)
         hashed_pw = generate_password_hash(password, method="pbkdf2:sha256")
         id_usuarios = (id_usuarios or "").strip() or _gerar_proximo_id_usuario(session)
 

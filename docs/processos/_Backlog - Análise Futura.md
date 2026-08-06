@@ -27,7 +27,10 @@ proposito: itens levantados na documentação, PARA ANÁLISE FUTURA (nada decidi
   Avaliar: são o mesmo lead por caminhos diferentes? Há **e-mail de leads redundante**?
 
 ## 3. Achados críticos (risco — priorizar análise)
-- [ ] 🔴 **API sem autenticação** — qualquer chamada é aceita (mobile inclusive). Chave "planejada". ([[2.9 - Gestão de Segredos]])
+- [x] 🔴 ~~**API sem autenticação** — qualquer chamada é aceita (mobile inclusive). Chave "planejada".~~
+  **Resolvido:** `auth_middleware.register_auth_middleware` põe um `before_request` global que exige
+  **X-API-KEY** ou **Bearer JWT**. Públicos só `/`, `/swagger.json`, `/favicon.ico`, `/docs*`,
+  `/swaggerui*`. Kill-switch `AUTH_ENABLED` (default **true**). ([[2.9 - Gestão de Segredos]])
 - [x] 🔴 ~~**Scraper + geração de `estudo_metricas` só na máquina local**, manual, sem versionamento aparente.~~
   **Atualizado:** o código **está versionado** no repo `Estudos` ([[3.10 - Scraper DFImóveis (execução)]] ·
   [[3.12 - Geração de estudo_metricas]]). **Permanece** o ponto único de **execução** (manual, sem
@@ -47,7 +50,9 @@ Fonte: [[Acionadores e Processos — Base Inteligente]] (painel 13–14/07/2026)
 
 ## 5. Melhorias por processo (das notas 🟨 e 🙋 — "Perguntas em aberto")
 Cada nota tem seu bloco próprio; resumo dos itens de maior valor:
-- [ ] **1.3 / 1.2:** preencher `id_imoview` no cadastro → sincroniza corretor com o CRM e mata o de-para manual.
+- [x] ~~**1.3 / 1.2:** preencher `id_imoview` no cadastro → sincroniza corretor com o CRM e mata o de-para manual.~~
+  **Feito (2026-08-06):** campo "Código Imoview" no cadastro e na edição (Register · ControleCorretor ·
+  RHUsuarios), único (409 se repetido). ([[1.3 - Cadastro de Usuários]])
 - [ ] **2.9:** autenticar a API · backup redundante de segredos · rotação de chaves · avaliar Secrets Manager.
 - [ ] **3.2 / 1.5:** versionar/automatizar o scraper · snapshot antes de op destrutiva · testar restore.
 - [ ] **3.9:** criar ferramenta de reatribuição (transacional + backup + auditoria + checklist de domínios).
@@ -102,6 +107,50 @@ Revisar com o time e promover 🟨→✅:
   agendar, sem histórico). Liga a [[2.7 - Metas]]. ([[2.13 - Relatório de Metas dos Gerentes]])
 - [ ] 🟠 **Reescrita total de aba** em `Dim_Imovel`/`Fato_Captacao` — edição manual entre execuções
   é perdida. ([[2.11 - Registro de Captação e Saída]])
+
+## 6c. Achados da sessão de 2026-08-06 (cadastro · lançamento · captação)
+Levantados enquanto se mexia em [[1.3 - Cadastro de Usuários]], [[1.9 - Lançamento de Imóvel pelos Assistentes]]
+e [[2.2 - Rankings]]. **São dados sujos e riscos operacionais, não código a escrever.**
+
+### Limpeza de dado — `usuarios`
+- [ ] 🔴 **`id_imoview` duplicado em 6 códigos.** O seletor do Lançar Imóvel usa o código como
+  `value` da option: com dois usuários no mesmo código, clicar em um seleciona o outro (o
+  `<select>` casa a **primeira** option com aquele valor, e a lista é ordenada por nome).
+  Só `5` e `236` afetam a tela hoje. A trava de unicidade impede **novos** duplicados; esses 6
+  vieram da migração do legado. Ação: limpar o `id_imoview` do C61053 e fundir a Raquel.
+
+| código | registros | situação |
+|---|---|---|
+| `5` | Paolla Gardenia (G61016, ativo) · José Marques (C61053, ativo) | **pessoas diferentes** — a aba "Corretores" diz que 5 é da Paolla; o José é `diretor` e não devia ter código |
+| `236` | Raquel Silva (`238`) · Raquel Silva (C61082) | mesma pessoa, 2 cadastros — aparece 2× na lista. O `id_usuarios` de um é literalmente `"238"`, fora do padrão `C61xxx` |
+| `19` | Daniela - Atendimento · Sueli | pessoas diferentes, ambas inativas |
+| `30`, `49`, `52` | mesma pessoa duplicada | só um ativo em cada |
+
+- [ ] 🟠 **21 usuários em equipe `ativo=False`** (G61013 com 16, G61004, G61012, G61011 — 4 delas
+  sem `nome`). `equipesOpcoes` filtra por ativo, então a edição desses usuários abre o select sem
+  opção correspondente e **salvar zera a equipe**.
+- [ ] 🟠 **12 usuários com `team` que não existe em `equipes`:** `inteligencia`(4), `Aguia`(2),
+  `ADMINISTRADOR`, `agef`, `Inteligencia`, `C61124`, `administrador`, `SENNA` — variações de caixa
+  e nome por extenso em vez de `G61xxx`. Candidato a script de normalização
+  (`Aguia`→G61002, `SENNA`→G61015, `agef`→G61001).
+
+### Imoview
+- [ ] 🔴 **Imóveis de teste 12367 e 12377 a apagar à mão** no CRM — a API **não tem delete**.
+  O 12377 foi o que revelou o contrato de escrita ([[1.9 - Lançamento de Imóvel pelos Assistentes]]).
+- [ ] 🟠 **`GET /assistente/imoview/listas` sem cache nem retry.** São 5 chamadas em sequência,
+  `timeout=30` cada. Em 05/08/2026 15:10 a 5ª (`RetornarListaLocalChaves`) estourou → 502 → o
+  assistente abriu o formulário com os dropdowns vazios. São tabelas de lookup que quase nunca
+  mudam: cache com TTL de horas + 1 retry resolve, e ainda tira 5 round-trips da abertura da tela.
+- [ ] 🟠 **Aba "Corretores" da planilha não recebe write-back.** Corretor cadastrado no sistema mas
+  ausente da aba entra no estoque com o nome do banco (a tela avisa). Hoje se adiciona na mão.
+
+### Captação
+- [ ] 🟠 **155 captações importadas ficaram com o nome cru** (não resolveram p/ `id_usuarios`):
+  "Renata"(70), "Paulo"(24), "Jhone Motta"(22), "Marcelo"(9)… Contam no ranking exibidas por nome,
+  mas não agrupam por equipe nem respeitam exclusão por id. Resolver caso a caso ou aceitar.
+- [ ] 🟠 **`fato_captacao` tem duas fontes correntes** — `origem='upload'` (Gestão de Bases) e
+  `origem='lancamento'` (Lançar Imóvel). Se o mesmo imóvel entrar pelos dois, o upsert por
+  `codigo_imovel` faz o último sobrescrever. Confirmar que é o comportamento desejado.
 
 ## 7. Nível 4 (a confirmar se existe)
 - [ ] Monitoramento/observabilidade · Data lineage · LGPD/retenção · Modelos preditivos ·

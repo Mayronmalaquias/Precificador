@@ -9,7 +9,7 @@ UX (a página no front é assistente-only); as rotas ficam disponíveis a quem e
 from flask import current_app, request
 from flask_restx import Namespace, Resource
 
-from app.services import imoview_service, lancamento_service
+from app.services import admin_bases_service, imoview_service, lancamento_service
 
 assistente_ns = Namespace("assistente", description="Lançamento de imóvel (assistentes): Imoview + Trello")
 
@@ -19,6 +19,16 @@ class ImoviewListas(Resource):
     @assistente_ns.doc(description="Listas do Imoview p/ popular os dropdowns do formulário.")
     def get(self):
         try:
+            bairros_resultado = admin_bases_service.listar_bairros()
+            nomes_bairros = {
+                str(item.get("nome") or "").strip()
+                for item in bairros_resultado.get("items", [])
+                if str(item.get("nome") or "").strip()
+            }
+            bairros = [
+                {"value": nome, "label": nome}
+                for nome in sorted(nomes_bairros, key=str.casefold)
+            ]
             return {
                 "ok": True,
                 "unidades": imoview_service.listar_unidades(),
@@ -26,6 +36,7 @@ class ImoviewListas(Resource):
                 "destinacoes": imoview_service.listar_destinacoes(),
                 "tipos": imoview_service.listar_tipos(),
                 "localchaves": imoview_service.listar_localchaves(),
+                "bairros": bairros,
             }, 200
         except Exception as e:
             current_app.logger.exception("Erro ao carregar listas do Imoview")

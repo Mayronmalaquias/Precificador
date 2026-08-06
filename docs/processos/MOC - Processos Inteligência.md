@@ -125,6 +125,35 @@ máquina local**. É a **origem real** de várias coisas que outras notas descre
 
 ---
 
+## Mudanças de 2026-08-06 (cadastro · lançamento · captação)
+Três frentes que se encadearam. Detalhe em cada nota; aqui só o que mudou de premissa.
+
+**[[1.3 - Cadastro de Usuários]]** — o cadastro **deixou de passar pelo RH**: usuário nasce
+`ativo=true`/`status="Ativo"` e loga na hora. A **tela pública de "criar conta" saiu**; só quem já
+está logado cadastra, e **assistente** agora cadastra (limitado a corretor/estagiario/assistente/
+gerente). `team` virou **opcional** ("Sem equipe"). Permissões viraram lista única em `rhFields.js`
+(`PERMISSOES`, 7 papéis, `estagiario` novo) — as telas listavam conjuntos diferentes e **`assistente`
+não aparecia em lugar nenhum**, apesar de 13 usuários já terem esse papel: abrir a edição de um
+deles mostrava o select vazio e salvar sobrescrevia a permissão.
+
+**[[1.9 - Lançamento de Imóvel pelos Assistentes]]** — o nome do corretor gravado na planilha passou
+a vir da **aba "Corretores"** (casado pelo código Imoview), não do `usuarios.nome`, que podia estar
+escrito diferente e furar PROCV. Formulário ganhou **N proprietários**, **Edifício** e **2º corretor**.
+Contrato de escrita do Imoview **confirmado empiricamente** no imóvel de teste 12377 — inclusive que
+a API **aceita chave desconhecida em silêncio**, então "não deu erro" não prova nada.
+
+**[[2.2 - Rankings]]** — o ranking de captação voltou da planilha para **`fato_captacao`**. A
+planilha tinha 1 corretor por linha (o 2º captador sumia) e casava por nome. Histórico importado:
+**3.444 linhas** (`origem='planilha'`, reversível). O import expôs um bug latente: o dedup do
+relatório VGC+foco usava `(código, captador, data)` e as duas fontes divergem na data em **2.588**
+pares — teria contado tudo em dobro.
+
+> ⚠️ **O que ficou pendente virou backlog** ([[_Backlog - Análise Futura]] §6c): `id_imoview`
+> duplicado em 6 códigos (o do Lançar Imóvel selecionar o corretor errado), 21 usuários em equipe
+> inativa, imóveis de teste **12367/12377 a apagar à mão** no CRM.
+
+---
+
 ## Fila de trabalho
 - **🤖 Auto: CONCLUÍDO** ✅ (1.4, 1.6, 2.1, 2.2, 2.3, 2.4, 2.6, 2.8, 3.1, 3.3–3.7). Todos 🟨 = **a validar** com o time.
 - **🤖 Auto (repo `Estudos`): CONCLUÍDO** ✅ (1.7, 1.8, 2.11–2.13, 3.10–3.14). Todos 🟨 = **a validar**.

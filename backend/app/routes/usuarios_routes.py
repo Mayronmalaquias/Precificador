@@ -158,7 +158,7 @@ class AlterarGerenteCorretor(Resource):
 
 @corretor_ns.route("/corretor/editar-usuario")
 class EditarUsuario(Resource):
-    @corretor_ns.doc(description="Edita dados e senha de um usuário (diretores, administradores ou administrativo)")
+    @corretor_ns.doc(description="Edita dados e senha de um usuário (diretores ou administradores)")
     def post(self):
         data           = request.get_json() or {}
         solicitante_id = data.get("solicitante_id")
@@ -176,6 +176,8 @@ class EditarUsuario(Resource):
             erro = resultado["error"].lower()
             if "diretor" in erro:
                 status = 403
+            elif "permissão inválida" in erro:
+                status = 400
             elif "em uso" in erro:
                 status = 409
             else:
