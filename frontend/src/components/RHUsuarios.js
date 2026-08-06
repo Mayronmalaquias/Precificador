@@ -5,6 +5,9 @@ import {
   RH_FIELDS,
   RH_REQUIRED_FIELDS,
   camposFaltantes,
+  PERMISSOES,
+  PERMISSOES_PLURAL,
+  labelPermissao,
 } from "./rhFields";
 import { useEquipes } from "../context/EquipesContext";
 import "../assets/css/ControleCorretores.css";
@@ -700,11 +703,9 @@ function RHUsuarios() {
                 <label>Permissão</label>
                 <select value={filtroPermissao} onChange={(e) => setFiltroPermissao(e.target.value)}>
                   <option value="">Todas</option>
-                  <option value="corretor">Corretores</option>
-                  <option value="gerente">Gerentes</option>
-                  <option value="administrativo">Administrativo</option>
-                  <option value="administrador">Administradores</option>
-                  <option value="diretor">Diretores</option>
+                  {PERMISSOES.map((p) => (
+                    <option key={p.value} value={p.value}>{PERMISSOES_PLURAL[p.value] || p.label}</option>
+                  ))}
                 </select>
               </div>
               <div className="rh-filtros__field">
@@ -847,7 +848,7 @@ function RHUsuarios() {
                 <div>
                   <span className="rh-usuarios__detail-kicker">Detalhes do usuario</span>
                   <h3>{detalhando.nome || detalhando.username || "-"}</h3>
-                  <p>{detalhando.id_usuarios || "-"} · {getNomeEquipe(detalhando.team)} · {detalhando.permissao || "sem permissao"}</p>
+                  <p>{detalhando.id_usuarios || "-"} · {detalhando.team ? getNomeEquipe(detalhando.team) : "Sem equipe"} · {labelPermissao(detalhando.permissao)}</p>
                 </div>
                 <span className={`controle-corretores__badge ${detalhando.ativo ? "controle-corretores__badge--ativo" : "controle-corretores__badge--inativo"}`}>
                   {usuarioEmSaida(detalhando) ? "Desligado" : detalhando.ativo ? "Ativo" : "Pendente ativacao"}
@@ -869,6 +870,8 @@ function RHUsuarios() {
                 {renderDetalheSecao("Dados principais", [
                   ["Username", detalhando.username],
                   ["Nome completo", detalhando.nome],
+                  ["Permissao", labelPermissao(detalhando.permissao)],
+                  ["Equipe", detalhando.team ? getNomeEquipe(detalhando.team) : "Sem equipe"],
                   ["Unidade", detalhando.unidade],
                   ["Gerente responsavel", detalhando.gerente_responsavel],
                   ["Data de entrada", detalhando.data_entrada_61],
@@ -951,11 +954,9 @@ function RHUsuarios() {
                   <label className="controle-corretores__label">Permissão</label>
                   <select className="controle-corretores__select" value={editando.permissao || ""} onChange={(e) => setEditando((prev) => ({ ...prev, permissao: e.target.value }))}>
                     <option value="">Selecione...</option>
-                    <option value="corretor">Corretor</option>
-                    <option value="gerente">Gerente</option>
-                    <option value="administrativo">Administrativo</option>
-                    <option value="administrador">Administrador</option>
-                    <option value="diretor">Diretor</option>
+                    {PERMISSOES.map((p) => (
+                      <option key={p.value} value={p.value}>{p.label}</option>
+                    ))}
                   </select>
                 </div>
                 <div className="controle-corretores__field">

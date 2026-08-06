@@ -4,6 +4,7 @@ import "../assets/css/ControleCorretores.css";
 import { BASE as API_BASE } from '../services/api';
 import { useToast } from '../context/ToastContext';
 import { useEquipes } from '../context/EquipesContext';
+import { PERMISSOES } from './rhFields';
 
 async function apiFetch(path, options = {}) {
   const res = await fetch(`${API_BASE}${path}`, {
@@ -838,10 +839,9 @@ function ControleCorretores() {
                           setEditando((prev) => ({ ...prev, permissao: e.target.value }))
                         }
                       >
-                        <option value="corretor">Corretor</option>
-                        <option value="gerente">Gerente</option>
-                        <option value="administrador">Administrador</option>
-                        <option value="diretor">Diretor</option>
+                        {PERMISSOES.map((p) => (
+                          <option key={p.value} value={p.value}>{p.label}</option>
+                        ))}
                       </select>
                     </div>
 

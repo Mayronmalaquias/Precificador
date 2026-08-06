@@ -14,6 +14,10 @@ function opt(item) {
 }
 const asOpts = (lista) => (Array.isArray(lista) ? lista.map(opt).filter(Boolean) : []);
 
+// Rótulo de um código dentro de uma lista já carregada do Imoview.
+const rotulo = (opts, value) =>
+  String(opts?.find((o) => String(o.value) === String(value))?.label ?? "");
+
 // Formata "880000" / "880.000,00" → "R$ 880.000,00"
 function fmtValorBR(v) {
   const n = Number(String(v ?? "").replace(/\./g, "").replace(",", "."));
@@ -32,15 +36,20 @@ function textoAviso(a, foco) {
   ].filter((x) => String(x).trim() !== "").join("\n");
 }
 
+const propVazio = () => ({ nome: "", cpfoucnpj: "", telefone: "", email: "", percentual: "100" });
+
 const VAZIO = {
+  // Principal = o que vai pro Imoview (codigousuario) e pra planilha. O 2º corretor só
+  // existe do nosso lado (fato_captacao) — o Imoview ignora captador secundário.
   codigousuario: "", corretor_nome: "",
+  codigousuario2: "", corretor2_nome: "",
   finalidade: "", destinacao: "", codigotipo: "", codigounidade: "", localchave: "",
-  rua: "", numero: "", complemento: "", bloco: "", bairro: "", cidade: "Brasília", estado: "DF",
+  rua: "", numero: "", complemento: "", bloco: "", edificio: "", bairro: "", cidade: "Brasília", estado: "DF",
   valor: "", valorcondominio: "", valoriptu: "", comissao: "",
   areainterna: "", areaexterna: "",
   numeroquartos: "", numerosalas: "", numerobanhos: "", numerosuites: "", numerovarandas: "", numerovagas: "",
   descricao: "",
-  prop_nome: "", prop_cpf: "", prop_telefone: "", prop_email: "", prop_percentual: "100",
+  proprietarios: [propVazio()],
   matricula: "", inscricao_iptu: "", exclusivo: false, cessao_direitos: false,
 };
 
@@ -95,10 +104,11 @@ export default function LancarImovel() {
       .catch(() => toast("Não consegui copiar — selecione e copie manual.", "error"));
   };
 
-  const onCorretor = (e) => {
-    const codigousuario = e.target.value;
-    const c = corretores.find((x) => String(x.id_imoview) === String(codigousuario));
-    setForm((f) => ({ ...f, codigousuario, corretor_nome: c ? (c.nome || c.username) : "" }));
+  // `campo`/`nomeCampo`: "codigousuario"/"corretor_nome" (principal) ou os do 2º corretor.
+  const onCorretor = (campo, nomeCampo) => (e) => {
+    const codigo = e.target.value;
+    const c = corretores.find((x) => String(x.id_imoview) === String(codigo));
+    setForm((f) => ({ ...f, [campo]: codigo, [nomeCampo]: c ? (c.nome || c.username) : "" }));
   };
 
   const corretoresOpts = useMemo(
@@ -109,14 +119,46 @@ export default function LancarImovel() {
     [corretores]
   );
 
+  /* ── Proprietários (lista) ──────────────────────────────────────────── */
+  const setProp = (i, campo) => (e) => {
+    const valor = e.target.value;
+    setForm((f) => ({
+      ...f,
+      proprietarios: f.proprietarios.map((p, idx) => (idx === i ? { ...p, [campo]: valor } : p)),
+    }));
+  };
+
+  const addProp = () =>
+    setForm((f) => ({ ...f, proprietarios: [...f.proprietarios, propVazio()] }));
+
+  const removeProp = (i) =>
+    setForm((f) => ({
+      ...f,
+      proprietarios: f.proprietarios.length > 1
+        ? f.proprietarios.filter((_, idx) => idx !== i)
+        : f.proprietarios,
+    }));
+
+  const somaPercentual = useMemo(
+    () => form.proprietarios.reduce((acc, p) => acc + (Number(String(p.percentual).replace(",", ".")) || 0), 0),
+    [form.proprietarios]
+  );
+
   const enviar = useCallback(async (e) => {
     e.preventDefault();
     if (enviando) return;
-    if (!form.codigousuario) { toast("Selecione o corretor.", "error"); return; }
+    if (!form.codigousuario) { toast("Selecione o corretor principal.", "error"); return; }
+    if (form.codigousuario2 && form.codigousuario2 === form.codigousuario) {
+      toast("O 2º corretor precisa ser diferente do principal.", "error"); return;
+    }
     if (!form.rua) { toast("Informe a rua.", "error"); return; }
     if (!form.descricao) { toast("Informe a descrição.", "error"); return; }
-    if (!form.prop_nome || !form.prop_cpf || !form.prop_telefone) {
-      toast("Preencha o proprietário (nome, CPF e telefone).", "error"); return;
+
+    const props = form.proprietarios.filter((p) => String(p.nome).trim());
+    if (!props.length) { toast("Informe ao menos um proprietário.", "error"); return; }
+    const incompleto = props.find((p) => !String(p.cpfoucnpj).trim() || !String(p.telefone).trim());
+    if (incompleto) {
+      toast(`Proprietário "${incompleto.nome}": preencha CPF/CNPJ e telefone.`, "error"); return;
     }
 
     setEnviando(true);
@@ -124,9 +166,17 @@ export default function LancarImovel() {
     try {
       const fd = new FormData();
       Object.entries(form).forEach(([k, v]) => {
-        if (v !== "" && v != null) fd.append(k, typeof v === "boolean" ? String(v) : v);
+        if (Array.isArray(v) || v === "" || v == null) return;
+        fd.append(k, typeof v === "boolean" ? String(v) : v);
       });
+      // Array não passa em multipart — vai como JSON e o back desserializa.
+      fd.append("proprietarios", JSON.stringify(props));
       fd.append("assistente_nome", userData?.nome || userData?.username || "");
+      fd.append("assistente_id", userData?.id_usuarios || "");
+      // Rótulos p/ o snapshot da captação (fato_captacao) — evita o back ter que
+      // consultar as listas do Imoview de novo só p/ resolver código → nome.
+      fd.append("tipo_nome", rotulo(listas.tipos, form.codigotipo));
+      fd.append("finalidade_nome", rotulo(listas.finalidades, form.finalidade));
       fotos.forEach((foto) => fd.append("fotos", foto));
 
       const resp = await fetch(`${BASE}/assistente/incluir-imovel`, { method: "POST", body: fd });
@@ -153,7 +203,7 @@ export default function LancarImovel() {
     } finally {
       setEnviando(false);
     }
-  }, [enviando, form, fotos, userData, toast]);
+  }, [enviando, form, fotos, userData, toast, listas.tipos, listas.finalidades]);
 
   return (
     <div className="li-shell">
@@ -214,11 +264,24 @@ export default function LancarImovel() {
 
       <form className="li-form" onSubmit={enviar}>
         <Section n={1} icon="👤" title="Identificação" desc="Corretor responsável e classificação do imóvel no Imoview.">
-          <Field label="Corretor" req span={2}>
-            <select value={form.codigousuario} onChange={onCorretor} required>
+          <Field label="Corretor principal" req span={2}>
+            <select value={form.codigousuario} onChange={onCorretor("codigousuario", "corretor_nome")} required>
               <option value="">Selecione o corretor…</option>
               {corretoresOpts.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
             </select>
+            <small className="li-hint">Vai pro Imoview e pra planilha de estoque.</small>
+          </Field>
+
+          <Field label="2º corretor" span={2}>
+            <select value={form.codigousuario2} onChange={onCorretor("codigousuario2", "corretor2_nome")}>
+              <option value="">Sem 2º corretor</option>
+              {corretoresOpts
+                .filter((o) => String(o.value) !== String(form.codigousuario))
+                .map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+            </select>
+            <small className="li-hint">
+              Conta captação cheia no ranking. Não vai pro Imoview — o CRM só aceita um captador.
+            </small>
           </Field>
           <SelectField label="Finalidade" value={form.finalidade} onChange={set("finalidade")} opts={listas.finalidades} loading={carregandoListas} req />
           <SelectField label="Destinação" value={form.destinacao} onChange={set("destinacao")} opts={listas.destinacoes} loading={carregandoListas} req />
@@ -233,6 +296,7 @@ export default function LancarImovel() {
           <TextField label="Número" value={form.numero} onChange={set("numero")} />
           <TextField label="Complemento" value={form.complemento} onChange={set("complemento")} />
           <TextField label="Bloco" value={form.bloco} onChange={set("bloco")} />
+          <TextField label="Edifício" value={form.edificio} onChange={set("edificio")} span={2} />
           <TextField label="Bairro" value={form.bairro} onChange={set("bairro")} req />
           <TextField label="Cidade" value={form.cidade} onChange={set("cidade")} />
           <TextField label="Estado" value={form.estado} onChange={set("estado")} />
@@ -256,12 +320,37 @@ export default function LancarImovel() {
           <TextField label="Vagas" value={form.numerovagas} onChange={set("numerovagas")} />
         </Section>
 
-        <Section n={5} icon="🧾" title="Proprietário" desc="Obrigatório — o Imoview não cadastra sem." required>
-          <TextField label="Nome" value={form.prop_nome} onChange={set("prop_nome")} req span={2} />
-          <TextField label="CPF / CNPJ" value={form.prop_cpf} onChange={set("prop_cpf")} req />
-          <TextField label="Telefone" value={form.prop_telefone} onChange={set("prop_telefone")} req />
-          <TextField label="E-mail" value={form.prop_email} onChange={set("prop_email")} />
-          <TextField label="% participação" value={form.prop_percentual} onChange={set("prop_percentual")} suffix="%" />
+        <Section n={5} icon="🧾" title="Proprietários" desc="Obrigatório — o Imoview não cadastra sem. Pode ter mais de um." required>
+          {form.proprietarios.map((p, i) => (
+            <div key={i} className="li-prop">
+              <div className="li-prop-head">
+                <strong>Proprietário {i + 1}</strong>
+                {form.proprietarios.length > 1 && (
+                  <button type="button" className="li-prop-remove" onClick={() => removeProp(i)}>
+                    Remover
+                  </button>
+                )}
+              </div>
+              <div className="li-grid">
+                <TextField label="Nome" value={p.nome} onChange={setProp(i, "nome")} req span={2} />
+                <TextField label="CPF / CNPJ" value={p.cpfoucnpj} onChange={setProp(i, "cpfoucnpj")} req />
+                <TextField label="Telefone" value={p.telefone} onChange={setProp(i, "telefone")} req />
+                <TextField label="E-mail" value={p.email} onChange={setProp(i, "email")} />
+                <TextField label="% participação" value={p.percentual} onChange={setProp(i, "percentual")} suffix="%" />
+              </div>
+            </div>
+          ))}
+
+          <div className="li-prop-footer">
+            <button type="button" className="li-prop-add" onClick={addProp}>
+              + Adicionar proprietário
+            </button>
+            {form.proprietarios.length > 1 && somaPercentual !== 100 && (
+              <span className="li-prop-aviso">
+                Participações somam {somaPercentual}% — confira (o normal é 100%).
+              </span>
+            )}
+          </div>
         </Section>
 
         <Section n={6} icon="📄" title="Documentação" desc="Dados que vão pro cartão do Trello.">

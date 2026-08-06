@@ -18,10 +18,11 @@ class CadastroUsuario(Resource):
 
         username = normalizar_user(data.get("username") or "")
         password = data.get("password")
-        team = data.get("team")
+        # Equipe e opcional: administrativo/inteligencia/estagiario nao pertencem a time.
+        team = data.get("team") or ""
 
-        if not all([username, password, team]):
-            return {"error": "Campos username, password e team sao obrigatorios"}, 400
+        if not all([username, password]):
+            return {"error": "Campos username e password sao obrigatorios"}, 400
 
         if data.get("lgpd_assinada") is not True:
             return {"error": "É obrigatório aceitar os termos de LGPD para criar a conta."}, 400

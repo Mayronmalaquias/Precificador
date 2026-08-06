@@ -38,7 +38,10 @@ class FatoCaptacao(Base):
     finalidade = Column(String(50), nullable=True)
 
     # proveniencia
-    origem = Column(String(20), nullable=True)  # 'upload' | 'manual'
+    # 'upload' | 'manual' | 'lancamento' (Lancar Imovel, ver lancamento_service).
+    # captador1/2/3 guardam id_usuarios (C61xxx); linhas antigas podem ter nome.
+    # codigo_imovel e a chave logica de dedup: o lancamento faz upsert por ele.
+    origem = Column(String(20), nullable=True)
     arquivo_origem = Column(String(255), nullable=True)
     criado_por = Column(String(50), nullable=True)
     created_at = Column(DateTime, server_default=func.now(), nullable=True)

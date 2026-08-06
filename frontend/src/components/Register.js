@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useToast } from '../context/ToastContext';
 import { api } from '../services/api';
-import { RH_FIELDS, emptyRhForm } from './rhFields';
+import { RH_FIELDS, emptyRhForm, PERMISSOES } from './rhFields';
 import { useEquipes } from '../context/EquipesContext';
 import { useAuth } from '../context/AuthContext';
 import PasswordInput from './PasswordInput';
@@ -20,22 +20,12 @@ const FORM_VAZIO = {
   id_imoview: '',
 };
 
-// Assistente cadastra o operacional; papel administrativo continua so com administrador.
-const PERMISSOES = [
-  { value: 'corretor', label: 'Corretor', assistente: true },
-  { value: 'gerente', label: 'Gerente', assistente: true },
-  { value: 'assistente', label: 'Assistente', assistente: true },
-  { value: 'administrativo', label: 'Administrativo', assistente: false },
-  { value: 'administrador', label: 'Administrador', assistente: false },
-  { value: 'diretor', label: 'Diretor', assistente: false },
-];
-
 function Cadastro() {
   const { equipesOpcoes } = useEquipes();
   const { isAssistente, isAdministrador } = useAuth();
   const permissoesDisponiveis = isAdministrador
     ? PERMISSOES
-    : PERMISSOES.filter((p) => !isAssistente || p.assistente);
+    : PERMISSOES.filter((p) => !isAssistente || p.podeCriarComoAssistente);
   const [formData, setFormData] = useState({
     ...FORM_VAZIO,
     ...emptyRhForm(),
@@ -128,14 +118,17 @@ function Cadastro() {
 
           <div className="ds-form-row">
             <div className="ds-form-group">
-              <label className="ds-label" htmlFor="reg-team">Equipe *</label>
+              <label className="ds-label" htmlFor="reg-team">Equipe</label>
               <select id="reg-team" className="ds-input ds-select" name="team"
-                value={formData.team} onChange={handleChange} required disabled={loading}>
-                <option value="">Selecione...</option>
+                value={formData.team} onChange={handleChange} disabled={loading}>
+                <option value="">Sem equipe</option>
                 {equipesOpcoes.map((equipe) => (
                   <option key={equipe.value} value={equipe.value}>{equipe.label}</option>
                 ))}
               </select>
+              <small className="ds-hint">
+                Administrativo, inteligência e estagiário podem ficar sem equipe.
+              </small>
             </div>
 
             <div className="ds-form-group">

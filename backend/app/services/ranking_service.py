@@ -393,40 +393,65 @@ class RankingService:
         return df
 
     def load_captacao(self, start: Optional[str], end: Optional[str]) -> pd.DataFrame:
-        """Ranking de captação lê da PLANILHA DE ESTOQUE (Google Sheet real "Planilha -
-        Geral"), não do banco. Cada linha = 1 captação: coluna 'Corretor' + 'Data da
-        Captação'. Onde os assistentes lançam o imóvel (ver lancamento_service)."""
-        sheet_id = os.getenv("GSHEET_ESTOQUE_ID", "1869RJIoK064xnXjMHDXP0tNan5bkbJPZa-_jVfwY1cY")
-        aba = os.getenv("GSHEET_ESTOQUE_ABA", "Planilha - Geral")
+        """Ranking de captação lê de `fato_captacao` (BANCO), não mais da planilha de
+        estoque. Cada linha da tabela = 1 imóvel captado, com até 3 captadores por
+        `id_usuarios` — devolve UMA linha por (código, captador).
+
+        Por que mudou: a planilha tinha 1 corretor por linha (2º captador se perdia) e
+        casava por NOME. A tabela guarda `C61xxx`, então não depende do de-para. A
+        planilha continua sendo escrita no lançamento, só com o corretor principal, p/
+        não conflitar com o AppSheet.
+
+        Dedup por (código do imóvel, captador): import repetido não conta duas vezes.
+        """
+        from app.database import SessionLocal
+        from app.models.fato_bases import FatoCaptacao
+
+        s_dt = self._parse_date(start) if start else None
+        e_dt = self._parse_date(end) if end else None
+
+        session = SessionLocal()
         try:
-            from app.services.google_service import get_services
-            sheets, _, _ = get_services()
-            vals = sheets.values().get(
-                spreadsheetId=sheet_id, range=f"'{aba}'!A:AF"
-            ).execute().get("values", [])
+            registros = session.query(
+                FatoCaptacao.codigo_imovel,
+                FatoCaptacao.captador1,
+                FatoCaptacao.captador2,
+                FatoCaptacao.captador3,
+                FatoCaptacao.data_entrada,
+            ).all()
         except Exception:
             return pd.DataFrame()
+        finally:
+            session.close()
 
-        if not vals or len(vals) < 2:
-            return pd.DataFrame()
+        _INVALIDOS = {"", "0", "-", "NAN", "NONE"}
+        vistos = set()
+        linhas = []
 
-        header = [str(h).strip() for h in vals[0]]
-        largura = len(header)
-        linhas = [r + [""] * (largura - len(r)) for r in vals[1:]]
-        df = pd.DataFrame(linhas, columns=header)
+        for codigo, cap1, cap2, cap3, data in registros:
+            if data is None:
+                # Sem data não dá p/ posicionar no período — só entra em ranking sem filtro.
+                if s_dt is not None or e_dt is not None:
+                    continue
+            else:
+                dts = pd.Timestamp(data)
+                if s_dt is not None and dts < s_dt:
+                    continue
+                if e_dt is not None and dts > e_dt:
+                    continue
 
-        col_data = next((c for c in df.columns if "data da capta" in c.lower()), None)
-        if col_data:
-            df = self._filter_date_range(df, col_data, start, end)
+            cod = str(codigo or "").strip()
+            for cap in (cap1, cap2, cap3):
+                c = str(cap or "").strip().upper()
+                if c in _INVALIDOS:
+                    continue
+                chave = (cod, c)
+                if cod and chave in vistos:
+                    continue
+                vistos.add(chave)
+                linhas.append({"Codigo_Imovel": cod, "Captador": c, "Data": data})
 
-        col_corr = next((c for c in df.columns if c.strip().lower() == "corretor"), None)
-        if not col_corr:
-            return pd.DataFrame()
-
-        df = df.copy()
-        df["Corretor"] = df[col_corr].astype(str).fillna("").str.strip()
-        df = df[df["Corretor"].ne("")]
-        return df
+        return pd.DataFrame(linhas, columns=["Codigo_Imovel", "Captador", "Data"])
 
     def load_visitas(self, start: Optional[str], end: Optional[str]) -> pd.DataFrame:
         df = self.read_sheet_df(self.cfg.SHEET_VISITAS_ID, self.cfg.ABA_VISITAS)
@@ -631,23 +656,28 @@ class RankingService:
     # =========================================================
     def _calc_captacao_rank(self, start: Optional[str], end: Optional[str]) -> pd.DataFrame:
         df = self.load_captacao(start, end)
-        if df.empty or "Corretor" not in df.columns:
+        if df.empty or "Captador" not in df.columns:
             return pd.DataFrame(columns=["Id_Corretor", "Nome_Corretor", "total"])
 
-        _, name_to_id = self._maps_corretores()
+        id_to_name, name_to_id = self._maps_corretores()
         rows = []
 
-        # Estoque: 1 corretor por linha (não há Captador1/2/3). Cada linha = 1 captação.
-        # Usa o NOME COMO ESTÁ na planilha (não normaliza p/ o cadastro); só resolve o id
-        # quando bate, p/ o filtro de exclusão / agrupamento por equipe.
-        for value in df["Corretor"].tolist():
-            nome = str(value or "").strip()
-            if not nome or nome.upper() in {"-", "NAN", "NONE"}:
+        # `fato_captacao` guarda o captador por id_usuarios (C61xxx). Cada captador de
+        # cada imóvel = 1 captação (2º captador conta igual ao 1º). Se o id não estiver
+        # no cadastro, mantém o valor bruto como nome — não some do ranking.
+        for value in df["Captador"].tolist():
+            captador = str(value or "").strip().upper()
+            if not captador or captador in {"-", "NAN", "NONE"}:
                 continue
-            rows.append({
-                "Id_Corretor": name_to_id.get(self._limpar_nome(nome), ""),
-                "Nome_Corretor": nome,
-            })
+            nome = id_to_name.get(captador)
+            if nome:
+                rows.append({"Id_Corretor": captador, "Nome_Corretor": nome})
+            else:
+                # Linha antiga gravada por nome em vez de id: resolve o caminho inverso.
+                rows.append({
+                    "Id_Corretor": name_to_id.get(captador, ""),
+                    "Nome_Corretor": captador,
+                })
 
         if not rows:
             return pd.DataFrame(columns=["Id_Corretor", "Nome_Corretor", "total"])
@@ -718,7 +748,7 @@ class RankingService:
     # =========================================================
     def gerar_texto_fechamento(self, mes: str, meta: int = 4) -> str:
         """Monta o texto de fechamento por equipe (captações do mês / meta), no padrão do
-        grupo. `mes` = 'YYYY-MM'. Captações vêm do ranking (planilha de estoque); os membros
+        grupo. `mes` = 'YYYY-MM'. Captações vêm do ranking (`fato_captacao`); os membros
         e equipes vêm do cadastro. Corretor com 0 aparece como '/{meta}'; gerente sem /meta."""
         from calendar import monthrange
         from app.database import SessionLocal
@@ -818,7 +848,13 @@ class RankingService:
         (lançamentos correntes do site). Cada captador1/2/3 conta 1 captação. O foco de
         cada captação vem da Dim_Imovel (`imoveis_legado`) pelo código; se o código não
         existir lá, cai no snapshot de foco do próprio registro (quando houver, caso do
-        fato_captacao). Dedup por (código, captador, data) entre as duas fontes.
+        fato_captacao).
+
+        Dedup por **(código, captador)** — SEM a data. As duas fontes descrevem os mesmos
+        imóveis com datas divergentes (o import da planilha bate com `eventos_imovel_legado`
+        em 2643 pares, e 2588 deles têm data diferente — dias ou meses). Com a data na
+        chave, esses 2588 contariam duas vezes. Mesmo imóvel + mesmo captador = 1 captação,
+        independente de qual fonte registrou qual data.
 
         Se o banco estiver vazio nessas tabelas, o resultado vem vazio — a Base
         Inteligência (Google Sheet) seria o fallback a implementar."""
@@ -852,12 +888,11 @@ class RankingService:
             foco = foco_map.get(cod)
             if foco is None:  # imóvel fora da Dim_Imovel -> usa snapshot do registro
                 foco = bool(foco_snapshot)
-            diso = data.isoformat() if data is not None else ""
             for cap in caps:
                 c = str(cap or "").strip().upper()
                 if c in _INVALIDOS:
                     continue
-                chave = (cod, c, diso)
+                chave = (cod, c)
                 if chave in seen:
                     continue
                 seen.add(chave)

@@ -7,6 +7,7 @@ Imoview manual).
 """
 from __future__ import annotations
 
+import json as _json
 import os
 from datetime import date
 from typing import Any, Dict, List, Optional
@@ -90,7 +91,88 @@ def _persistir_foco(dados: Dict[str, Any], codigo: Any) -> Dict[str, Any]:
         bairro_id, _ = abs_.ensure_bairro(session, mapas, bairro)
         abs_.upsert_imovel_legado(session, str(codigo), None, valor, bairro_id, foco_pp, foco_ac)
         session.commit()
-        return {"ok": True, "foco_pp": foco_pp, "foco_ac": foco_ac}
+        return {"ok": True, "foco_pp": foco_pp, "foco_ac": foco_ac, "bairro_id": bairro_id}
+    except Exception as e:
+        session.rollback()
+        return {"ok": False, "error": str(e)}
+    finally:
+        session.close()
+
+
+def _usuario_por_imoview(session, cod_usuario: Any) -> Optional[Any]:
+    """Usuário dono do código Imoview. É como o lançamento descobre o `id_usuarios`
+    (C61xxx) do captador — o formulário só conhece o código do CRM."""
+    from app.models.usuarios import Usuarios
+
+    codigo = codigo_imoview(cod_usuario)
+    if codigo in CODIGOS_PLACEHOLDER:
+        return None
+    return session.query(Usuarios).filter(Usuarios.id_imoview == codigo).first()
+
+
+def _persistir_captacao(dados: Dict[str, Any], codigo: Any, foco: Dict[str, Any]) -> Dict[str, Any]:
+    """Grava a captação em `fato_captacao` — é a fonte do ranking de captação.
+
+    Captadores vão por `id_usuarios` (resolvidos pelo código Imoview do formulário), não
+    por nome: o ranking deixa de depender do de-para nome→cadastro. `captador2` é o
+    segundo corretor, que conta como captação cheia igual ao primeiro.
+
+    **Upsert por `codigo_imovel`**: relançar o mesmo imóvel (ou um import repetido da
+    planilha) atualiza a linha em vez de duplicar a captação no ranking.
+    """
+    from datetime import date as _date
+
+    from app.database import SessionLocal
+    from app.models.fato_bases import FatoCaptacao
+
+    session = SessionLocal()
+    try:
+        principal = _usuario_por_imoview(session, dados.get("codigousuario"))
+        segundo = _usuario_por_imoview(session, dados.get("codigousuario2"))
+
+        captador1 = getattr(principal, "id_usuarios", None)
+        captador2 = getattr(segundo, "id_usuarios", None)
+        if captador2 and captador2 == captador1:
+            captador2 = None  # mesmo corretor nos dois campos não vira 2 captações
+
+        if not captador1:
+            return {"ok": False, "error": "Corretor sem id_usuarios p/ o código Imoview informado."}
+
+        cod = str(codigo or "").strip()
+        if not cod:
+            return {"ok": False, "error": "Imóvel sem código — captação não gravada."}
+
+        registro = session.query(FatoCaptacao).filter(
+            FatoCaptacao.codigo_imovel == cod
+        ).first()
+        criou = registro is None
+        if criou:
+            registro = FatoCaptacao(codigo_imovel=cod)
+            session.add(registro)
+
+        registro.captador1 = captador1
+        registro.captador2 = captador2
+        registro.id_gerente = getattr(principal, "team", None)
+        registro.data_entrada = _date.today()
+        registro.bairro_id = foco.get("bairro_id")
+        registro.bairro_nome = dados.get("bairro") or None
+        registro.tipo_id = str(dados.get("codigotipo") or "") or None
+        registro.tipo_nome = dados.get("tipo_nome") or None
+        registro.valor = _num(dados.get("valor"))
+        registro.comissao_pct = _num(dados.get("comissao"))
+        registro.foco_pp = bool(foco.get("foco_pp"))
+        registro.foco_ac = bool(foco.get("foco_ac"))
+        registro.finalidade = dados.get("finalidade_nome") or None
+        registro.origem = "lancamento"
+        registro.criado_por = dados.get("assistente_id") or dados.get("assistente_nome") or None
+
+        session.commit()
+        return {
+            "ok": True,
+            "criou": criou,
+            "captador1": captador1,
+            "captador2": captador2,
+        }
     except Exception as e:
         session.rollback()
         return {"ok": False, "error": str(e)}
@@ -186,6 +268,52 @@ def _limpo(d: Dict[str, Any]) -> Dict[str, Any]:
     return {k: v for k, v in d.items() if v not in (None, "")}
 
 
+def _proprietarios(dados: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """Lista de proprietários p/ o Imoview.
+
+    O form manda `proprietarios` como JSON (o POST é multipart, então array não passa
+    solto). Confirmado no imóvel de teste 12377: o Imoview grava **todos** os itens da
+    lista, não só o primeiro. Aceita também o formato antigo de campos `prop_*` soltos.
+    """
+    bruto = dados.get("proprietarios")
+    lista: List[Any] = []
+    if bruto:
+        if isinstance(bruto, str):
+            try:
+                lista = _json.loads(bruto)
+            except ValueError:
+                lista = []
+        elif isinstance(bruto, (list, tuple)):
+            lista = list(bruto)
+
+    if not lista:  # compat: um proprietário em campos soltos
+        lista = [{
+            "nome": dados.get("prop_nome"),
+            "cpfoucnpj": dados.get("prop_cpf"),
+            "telefone": dados.get("prop_telefone"),
+            "email": dados.get("prop_email"),
+            "percentual": dados.get("prop_percentual"),
+        }]
+
+    saida = []
+    for item in lista:
+        if not isinstance(item, dict):
+            continue
+        nome = str(item.get("nome") or "").strip()
+        if not nome:
+            continue
+        # Imoview exige percentual quando o proprietário é enviado.
+        percentual = _num(item.get("percentual"))
+        saida.append(_limpo({
+            "nome": nome,
+            "cpfoucnpj": item.get("cpfoucnpj") or item.get("cpf"),
+            "telefone": item.get("telefone"),
+            "email": item.get("email"),
+            "percentual": percentual if percentual is not None else 100,
+        }))
+    return saida
+
+
 def montar_parametros_imoview(dados: Dict[str, Any]) -> Dict[str, Any]:
     """Mapeia o payload do form → estrutura `parametros` do /Imovel/IncluirImovel."""
     # Os códigos (usuario/unidade/finalidade/destinacao/tipo/localchave) precisam ser INT —
@@ -201,6 +329,9 @@ def montar_parametros_imoview(dados: Dict[str, Any]) -> Dict[str, Any]:
         "exclusivo": _bool(dados.get("exclusivo")),
         "descricao": dados.get("descricao"),
         "anotacoes": dados.get("anotacoes"),
+        # Vai na RAIZ, não dentro de `endereco` — confirmado no imóvel de teste 12377
+        # (mandamos valor diferente nos dois lugares; o da raiz foi o que gravou).
+        "edificio": dados.get("edificio"),
     })
 
     parametros["valores"] = _limpo({
@@ -241,16 +372,14 @@ def montar_parametros_imoview(dados: Dict[str, Any]) -> Dict[str, Any]:
     if carac_ext:
         parametros["caracteristicasexterna"] = carac_ext
 
-    # Proprietário (Imoview exige nome/cpf/telefone/percentual quando enviado).
-    prop = _limpo({
-        "nome": dados.get("prop_nome"),
-        "cpfoucnpj": dados.get("prop_cpf"),
-        "telefone": dados.get("prop_telefone"),
-        "email": dados.get("prop_email"),
-        "percentual": _num(dados.get("prop_percentual")) or (100 if dados.get("prop_nome") else None),
-    })
-    if prop.get("nome"):
-        parametros["proprietarios"] = [prop]
+    # Proprietários (Imoview exige nome/cpf/telefone/percentual em cada um).
+    proprietarios = _proprietarios(dados)
+    if proprietarios:
+        parametros["proprietarios"] = proprietarios
+
+    # `captadores` NÃO é enviado: o Imoview ignorou na escrita (teste 12377 gravou 1 só
+    # captador, o do `codigousuario`). O 2º corretor fica em `fato_captacao`, que é o que
+    # alimenta o ranking de captação — ver `_persistir_captacao`.
 
     return parametros
 
@@ -268,6 +397,14 @@ def lancar_imovel(
     # Classifica e persiste o foco em imovel_legado (é o que a classificação de foco lê;
     # sem isso o imóvel entra como 'NÃO LOCALIZADO'). Não-fatal.
     foco = _persistir_foco(dados, codigo)
+
+    # Registra a captação (fonte do ranking de captação). Não-fatal: o imóvel já entrou
+    # no CRM, e um erro aqui não pode desfazer isso — aparece no retorno p/ correção.
+    captacao: Dict[str, Any] = {"ok": False}
+    try:
+        captacao = _persistir_captacao(dados, codigo, foco)
+    except Exception as e:
+        captacao = {"ok": False, "error": str(e)}
 
     # Grava na planilha de estoque (não derruba o lançamento se falhar — imóvel já entrou).
     sheet: Dict[str, Any] = {"ok": False}
@@ -297,6 +434,7 @@ def lancar_imovel(
         "codigo": codigo,
         "mensagem": resultado_imoview.get("mensagem"),
         "foco": {"classificacao": _foco_label(foco), **foco},
+        "captacao": captacao,
         "sheet": sheet,
         "trello": trello,
     }
