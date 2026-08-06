@@ -268,7 +268,7 @@ def _limpo(d: Dict[str, Any]) -> Dict[str, Any]:
     return {k: v for k, v in d.items() if v not in (None, "")}
 
 
-def _proprietarios(dados: Dict[str, Any]) -> List[Dict[str, Any]]:
+def normalizar_proprietarios(dados: Dict[str, Any]) -> List[Dict[str, Any]]:
     """Lista de proprietários p/ o Imoview.
 
     O form manda `proprietarios` como JSON (o POST é multipart, então array não passa
@@ -373,7 +373,7 @@ def montar_parametros_imoview(dados: Dict[str, Any]) -> Dict[str, Any]:
         parametros["caracteristicasexterna"] = carac_ext
 
     # Proprietários (Imoview exige nome/cpf/telefone/percentual em cada um).
-    proprietarios = _proprietarios(dados)
+    proprietarios = normalizar_proprietarios(dados)
     if proprietarios:
         parametros["proprietarios"] = proprietarios
 

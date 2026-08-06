@@ -58,9 +58,20 @@ class IncluirImovel(Resource):
             return {"ok": False, "error": "codigousuario (corretor) é obrigatório"}, 400
         if not dados.get("rua"):
             return {"ok": False, "error": "endereço (rua) é obrigatório"}, 400
-        # Imoview exige proprietário (sem ele o IncluirImovel dá null-reference).
-        if not dados.get("prop_nome") or not dados.get("prop_cpf") or not dados.get("prop_telefone"):
+        # Imoview exige proprietário (sem ele o IncluirImovel dá null-reference). O form
+        # manda a lista `proprietarios` (JSON); os campos soltos `prop_*` são o formato antigo —
+        # `normalizar_proprietarios` aceita os dois e já descarta item sem nome.
+        proprietarios = lancamento_service.normalizar_proprietarios(dados)
+        if not proprietarios:
             return {"ok": False, "error": "Proprietário (nome, CPF e telefone) é obrigatório"}, 400
+        incompleto = next(
+            (p for p in proprietarios if not p.get("cpfoucnpj") or not p.get("telefone")), None
+        )
+        if incompleto:
+            return {
+                "ok": False,
+                "error": f"Proprietário \"{incompleto['nome']}\": CPF/CNPJ e telefone são obrigatórios",
+            }, 400
 
         fotos = request.files.getlist("fotos") if request.files else []
         criar_trello = str(dados.get("criar_trello", "true")).lower() != "false"
