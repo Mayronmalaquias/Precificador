@@ -389,8 +389,9 @@ def executive_view(start_value=None, end_value=None, team=None):
         previous_leads = _leads(session, previous_start, previous_end, team, teams)
         visits = sum(row["visitas"] for row in team_rows)
         previous_visits = sum(row["visitas"] for row in previous_rows)
-        proposal_total = sum(proposals.values())
-        previous_proposal_total = sum(previous_proposals.values())
+        # KPI conta só as propostas SIM; o detalhamento por equipe segue com sim/nao/talvez.
+        proposal_total = proposals.get("sim", 0)
+        previous_proposal_total = previous_proposals.get("sim", 0)
         return {
             "ok": True, "atualizado_em": datetime.now().isoformat(),
             "periodo": {"inicio": start.isoformat(), "fim": end.isoformat()},

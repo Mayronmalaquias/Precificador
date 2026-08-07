@@ -103,9 +103,9 @@ function VisaoDiretor() {
   const delta = (value) => value == null ? 'Sem comparativo' : `${value > 0 ? '+' : ''}${String(value).replace('.', ',')}%`;
   const kpis = [
     { label: 'Total de vendas', value: currency(kpiData.vendas?.valor || 0), delta: delta(kpiData.vendas?.variacao_pct), positive: (kpiData.vendas?.variacao_pct || 0) >= 0, icon: 'revenue', caption: `${kpiData.vendas?.quantidade || 0} contratos no período` },
-    { label: 'Propostas de visitas', value: number(kpiData.propostas?.valor || 0), delta: delta(kpiData.propostas?.variacao_pct), positive: (kpiData.propostas?.variacao_pct || 0) >= 0, icon: 'proposal', caption: 'SIM, NÃO e TALVEZ' },
+    { label: 'Propostas de visitas Sim', value: number(kpiData.propostas?.valor || 0), delta: delta(kpiData.propostas?.variacao_pct), positive: (kpiData.propostas?.variacao_pct || 0) >= 0, icon: 'proposal', caption: 'Só propostas SIM nas visitas' },
     { label: 'Visitas realizadas', value: number(kpiData.visitas?.valor || 0), delta: delta(kpiData.visitas?.variacao_pct), positive: (kpiData.visitas?.variacao_pct || 0) >= 0, icon: 'visit', caption: `${dateLabel(dates.start)} a ${dateLabel(dates.end)}` },
-    { label: 'Leads captados', value: number(kpiData.leads?.valor || 0), delta: delta(kpiData.leads?.variacao_pct), positive: (kpiData.leads?.variacao_pct || 0) >= 0, icon: 'lead', caption: 'Base real de leads do sistema' },
+    { label: 'Leads C2S', value: number(kpiData.leads?.valor || 0), delta: delta(kpiData.leads?.variacao_pct), positive: (kpiData.leads?.variacao_pct || 0) >= 0, icon: 'lead', caption: 'Leads do Contact2Sale no período' },
   ];
   const totalPropostas = equipesVisiveis.reduce((acc, item) => acc + item.sim + item.nao + item.talvez, 0);
   const proposalDenominator = Math.max(totalPropostas, 1);

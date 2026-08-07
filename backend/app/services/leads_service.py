@@ -394,7 +394,8 @@ def importar_contact2sale(data_de: Any = None, data_ate: Any = None, per_page: i
 
     inicio = _parse_date(data_de) or (date.today() - timedelta(days=1))
     fim = _parse_date(data_ate) or inicio
-    per_page = min(max(int(per_page or 50), 1), 100)
+    # Teto da API e 50: acima disso o /leads devolve 403 "'perpage' must be less than or equal to 50".
+    per_page = min(max(int(per_page or 50), 1), 50)
 
     session = SessionLocal()
     try:
