@@ -66,3 +66,76 @@
   .ev-executive-header h1 { font-size: 28px; }
   .ev-executive-header .ev-updated { display: flex; }
 }
+
+/* Equipe travada (gerente): mesmo peso visual do <select>, sem parecer clicável. */
+.ev-fixed-filter {
+  color: var(--ink);
+  font: 600 12px var(--ds-font);
+  min-width: 180px;
+}
+
+/* Execução comercial: 3 métricas por equipe/corretor, cada uma com escala própria
+   (barra cheia = líder da métrica). */
+.ev-bar-group { display: grid; grid-template-columns: 120px 1fr; gap: 12px; align-items: center; padding: 9px 0; border-bottom: 1px solid #f2f3f6; }
+.ev-bar-group:last-child { border-bottom: 0; }
+.ev-bar-ident strong { display: block; font-size: 11px; }
+.ev-bar-ident span { display: block; font-size: 9px; color: #a1a6b4; margin-top: 3px; }
+.ev-bar-metricas { display: grid; gap: 6px; }
+.ev-bar-linha { display: grid; grid-template-columns: 52px 1fr 46px; align-items: center; gap: 9px; }
+.ev-bar-linha > span { font-size: 9px; color: #8e94a6; }
+.ev-bar-linha > strong { font-size: 11px; text-align: right; }
+.ev-bar-linha .ev-bar-track { height: 7px; }
+.ev-bar-track b.m-visitas { background: linear-gradient(90deg, #8879ed, #6d5ce7); }
+.ev-bar-track b.m-clientes { background: linear-gradient(90deg, #4fc3a1, #1c9b6c); }
+.ev-bar-track b.m-leads { background: linear-gradient(90deg, #f3a94e, #e49b38); }
+
+.ev-legend-metricas { display: flex; gap: 10px; flex-wrap: wrap; }
+.ev-legend-metricas em { font-style: normal; display: flex; align-items: center; gap: 4px; }
+.ev-legend-metricas i { width: 8px; height: 8px; border-radius: 2px; margin: 0; }
+.ev-legend-metricas i.m-visitas { background: #6d5ce7; }
+.ev-legend-metricas i.m-clientes { background: #1c9b6c; }
+.ev-legend-metricas i.m-leads { background: #e49b38; }
+
+@media (max-width: 700px) {
+  .ev-bar-group { grid-template-columns: 1fr; gap: 7px; }
+  .ev-bar-linha { grid-template-columns: 48px 1fr 42px; }
+}
+
+/* Barra do card Visitas em modo quantitativo: a linha inteira é a régua, a barra
+   ocupa a fração do líder e o número fecha a linha. */
+.ev-stacked-qtd > div { grid-template-columns: 60px 1fr 32px; }
+.ev-stacked-qtd > div > div { height: 7px; min-width: 2px; }
+.ev-stacked-qtd > div > b { font-size: 10px; text-align: right; font-weight: 700; }
+
+/* Jornada: dois números por etapa — quem entrou no período e quem esteve nela. */
+.ev-journey-nums { display: flex; gap: 6px; align-items: center; }
+.ev-journey-list em.entraram { background: #ebf8f3; color: var(--green, #1c9b6c); }
+.ev-journey-list em.periodo { background: #f0edff; color: #5948d6; }
+.ev-legend-metricas i.m-entraram { background: #1c9b6c; }
+.ev-legend-metricas i.m-periodo { background: #6d5ce7; }
+
+/* Contratos em atraso, dentro do bloco escuro de governança. */
+.ev-contratos-atraso { border-top: 1px solid #3a4052; margin-top: 16px; padding-top: 15px; }
+.ev-contratos-resumo { display: grid; grid-template-columns: repeat(3, 1fr); gap: 9px; margin-bottom: 12px; }
+.ev-contratos-resumo > div { background: #2b3144; border: 1px solid #3a4052; border-radius: 10px; padding: 12px; }
+.ev-contratos-resumo span { display: block; font-size: 9px; color: #9ca2b1; text-transform: uppercase; letter-spacing: .5px; }
+.ev-contratos-resumo strong { display: block; font-size: 24px; margin: 6px 0 3px; color: #f3bc61; }
+.ev-contratos-resumo small { font-size: 9px; color: #8f96a7; }
+.ev-contratos-lista { display: grid; gap: 7px; }
+.ev-contratos-lista > div { display: grid; grid-template-columns: 3px 1fr auto auto; gap: 11px; align-items: center;
+  background: #2b3144; border: 1px solid #3a4052; border-radius: 10px; padding: 10px 12px; }
+.ev-contratos-lista > div > i { width: 3px; height: 30px; border-radius: 5px; background: #ffc15e; }
+.ev-contratos-lista > div.critical > i { background: #f05e70; }
+.ev-contratos-lista strong { display: block; font-size: 10px; color: #fff; }
+.ev-contratos-lista small { display: block; font-size: 8px; color: #9ca2b1; margin-top: 3px; }
+.ev-contratos-num { text-align: right; }
+.ev-contratos-num b { font-size: 13px; color: #f3bc61; }
+.ev-contratos-num span { display: block; font-size: 7px; color: #8f96a7; }
+.ev-contratos-lista em { font-style: normal; font-size: 10px; color: #d9d5ff; min-width: 96px; text-align: right; }
+.ev-contratos-atraso .ev-empty { color: #9ca2b1; font-size: 10px; }
+
+@media (max-width: 700px) {
+  .ev-contratos-resumo { grid-template-columns: 1fr; }
+  .ev-contratos-lista > div { grid-template-columns: 3px 1fr auto; }
+  .ev-contratos-lista em { display: none; }
+}

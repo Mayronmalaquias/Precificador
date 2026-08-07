@@ -1,0 +1,464 @@
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { BASE } from '../services/api';
+import { useAuth } from '../context/AuthContext';
+import { useToast } from '../context/ToastContext';
+import '../assets/css/PropostasEfetivas.css';
+
+const VAZIO = {
+  codigo_imovel: '', imovel_endereco: '', bairro: '', tipo: '', numero: '',
+  valor: '', forma_pagamento: '', valor_permuta: '', descricao_permuta: '',
+  situacao: 'em_analise', cliente: '', observacao: '', data_proposta: '',
+  id_corretor: '', id_visita: '',
+};
+
+const moeda = (v) => (v == null ? '—' : Number(v).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }));
+const dataBR = (v) => (v ? new Date(`${v}T00:00:00`).toLocaleDateString('pt-BR') : '—');
+
+// Mesmo padrão de moeda do Lançar Imóvel: os dígitos digitados são centavos.
+const soDigitos = (v) => String(v ?? '').replace(/\D/g, '');
+function moedaInput(valor) {
+  const d = soDigitos(valor);
+  if (!d) return '';
+  return (Number(d) / 100).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+const moedaNumero = (v) => (soDigitos(v) ? String(Number(soDigitos(v)) / 100) : '');
+
+export default function PropostasEfetivas() {
+  const toast = useToast();
+  const { idCorretor } = useAuth();
+  const [dados, setDados] = useState(null);
+  const [carregando, setCarregando] = useState(true);
+  const [filtros, setFiltros] = useState({ situacao: '', forma_pagamento: '', busca: '', somente_abertas: 'false' });
+  const [form, setForm] = useState(VAZIO);
+  const [editandoId, setEditandoId] = useState(null);
+  const [formAberto, setFormAberto] = useState(false);
+  const [salvando, setSalvando] = useState(false);
+  const [detalhe, setDetalhe] = useState(null);
+  const [novaAcao, setNovaAcao] = useState({ descricao: '', situacao: '' });
+  const [buscaImovel, setBuscaImovel] = useState('');
+  const [imoveis, setImoveis] = useState([]);
+  const [buscandoImovel, setBuscandoImovel] = useState(false);
+  const [corretores, setCorretores] = useState([]);
+  const [visitas, setVisitas] = useState([]);
+  const [buscandoVisita, setBuscandoVisita] = useState(false);
+
+  const podeEditar = !!dados?.escopo?.edita;
+  const opcoes = dados?.opcoes || { situacoes: [], formas_pagamento: [] };
+
+  const carregar = useCallback(async () => {
+    setCarregando(true);
+    try {
+      const qs = new URLSearchParams({ solicitante_id: idCorretor || '' });
+      Object.entries(filtros).forEach(([k, v]) => { if (v && v !== 'false') qs.set(k, v); });
+      const r = await fetch(`${BASE}/propostas?${qs.toString()}`);
+      const d = await r.json();
+      if (!r.ok || d.ok === false) throw new Error(d.error || 'Erro ao carregar propostas');
+      setDados(d);
+    } catch (e) {
+      toast(e.message || 'Erro ao carregar propostas', 'error');
+    } finally {
+      setCarregando(false);
+    }
+  }, [idCorretor, filtros, toast]);
+
+  useEffect(() => { carregar(); }, [carregar]);
+
+  // Corretores em nome de quem dá pra lançar (o back já corta pelo escopo).
+  useEffect(() => {
+    if (!podeEditar) return;
+    (async () => {
+      try {
+        const r = await fetch(`${BASE}/propostas/corretores?solicitante_id=${idCorretor}`);
+        const d = await r.json();
+        if (r.ok && d.ok) setCorretores(d.itens || []);
+      } catch { /* silencioso: o campo vira opcional */ }
+    })();
+  }, [podeEditar, idCorretor]);
+
+  // Visitas candidatas: se já escolheu o corretor, só as dele.
+  const puxarVisitas = useCallback(async () => {
+    setBuscandoVisita(true);
+    try {
+      const qs = new URLSearchParams({ solicitante_id: idCorretor || '' });
+      if (form.id_corretor) qs.set('corretor', form.id_corretor);
+      if (form.codigo_imovel) qs.set('codigo', form.codigo_imovel);
+      const r = await fetch(`${BASE}/propostas/visitas?${qs.toString()}`);
+      const d = await r.json();
+      if (!r.ok || d.ok === false) throw new Error(d.error || 'Erro ao buscar visitas');
+      setVisitas(d.itens || []);
+      if (!(d.itens || []).length) toast('Nenhuma visita encontrada para esse filtro.', 'error');
+    } catch (e) {
+      toast(e.message, 'error');
+    } finally {
+      setBuscandoVisita(false);
+    }
+  }, [idCorretor, form.id_corretor, form.codigo_imovel, toast]);
+
+  // Busca no Imoview pelo endereço (a API não filtra por código — ver imoview_service).
+  const buscarImovel = useCallback(async () => {
+    if (buscaImovel.trim().length < 3) { toast('Digite ao menos 3 letras do endereço', 'error'); return; }
+    setBuscandoImovel(true);
+    try {
+      const r = await fetch(`${BASE}/imoveis_busca?endereco=${encodeURIComponent(buscaImovel.trim())}`);
+      const d = await r.json();
+      setImoveis(d.lista || []);
+      if (!(d.lista || []).length) toast('Nenhum imóvel encontrado no Imoview', 'error');
+    } catch {
+      toast('Erro ao buscar no Imoview', 'error');
+    } finally {
+      setBuscandoImovel(false);
+    }
+  }, [buscaImovel, toast]);
+
+  const escolherImovel = (item) => {
+    setForm((f) => ({
+      ...f,
+      codigo_imovel: String(item.codigo || ''),
+      imovel_endereco: item.endereco || item.titulo || '',
+      bairro: item.bairro || '',
+      numero: item.numero || '',
+    }));
+    setImoveis([]);
+    setBuscaImovel('');
+  };
+
+  const abrirNova = () => { setForm({ ...VAZIO }); setEditandoId(null); setVisitas([]); setFormAberto(true); };
+
+  const abrirEdicao = (item) => {
+    setForm({
+      codigo_imovel: item.codigo_imovel || '', imovel_endereco: item.imovel_endereco || '',
+      bairro: item.bairro || '', tipo: item.tipo || '', numero: item.numero || '',
+      valor: item.valor ? moedaInput(String(Math.round(item.valor * 100))) : '',
+      forma_pagamento: item.forma_pagamento || '',
+      valor_permuta: item.valor_permuta ? moedaInput(String(Math.round(item.valor_permuta * 100))) : '',
+      descricao_permuta: item.descricao_permuta || '', situacao: item.situacao || 'em_analise',
+      cliente: item.cliente || '', observacao: item.observacao || '',
+      data_proposta: item.data_proposta || '',
+      id_corretor: item.id_corretor || '', id_visita: item.id_visita || '',
+    });
+    setEditandoId(item.id);
+    setVisitas([]);
+    setFormAberto(true);
+  };
+
+  const set = (campo) => (e) => {
+    const valor = ['valor', 'valor_permuta'].includes(campo) ? moedaInput(e.target.value) : e.target.value;
+    setForm((f) => ({ ...f, [campo]: valor }));
+  };
+
+  const salvar = async (e) => {
+    e.preventDefault();
+    if (salvando) return;
+    setSalvando(true);
+    try {
+      const corpo = { ...form, valor: moedaNumero(form.valor), valor_permuta: moedaNumero(form.valor_permuta) };
+      const url = editandoId
+        ? `${BASE}/propostas/${editandoId}?solicitante_id=${idCorretor}`
+        : `${BASE}/propostas?solicitante_id=${idCorretor}`;
+      const r = await fetch(url, {
+        method: editandoId ? 'PUT' : 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(corpo),
+      });
+      const d = await r.json();
+      if (!r.ok || d.ok === false) throw new Error(d.error || 'Erro ao salvar');
+      toast(editandoId ? 'Proposta atualizada!' : 'Proposta lançada!', 'success');
+      setFormAberto(false);
+      setForm(VAZIO);
+      setEditandoId(null);
+      carregar();
+    } catch (err) {
+      toast(err.message || 'Erro ao salvar', 'error');
+    } finally {
+      setSalvando(false);
+    }
+  };
+
+  const abrirDetalhe = async (id) => {
+    try {
+      const r = await fetch(`${BASE}/propostas/${id}?solicitante_id=${idCorretor}`);
+      const d = await r.json();
+      if (!r.ok || d.ok === false) throw new Error(d.error || 'Erro ao abrir proposta');
+      setDetalhe(d.proposta);
+      setNovaAcao({ descricao: '', situacao: '' });
+    } catch (e) {
+      toast(e.message, 'error');
+    }
+  };
+
+  const registrarAcao = async () => {
+    if (!novaAcao.descricao.trim()) { toast('Descreva a ação', 'error'); return; }
+    try {
+      const r = await fetch(`${BASE}/propostas/${detalhe.id}/acoes?solicitante_id=${idCorretor}`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(novaAcao),
+      });
+      const d = await r.json();
+      if (!r.ok || d.ok === false) throw new Error(d.error || 'Erro ao registrar ação');
+      toast('Ação registrada!', 'success');
+      abrirDetalhe(detalhe.id);
+      carregar();
+    } catch (e) {
+      toast(e.message, 'error');
+    }
+  };
+
+  const excluir = async (item) => {
+    if (!window.confirm(`Excluir a proposta do imóvel ${item.codigo_imovel || item.imovel_endereco}?`)) return;
+    try {
+      const r = await fetch(`${BASE}/propostas/${item.id}?solicitante_id=${idCorretor}`, { method: 'DELETE' });
+      const d = await r.json();
+      if (!r.ok || d.ok === false) throw new Error(d.error || 'Erro ao excluir');
+      toast('Proposta excluída.', 'success');
+      carregar();
+    } catch (e) {
+      toast(e.message, 'error');
+    }
+  };
+
+  const itens = dados?.itens || [];
+  const paradas = dados?.paradas || [];
+  const resumo = dados?.resumo || {};
+  const ehPermuta = form.forma_pagamento === 'permuta';
+  const setF = (k) => (e) => setFiltros((p) => ({ ...p, [k]: e.target.value }));
+
+  const cards = useMemo(() => ([
+    { label: 'Propostas abertas', valor: resumo.abertas ?? 0, nota: `${resumo.total ?? 0} no total` },
+    { label: 'Valor em aberto', valor: moeda(resumo.valor_aberto || 0), nota: 'Soma das propostas não fechadas' },
+    { label: `Sem ação há ${opcoes.dias_atencao || 7}+ dias`, valor: resumo.sem_acao_7 ?? 0, nota: 'Precisam de follow-up', tom: 'atencao' },
+    { label: `Sem ação há ${opcoes.dias_critico || 14}+ dias`, valor: resumo.sem_acao_14 ?? 0, nota: 'Estão paradas', tom: 'critico' },
+  ]), [resumo, opcoes]);
+
+  return (
+    <div className="pe-page">
+      <header className="pe-hero">
+        <div>
+          <span className="pe-eyebrow">Comercial · Propostas</span>
+          <h1>Propostas efetivas</h1>
+          <p>Propostas formais de compra por imóvel — situação, forma de pagamento e o que já foi feito em cada uma.</p>
+        </div>
+        {podeEditar && <button type="button" className="pe-cta" onClick={abrirNova}>+ Lançar proposta</button>}
+      </header>
+
+      {!podeEditar && !carregando && (
+        <p className="pe-aviso">Seu perfil acompanha as propostas em modo leitura — quem altera é gerente ou administrativo.</p>
+      )}
+
+      <section className="pe-cards">
+        {cards.map((c) => (
+          <article key={c.label} className={`pe-card ${c.tom || ''}`}>
+            <span>{c.label}</span><strong>{c.valor}</strong><small>{c.nota}</small>
+          </article>
+        ))}
+      </section>
+
+      {paradas.length > 0 && (
+        <section className="pe-paradas">
+          <h2>Paradas há mais tempo</h2>
+          <p>Ordenado pelo tempo sem ação do gerente. É por aqui que o acompanhamento começa.</p>
+          <div className="pe-parada-list">
+            {paradas.slice(0, 8).map((item) => (
+              <button type="button" key={item.id} className={`pe-parada ${item.alerta || ''}`} onClick={() => abrirDetalhe(item.id)}>
+                <div>
+                  <strong>{item.codigo_imovel ? `#${item.codigo_imovel}` : 'Sem código'} · {item.bairro || 'Bairro não informado'}</strong>
+                  <small>{item.gerente_nome || '—'} · {item.situacao_label}</small>
+                </div>
+                <div className="pe-parada-num">
+                  <b>{item.dias_sem_acao ?? '—'}</b><span>dias sem ação</span>
+                </div>
+              </button>
+            ))}
+          </div>
+        </section>
+      )}
+
+      <section className="pe-filtros">
+        <input placeholder="Buscar por código, endereço, bairro ou cliente" value={filtros.busca} onChange={setF('busca')} />
+        <select value={filtros.situacao} onChange={setF('situacao')}>
+          <option value="">Todas as situações</option>
+          {opcoes.situacoes.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
+        </select>
+        <select value={filtros.forma_pagamento} onChange={setF('forma_pagamento')}>
+          <option value="">Toda forma de pagamento</option>
+          {opcoes.formas_pagamento.map((f) => <option key={f.value} value={f.value}>{f.label}</option>)}
+        </select>
+        <label className="pe-check">
+          <input type="checkbox" checked={filtros.somente_abertas === 'true'} onChange={(e) => setFiltros((p) => ({ ...p, somente_abertas: e.target.checked ? 'true' : 'false' }))} />
+          Só as abertas
+        </label>
+      </section>
+
+      <section className="pe-tabela-wrap">
+        <table className="pe-tabela">
+          <thead>
+            <tr>
+              <th>Imóvel</th><th>Bairro / Tipo</th><th>Valor</th><th>Pagamento</th>
+              <th>Situação</th><th>Em aberto</th><th>Sem ação</th><th>Corretor</th><th>Gerente</th><th />
+            </tr>
+          </thead>
+          <tbody>
+            {itens.map((item) => (
+              <tr key={item.id} className={item.alerta ? `linha-${item.alerta}` : ''}>
+                <td onClick={() => abrirDetalhe(item.id)}>
+                  <strong>{item.codigo_imovel ? `#${item.codigo_imovel}` : '—'}</strong>
+                  <span>{item.imovel_endereco || ''}{item.numero ? `, ${item.numero}` : ''}</span>
+                </td>
+                <td onClick={() => abrirDetalhe(item.id)}><strong>{item.bairro || '—'}</strong><span>{item.tipo || ''}</span></td>
+                <td onClick={() => abrirDetalhe(item.id)}>
+                  <strong>{moeda(item.valor)}</strong>
+                  {item.valor_permuta ? <span>+ permuta {moeda(item.valor_permuta)}</span> : null}
+                </td>
+                <td onClick={() => abrirDetalhe(item.id)}>{item.forma_pagamento_label || '—'}</td>
+                <td onClick={() => abrirDetalhe(item.id)}><span className={`pe-situacao s-${item.situacao}`}>{item.situacao_label}</span></td>
+                <td onClick={() => abrirDetalhe(item.id)}>{item.dias_em_aberto == null ? '—' : `${item.dias_em_aberto} d`}</td>
+                <td onClick={() => abrirDetalhe(item.id)} className={item.alerta || ''}>{item.fechada ? '—' : `${item.dias_sem_acao ?? 0} d`}</td>
+                <td onClick={() => abrirDetalhe(item.id)}>{item.corretor_nome || '—'}{item.id_visita ? <span>visita vinculada</span> : null}</td>
+                <td onClick={() => abrirDetalhe(item.id)}>{item.gerente_nome || '—'}</td>
+                <td className="pe-acoes-col">
+                  {podeEditar && <button type="button" onClick={() => abrirEdicao(item)}>Editar</button>}
+                  {podeEditar && <button type="button" className="perigo" onClick={() => excluir(item)}>Excluir</button>}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        {!itens.length && !carregando && <p className="pe-vazio">Nenhuma proposta encontrada.</p>}
+        {carregando && <p className="pe-vazio">Carregando…</p>}
+      </section>
+
+      {formAberto && (
+        <div className="pe-modal-bg" onClick={() => setFormAberto(false)}>
+          <form className="pe-modal" onClick={(e) => e.stopPropagation()} onSubmit={salvar}>
+            <header><h2>{editandoId ? 'Editar proposta' : 'Lançar proposta'}</h2><button type="button" onClick={() => setFormAberto(false)}>✕</button></header>
+
+            <div className="pe-imovel-busca">
+              <label>Imóvel (busca no Imoview pelo endereço)</label>
+              <div>
+                <input value={buscaImovel} onChange={(e) => setBuscaImovel(e.target.value)} placeholder="Ex.: SQN 210 bloco A" />
+                <button type="button" onClick={buscarImovel} disabled={buscandoImovel}>{buscandoImovel ? 'Buscando…' : 'Buscar'}</button>
+              </div>
+              {imoveis.length > 0 && (
+                <ul className="pe-imovel-lista">
+                  {imoveis.map((i) => (
+                    <li key={i.codigo}><button type="button" onClick={() => escolherImovel(i)}>
+                      <strong>#{i.codigo}</strong> {i.endereco}{i.numero ? `, ${i.numero}` : ''} · {i.bairro} <em>{i.finalidade}</em>
+                    </button></li>
+                  ))}
+                </ul>
+              )}
+            </div>
+
+            <div className="pe-imovel-busca">
+              <label>Visita relacionada (opcional)</label>
+              <div>
+                <button type="button" onClick={puxarVisitas} disabled={buscandoVisita}>{buscandoVisita ? 'Buscando…' : 'Puxar visitas'}</button>
+                {form.id_visita
+                  ? <span className="pe-visita-escolhida">Visita <b>{form.id_visita}</b> vinculada <button type="button" onClick={() => setForm((f) => ({ ...f, id_visita: '' }))}>remover</button></span>
+                  : <span className="pe-visita-dica">{form.id_corretor ? 'Traz as visitas do corretor escolhido' : 'Traz as visitas da sua equipe'}{form.codigo_imovel ? ` · filtrando pelo código ${form.codigo_imovel}` : ''}</span>}
+              </div>
+              {visitas.length > 0 && (
+                <ul className="pe-imovel-lista">
+                  {visitas.map((v) => (
+                    <li key={v.id_visita}><button type="button" onClick={() => { setForm((f) => ({ ...f, id_visita: v.id_visita })); setVisitas([]); }}>
+                      <strong>{v.imovel}</strong> · {dataBR(v.data_visita)} · {v.corretor} {v.proposta_visita ? <em>proposta na visita: {v.proposta_visita}</em> : null}
+                    </button></li>
+                  ))}
+                </ul>
+              )}
+            </div>
+
+            <div className="pe-grid">
+              <label className="span2">Lançar no nome de (corretor)
+                <select value={form.id_corretor} onChange={(e) => { setForm((f) => ({ ...f, id_corretor: e.target.value, id_visita: '' })); setVisitas([]); }}>
+                  <option value="">Sem corretor definido</option>
+                  {corretores.map((c) => <option key={c.id} value={c.id}>{c.nome}{c.team ? ` · ${c.team}` : ''}</option>)}
+                </select>
+              </label>
+              <label>Código do imóvel<input value={form.codigo_imovel} onChange={set('codigo_imovel')} placeholder="Ex.: 12343" /></label>
+              <label className="span2">Endereço<input value={form.imovel_endereco} onChange={set('imovel_endereco')} /></label>
+              <label>Número<input value={form.numero} onChange={set('numero')} /></label>
+              <label>Bairro<input value={form.bairro} onChange={set('bairro')} /></label>
+              <label>Tipo<input value={form.tipo} onChange={set('tipo')} placeholder="Apartamento, casa…" /></label>
+              <label>Valor da proposta *<input value={form.valor} onChange={set('valor')} inputMode="numeric" placeholder="0,00" required /></label>
+              <label>Forma de pagamento
+                <select value={form.forma_pagamento} onChange={set('forma_pagamento')}>
+                  <option value="">Selecione…</option>
+                  {opcoes.formas_pagamento.map((f) => <option key={f.value} value={f.value}>{f.label}</option>)}
+                </select>
+              </label>
+              <label>Situação
+                <select value={form.situacao} onChange={set('situacao')}>
+                  {opcoes.situacoes.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
+                </select>
+              </label>
+              {ehPermuta && <label>Valor da permuta (2ª proposta) *<input value={form.valor_permuta} onChange={set('valor_permuta')} inputMode="numeric" placeholder="0,00" required /></label>}
+              {ehPermuta && <label className="span2">O que entra na permuta<input value={form.descricao_permuta} onChange={set('descricao_permuta')} placeholder="Ex.: apartamento menor na Asa Sul" /></label>}
+              <label>Cliente<input value={form.cliente} onChange={set('cliente')} /></label>
+              <label>Data da proposta<input type="date" value={form.data_proposta} onChange={set('data_proposta')} /></label>
+              <label className="span3">Observação<textarea rows={3} value={form.observacao} onChange={set('observacao')} /></label>
+            </div>
+
+            <footer>
+              <button type="button" onClick={() => setFormAberto(false)}>Cancelar</button>
+              <button type="submit" className="pe-cta" disabled={salvando}>{salvando ? 'Salvando…' : 'Salvar proposta'}</button>
+            </footer>
+          </form>
+        </div>
+      )}
+
+      {detalhe && (
+        <div className="pe-modal-bg" onClick={() => setDetalhe(null)}>
+          <div className="pe-modal" onClick={(e) => e.stopPropagation()}>
+            <header>
+              <h2>{detalhe.codigo_imovel ? `Imóvel #${detalhe.codigo_imovel}` : 'Proposta'} · {detalhe.bairro || '—'}</h2>
+              <button type="button" onClick={() => setDetalhe(null)}>✕</button>
+            </header>
+
+            <div className="pe-detalhe-grid">
+              <div><span>Valor</span><strong>{moeda(detalhe.valor)}</strong></div>
+              {detalhe.valor_permuta ? <div><span>Permuta (2ª proposta)</span><strong>{moeda(detalhe.valor_permuta)}</strong></div> : null}
+              <div><span>Pagamento</span><strong>{detalhe.forma_pagamento_label || '—'}</strong></div>
+              <div><span>Situação</span><strong>{detalhe.situacao_label}</strong></div>
+              <div><span>Em aberto</span><strong>{detalhe.dias_em_aberto ?? '—'} dias</strong></div>
+              <div><span>Sem ação</span><strong>{detalhe.fechada ? '—' : `${detalhe.dias_sem_acao ?? 0} dias`}</strong></div>
+              <div><span>Proposta em</span><strong>{dataBR(detalhe.data_proposta)}</strong></div>
+              <div><span>Fechamento</span><strong>{dataBR(detalhe.data_fechamento)}</strong></div>
+              <div><span>Gerente</span><strong>{detalhe.gerente_nome || '—'}</strong></div>
+              <div><span>Corretor</span><strong>{detalhe.corretor_nome || '—'}</strong></div>
+              <div><span>Cliente</span><strong>{detalhe.cliente || '—'}</strong></div>
+            </div>
+            {detalhe.visita && (
+              <p className="pe-nota">
+                Visita relacionada: <b>{detalhe.visita.imovel}</b> · {dataBR(detalhe.visita.data_visita)} · {detalhe.visita.corretor}
+                {detalhe.visita.proposta_visita ? ` · proposta na visita: ${detalhe.visita.proposta_visita}` : ''}
+              </p>
+            )}
+            {detalhe.descricao_permuta && <p className="pe-nota">Permuta: {detalhe.descricao_permuta}</p>}
+            {detalhe.observacao && <p className="pe-nota">{detalhe.observacao}</p>}
+
+            <h3>Ações</h3>
+            <ul className="pe-timeline">
+              {(detalhe.acoes || []).map((a) => (
+                <li key={a.id}>
+                  <div><strong>{a.descricao}</strong>{a.situacao_label ? <em>{a.situacao_label}</em> : null}</div>
+                  <small>{a.autor_nome || '—'} · {a.created_at ? new Date(a.created_at).toLocaleString('pt-BR') : '—'}</small>
+                </li>
+              ))}
+              {!(detalhe.acoes || []).length && <li className="pe-vazio">Nenhuma ação registrada.</li>}
+            </ul>
+
+            {podeEditar && (
+              <div className="pe-nova-acao">
+                <input placeholder="O que foi feito? Ex.: cliente pediu prazo até sexta" value={novaAcao.descricao} onChange={(e) => setNovaAcao((p) => ({ ...p, descricao: e.target.value }))} />
+                <select value={novaAcao.situacao} onChange={(e) => setNovaAcao((p) => ({ ...p, situacao: e.target.value }))}>
+                  <option value="">Manter situação</option>
+                  {opcoes.situacoes.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
+                </select>
+                <button type="button" className="pe-cta" onClick={registrarAcao}>Registrar ação</button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

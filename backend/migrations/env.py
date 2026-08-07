@@ -15,6 +15,8 @@ from app.models import pessoa_alias  # noqa: F401
 from app.models import vendas  # noqa: F401
 from app.models import ranking_oculto  # noqa: F401
 from app.models import captacao_snapshot  # noqa: F401
+from app.models import imovel_area  # noqa: F401
+from app.models import proposta_efetiva  # noqa: F401
 from app.models import dfimoveis_acesso  # noqa: F401
 
 

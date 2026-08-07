@@ -10,6 +10,9 @@ const number = (value) => value.toLocaleString('pt-BR');
 const iso = (date) => date.toISOString().slice(0, 10);
 const dateLabel = (value) => value ? new Date(`${value}T12:00:00`).toLocaleDateString('pt-BR') : '—';
 
+// Métricas do card de execução comercial, na ordem do funil.
+const METRICAS = [['leads', 'Leads'], ['clientes', 'Clientes'], ['visitas', 'Visitas']];
+
 function rangeFor(period) {
   const end = new Date();
   const start = new Date(end);
@@ -56,6 +59,7 @@ function VisaoDiretor() {
   const { idCorretor } = useAuth();
   const [periodo, setPeriodo] = useState('mes');
   const [equipe, setEquipe] = useState('todas');
+  const [corretor, setCorretor] = useState('todos');
   const [customOpen, setCustomOpen] = useState(false);
   const [detail, setDetail] = useState(null);
   const [mediaFilter, setMediaFilter] = useState('todos');
@@ -70,7 +74,7 @@ function VisaoDiretor() {
   useEffect(() => {
     let active = true;
     const load = async () => {
-      const cacheKey = `visao-diretor:${idCorretor}:${dates.start}:${dates.end}:${equipe}`;
+      const cacheKey = `visao-diretor:${idCorretor}:${dates.start}:${dates.end}:${equipe}:${corretor}`;
       let cached = null;
       try { cached = JSON.parse(sessionStorage.getItem(cacheKey) || 'null'); } catch { cached = null; }
       if (cached && active) setData(cached);
@@ -79,6 +83,8 @@ function VisaoDiretor() {
       try {
         const params = new URLSearchParams({ solicitante_id: idCorretor, start: dates.start, end: dates.end });
         if (equipe !== 'todas') params.set('team', equipe);
+        // Gerente não escolhe equipe (o back trava), então o corretor vai sozinho.
+        if (corretor !== 'todos') params.set('corretor', corretor);
         const response = await api.get(`/diretor-dashboard/executivo?${params.toString()}`);
         if (active) {
           setData(response);
@@ -92,31 +98,54 @@ function VisaoDiretor() {
     };
     load();
     return () => { active = false; };
-  }, [dates, equipe, idCorretor]);
+  }, [dates, equipe, corretor, idCorretor]);
 
   const equipes = data?.equipes_opcoes || [];
+  // Gerente: o back tranca o escopo na equipe dele e devolve escopo='equipe'.
+  const escopoEquipe = data?.escopo === 'equipe';
+  const equipeFixa = escopoEquipe ? (equipes[0]?.nome || data?.filtros?.equipe || '—') : '';
+  // Com uma equipe escolhida o back devolve uma linha por corretor no lugar das equipes.
+  const porCorretor = data?.dimensao === 'corretor';
+  const corretores = data?.corretores_opcoes || [];
+  const unidade = porCorretor ? 'corretor' : 'equipe';
   const equipesVisiveis = data?.equipes || [];
   const vendas = data?.vendas_recentes || [];
   const midia = data?.midia?.perfis || [];
   const alertas = data?.pendencias || [];
+  const atrasos = data?.contratos_atrasados || {};
   const kpiData = data?.kpis || {};
   const delta = (value) => value == null ? 'Sem comparativo' : `${value > 0 ? '+' : ''}${String(value).replace('.', ',')}%`;
+  // Funil (leads → clientes → visitas → propostas → vendas) + os números de valor.
+  const kpi = (chave) => kpiData[chave] || {};
+  const pct = (v) => (v == null ? '—' : `${String(v).replace('.', ',')}%`);
   const kpis = [
-    { label: 'Total de vendas', value: currency(kpiData.vendas?.valor || 0), delta: delta(kpiData.vendas?.variacao_pct), positive: (kpiData.vendas?.variacao_pct || 0) >= 0, icon: 'revenue', caption: `${kpiData.vendas?.quantidade || 0} contratos no período` },
-    { label: 'Propostas de visitas Sim', value: number(kpiData.propostas?.valor || 0), delta: delta(kpiData.propostas?.variacao_pct), positive: (kpiData.propostas?.variacao_pct || 0) >= 0, icon: 'proposal', caption: 'Só propostas SIM nas visitas' },
-    { label: 'Visitas realizadas', value: number(kpiData.visitas?.valor || 0), delta: delta(kpiData.visitas?.variacao_pct), positive: (kpiData.visitas?.variacao_pct || 0) >= 0, icon: 'visit', caption: `${dateLabel(dates.start)} a ${dateLabel(dates.end)}` },
-    { label: 'Leads C2S', value: number(kpiData.leads?.valor || 0), delta: delta(kpiData.leads?.variacao_pct), positive: (kpiData.leads?.variacao_pct || 0) >= 0, icon: 'lead', caption: 'Leads do Contact2Sale no período' },
+    { label: 'Leads C2S', value: number(kpi('leads').valor || 0), delta: delta(kpi('leads').variacao_pct), positive: (kpi('leads').variacao_pct || 0) >= 0, icon: 'lead', caption: 'Leads do Contact2Sale no período' },
+    { label: 'Clientes', value: number(kpi('clientes').valor || 0), delta: delta(kpi('clientes').variacao_pct), positive: (kpi('clientes').variacao_pct || 0) >= 0, icon: 'lead', caption: 'Clientes distintos atendidos em visitas' },
+    { label: 'Visitas', value: number(kpi('visitas').valor || 0), delta: delta(kpi('visitas').variacao_pct), positive: (kpi('visitas').variacao_pct || 0) >= 0, icon: 'visit', caption: `${dateLabel(dates.start)} a ${dateLabel(dates.end)}` },
+    { label: 'Propostas', value: number(kpi('propostas').valor || 0), delta: delta(kpi('propostas').variacao_pct), positive: (kpi('propostas').variacao_pct || 0) >= 0, icon: 'proposal', caption: 'Propostas efetivas lançadas no período' },
+    { label: 'Vendas (quantidade)', value: number(kpi('vendas_quantidade').valor || 0), delta: delta(kpi('vendas_quantidade').variacao_pct), positive: (kpi('vendas_quantidade').variacao_pct || 0) >= 0, icon: 'proposal', caption: 'Contratos fechados no período' },
+    { label: 'VGV', value: currency(kpi('vgv').valor || 0), delta: delta(kpi('vgv').variacao_pct), positive: (kpi('vgv').variacao_pct || 0) >= 0, icon: 'revenue', caption: 'Valor geral de vendas' },
+    { label: 'VGC', value: currency(kpi('vgc').valor || 0), delta: delta(kpi('vgc').variacao_pct), positive: (kpi('vgc').variacao_pct || 0) >= 0, icon: 'revenue', caption: 'Comissão que fica com a 61' },
+    { label: '% VGC / VGV', value: pct(kpi('vgc_sobre_vgv').valor), delta: delta(kpi('vgc_sobre_vgv').variacao_pct), positive: (kpi('vgc_sobre_vgv').variacao_pct || 0) >= 0, icon: 'revenue', caption: 'Quanto da venda virou comissão' },
   ];
   const totalPropostas = equipesVisiveis.reduce((acc, item) => acc + item.sim + item.nao + item.talvez, 0);
+  const maxClassificadas = Math.max(...equipesVisiveis.map((i) => i.sim + i.nao + i.talvez), 1);
   const proposalDenominator = Math.max(totalPropostas, 1);
-  const maxVisitas = Math.max(...equipesVisiveis.map((item) => item.visitas), 1);
+  // Cada métrica tem escala própria: a barra cheia é sempre o líder daquela métrica.
+  const maxPorMetrica = useMemo(() => ({
+    visitas: Math.max(...equipesVisiveis.map((i) => i.visitas || 0), 1),
+    clientes: Math.max(...equipesVisiveis.map((i) => i.clientes || 0), 1),
+    leads: Math.max(...equipesVisiveis.map((i) => i.leads || 0), 1),
+  }), [equipesVisiveis]);
+  const totalClientes = equipesVisiveis.reduce((acc, i) => acc + (i.clientes || 0), 0);
+  const totalLeads = equipesVisiveis.reduce((acc, i) => acc + (i.leads || 0), 0);
   const midiaVisivel = mediaFilter === 'todos' ? midia : midia.filter((item) => item.perfil === mediaFilter);
   const alertasVisiveis = alertsOnly ? alertas.filter((item) => item.nivel === 'critical') : alertas;
 
   return <div className="ev-page">
     <div className="ev-shell">
       <section className="ev-executive-header">
-        <div><div className="ev-eyebrow"><span /> Painel executivo</div><h1>Visão do Diretor</h1><p>Decisões mais rápidas com a performance comercial, mídia e governança de todas as equipes.</p></div>
+        <div><div className="ev-eyebrow"><span /> Painel executivo</div><h1>{escopoEquipe ? 'Visão da Equipe' : 'Visão do Diretor'}</h1><p>{escopoEquipe ? `Performance comercial, mídia e governança da equipe ${equipeFixa}.` : 'Decisões mais rápidas com a performance comercial, mídia e governança de todas as equipes.'}</p></div>
         <div className="ev-updated"><span className="ev-live" /> {loading ? 'Atualizando dados…' : `Dados consultados em ${new Date(data?.atualizado_em || Date.now()).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`}</div>
       </section>
 
@@ -129,7 +158,10 @@ function VisaoDiretor() {
           <button className={periodo === 'custom' ? 'active' : ''} onClick={() => { setPeriodo('custom'); setCustomOpen(!customOpen); }}><Icon name="calendar" size={15} /> Personalizado</button>
         </div>
         <div className="ev-filter-divider" />
-        <label className="ev-select-wrap"><span>Equipe</span><select value={equipe} onChange={(e) => setEquipe(e.target.value)}><option value="todas">Todas as equipes</option>{equipes.map((item) => <option value={item.id} key={item.id}>{item.nome} · {item.gerente}</option>)}</select></label>
+        {escopoEquipe
+          ? <label className="ev-select-wrap"><span>Equipe</span><strong className="ev-fixed-filter">{equipeFixa}</strong></label>
+          : <label className="ev-select-wrap"><span>Equipe</span><select value={equipe} onChange={(e) => { setEquipe(e.target.value); setCorretor('todos'); }}><option value="todas">Todas as equipes</option>{equipes.map((item) => <option value={item.id} key={item.id}>{item.nome} · {item.gerente}</option>)}</select></label>}
+        <label className="ev-select-wrap"><span>Corretor</span><select value={corretor} onChange={(e) => setCorretor(e.target.value)} disabled={!escopoEquipe && equipe === 'todas'} title={!escopoEquipe && equipe === 'todas' ? 'Escolha uma equipe para filtrar por corretor' : undefined}><option value="todos">{!escopoEquipe && equipe === 'todas' ? 'Escolha uma equipe' : 'Todos os corretores'}</option>{corretores.map((item) => <option value={item.id} key={item.id}>{item.nome}</option>)}</select></label>
         {customOpen && <div className="ev-date-popover"><label>De<input type="date" value={draftDates.start} onChange={(event) => setDraftDates((current) => ({ ...current, start: event.target.value }))} /></label><label>Até<input type="date" value={draftDates.end} onChange={(event) => setDraftDates((current) => ({ ...current, end: event.target.value }))} /></label><button onClick={() => { setDates(draftDates); setCustomOpen(false); }}>Aplicar período</button></div>}
       </section>
 
@@ -137,41 +169,89 @@ function VisaoDiretor() {
         {kpis.map((item) => <article className="ev-kpi" key={item.label}><div className={`ev-kpi-icon ${item.icon}`}><Icon name={item.icon} /></div><div className="ev-kpi-top"><span>{item.label}</span><em className={item.positive ? 'up' : 'down'}>{item.delta}</em></div><strong>{item.value}</strong><small>{item.caption}<b> vs. período anterior</b></small></article>)}
       </section>
 
-      <div className="ev-section-heading"><div><span>01 · PERFORMANCE</span><h2>Controle de equipes e gerentes</h2></div><p>Leitura comparativa do ritmo comercial e da prospecção ativa.</p></div>
+      <div className="ev-section-heading"><div><span>01 · PERFORMANCE</span><h2>{porCorretor ? 'Controle de corretores da equipe' : 'Controle de equipes e gerentes'}</h2></div><p>Leitura comparativa do ritmo comercial e da prospecção ativa.</p></div>
 
       <section className="ev-grid ev-grid-performance">
         <article className="ev-card ev-visits">
-          <CardTitle eyebrow="Execução comercial" title="Visitas por equipe" description="Visitas registradas no período selecionado" action={<span className="ev-legend"><i /> Realizado</span>} />
+          <CardTitle
+            eyebrow="Execução comercial"
+            title={`Visitas, clientes e leads por ${unidade}`}
+            description={`Cada barra cheia é ${porCorretor ? 'o corretor' : 'a equipe'} com o maior número da métrica`}
+            action={<span className="ev-legend ev-legend-metricas">{METRICAS.map(([chave, rotulo]) => <em key={chave}><i className={`m-${chave}`} /> {rotulo}</em>)}</span>}
+          />
           <div className="ev-bar-chart">
-            {equipesVisiveis.map((item) => <div className="ev-bar-row" key={item.id}><div><strong>{item.nome}</strong><span>{item.gerente}</span></div><div className="ev-bar-track"><b style={{ width: `${(item.visitas / maxVisitas) * 100}%` }} /></div><strong>{item.visitas}</strong></div>)}
-            {!equipesVisiveis.length && <p className="ev-empty">Nenhuma equipe ou visita encontrada.</p>}
+            {equipesVisiveis.map((item) => (
+              <div className="ev-bar-group" key={item.id}>
+                <div className="ev-bar-ident"><strong>{item.nome}</strong><span>{item.gerente}</span></div>
+                <div className="ev-bar-metricas">
+                  {METRICAS.map(([chave, rotulo]) => (
+                    <div className="ev-bar-linha" key={chave}>
+                      <span>{rotulo}</span>
+                      <div className="ev-bar-track"><b className={`m-${chave}`} style={{ width: `${((item[chave] || 0) / maxPorMetrica[chave]) * 100}%` }} /></div>
+                      <strong>{number(item[chave] || 0)}</strong>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+            {!equipesVisiveis.length && <p className="ev-empty">{porCorretor ? 'Nenhum corretor com visita no período.' : 'Nenhuma equipe ou visita encontrada.'}</p>}
           </div>
-          <div className="ev-card-footer"><span><b>{kpiData.visitas?.valor || 0}</b> visitas realizadas</span><span>Metas de visita não estão cadastradas na base atual.</span></div>
+          <div className="ev-card-footer"><span><b>{kpiData.visitas?.valor || 0}</b> visitas · <b>{number(totalClientes)}</b> clientes · <b>{number(totalLeads)}</b> leads</span><span>Leads sem equipe (recepção) não entram nas barras.</span></div>
         </article>
 
         <article className="ev-card ev-funnel">
-          <CardTitle eyebrow="Qualidade das visitas" title="Funil de visitas" description="Visitas classificadas pela proposta registrada: SIM, NÃO ou TALVEZ" />
+          <CardTitle eyebrow="Qualidade das visitas" title="Visitas" description="Visitas classificadas pela proposta registrada: SIM, NÃO ou TALVEZ" />
           <div className="ev-donut-wrap"><div className="ev-donut" style={{ '--sim': `${(equipesVisiveis.reduce((a, i) => a + i.sim, 0) / proposalDenominator) * 360}deg`, '--talvez': `${((equipesVisiveis.reduce((a, i) => a + i.sim + i.talvez, 0)) / proposalDenominator) * 360}deg` }}><div><strong>{totalPropostas}</strong><span>visitas</span></div></div>
             <div className="ev-funnel-legend">{[['sim', 'Proposta SIM', equipesVisiveis.reduce((a, i) => a + i.sim, 0)], ['talvez', 'Proposta TALVEZ', equipesVisiveis.reduce((a, i) => a + i.talvez, 0)], ['nao', 'Proposta NÃO', equipesVisiveis.reduce((a, i) => a + i.nao, 0)]].map(([tone, label, value]) => <div key={tone}><i className={tone} /><span>{label}</span><strong>{value}</strong></div>)}</div>
           </div>
-          <div className="ev-stacked">{equipesVisiveis.map((item) => { const total = item.sim + item.nao + item.talvez; return <div key={item.id}><span>{item.nome}</span><div><i className="sim" style={{ width: `${item.sim / total * 100}%` }} /><i className="talvez" style={{ width: `${item.talvez / total * 100}%` }} /><i className="nao" style={{ width: `${item.nao / total * 100}%` }} /></div></div>})}</div>
+          {/* Quantitativa: a largura é o volume de visitas, não a proporção interna —
+              a barra cheia é quem tem mais visitas classificadas no período. */}
+          <div className="ev-stacked ev-stacked-qtd">{equipesVisiveis.filter((item) => item.sim + item.nao + item.talvez > 0).map((item) => { const total = item.sim + item.nao + item.talvez; return <div key={item.id}><span>{item.nome}</span><div style={{ width: `${(total / maxClassificadas) * 100}%` }}><i className="sim" style={{ width: `${item.sim / total * 100}%` }} /><i className="talvez" style={{ width: `${item.talvez / total * 100}%` }} /><i className="nao" style={{ width: `${item.nao / total * 100}%` }} /></div><b>{number(total)}</b></div>})}</div>
         </article>
 
         <article className="ev-card ev-prospect">
-          <CardTitle eyebrow="Prospecção ativa" title="Busca & captação" description="Volume trabalhado pelas equipes no período" />
+          <CardTitle eyebrow="Prospecção ativa" title="Busca & captação" description={porCorretor ? 'Volume trabalhado pelo filtro atual no período' : 'Volume trabalhado pelas equipes no período'} />
           <div className="ev-prospect-total"><div><span>Imóveis trabalhados</span><strong>{number(data?.captacao?.trabalhados || 0)}</strong><small>Atualizados no período</small></div><div><span>Imóveis captados</span><strong>{number(data?.captacao?.captados || 0)}</strong><small>Marcados como captados</small></div></div>
           <p className="ev-data-note">“Imóveis buscados” foi substituído por imóveis efetivamente atualizados, pois a base não registra eventos de busca.</p>
         </article>
 
         <article className="ev-card ev-journey">
-          <CardTitle eyebrow="Jornada de captação" title="Movimentações de etapa" description="Imóveis que avançaram durante o período" />
-          <div className="ev-journey-list">{(data?.captacao?.etapas || []).map((item, index) => <div key={item.etapa}><span className="ev-step">0{index + 1}</span><div><strong>{item.label}</strong><span>{item.total} imóveis avançaram</span></div><em>{item.total}</em></div>)}</div>
+          <CardTitle
+            eyebrow="Jornada de captação"
+            title="Etapas no período"
+            description="Entraram = avançaram para a etapa no período. No período = estiveram na etapa em algum dia, somando quem já estava."
+            action={<span className="ev-legend ev-legend-metricas"><em><i className="m-entraram" /> Entraram</em><em><i className="m-periodo" /> No período</em></span>}
+          />
+          <div className="ev-journey-list">{(data?.captacao?.etapas || []).map((item, index) => (
+            <div key={item.etapa}>
+              <span className="ev-step">0{index + 1}</span>
+              <div>
+                <strong>{item.label}</strong>
+                <span>{number(item.ja_estavam ?? 0)} já estavam + {number(item.entraram ?? 0)} que entraram</span>
+              </div>
+              <div className="ev-journey-nums">
+                <em className="entraram">{number(item.entraram ?? item.total ?? 0)}</em>
+                <em className="periodo">{number(item.no_periodo ?? item.total ?? 0)}</em>
+              </div>
+            </div>
+          ))}</div>
         </article>
       </section>
 
       <section className="ev-card ev-sales">
         <CardTitle eyebrow="Fechamentos" title="Vendas recentes" description="Últimos contratos realizados pelas equipes" action={<button type="button" className="ev-text-button ev-sales-link" onClick={() => navigate('/Vendas')}>Ver todas as vendas <Icon name="arrow" size={14} /></button>} />
-        <div className="ev-table-wrap"><table><thead><tr><th>Imóvel</th><th>Equipe / gerente</th><th>Valor de fechamento</th><th>Data</th><th>Valor Total 61</th><th /></tr></thead><tbody>{vendas.map((item) => <tr key={item.id} onClick={() => setDetail(item)}><td><strong>{item.imovel}</strong><span>{item.codigo}</span></td><td><strong>{item.equipe}</strong><span>{item.gerente}</span></td><td><strong>{currency(item.valor)}</strong></td><td>{dateLabel(item.data)}</td><td><strong>{currency(item.valor_total_61 || 0)}</strong></td><td><Icon name="arrow" size={15} /></td></tr>)}</tbody></table>{!vendas.length && <p className="ev-empty">Nenhum contrato cadastrado.</p>}</div>
+        <div className="ev-table-wrap"><table><thead><tr><th>Endereço</th><th>Equipe</th><th>Corretor</th><th>Valor</th><th>Data</th><th>Valor Total 61</th><th>% compra</th><th>Metragem²</th><th>Valor m²</th><th /></tr></thead><tbody>{vendas.map((item) => <tr key={item.id} onClick={() => setDetail(item)}>
+          <td><strong>{item.endereco || item.imovel}</strong><span>{item.codigo ? `Cód. ${item.codigo}` : 'Sem código'}</span></td>
+          <td>{item.equipe}</td>
+          <td>{item.corretor || '—'}</td>
+          <td><strong>{currency(item.valor)}</strong></td>
+          <td>{dateLabel(item.data)}</td>
+          <td><strong>{currency(item.valor_total_61 || 0)}</strong></td>
+          <td>{item.percentual_compra == null ? '—' : `${item.percentual_compra.toFixed(2).replace('.', ',')}%`}</td>
+          <td>{item.area == null ? '—' : `${number(item.area)} m²`}</td>
+          <td>{item.valor_m2 == null ? '—' : currency(item.valor_m2)}</td>
+          <td><Icon name="arrow" size={15} /></td>
+        </tr>)}</tbody></table>{!vendas.length && <p className="ev-empty">Nenhum contrato cadastrado.</p>}</div>
       </section>
 
       <div className="ev-section-heading"><div><span>02 · EFICIÊNCIA DE MÍDIA</span><h2>DFImóveis + C2S</h2></div><p>Cruzamento entre exposição, interesse e geração de oportunidade.</p></div>
@@ -210,6 +290,25 @@ function VisaoDiretor() {
 
       <section className="ev-audit">
         <div className="ev-audit-head"><div><span className="ev-alert-icon"><Icon name="alert" /></span><div><small>04 · GOVERNANÇA</small><h2>Pendências que exigem atenção</h2><p>Sinais operacionais gerados pelas flags de visualização e atualização.</p></div></div><label><input type="checkbox" checked={alertsOnly} onChange={(e) => setAlertsOnly(e.target.checked)} /><span /> Somente críticos</label></div>
+
+        <div className="ev-contratos-atraso">
+          <div className="ev-contratos-resumo">
+            <div><span>Contratos em atraso</span><strong>{number(atrasos.total || 0)}</strong><small>últimos 12 meses</small></div>
+            <div><span>Comissão vencida</span><strong>{number(atrasos.comissao_vencida || 0)}</strong><small>prazo da comissão passou</small></div>
+            <div><span>Sem assinatura</span><strong>{number(atrasos.sem_assinatura || 0)}</strong><small>+{atrasos.dias_sem_assinatura || 30} dias do fechamento</small></div>
+          </div>
+          <div className="ev-contratos-lista">
+            {(atrasos.itens || []).slice(0, 6).map((item) => (
+              <div key={item.id} className={item.nivel}>
+                <i />
+                <div><strong>{item.endereco}</strong><small>{item.motivo} · {item.gerente}</small></div>
+                <div className="ev-contratos-num"><b>{number(item.dias)}</b><span>dias</span></div>
+                <em>{currency(item.valor)}</em>
+              </div>
+            ))}
+            {!(atrasos.itens || []).length && <p className="ev-empty">Nenhum contrato em atraso no período.</p>}
+          </div>
+        </div>
         <div className="ev-alert-list">{alertasVisiveis.map((item) => <button key={item.id} onClick={() => setDetail(item)}><i className={item.nivel} /><div><span>{item.tipo}</span><strong>{item.descricao}</strong><small>{item.responsavel}</small></div><div><span>Em atraso</span><strong>{item.atraso}</strong></div><Icon name="arrow" size={16}/></button>)}</div>
         <div className="ev-audit-footer"><span><b>{alertas.filter((i) => i.nivel === 'critical').length} críticos</b> · {alertas.length} pendências no total</span><button>Ver central de pendências <Icon name="arrow" size={14}/></button></div>
       </section>

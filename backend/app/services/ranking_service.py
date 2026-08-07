@@ -839,6 +839,41 @@ class RankingService:
                 mapa[cod] = foco
         return mapa
 
+    @staticmethod
+    def _codigo_limpo(valor) -> str:
+        """Normaliza o código do imóvel.
+
+        `contratos.codigo_imovel` vem da planilha como número formatado ("10.961,00"),
+        enquanto a Dim_Imovel guarda "10961" — sem isso o cruzamento de foco dá zero.
+        """
+        texto = str(valor or "").strip()
+        if not texto:
+            return ""
+        return "".join(ch for ch in texto.split(",")[0] if ch.isdigit())
+
+    def _foco_por_codigo_captacao(self) -> Dict[str, bool]:
+        """Foco vindo de `fato_captacao` — cobre imóvel que ainda não está na Dim_Imovel."""
+        from app.database import SessionLocal
+        from app.models.fato_bases import FatoCaptacao
+
+        session = SessionLocal()
+        try:
+            rows = session.query(
+                FatoCaptacao.codigo_imovel, FatoCaptacao.foco_pp, FatoCaptacao.foco_ac
+            ).all()
+        finally:
+            session.close()
+
+        mapa: Dict[str, bool] = {}
+        for codigo, pp, ac in rows:
+            cod = self._codigo_limpo(codigo)
+            if not cod:
+                continue
+            foco = bool(pp) or bool(ac)
+            if foco or cod not in mapa:
+                mapa[cod] = foco
+        return mapa
+
     def _captacoes_foco_por_captador(
         self, start: Optional[str], end: Optional[str]
     ) -> Dict[str, Dict[str, int]]:
@@ -930,6 +965,7 @@ class RankingService:
         p/ o foco. Assim contam TODO o período (imóvel captado que nunca vendeu também
         entra), não só o que virou venda. Ver `_captacoes_foco_por_captador`."""
         from app.database import SessionLocal
+        from app.models.contrato import Contrato
         from app.models.venda_legado import VendaLegado
 
         s_dt = self._parse_date(start) if start else None
@@ -938,11 +974,20 @@ class RankingService:
         session = SessionLocal()
         try:
             vendas = session.query(VendaLegado).all()
+            contratos = session.query(Contrato).filter(Contrato.data_contrato.isnot(None)).all()
         finally:
             session.close()
 
-        id_to_name, _ = self._maps_corretores()
+        id_to_name, name_to_id = self._maps_corretores()
         vgv: Dict[str, Dict[str, float]] = {}
+        vgc: Dict[str, Dict[str, float]] = {}
+
+        def _acumular(alvo, chave, valor, tem_foco):
+            if not valor:
+                return
+            a = alvo.setdefault(chave.upper(), {"total": 0.0, "foco": 0.0, "nao_foco": 0.0})
+            a["total"] += valor
+            a["foco" if tem_foco else "nao_foco"] += valor
 
         for v in vendas:
             d = v.data_venda
@@ -963,6 +1008,14 @@ class RankingService:
             vn = self._to_float_br(v.valor_do_negocio)
             foco = bool(v.foco)
 
+            # VGC do captador: Valor_Total_61 é dividido entre os LADOS (venda/captação)
+            # e depois entre os membros do lado — mesma regra do `_calc_vgc_geral_algoritmo`.
+            v61 = self._to_float_br(v.valor_total_61)
+            vendedores = {str(v.vendedor_1 or "").strip(), str(v.vendedor_2 or "").strip()}
+            vendedores = {n for n in vendedores if n not in ("", "0")}
+            n_lados = (1 if vendedores else 0) + (1 if ncap else 0)
+            vgc_por_captador = ((v61 / n_lados) / ncap) if (v61 > 0 and n_lados and ncap) else 0.0
+
             for is_cap, cap, vcol in ((tem1, cap1, v.v3), (tem2, cap2, v.v4)):
                 if not is_cap:
                     continue
@@ -970,12 +1023,66 @@ class RankingService:
                     val = self._to_float_br(vcol)
                 else:  # 2026 em diante
                     val = (vn / ncap) if ncap else 0.0
-                a = vgv.setdefault(cap.upper(), {"total": 0.0, "foco": 0.0, "nao_foco": 0.0})
-                a["total"] += val
-                if foco:
-                    a["foco"] += val
-                else:
-                    a["nao_foco"] += val
+                _acumular(vgv, cap, val, foco)
+                _acumular(vgc, cap, vgc_por_captador, foco)
+
+        # `vendas_legado` é carga única da planilha e parou em 18/06/2026 — sem isto o
+        # VGV do relatório sai ZERADO de julho em diante. Os contratos que a planilha não
+        # tem entram por `contratos` (mantida viva pelo cron do sync), com dedup por
+        # id do contrato. Valor pelo mesmo critério de 2026: negócio ÷ nº de captadores.
+        ja_na_planilha = {str(v.idcontrato or "").strip() for v in vendas if v.idcontrato}
+        # Só completa DEPOIS da última venda da planilha. O histórico fechado continua
+        # idêntico ao Power BI: contrato antigo ausente da planilha foi decisão de lá,
+        # não buraco de carga.
+        datas_planilha = [v.data_venda for v in vendas if v.data_venda]
+        corte = max(datas_planilha) if datas_planilha else None
+        foco_dim = self._foco_por_codigo()
+        foco_capt = self._foco_por_codigo_captacao()
+
+        for ct in contratos:
+            if str(ct.id_contrato or "").strip() in ja_na_planilha:
+                continue
+            d = ct.data_contrato
+            if corte is not None and d <= corte:
+                continue
+            dts = pd.Timestamp(d)
+            if s_dt is not None and dts < s_dt:
+                continue
+            if e_dt is not None and dts > e_dt:
+                continue
+
+            captadores = {
+                self._limpar_nome(ct.corretor_captador_1_nome),
+                self._limpar_nome(ct.corretor_captador_2_nome),
+            }
+            captadores = {n for n in captadores if n}
+            if not captadores:
+                continue
+
+            valor_negocio = float(ct.valor_negocio or 0)
+            if valor_negocio <= 0:
+                continue
+            por_captador = valor_negocio / len(captadores)
+
+            vendedores = {
+                self._limpar_nome(ct.corretor_venda_1_nome),
+                self._limpar_nome(ct.corretor_venda_2_nome),
+            }
+            vendedores = {n for n in vendedores if n}
+            n_lados = (1 if vendedores else 0) + 1  # captadores existem (checado acima)
+            v61 = float(ct.valor_total_61 or 0)
+            vgc_por_captador = (v61 / n_lados) / len(captadores) if v61 > 0 else 0.0
+
+            cod = self._codigo_limpo(ct.codigo_imovel)
+            foco = foco_dim.get(cod)
+            if foco is None:
+                foco = bool(foco_capt.get(cod, False))
+
+            for nome in captadores:
+                # `vendas_legado` guarda o ID do captador; o contrato guarda o NOME.
+                chave = name_to_id.get(nome.upper(), nome.upper())
+                _acumular(vgv, chave, por_captador, foco)
+                _acumular(vgc, chave, vgc_por_captador, foco)
 
         # Captações (todo período) da base histórica de captação, cruzada c/ Dim_Imovel.
         capt = self._captacoes_foco_por_captador(start, end)
@@ -983,22 +1090,28 @@ class RankingService:
         rows = []
         # NÃO aplica a exclusão do ranking ao vivo: este relatório é histórico e bate
         # com o Power BI (que inclui todos os captadores).
-        for cap in set(vgv) | set(capt):
+        vazio = {"total": 0.0, "foco": 0.0, "nao_foco": 0.0}
+        for cap in set(vgv) | set(vgc) | set(capt):
             nome = id_to_name.get(cap.upper(), cap)
-            a = vgv.get(cap, {"total": 0.0, "foco": 0.0, "nao_foco": 0.0})
+            a = vgv.get(cap, vazio)
+            g = vgc.get(cap, vazio)
             c = capt.get(cap, {"n": 0, "n_foco": 0})
             rows.append({
                 "Corretor": nome,
                 "VGV Captador (Total)": round(a["total"], 2),
                 "VGV Captador (Foco)": round(a["foco"], 2),
                 "VGV Captador (Não Foco)": round(a["nao_foco"], 2),
+                "VGC Captador (Total)": round(g["total"], 2),
+                "VGC Captador (Foco)": round(g["foco"], 2),
+                "VGC Captador (Não Foco)": round(g["nao_foco"], 2),
                 "Captações": int(c["n"]),
                 "Captações no Foco": int(c["n_foco"]),
             })
 
         df = pd.DataFrame(rows, columns=[
-            "Corretor", "VGV Captador (Total)", "VGV Captador (Foco)",
-            "VGV Captador (Não Foco)", "Captações", "Captações no Foco",
+            "Corretor", "VGV Captador (Total)", "VGV Captador (Foco)", "VGV Captador (Não Foco)",
+            "VGC Captador (Total)", "VGC Captador (Foco)", "VGC Captador (Não Foco)",
+            "Captações", "Captações no Foco",
         ])
         if not df.empty:
             df = df.sort_values("VGV Captador (Foco)", ascending=False).reset_index(drop=True)

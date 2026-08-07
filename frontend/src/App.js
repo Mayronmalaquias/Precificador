@@ -17,6 +17,7 @@ import AdminRoute from './auth/AdminRoute';
 import AdministradorRoute from './auth/AdministradorRoute';
 import AssistenteRoute from './auth/AssistenteRoute';
 import DiretorRoute from './auth/DiretorRoute';
+import PropostasRoute from './auth/PropostasRoute';
 import GerenteOperacionalRoute from './auth/GerenteOperacionalRoute';
 import VendasRoute from './auth/VendasRoute';
 import PaginaPublica from './components/FormularioPublico';
@@ -41,6 +42,7 @@ import Vendas from './components/Vendas'
 import GerenteRHCorretores from './components/GerenteRHCorretores'
 import LancarImovel from './components/LancarImovel'
 import VisaoDiretor from './components/VisaoDiretor'
+import PropostasEfetivas from './components/PropostasEfetivas'
 
 import './assets/css/styles.css';
 import './assets/css/report.css';
@@ -103,6 +105,10 @@ function App() {
                 <Route
                   path="/VisaoDiretor"
                   element={<DiretorRoute><VisaoDiretor /></DiretorRoute>}
+                />
+                <Route
+                  path="/PropostasEfetivas"
+                  element={<PropostasRoute><PropostasEfetivas /></PropostasRoute>}
                 />
                 <Route
                   path="/ControleCorretor"

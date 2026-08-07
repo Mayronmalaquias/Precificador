@@ -85,13 +85,15 @@ function Header() {
     { to: '/AppVisita', label: 'Relatório de Visita', show: isLogado },
     { to: '/GestaoClientes', label: 'Gestao de Clientes', show: isLogado },
     { to: '/RelatorioGerente', label: 'Relatório Gerente', show: isLogado && isAdmin },
-    { to: '/VisaoDiretor', label: 'Visão do Diretor', show: isLogado && isDiretor },
+    { to: '/VisaoDiretor', label: 'Visão do Diretor', show: isLogado && (isDiretor || permissao === 'gerente') },
+    { to: '/PropostasEfetivas', label: 'Propostas Efetivas', subtitle: 'propostas de compra', show: isLogado && (isDiretor || isAdministrador || isAssistente || permissao === 'gerente') },
     { to: '/ranking', label: 'Ranking', show: isLogado && isAdmin },
     { to: '/AdminBases', label: 'Gestão de Bases', show: isLogado && isAdministrador },
     { to: '/Vendas', label: 'Vendas', show: isLogado && (isAdministrador || isDiretor) },
     { to: '/JornadaCaptacao', label: 'Jornada Captação', show: isLogado },
     { to: '/LancarImovel', label: 'Lançar Imóvel', subtitle: 'Imoview + Trello', show: isLogado && (isAssistente || isAdministrador) },
-  ].filter((item) => item.show).filter((item) => !isAssistente || item.to === '/LancarImovel');
+    // Assistente (perfil do estagiário) só enxerga Lançar Imóvel e o acompanhamento das propostas.
+  ].filter((item) => item.show).filter((item) => !isAssistente || ['/LancarImovel', '/PropostasEfetivas'].includes(item.to));
 
   const gestao = [
     { to: '/GerenteRH', label: 'Controle Equipe', show: isLogado && (permissao === 'gerente' || isAdministrador) },
