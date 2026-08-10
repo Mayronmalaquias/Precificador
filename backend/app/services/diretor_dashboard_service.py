@@ -24,6 +24,11 @@ from app.models.usuarios import Usuarios
 from app.models.visita import Visita, VisitaCliente
 
 
+# Linha-balde do painel de equipes: agrupa as visitas do periodo que nao tem
+# equipe ativa. Nao entra no dropdown de filtro (`equipes_opcoes`), so na tabela.
+SEM_EQUIPE_ID = "__sem_equipe__"
+
+
 def _date(value, default):
     try:
         return datetime.strptime(str(value)[:10], "%Y-%m-%d").date()
@@ -109,21 +114,30 @@ def _team_user_ids(session, team):
 
 def _visit_metrics(session, teams, start, end, selected_team=None):
     selected = [t for t in teams if not selected_team or t["id"] == selected_team]
-    selected_ids = {team["id"] for team in selected}
     counts_by_team = {team["id"]: {"visitas": 0, "sim": 0, "nao": 0, "talvez": 0} for team in selected}
+    # Visitas que nao caem em nenhuma equipe ativa: corretor sem `team`, `team`
+    # sem equipe cadastrada, equipe inativa, ou id_corretor que nao existe mais
+    # em `usuarios`. Continuam sendo visitas do periodo, entao viram uma linha
+    # propria — senao o total do painel fica menor que o real e diverge da
+    # Gestao de Clientes.
+    sem_equipe = {"visitas": 0, "sim": 0, "nao": 0, "talvez": 0}
     proposals = {"sim": 0, "nao": 0, "talvez": 0}
-    query = session.query(Visita.proposta, Usuarios.team).join(
+    # outerjoin: nao descarta visita cujo corretor sumiu da tabela de usuarios.
+    query = session.query(Visita.proposta, Usuarios.team).outerjoin(
         Usuarios, Usuarios.id_usuarios == Visita.id_corretor
     ).filter(Visita.data_visita >= start, Visita.data_visita <= end)
     if selected_team:
         query = query.filter(Usuarios.team == selected_team)
     for proposal, team_id in query.all():
-        if team_id not in selected_ids:
-            continue
-        counts_by_team[team_id]["visitas"] += 1
+        target = counts_by_team.get(team_id)
+        if target is None:
+            if selected_team:
+                continue          # equipe filtrada: as orfas nao pertencem a ela
+            target = sem_equipe
+        target["visitas"] += 1
         status = _norm_proposta(proposal)
         if status:
-            counts_by_team[team_id][status] += 1
+            target[status] += 1
             proposals[status] += 1
     ids = [team["id"] for team in selected]
     clientes = _clientes_por_equipe(session, start, end, ids) if ids else {}
@@ -132,6 +146,16 @@ def _visit_metrics(session, teams, start, end, selected_team=None):
         **team, **counts_by_team[team["id"]],
         "clientes": clientes.get(team["id"], 0), "leads": leads.get(team["id"], 0),
     } for team in selected]
+    if not selected_team and sem_equipe["visitas"]:
+        rows.append({
+            "id": SEM_EQUIPE_ID,
+            "nome": "Sem equipe",
+            "gerente": "Visitas sem equipe ativa",
+            "gerente_id": None,
+            **sem_equipe,
+            "clientes": 0,
+            "leads": 0,
+        })
     return rows, proposals
 
 

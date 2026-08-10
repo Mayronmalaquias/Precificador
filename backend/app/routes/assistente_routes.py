@@ -64,13 +64,14 @@ class IncluirImovel(Resource):
         proprietarios = lancamento_service.normalizar_proprietarios(dados)
         if not proprietarios:
             return {"ok": False, "error": "Proprietário (nome, CPF e telefone) é obrigatório"}, 400
-        incompleto = next(
-            (p for p in proprietarios if not p.get("cpfoucnpj") or not p.get("telefone")), None
-        )
+        # CPF/CNPJ é opcional: quem não informa entra com o marcador zerado que o
+        # `normalizar_proprietarios` aplica. Telefone segue obrigatório — sem ele o
+        # corretor não tem como retornar pro proprietário.
+        incompleto = next((p for p in proprietarios if not p.get("telefone")), None)
         if incompleto:
             return {
                 "ok": False,
-                "error": f"Proprietário \"{incompleto['nome']}\": CPF/CNPJ e telefone são obrigatórios",
+                "error": f"Proprietário \"{incompleto['nome']}\": telefone é obrigatório",
             }, 400
 
         fotos = request.files.getlist("fotos") if request.files else []

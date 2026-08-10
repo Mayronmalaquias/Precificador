@@ -245,6 +245,15 @@ def _gravar_estoque_sheet(dados: Dict[str, Any], codigo: Any, foco_label: str = 
     }
 
 
+# Documento provisório de proprietário sem CPF informado. Zerado de propósito: é
+# inválido como CPF real, então serve de marcador p/ o RH completar depois.
+CPF_PLACEHOLDER = "00000000000"
+
+
+def _so_digitos(v: Any) -> str:
+    return "".join(ch for ch in str(v or "") if ch.isdigit())
+
+
 def _num(v: Any) -> Optional[float]:
     if v in (None, ""):
         return None
@@ -304,9 +313,12 @@ def normalizar_proprietarios(dados: Dict[str, Any]) -> List[Dict[str, Any]]:
             continue
         # Imoview exige percentual quando o proprietário é enviado.
         percentual = _num(item.get("percentual"))
+        # CPF é opcional pro assistente, mas o Imoview não aceita proprietário sem
+        # documento — manda um marcador zerado, fácil de achar depois p/ completar.
+        documento = _so_digitos(item.get("cpfoucnpj") or item.get("cpf")) or CPF_PLACEHOLDER
         saida.append(_limpo({
             "nome": nome,
-            "cpfoucnpj": item.get("cpfoucnpj") or item.get("cpf"),
+            "cpfoucnpj": documento,
             "telefone": item.get("telefone"),
             "email": item.get("email"),
             "percentual": percentual if percentual is not None else 100,
@@ -329,6 +341,7 @@ def montar_parametros_imoview(dados: Dict[str, Any]) -> Dict[str, Any]:
         "exclusivo": _bool(dados.get("exclusivo")),
         "descricao": dados.get("descricao"),
         "anotacoes": dados.get("anotacoes"),
+        "urlvideo": dados.get("urlvideo"),
         # Vai na RAIZ, não dentro de `endereco` — confirmado no imóvel de teste 12377
         # (mandamos valor diferente nos dois lugares; o da raiz foi o que gravou).
         "edificio": dados.get("edificio"),
@@ -346,6 +359,7 @@ def montar_parametros_imoview(dados: Dict[str, Any]) -> Dict[str, Any]:
         "arealote": _num(dados.get("arealote")),
     })
     parametros["endereco"] = _limpo({
+        "cep": _so_digitos(dados.get("cep")) or None,
         "rua": dados.get("rua"),
         "numero": dados.get("numero"),
         "complemento": dados.get("complemento"),
@@ -424,6 +438,7 @@ def lancar_imovel(
                 corretor=dados.get("corretor_nome"),
                 assistente=dados.get("assistente_nome"),
                 cessao_direitos=_bool(dados.get("cessao_direitos")),
+                urlvideo=dados.get("urlvideo"),
             )
             trello = {"ok": True, **card}
         except Exception as e:  # Trello não deve derrubar o lançamento (imóvel já entrou)

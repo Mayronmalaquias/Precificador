@@ -292,10 +292,15 @@ export default function CaptacaoEvolucao({ nomeEquipe, isDiretor = true, team = 
             <option value="">Categoria (todas)</option>
             {CATEGORIAS.map((c) => <option key={c} value={c}>{c}</option>)}
           </select>
+          {/* Padrao = jornada viva do dia (ativo + captado + exclusividade).
+              Encerradas saem da curva a partir do dia do encerramento, mas
+              continuam contando nos dias anteriores. */}
           <select className="ce-input" value={filtros.status} onChange={setF("status")}>
-            <option value="">Status (todos)</option>
+            <option value="">Em andamento (sem encerradas)</option>
             <option value="ativo">Ativo</option>
-            <option value="fechado">Fechado</option>
+            <option value="captado">Captado</option>
+            <option value="exclusividade">Exclusividade</option>
+            <option value="fechado">Encerrado</option>
           </select>
           <input className="ce-input" type="date" value={filtros.data_de} onChange={setF("data_de")} />
           <input className="ce-input" type="date" value={filtros.data_ate} onChange={setF("data_ate")} />

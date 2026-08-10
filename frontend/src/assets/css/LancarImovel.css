@@ -282,3 +282,13 @@
   .li-spinner, .li-success { animation: none; }
   .li-cta, .li-card, .li-field input { transition: none; }
 }
+
+/* CEP com botão de busca ao lado (o ViaCEP preenche o resto do endereço). */
+.li-cep { display: flex; gap: 8px; }
+.li-cep input { flex: 1; min-width: 0; }
+.li-cep button {
+  border: 1px solid #e2e5ec; border-radius: 8px; background: #f7f8fa; color: #252b3d;
+  font: 700 12px var(--ds-font); padding: 0 14px; cursor: pointer; white-space: nowrap;
+}
+.li-cep button:hover:not(:disabled) { border-color: #cfd3dd; background: #eef0f4; }
+.li-cep button:disabled { opacity: .6; cursor: default; }

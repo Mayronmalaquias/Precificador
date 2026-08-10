@@ -61,7 +61,8 @@ const VAZIO = {
   codigousuario: "", corretor_nome: "",
   codigousuario2: "", corretor2_nome: "",
   finalidade: "", destinacao: "", codigotipo: "", codigounidade: "", localchave: "",
-  rua: "", numero: "", complemento: "", bloco: "", edificio: "", bairro: "", cidade: "Brasília", estado: "DF",
+  cep: "", rua: "", numero: "", complemento: "", bloco: "", edificio: "", bairro: "", cidade: "Brasília", estado: "DF",
+  urlvideo: "",
   valor: "", valorcondominio: "", valoriptu: "", comissao: "",
   areainterna: "", areaexterna: "",
   numeroquartos: "", numerosalas: "", numerobanhos: "", numerosuites: "", numerovarandas: "", numerovagas: "",
@@ -83,6 +84,7 @@ export default function LancarImovel() {
   const [aviso, setAviso] = useState(null);   // snapshot p/ o texto do grupo
   const [foco, setFoco] = useState(true);
   const [copiado, setCopiado] = useState(false);
+  const [buscandoCep, setBuscandoCep] = useState(false);
 
   const set = (k) => (e) => {
     const v = e.target.type === "checkbox" ? e.target.checked : e.target.value;
@@ -119,6 +121,38 @@ export default function LancarImovel() {
       .catch(() => toast("Erro ao carregar listas do Imoview.", "error"))
       .finally(() => setCarregandoListas(false));
   }, [toast]);
+
+  // ViaCEP é público e não pede chave; preenche rua/bairro/cidade/UF e deixa o resto
+  // editável (o CEP pode ser de logradouro genérico).
+  const buscarCep = useCallback(async (valor) => {
+    const cep = somenteDigitos(valor);
+    if (cep.length !== 8) return;
+    setBuscandoCep(true);
+    try {
+      const r = await fetch(`https://viacep.com.br/ws/${cep}/json/`);
+      const d = await r.json();
+      if (d.erro) { toast("CEP não encontrado.", "error"); return; }
+      setForm((f) => ({
+        ...f,
+        rua: d.logradouro || f.rua,
+        bairro: d.bairro || f.bairro,
+        cidade: d.localidade || f.cidade,
+        estado: d.uf || f.estado,
+        complemento: f.complemento || d.complemento || "",
+      }));
+      toast("Endereço preenchido pelo CEP.", "success");
+    } catch {
+      toast("Não consegui consultar o CEP — preencha o endereço manualmente.", "error");
+    } finally {
+      setBuscandoCep(false);
+    }
+  }, [toast]);
+
+  const onCep = (e) => {
+    const valor = e.target.value;
+    setForm((f) => ({ ...f, cep: valor }));
+    if (somenteDigitos(valor).length === 8) buscarCep(valor);
+  };
 
   const copiarAviso = () => {
     if (!aviso) return;
@@ -179,9 +213,11 @@ export default function LancarImovel() {
 
     const props = form.proprietarios.filter((p) => String(p.nome).trim());
     if (!props.length) { toast("Informe ao menos um proprietário.", "error"); return; }
-    const incompleto = props.find((p) => !String(p.cpfoucnpj).trim() || !String(p.telefone).trim());
+    // CPF/CNPJ é opcional — sem ele o back grava 00000000000 no Imoview, que não
+    // aceita proprietário sem documento. Telefone continua obrigatório.
+    const incompleto = props.find((p) => !String(p.telefone).trim());
     if (incompleto) {
-      toast(`Proprietário "${incompleto.nome}": preencha CPF/CNPJ e telefone.`, "error"); return;
+      toast(`Proprietário "${incompleto.nome}": preencha o telefone.`, "error"); return;
     }
 
     setEnviando(true);
@@ -315,7 +351,15 @@ export default function LancarImovel() {
           <Toggle label="Imóvel exclusivo" checked={form.exclusivo} onChange={set("exclusivo")} />
         </Section>
 
-        <Section n={2} icon="📍" title="Endereço" desc="Onde o imóvel fica.">
+        <Section n={2} icon="📍" title="Endereço" desc="Digite o CEP que o resto vem preenchido.">
+          <Field label="CEP">
+            <div className="li-cep">
+              <input value={form.cep} onChange={onCep} inputMode="numeric" placeholder="70000-000" maxLength={9} />
+              <button type="button" onClick={() => buscarCep(form.cep)} disabled={buscandoCep}>
+                {buscandoCep ? "Buscando…" : "Buscar"}
+              </button>
+            </div>
+          </Field>
           <TextField label="Rua" value={form.rua} onChange={set("rua")} req span={2} />
           <TextField label="Número" value={form.numero} onChange={set("numero")} />
           <TextField label="Complemento" value={form.complemento} onChange={set("complemento")} />
@@ -357,7 +401,7 @@ export default function LancarImovel() {
               </div>
               <div className="li-grid">
                 <TextField label="Nome" value={p.nome} onChange={setProp(i, "nome")} req span={2} />
-                <TextField label="CPF / CNPJ" value={p.cpfoucnpj} onChange={setProp(i, "cpfoucnpj")} req />
+                <TextField label="CPF / CNPJ" value={p.cpfoucnpj} onChange={setProp(i, "cpfoucnpj")} placeholder="Opcional — em branco vai 00000000000" />
                 <TextField label="Telefone" value={p.telefone} onChange={setProp(i, "telefone")} req />
                 <TextField label="E-mail" value={p.email} onChange={setProp(i, "email")} />
                 <TextField label="% participação" value={p.percentual} onChange={setProp(i, "percentual")} suffix="%" />
@@ -383,10 +427,12 @@ export default function LancarImovel() {
           <Toggle label="Cessão de direitos" checked={form.cessao_direitos} onChange={set("cessao_direitos")} />
         </Section>
 
-        <Section n={7} icon="📝" title="Descrição e fotos" desc="Texto do anúncio e imagens do imóvel.">
+        <Section n={7} icon="📝" title="Descrição, vídeo e fotos" desc="Texto do anúncio, tour em vídeo e imagens do imóvel.">
           <Field label="Descrição" req span={3}>
             <textarea rows={4} value={form.descricao} onChange={set("descricao")} placeholder="Descreva as características e diferenciais do imóvel…" required />
           </Field>
+          <TextField label="Link do vídeo" value={form.urlvideo} onChange={set("urlvideo")} span={3}
+            placeholder="https://youtube.com/… — vai pro Imoview e pro cartão do Trello" />
           <Field label="Fotos" span={3}>
             <label className="li-drop">
               <input type="file" accept="image/*" multiple onChange={(e) => setFotos(Array.from(e.target.files || []))} />
@@ -438,12 +484,12 @@ function Field({ label, req, span, children }) {
   );
 }
 
-function TextField({ label, value, onChange, req, span, prefix, suffix, type = "text", inputMode }) {
+function TextField({ label, value, onChange, req, span, prefix, suffix, type = "text", inputMode, placeholder }) {
   return (
     <Field label={label} req={req} span={span}>
       <div className={`li-input-wrap ${prefix ? "has-prefix" : ""} ${suffix ? "has-suffix" : ""}`}>
         {prefix && <span className="li-affix li-prefix">{prefix}</span>}
-        <input type={type} inputMode={inputMode} value={value} onChange={onChange} required={req} />
+        <input type={type} inputMode={inputMode} value={value} onChange={onChange} required={req} placeholder={placeholder} />
         {suffix && <span className="li-affix li-suffix">{suffix}</span>}
       </div>
     </Field>

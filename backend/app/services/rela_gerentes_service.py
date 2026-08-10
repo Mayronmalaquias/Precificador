@@ -213,12 +213,26 @@ def _listar_usuarios_ativos() -> List[Dict[str, Any]]:
     ).get("lista", [])
 
 
+def _listar_usuarios_todos() -> List[Dict[str, Any]]:
+    """Ativos E inativos.
+
+    Visita de corretor desligado continua sendo visita do periodo, entao o
+    escopo do painel nao pode depender de `ativo` — senao o total de visitas
+    diverge do painel do diretor.
+    """
+    return retornar_lista(
+        ativo=None,
+        page=1,
+        per_page=100000,
+    ).get("lista", [])
+
+
 def _usuario_label(user: Dict[str, Any]) -> str:
     return _safe_str(user.get("nome")) or _safe_str(user.get("username")) or _safe_str(user.get("id_usuarios"))
 
 
-def _usuario_lookup() -> Tuple[Dict[str, Dict[str, Any]], Dict[str, List[Dict[str, Any]]]]:
-    usuarios = _listar_usuarios_ativos()
+def _usuario_lookup(incluir_inativos: bool = False) -> Tuple[Dict[str, Dict[str, Any]], Dict[str, List[Dict[str, Any]]]]:
+    usuarios = _listar_usuarios_todos() if incluir_inativos else _listar_usuarios_ativos()
     por_id = {
         _safe_str(u.get("id_usuarios")): u
         for u in usuarios
@@ -247,7 +261,8 @@ def _resolver_ids_corretor_gestao(
     id_corretor = _safe_str(id_corretor)
     id_gerente = _safe_str(id_gerente)
 
-    usuario_map, usuarios_por_time = _usuario_lookup()
+    # Inclui inativos: visita de corretor desligado continua contando no periodo.
+    usuario_map, usuarios_por_time = _usuario_lookup(incluir_inativos=True)
 
     if permissao in {"diretor", "administrativo"} or team.lower() == "administrativo":
         if escopo == "corretor" and id_corretor:
@@ -257,10 +272,13 @@ def _resolver_ids_corretor_gestao(
             ids = {_safe_str(u.get("id_usuarios")) for u in usuarios_por_time.get(id_gerente, []) if _safe_str(u.get("id_usuarios"))}
             modo = "equipe"
         else:
+            # Visao 61 = todo mundo, sem filtrar por permissao. Visita lancada por
+            # gerente/assistente/diretor tambem e visita do periodo — o painel do
+            # diretor ja as conta, e os dois numeros precisam bater.
             ids = {
                 _safe_str(u.get("id_usuarios"))
                 for u in usuario_map.values()
-                if _safe_str(u.get("id_usuarios")) and _safe_str(u.get("permissao")).lower() == "corretor"
+                if _safe_str(u.get("id_usuarios"))
             }
             modo = "61"
     elif permissao in {"gerente", "administrador"}:
@@ -476,6 +494,11 @@ def gestao_clientes_visitas(
             cli["visitas"].append({
                 "id_visita": id_visita,
                 "data_visita": data_visita,
+                # Marca se a visita cai no periodo filtrado. A lista mantem o
+                # historico completo do cliente (util no detalhe), mas
+                # `qtd_visitas` conta so o periodo — senao o total do painel
+                # nao bate com o do diretor.
+                "no_periodo": visita_no_periodo,
                 "id_imovel": _safe_str(visita.get("Id_Imovel")),
                 "endereco_externo": _safe_str(visita.get("Endereco_Externo")),
                 "id_corretor": id_visit_corretor,
@@ -507,7 +530,9 @@ def gestao_clientes_visitas(
             "email": cli["email"],
             "id_corretor": cli["id_corretor"],
             "corretor": cli["corretor"],
-            "qtd_visitas": len(visitas),
+            # So o periodo filtrado. Sem periodo, cai no historico inteiro.
+            "qtd_visitas": sum(1 for v in visitas if v.get("no_periodo")) if periodo_definido else len(visitas),
+            "qtd_visitas_historico": len(visitas),
             "ultima_visita": cli["ultima_data_ord"].strftime("%d/%m/%Y") if cli["ultima_data_ord"] else "",
             "nota_media": _media(cli["notas"]),
             "houve_proposta": any(k.strip().lower() not in {"", "nao", "não", "sem informacao", "sem informação"} for k in cli["propostas"]),

@@ -58,12 +58,15 @@ def criar_cartao(
     corretor: Optional[str] = None,
     assistente: Optional[str] = None,
     cessao_direitos: bool = False,
+    urlvideo: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Cria o cartão no Trello e preenche os campos personalizados. Retorna id/url."""
     auth = _auth()
+    # O link do vídeo vai na descrição: o board não tem campo personalizado p/ ele.
+    descricao = f"Vídeo do imóvel: {urlvideo}" if str(urlvideo or "").strip() else " "
     resp = requests.post(
         f"{TRELLO_BASE}/cards",
-        params={**auth, "idList": LIST_ID, "name": endereco or "Novo imóvel", "desc": " "},
+        params={**auth, "idList": LIST_ID, "name": endereco or "Novo imóvel", "desc": descricao},
         timeout=20,
     )
     if resp.status_code not in (200, 201):

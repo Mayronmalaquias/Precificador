@@ -1,0 +1,210 @@
+/* Camada de acabamento das Propostas Efetivas — mesmos recursos que a Visão do Diretor
+   ganhou: hero em gradiente com anel, seções numeradas, cards com ícone e modal com
+   cabeçalho de contexto. Carregado DEPOIS de PropostasEfetivas.css. */
+
+.pe-icon { display: inline-block; flex: none; vertical-align: middle; }
+
+/* ── Hero ─────────────────────────────────────────────────────────────── */
+.pe-hero {
+  position: relative;
+  overflow: hidden;
+  padding: 25px 27px;
+  border: 1px solid #f5d6e2;
+  border-radius: 17px;
+  background: linear-gradient(135deg, #fff 0%, #fffafc 60%, #ffeef4 100%);
+  box-shadow: 0 8px 28px rgba(105, 45, 70, .07);
+}
+.pe-hero::after {
+  content: "";
+  position: absolute;
+  right: -55px;
+  top: -75px;
+  width: 210px;
+  height: 210px;
+  border: 35px solid rgba(225, 0, 91, .05);
+  border-radius: 50%;
+  pointer-events: none;
+}
+.pe-hero > div { position: relative; z-index: 1; }
+.pe-hero h1 { font-size: 34px; line-height: 1.05; letter-spacing: -1.15px; margin: 8px 0 7px; }
+.pe-hero p { color: #737b91; line-height: 1.5; }
+.pe-eyebrow { display: inline-flex; align-items: center; gap: 8px; }
+.pe-eyebrow i { width: 19px; height: 2px; background: var(--rosa); display: inline-block; }
+.pe-hero-lado { display: flex; flex-direction: column; align-items: flex-end; gap: 9px; }
+.pe-hero-status { font-size: 11px; color: #8d93a6; }
+.pe-cta { box-shadow: 0 6px 16px rgba(225, 0, 91, .22); transition: transform .16s ease, box-shadow .16s ease; }
+.pe-cta:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 9px 20px rgba(225, 0, 91, .28); }
+
+/* ── Cabeçalhos de seção numerados ────────────────────────────────────── */
+.pe-secao { max-width: 1440px; margin: 30px auto 14px; display: flex; align-items: end; justify-content: space-between; gap: 16px; }
+.pe-secao span { font-size: 10px; font-weight: 800; letter-spacing: 1.5px; text-transform: uppercase; color: #888fa4; }
+.pe-secao h2 { font-size: 20px; letter-spacing: -.25px; margin: 5px 0 0; }
+.pe-secao p { font-size: 11px; color: #8d93a6; margin: 0; text-align: right; }
+
+/* ── Cards ────────────────────────────────────────────────────────────── */
+.pe-card { position: relative; transition: transform .16s ease, box-shadow .16s ease; }
+.pe-card:hover { transform: translateY(-1px); box-shadow: 0 8px 20px rgba(38, 44, 73, .07); }
+.pe-card-icone {
+  position: absolute; right: 15px; top: 14px;
+  width: 34px; height: 34px; border-radius: 10px;
+  display: grid; place-items: center;
+  background: #ffeef4; color: var(--rosa);
+}
+.pe-card-icone.atencao { background: #fff5e7; color: var(--atencao); }
+.pe-card-icone.critico { background: #fdecee; color: var(--critico); }
+.pe-card span { padding-right: 42px; display: block; }
+
+/* ── Distribuição por situação ────────────────────────────────────────── */
+.pe-distribuicao { max-width: 1440px; margin: 0 auto 4px; background: #fff; border: 1px solid var(--line); border-radius: 13px; padding: 15px 17px; }
+.pe-distribuicao-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 10px; }
+.pe-distribuicao-head strong { font-size: 12px; }
+.pe-distribuicao-head span { font-size: 10px; color: var(--muted); }
+.pe-distribuicao-barra { display: flex; height: 9px; border-radius: 6px; overflow: hidden; background: #f1f2f6; }
+.pe-distribuicao-barra i { display: block; height: 100%; }
+.pe-distribuicao-barra i.s-em_analise { background: #6d7ce0; }
+.pe-distribuicao-barra i.s-contraproposta { background: var(--atencao); }
+.pe-distribuicao-barra i.s-aceita { background: var(--ok); }
+.pe-distribuicao-barra i.s-recusada { background: var(--critico); }
+.pe-distribuicao-barra i.s-cancelada { background: #aeb4c2; }
+.pe-distribuicao-legenda { display: flex; flex-wrap: wrap; gap: 14px; margin-top: 11px; }
+.pe-distribuicao-legenda span { display: flex; align-items: center; gap: 6px; font-size: 10px; color: #6f7689; }
+.pe-distribuicao-legenda i { width: 8px; height: 8px; border-radius: 2px; }
+.pe-distribuicao-legenda i.s-em_analise { background: #6d7ce0; }
+.pe-distribuicao-legenda i.s-contraproposta { background: var(--atencao); }
+.pe-distribuicao-legenda i.s-aceita { background: var(--ok); }
+.pe-distribuicao-legenda i.s-recusada { background: var(--critico); }
+.pe-distribuicao-legenda i.s-cancelada { background: #aeb4c2; }
+.pe-distribuicao-legenda b { font-size: 11px; color: var(--ink); }
+
+/* ── Paradas / filtros / tabela ───────────────────────────────────────── */
+.pe-paradas { padding: 15px; }
+.pe-parada { transition: transform .16s ease, box-shadow .16s ease; }
+.pe-parada:hover { transform: translateY(-1px); box-shadow: 0 6px 16px rgba(38, 44, 73, .06); }
+
+.pe-filtros { box-shadow: 0 3px 13px rgba(38, 44, 73, .035); }
+.pe-filtro-icone { display: grid; place-items: center; width: 30px; height: 30px; border-radius: 8px; background: #f6f7f9; color: #7b8296; }
+.pe-filtros input:focus, .pe-filtros select:focus,
+.pe-grid input:focus, .pe-grid select:focus, .pe-grid textarea:focus {
+  outline: 3px solid rgba(225, 0, 91, .12); border-color: #f0a9c4;
+}
+
+.pe-tabela-wrap { box-shadow: 0 3px 13px rgba(38, 44, 73, .035); }
+.pe-tabela thead th { position: sticky; top: 0; background: #fff; z-index: 1; }
+.pe-tabela tbody tr { transition: background .12s ease; }
+.pe-acoes-col button:hover { border-color: #cfd3dd; background: #f3f4f7; }
+
+/* ── Modal ────────────────────────────────────────────────────────────── */
+.pe-modal { box-shadow: 0 25px 80px rgba(23, 27, 44, .32); }
+.pe-modal-head-detalhe { align-items: flex-start; border-bottom: 1px solid var(--line); padding-bottom: 15px; }
+.pe-modal-head-detalhe h2 { margin: 7px 0 4px; letter-spacing: -.4px; }
+.pe-modal-head-detalhe small { font-size: 11px; color: var(--muted); }
+.pe-modal-head-acoes { display: flex; align-items: center; gap: 10px; }
+.pe-modal h3 { display: flex; align-items: center; gap: 7px; color: #4a5162; }
+.pe-detalhe-grid > div { background: #fafbfc; transition: border-color .16s ease; }
+.pe-detalhe-grid > div:hover { border-color: #d8dce6; }
+.pe-timeline li { border-left-color: #e3e6ef; }
+.pe-timeline li:first-child { border-left-color: var(--rosa); }
+
+@media (max-width: 900px) {
+  .pe-hero h1 { font-size: 26px; }
+  .pe-hero-lado { align-items: flex-start; width: 100%; }
+  .pe-secao { flex-direction: column; align-items: flex-start; gap: 6px; }
+  .pe-secao p { text-align: left; }
+}
+
+/* ── Correção de contraste ────────────────────────────────────────────────
+   <button> não herda `color` do container (o UA aplica `buttontext`), então
+   todo texto dentro de botão precisa de cor explícita — era o motivo de
+   "Editar" sair em branco e dos cards de paradas ficarem apagados. */
+.pe-parada { color: var(--ink); }
+.pe-parada strong { color: var(--ink); }
+.pe-parada small { color: #6f7689; }
+.pe-parada-num b { color: var(--ink); }
+.pe-parada-num span { color: #6f7689; }
+.pe-parada.critico .pe-parada-num b { color: var(--critico); }
+.pe-parada.atencao .pe-parada-num b { color: #b9791f; }
+
+.pe-acoes-col button { color: var(--ink); }
+.pe-acoes-col button.perigo { color: var(--critico); }
+.pe-imovel-lista button { color: var(--ink); }
+.pe-imovel-lista em { color: #6f7689; }
+.pe-modal header button { color: #4a5162; }
+.pe-visita-escolhida button { color: var(--critico); }
+
+/* Textos de apoio estavam claros demais sobre o fundo cinza. */
+.pe-secao p { color: #6f7689; }
+.pe-hero p { color: #5f6679; }
+.pe-hero-status { color: #6f7689; }
+.pe-card small { color: #6f7689; }
+.pe-card span { color: #5f6679; }
+.pe-tabela td span:not(.pe-situacao) { color: #7b8296; }
+.pe-tabela th { color: #6f7689; }
+.pe-distribuicao-head span { color: #6f7689; }
+.pe-vazio { color: #6f7689; }
+.pe-modal footer button:first-child { color: var(--ink); }
+
+/* ── Detalhe da proposta ──────────────────────────────────────────────────
+   O valor é a informação que o gerente procura primeiro: vira bloco de
+   destaque, e o resto desce para uma grade discreta. */
+.pe-detalhe-topo {
+  display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap;
+  margin: 18px 0 14px; padding: 17px 19px;
+  border: 1px solid #f0e4ea; border-radius: 13px;
+  background: linear-gradient(135deg, #fff 0%, #fffafc 55%, #fff2f7 100%);
+}
+.pe-detalhe-valor span { display: block; font-size: 9px; font-weight: 800; letter-spacing: .9px; text-transform: uppercase; color: #9a8290; }
+.pe-detalhe-valor strong { display: block; font-size: 30px; letter-spacing: -1px; color: var(--ink); margin: 6px 0 4px; }
+.pe-detalhe-valor small { font-size: 11px; color: #6f7689; }
+.pe-detalhe-chips { display: flex; gap: 8px; flex-wrap: wrap; }
+.pe-chip {
+  display: flex; flex-direction: column; gap: 2px; min-width: 84px;
+  padding: 9px 12px; border: 1px solid var(--line); border-radius: 10px;
+  background: #fff; font-size: 9px; color: #6f7689; text-align: center;
+}
+.pe-chip b { font-size: 17px; color: var(--ink); font-weight: 700; }
+.pe-chip.atencao { border-color: #f2dcb4; background: #fffaf0; }
+.pe-chip.atencao b { color: #b9791f; }
+.pe-chip.critico { border-color: #f3ccd3; background: #fff7f8; }
+.pe-chip.critico b { color: var(--critico); }
+
+.pe-faixa-alerta {
+  display: flex; align-items: center; gap: 8px; margin: 0 0 14px;
+  padding: 10px 13px; border-radius: 10px; font-size: 12px; font-weight: 600;
+}
+.pe-faixa-alerta.atencao { background: #fffaf0; border: 1px solid #f2dcb4; color: #8a6320; }
+.pe-faixa-alerta.critico { background: #fff7f8; border: 1px solid #f3ccd3; color: #a12b3d; }
+
+.pe-detalhe-grid { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
+.pe-detalhe-grid strong { color: var(--ink); }
+
+.pe-visita-card {
+  margin-top: 13px; padding: 13px 15px;
+  border: 1px solid #d9e8f5; border-left: 3px solid #4a90c4; border-radius: 10px; background: #f6fbff;
+}
+.pe-visita-tag { display: inline-flex; align-items: center; gap: 5px; font-size: 9px; font-weight: 800; letter-spacing: .8px; text-transform: uppercase; color: #3d7fae; }
+.pe-visita-card strong { display: block; font-size: 13px; margin: 6px 0 3px; color: var(--ink); }
+.pe-visita-card small { font-size: 11px; color: #5f7386; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.pe-visita-card em { font-style: normal; background: #e4f0f9; color: #2f6c96; border-radius: 20px; padding: 2px 8px; font-size: 10px; font-weight: 700; }
+
+.pe-nota b { color: var(--ink); }
+.pe-modal h3 em { font-style: normal; font-size: 10px; font-weight: 800; background: #f1f2f6; color: #6f7689; border-radius: 20px; padding: 2px 8px; }
+
+/* Timeline com marcador: o evento mais recente fica em rosa. */
+.pe-timeline li { position: relative; padding-left: 17px; }
+.pe-timeline li::before {
+  content: ""; position: absolute; left: -5px; top: 4px;
+  width: 8px; height: 8px; border-radius: 50%;
+  background: #cfd4de; border: 2px solid #fff;
+}
+.pe-timeline li:first-child::before { background: var(--rosa); }
+.pe-timeline li.pe-vazio { padding-left: 0; border-left: 0; }
+.pe-timeline li.pe-vazio::before { display: none; }
+
+.pe-nova-acao { display: block; margin-top: 18px; padding: 14px 15px; border: 1px solid var(--line); border-radius: 11px; background: #fafbfc; }
+.pe-nova-acao > label { display: block; font-size: 11px; font-weight: 700; color: #666e83; margin-bottom: 8px; }
+.pe-nova-acao > div { display: flex; gap: 8px; flex-wrap: wrap; }
+
+@media (max-width: 700px) {
+  .pe-detalhe-topo { flex-direction: column; align-items: flex-start; }
+  .pe-detalhe-valor strong { font-size: 25px; }
+}

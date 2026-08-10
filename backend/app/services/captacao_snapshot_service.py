@@ -15,6 +15,10 @@ from app.database import SessionLocal, engine
 from app.models.captacao import Captacao
 from app.models.captacao_snapshot import CaptacaoSnapshot
 
+# Unico status que tira a captacao da jornada. Os demais (ativo, captado,
+# exclusividade) sao etapas vivas e continuam contando.
+STATUS_FECHADO = "fechado"
+
 DIM_COL = {
     "equipe": CaptacaoSnapshot.team,
     "corretor": CaptacaoSnapshot.nome_corretor,
@@ -116,8 +120,8 @@ def backfill() -> dict:
                     break
             if not etapa:
                 etapa = c.etapa_atual or "escolha"
-            status = "fechado" if (fim_fech and dia >= fim_fech) else (
-                c.status if (c.status and c.status != "fechado") else "ativo")
+            status = STATUS_FECHADO if (fim_fech and dia >= fim_fech) else (
+                c.status if (c.status and c.status != STATUS_FECHADO) else "ativo")
             registros.append((dia, c.id, c.team, c.id_corretor, c.nome_corretor,
                               c.bairro, c.endereco, etapa, status))
             dia += timedelta(days=1)
@@ -162,6 +166,16 @@ def _aplicar_filtros(q, f):
         q = q.filter(CaptacaoSnapshot.etapa_atual == f["categoria"])
     if f.get("status"):
         q = q.filter(CaptacaoSnapshot.status == f["status"])
+    else:
+        # Sem filtro explicito, o grafico mostra a jornada VIVA de cada dia.
+        # O `status` do snapshot e por dia, entao excluir 'fechado' aqui nao apaga
+        # o passado da captacao: ela continua contando nos dias em que ainda estava
+        # em prospeccao/captado/exclusividade e some a partir do dia do encerramento.
+        # Para auditar as encerradas, use o filtro status='fechado'.
+        q = q.filter(or_(
+            CaptacaoSnapshot.status.is_(None),
+            CaptacaoSnapshot.status != STATUS_FECHADO,
+        ))
     if f.get("data_de"):
         q = q.filter(CaptacaoSnapshot.data_snapshot >= f["data_de"])
     if f.get("data_ate"):

@@ -3,6 +3,22 @@ import { BASE } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import '../assets/css/PropostasEfetivas.css';
+import '../assets/css/PropostasEfetivasPolish.css';
+
+// Mesmo traço dos ícones da Visão do Diretor: stroke 1.8, viewBox 24.
+function Icon({ name, size = 18 }) {
+  const paths = {
+    proposta: <><path d="M6 2h9l4 4v16H6z" /><path d="M14 2v5h5M9 12h7M9 16h7" /></>,
+    dinheiro: <><path d="M4 19V5M4 19h16" /><path d="m7 15 4-4 3 2 5-7" /></>,
+    relogio: <><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></>,
+    alerta: <><path d="M12 3 2.8 20h18.4z" /><path d="M12 9v5M12 17.5v.1" /></>,
+    filtro: <path d="M4 6h16M7 12h10M10 18h4" />,
+  };
+  return (
+    <svg className="pe-icon" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{paths[name]}</svg>
+  );
+}
 
 const VAZIO = {
   codigo_imovel: '', imovel_endereco: '', bairro: '', tipo: '', numero: '',
@@ -222,57 +238,89 @@ export default function PropostasEfetivas() {
   const setF = (k) => (e) => setFiltros((p) => ({ ...p, [k]: e.target.value }));
 
   const cards = useMemo(() => ([
-    { label: 'Propostas abertas', valor: resumo.abertas ?? 0, nota: `${resumo.total ?? 0} no total` },
-    { label: 'Valor em aberto', valor: moeda(resumo.valor_aberto || 0), nota: 'Soma das propostas não fechadas' },
-    { label: `Sem ação há ${opcoes.dias_atencao || 7}+ dias`, valor: resumo.sem_acao_7 ?? 0, nota: 'Precisam de follow-up', tom: 'atencao' },
-    { label: `Sem ação há ${opcoes.dias_critico || 14}+ dias`, valor: resumo.sem_acao_14 ?? 0, nota: 'Estão paradas', tom: 'critico' },
+    { label: 'Propostas abertas', valor: resumo.abertas ?? 0, nota: `${resumo.total ?? 0} no total`, icone: 'proposta' },
+    { label: 'Valor em aberto', valor: moeda(resumo.valor_aberto || 0), nota: 'Soma das propostas não fechadas', icone: 'dinheiro' },
+    { label: `Sem ação há ${opcoes.dias_atencao || 7}+ dias`, valor: resumo.sem_acao_7 ?? 0, nota: 'Precisam de follow-up', tom: 'atencao', icone: 'relogio' },
+    { label: `Sem ação há ${opcoes.dias_critico || 14}+ dias`, valor: resumo.sem_acao_14 ?? 0, nota: 'Estão paradas', tom: 'critico', icone: 'alerta' },
   ]), [resumo, opcoes]);
+
+  // Distribuição por situação: barra única que resume o pipeline sem pedir outra chamada.
+  const distribuicao = useMemo(() => {
+    const contagem = {};
+    itens.forEach((i) => { contagem[i.situacao] = (contagem[i.situacao] || 0) + 1; });
+    const total = itens.length || 1;
+    return (opcoes.situacoes || [])
+      .map((s) => ({ ...s, qtd: contagem[s.value] || 0, pct: ((contagem[s.value] || 0) / total) * 100 }))
+      .filter((s) => s.qtd > 0);
+  }, [itens, opcoes.situacoes]);
 
   return (
     <div className="pe-page">
       <header className="pe-hero">
         <div>
-          <span className="pe-eyebrow">Comercial · Propostas</span>
+          <span className="pe-eyebrow"><i /> Comercial · Propostas</span>
           <h1>Propostas efetivas</h1>
           <p>Propostas formais de compra por imóvel — situação, forma de pagamento e o que já foi feito em cada uma.</p>
         </div>
-        {podeEditar && <button type="button" className="pe-cta" onClick={abrirNova}>+ Lançar proposta</button>}
+        <div className="pe-hero-lado">
+          <span className="pe-hero-status">{carregando ? 'Atualizando…' : `${itens.length} proposta(s) no filtro atual`}</span>
+          {podeEditar && <button type="button" className="pe-cta" onClick={abrirNova}>+ Lançar proposta</button>}
+        </div>
       </header>
 
       {!podeEditar && !carregando && (
-        <p className="pe-aviso">Seu perfil acompanha as propostas em modo leitura — quem altera é gerente ou administrativo.</p>
+        <p className="pe-aviso">Seu perfil acompanha as propostas em modo leitura — quem altera é gerente, diretor ou administrativo.</p>
       )}
+
+      <div className="pe-secao"><div><span>01 · PIPELINE</span><h2>Onde as propostas estão</h2></div><p>Volume aberto, dinheiro em jogo e o que já passou do prazo de follow-up.</p></div>
 
       <section className="pe-cards">
         {cards.map((c) => (
           <article key={c.label} className={`pe-card ${c.tom || ''}`}>
+            <div className={`pe-card-icone ${c.tom || ''}`}><Icon name={c.icone} /></div>
             <span>{c.label}</span><strong>{c.valor}</strong><small>{c.nota}</small>
           </article>
         ))}
       </section>
 
-      {paradas.length > 0 && (
-        <section className="pe-paradas">
-          <h2>Paradas há mais tempo</h2>
-          <p>Ordenado pelo tempo sem ação do gerente. É por aqui que o acompanhamento começa.</p>
-          <div className="pe-parada-list">
-            {paradas.slice(0, 8).map((item) => (
-              <button type="button" key={item.id} className={`pe-parada ${item.alerta || ''}`} onClick={() => abrirDetalhe(item.id)}>
-                <div>
-                  <strong>{item.codigo_imovel ? `#${item.codigo_imovel}` : 'Sem código'} · {item.bairro || 'Bairro não informado'}</strong>
-                  <small>{item.gerente_nome || '—'} · {item.situacao_label}</small>
-                </div>
-                <div className="pe-parada-num">
-                  <b>{item.dias_sem_acao ?? '—'}</b><span>dias sem ação</span>
-                </div>
-              </button>
-            ))}
+      {distribuicao.length > 0 && (
+        <section className="pe-distribuicao">
+          <div className="pe-distribuicao-head"><strong>Distribuição por situação</strong><span>{itens.length} proposta(s)</span></div>
+          <div className="pe-distribuicao-barra">
+            {distribuicao.map((s) => <i key={s.value} className={`s-${s.value}`} style={{ width: `${s.pct}%` }} title={`${s.label}: ${s.qtd}`} />)}
+          </div>
+          <div className="pe-distribuicao-legenda">
+            {distribuicao.map((s) => <span key={s.value}><i className={`s-${s.value}`} />{s.label}<b>{s.qtd}</b></span>)}
           </div>
         </section>
       )}
 
+      {paradas.length > 0 && (
+        <>
+          <div className="pe-secao"><div><span>02 · ACOMPANHAMENTO</span><h2>Paradas há mais tempo</h2></div><p>Ordenado pelo tempo sem ação do gerente. É por aqui que o acompanhamento começa.</p></div>
+          <section className="pe-paradas">
+            <div className="pe-parada-list">
+              {paradas.slice(0, 8).map((item) => (
+                <button type="button" key={item.id} className={`pe-parada ${item.alerta || ''}`} onClick={() => abrirDetalhe(item.id)}>
+                  <div>
+                    <strong>{item.codigo_imovel ? `#${item.codigo_imovel}` : 'Sem código'} · {item.bairro || 'Bairro não informado'}</strong>
+                    <small>{item.corretor_nome || item.gerente_nome || '—'} · {item.situacao_label}</small>
+                  </div>
+                  <div className="pe-parada-num">
+                    <b>{item.dias_sem_acao ?? '—'}</b><span>dias sem ação</span>
+                  </div>
+                </button>
+              ))}
+            </div>
+          </section>
+        </>
+      )}
+
+      <div className="pe-secao"><div><span>03 · CARTEIRA</span><h2>Todas as propostas</h2></div><p>Clique em qualquer linha para ver o histórico de ações e registrar uma nova.</p></div>
+
       <section className="pe-filtros">
-        <input placeholder="Buscar por código, endereço, bairro ou cliente" value={filtros.busca} onChange={setF('busca')} />
+        <span className="pe-filtro-icone"><Icon name="filtro" size={15} /></span>
+        <input placeholder="Buscar por código, endereço, bairro, cliente ou corretor" value={filtros.busca} onChange={setF('busca')} />
         <select value={filtros.situacao} onChange={setF('situacao')}>
           <option value="">Todas as situações</option>
           {opcoes.situacoes.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
@@ -408,34 +456,67 @@ export default function PropostasEfetivas() {
       {detalhe && (
         <div className="pe-modal-bg" onClick={() => setDetalhe(null)}>
           <div className="pe-modal" onClick={(e) => e.stopPropagation()}>
-            <header>
-              <h2>{detalhe.codigo_imovel ? `Imóvel #${detalhe.codigo_imovel}` : 'Proposta'} · {detalhe.bairro || '—'}</h2>
-              <button type="button" onClick={() => setDetalhe(null)}>✕</button>
+            <header className="pe-modal-head-detalhe">
+              <div>
+                <span className="pe-eyebrow"><i /> Proposta efetiva</span>
+                <h2>{detalhe.codigo_imovel ? `Imóvel #${detalhe.codigo_imovel}` : 'Proposta'} · {detalhe.bairro || '—'}</h2>
+                <small>{detalhe.imovel_endereco || 'Endereço não informado'}{detalhe.numero ? `, ${detalhe.numero}` : ''}</small>
+              </div>
+              <div className="pe-modal-head-acoes">
+                <span className={`pe-situacao s-${detalhe.situacao}`}>{detalhe.situacao_label}</span>
+                <button type="button" onClick={() => setDetalhe(null)}>✕</button>
+              </div>
             </header>
 
-            <div className="pe-detalhe-grid">
-              <div><span>Valor</span><strong>{moeda(detalhe.valor)}</strong></div>
-              {detalhe.valor_permuta ? <div><span>Permuta (2ª proposta)</span><strong>{moeda(detalhe.valor_permuta)}</strong></div> : null}
-              <div><span>Pagamento</span><strong>{detalhe.forma_pagamento_label || '—'}</strong></div>
-              <div><span>Situação</span><strong>{detalhe.situacao_label}</strong></div>
-              <div><span>Em aberto</span><strong>{detalhe.dias_em_aberto ?? '—'} dias</strong></div>
-              <div><span>Sem ação</span><strong>{detalhe.fechada ? '—' : `${detalhe.dias_sem_acao ?? 0} dias`}</strong></div>
-              <div><span>Proposta em</span><strong>{dataBR(detalhe.data_proposta)}</strong></div>
-              <div><span>Fechamento</span><strong>{dataBR(detalhe.data_fechamento)}</strong></div>
-              <div><span>Gerente</span><strong>{detalhe.gerente_nome || '—'}</strong></div>
-              <div><span>Corretor</span><strong>{detalhe.corretor_nome || '—'}</strong></div>
-              <div><span>Cliente</span><strong>{detalhe.cliente || '—'}</strong></div>
+            <div className="pe-detalhe-topo">
+              <div className="pe-detalhe-valor">
+                <span>Valor da proposta</span>
+                <strong>{moeda(detalhe.valor)}</strong>
+                {detalhe.valor_permuta
+                  ? <small>+ permuta {moeda(detalhe.valor_permuta)} · total {moeda((detalhe.valor || 0) + detalhe.valor_permuta)}</small>
+                  : <small>{detalhe.forma_pagamento_label || 'Forma de pagamento não informada'}</small>}
+              </div>
+              <div className="pe-detalhe-chips">
+                <span className="pe-chip"><b>{detalhe.dias_em_aberto ?? '—'}</b> dias em aberto</span>
+                <span className={`pe-chip ${detalhe.fechada ? '' : detalhe.alerta || ''}`}>
+                  <b>{detalhe.fechada ? '—' : detalhe.dias_sem_acao ?? 0}</b> dias sem ação
+                </span>
+                {detalhe.valor_permuta ? <span className="pe-chip"><b>Permuta</b> 2ª proposta</span> : null}
+              </div>
             </div>
-            {detalhe.visita && (
-              <p className="pe-nota">
-                Visita relacionada: <b>{detalhe.visita.imovel}</b> · {dataBR(detalhe.visita.data_visita)} · {detalhe.visita.corretor}
-                {detalhe.visita.proposta_visita ? ` · proposta na visita: ${detalhe.visita.proposta_visita}` : ''}
+
+            {!detalhe.fechada && detalhe.alerta && (
+              <p className={`pe-faixa-alerta ${detalhe.alerta}`}>
+                <Icon name="alerta" size={14} />
+                {detalhe.alerta === 'critico'
+                  ? `Parada há ${detalhe.dias_sem_acao} dias — precisa de uma ação do gerente.`
+                  : `Sem ação há ${detalhe.dias_sem_acao} dias.`}
               </p>
             )}
-            {detalhe.descricao_permuta && <p className="pe-nota">Permuta: {detalhe.descricao_permuta}</p>}
-            {detalhe.observacao && <p className="pe-nota">{detalhe.observacao}</p>}
 
-            <h3>Ações</h3>
+            <div className="pe-detalhe-grid">
+              <div><span>Proposta em</span><strong>{dataBR(detalhe.data_proposta)}</strong></div>
+              <div><span>Fechamento</span><strong>{dataBR(detalhe.data_fechamento)}</strong></div>
+              <div><span>Corretor</span><strong>{detalhe.corretor_nome || '—'}</strong></div>
+              <div><span>Gerente</span><strong>{detalhe.gerente_nome || '—'}</strong></div>
+              <div><span>Cliente</span><strong>{detalhe.cliente || '—'}</strong></div>
+              <div><span>Equipe</span><strong>{detalhe.team || '—'}</strong></div>
+            </div>
+
+            {detalhe.visita && (
+              <div className="pe-visita-card">
+                <span className="pe-visita-tag"><Icon name="relogio" size={13} /> Visita relacionada</span>
+                <strong>{detalhe.visita.imovel}</strong>
+                <small>
+                  {dataBR(detalhe.visita.data_visita)} · {detalhe.visita.corretor}
+                  {detalhe.visita.proposta_visita ? <em>proposta na visita: {detalhe.visita.proposta_visita}</em> : null}
+                </small>
+              </div>
+            )}
+            {detalhe.descricao_permuta && <p className="pe-nota"><b>Permuta:</b> {detalhe.descricao_permuta}</p>}
+            {detalhe.observacao && <p className="pe-nota"><b>Observação:</b> {detalhe.observacao}</p>}
+
+            <h3><Icon name="relogio" size={15} /> Ações <em>{(detalhe.acoes || []).length}</em></h3>
             <ul className="pe-timeline">
               {(detalhe.acoes || []).map((a) => (
                 <li key={a.id}>
@@ -448,12 +529,15 @@ export default function PropostasEfetivas() {
 
             {podeEditar && (
               <div className="pe-nova-acao">
-                <input placeholder="O que foi feito? Ex.: cliente pediu prazo até sexta" value={novaAcao.descricao} onChange={(e) => setNovaAcao((p) => ({ ...p, descricao: e.target.value }))} />
-                <select value={novaAcao.situacao} onChange={(e) => setNovaAcao((p) => ({ ...p, situacao: e.target.value }))}>
-                  <option value="">Manter situação</option>
-                  {opcoes.situacoes.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
-                </select>
-                <button type="button" className="pe-cta" onClick={registrarAcao}>Registrar ação</button>
+                <label>Registrar ação</label>
+                <div>
+                  <input placeholder="O que foi feito? Ex.: cliente pediu prazo até sexta" value={novaAcao.descricao} onChange={(e) => setNovaAcao((p) => ({ ...p, descricao: e.target.value }))} />
+                  <select value={novaAcao.situacao} onChange={(e) => setNovaAcao((p) => ({ ...p, situacao: e.target.value }))}>
+                    <option value="">Manter situação</option>
+                    {opcoes.situacoes.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
+                  </select>
+                  <button type="button" className="pe-cta" onClick={registrarAcao}>Registrar</button>
+                </div>
               </div>
             )}
           </div>
