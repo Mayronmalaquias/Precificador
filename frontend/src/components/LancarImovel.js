@@ -210,6 +210,7 @@ export default function LancarImovel() {
     }
     if (!form.rua) { toast("Informe a rua.", "error"); return; }
     if (!form.descricao) { toast("Informe a descrição.", "error"); return; }
+    if (!String(form.urlvideo).trim()) { toast("Informe o link do vídeo.", "error"); return; }
 
     const props = form.proprietarios.filter((p) => String(p.nome).trim());
     if (!props.length) { toast("Informe ao menos um proprietário.", "error"); return; }
@@ -431,7 +432,7 @@ export default function LancarImovel() {
           <Field label="Descrição" req span={3}>
             <textarea rows={4} value={form.descricao} onChange={set("descricao")} placeholder="Descreva as características e diferenciais do imóvel…" required />
           </Field>
-          <TextField label="Link do vídeo" value={form.urlvideo} onChange={set("urlvideo")} span={3}
+          <TextField label="Link do vídeo" value={form.urlvideo} onChange={set("urlvideo")} req span={3}
             placeholder="https://youtube.com/… — vai pro Imoview e pro cartão do Trello" />
           <Field label="Fotos" span={3}>
             <label className="li-drop">

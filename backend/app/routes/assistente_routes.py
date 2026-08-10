@@ -58,6 +58,10 @@ class IncluirImovel(Resource):
             return {"ok": False, "error": "codigousuario (corretor) é obrigatório"}, 400
         if not dados.get("rua"):
             return {"ok": False, "error": "endereço (rua) é obrigatório"}, 400
+        # Vídeo obrigatório desde 2026-08-10: vai pro `urlvideo` do Imoview e pro cartão
+        # do Trello, e o anúncio sem tour perde desempenho nos portais.
+        if not str(dados.get("urlvideo") or "").strip():
+            return {"ok": False, "error": "link do vídeo é obrigatório"}, 400
         # Imoview exige proprietário (sem ele o IncluirImovel dá null-reference). O form
         # manda a lista `proprietarios` (JSON); os campos soltos `prop_*` são o formato antigo —
         # `normalizar_proprietarios` aceita os dois e já descarta item sem nome.

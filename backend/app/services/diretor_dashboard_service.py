@@ -16,6 +16,7 @@ from app.models.contrato import Contrato
 from app.models.dfimoveis_acesso import DfImoveisAcesso
 from app.models.equipe import Equipe
 from app.models.estoque_legado import LeadLegado
+from app.models.fato_bases import FatoCaptacao, FatoEstoque, FatoSaida
 from app.models.gerente_visita_visualizada import GerenteVisitaVisualizada
 from app.models.imovel_area import ImovelArea
 from app.models.legado_diversos import CampanhaLegado
@@ -301,18 +302,163 @@ def _sales_totals(session, query, recent_query, selected, teams):
     return total, comissao, query.count(), items
 
 
+@cache.memoize(timeout=1800)
+def _estoque_imoview_total():
+    """Total de imóveis no Imoview, direto da API.
+
+    O XLSX de estoque vem cortado (a exportação parou em 999 linhas em 03/08), então o
+    número da empresa sai daqui: `RetornarImoveis` devolve `quantidade` na primeira
+    página, sem precisar paginar. Cacheado 30min — é uma chamada externa num painel
+    que recarrega a cada filtro.
+
+    Limite conhecido: a resposta NÃO traz captador (`captadores` vem vazio), então este
+    total não se divide por equipe — o recorte filtrado continua vindo da planilha.
+    """
+    from app.services.imoview_service import IMOVIEW_BASE, _headers
+
+    import requests
+
+    # `naoconsiderarmeusite` inclui o que não está publicado no site (sem ele são só
+    # 746, o que o site mostra); `situacao=1` = Vago/Disponível, que é o estoque de
+    # verdade — sem ele a API devolve a base histórica inteira (11.418).
+    resposta = requests.post(
+        f"{IMOVIEW_BASE}/Imovel/RetornarImoveis", headers=_headers(),
+        json={"numeropagina": 1, "numeroregistros": 1, "naoconsiderarmeusite": True, "situacao": 1},
+        timeout=30,
+    )
+    if resposta.status_code >= 400:
+        raise RuntimeError(f"Imoview HTTP {resposta.status_code}: {resposta.text[:200]}")
+    return int((resposta.json() or {}).get("quantidade") or 0)
+
+
+def _estoque_semanal(session, start, end, selected_team, selected_broker=None):
+    """Entradas, saídas e estoque — dos 3 XLSX que o Imoview gera toda semana.
+
+    Fontes: `fato_captacao` (entradas), `fato_saida` (saídas) e `fato_estoque` (foto do
+    estoque). O estoque é um **snapshot semanal**: o total é a contagem do último
+    `data_estoque` disponível dentro do período, não uma soma de linhas.
+
+    Escopo: o corretor sai de `captador1/2/3`; a equipe vem do cadastro do captador
+    (`usuarios.team`), porque `id_gerente` está vazio em 98% de `fato_captacao`.
+    `fato_saida` quase não traz captador (2 de 109), então a equipe da saída é herdada
+    do imóvel em `fato_captacao` pelo `codigo_imovel`.
+    """
+    def _escopo(query, tabela, usa_join=True):
+        if selected_broker:
+            return query.filter(or_(
+                tabela.captador1 == selected_broker,
+                tabela.captador2 == selected_broker,
+                tabela.captador3 == selected_broker,
+            ))
+        if selected_team and usa_join:
+            return query.join(Usuarios, Usuarios.id_usuarios == tabela.captador1).filter(
+                Usuarios.team == selected_team
+            )
+        return query
+
+    entradas = _escopo(
+        session.query(func.count(FatoCaptacao.id)).filter(
+            FatoCaptacao.data_entrada >= start, FatoCaptacao.data_entrada <= end
+        ), FatoCaptacao
+    ).scalar() or 0
+
+    # Saída: o captador vem do imóvel na base de captação (a planilha de saída não traz).
+    captacao_do_imovel = session.query(
+        FatoCaptacao.codigo_imovel.label("codigo"), FatoCaptacao.captador1.label("captador")
+    ).filter(FatoCaptacao.codigo_imovel.isnot(None)).distinct().subquery()
+
+    saidas_query = session.query(func.count(func.distinct(FatoSaida.id))).filter(
+        FatoSaida.data_saida >= start, FatoSaida.data_saida <= end
+    )
+    if selected_broker or selected_team:
+        saidas_query = saidas_query.join(
+            captacao_do_imovel, captacao_do_imovel.c.codigo == FatoSaida.codigo_imovel
+        )
+        if selected_broker:
+            saidas_query = saidas_query.filter(captacao_do_imovel.c.captador == selected_broker)
+        else:
+            saidas_query = saidas_query.join(
+                Usuarios, Usuarios.id_usuarios == captacao_do_imovel.c.captador
+            ).filter(Usuarios.team == selected_team)
+    saidas = saidas_query.scalar() or 0
+
+    # Estoque: última foto semanal até o fim do período (cai na mais recente se o
+    # período for anterior a qualquer upload).
+    data_foto = session.query(func.max(FatoEstoque.data_estoque)).filter(
+        FatoEstoque.data_estoque <= end
+    ).scalar() or session.query(func.max(FatoEstoque.data_estoque)).scalar()
+
+    estoque = 0
+    if data_foto:
+        estoque = _escopo(
+            session.query(func.count(func.distinct(FatoEstoque.codigo_imovel))).filter(
+                FatoEstoque.data_estoque == data_foto
+            ), FatoEstoque
+        ).scalar() or 0
+
+    # Total da empresa vem da API (a planilha vem cortada). Com filtro de equipe ou
+    # corretor a API não serve — ela não devolve captador —, então mantém a planilha.
+    estoque_planilha = int(estoque)
+    estoque_api = None
+    if not (selected_team or selected_broker):
+        try:
+            estoque_api = _estoque_imoview_total()
+        except Exception:
+            estoque_api = None  # API fora do ar não pode derrubar o painel
+
+    return {
+        "entradas": int(entradas),
+        "saidas": int(saidas),
+        "estoque": estoque_api if estoque_api else estoque_planilha,
+        "estoque_planilha": estoque_planilha,
+        "estoque_fonte": "imoview" if estoque_api else "planilha",
+        "data_estoque": data_foto.isoformat() if data_foto else None,
+        "saldo": int(entradas) - int(saidas),
+    }
+
+
 def _captation(session, start, end, selected_team, selected_broker=None):
     base = session.query(Captacao)
     if selected_broker:
         base = base.filter(Captacao.id_corretor == selected_broker)
     elif selected_team:
         base = base.filter(Captacao.team == selected_team)
-    worked = base.filter(Captacao.updated_at >= datetime.combine(start, datetime.min.time()), Captacao.updated_at <= datetime.combine(end, datetime.max.time())).count()
-    captured = base.filter(Captacao.captou_imovel.is_(True), Captacao.updated_at >= datetime.combine(start, datetime.min.time()), Captacao.updated_at <= datetime.combine(end, datetime.max.time())).count()
+    inicio = datetime.combine(start, datetime.min.time())
+    fim = datetime.combine(end, datetime.max.time())
+
+    # ENTRARAM no período: captações criadas no intervalo. O contador antigo usava
+    # `updated_at`, que responde "foi mexida no período" — imóvel de meses atrás editado
+    # hoje contava como novo, e imóvel criado no período sem edição posterior sumia.
+    # Nome distinto do `entraram` do laço de etapas abaixo — reaproveitar o nome fazia
+    # o card herdar o número da última etapa.
+    entraram_periodo = base.filter(Captacao.created_at >= inicio, Captacao.created_at <= fim).count()
+
+    # CAPTADOS no período: pelo evento de captação no histórico, não por `updated_at`.
+    # `captou_imovel` sozinho responde "já foi captado alguma vez", sem data.
     ids = [row[0] for row in base.with_entities(Captacao.id).all()]
+    captados = 0
+    if ids:
+        data_evento = func.coalesce(CaptacaoHistorico.data_acao, func.date(CaptacaoHistorico.created_at))
+        captados = session.query(func.count(func.distinct(CaptacaoHistorico.captacao_id))).filter(
+            CaptacaoHistorico.captacao_id.in_(ids), CaptacaoHistorico.tipo == "captado",
+            data_evento >= start, data_evento <= end,
+        ).scalar() or 0
+
+    # EM ANDAMENTO hoje: mesma régua da tela da Jornada — nem fechada, nem captada.
+    # É foto do momento, não depende do período escolhido.
+    em_andamento = base.filter(Captacao.status.notin_(["fechado", "captado"])).count()
+    encerradas = base.filter(Captacao.status == "fechado").filter(
+        Captacao.data_fechamento >= start, Captacao.data_fechamento <= end
+    ).count()
 
     # Quem esteve na etapa em ALGUM dia do periodo (inclui quem ja estava antes de
     # comecar). Vem do snapshot diario, que guarda a etapa vigente de cada dia.
+    #
+    # Encerradas ficam de fora: `fechar_captacao` marca status='fechado' mas o snapshot
+    # continua gravando a captacao todo dia, com a ultima etapa. Sem este filtro, imovel
+    # desistido meses atras seguia contando como "no periodo" (140 de 662 em Prospeccao,
+    # agosto/2026). Quem fechou NO MEIO do periodo continua contando, porque os dias
+    # anteriores ao fechamento ainda estao como ativo/exclusividade/captado.
     presentes = {}
     if ids:
         snap = session.query(
@@ -321,8 +467,36 @@ def _captation(session, start, end, selected_team, selected_broker=None):
             CaptacaoSnapshot.captacao_id.in_(ids),
             CaptacaoSnapshot.data_snapshot >= start,
             CaptacaoSnapshot.data_snapshot <= end,
+            or_(CaptacaoSnapshot.status.is_(None), CaptacaoSnapshot.status != "fechado"),
         ).group_by(CaptacaoSnapshot.etapa_atual).all()
         presentes = {etapa: int(total) for etapa, total in snap if etapa}
+
+    # Como cada etapa terminou. Se o período alcança hoje, o "fim" é a Jornada AO VIVO
+    # (`captacao.etapa_atual`) — o snapshot de hoje só é gravado à noite pelo cron, e
+    # mostrar a foto de ontem como "atual" esconderia o que o gerente mexeu hoje.
+    hoje = date.today()
+    periodo_corrente = end >= hoje
+    no_fim = {}
+    data_fim = None
+    if periodo_corrente:
+        data_fim = hoje
+        vivo = base.filter(Captacao.status != "fechado").with_entities(
+            Captacao.etapa_atual, func.count(Captacao.id)
+        ).group_by(Captacao.etapa_atual).all()
+        no_fim = {etapa: int(total) for etapa, total in vivo if etapa}
+    elif ids:
+        data_fim = session.query(func.max(CaptacaoSnapshot.data_snapshot)).filter(
+            CaptacaoSnapshot.captacao_id.in_(ids), CaptacaoSnapshot.data_snapshot <= end
+        ).scalar()
+        if data_fim:
+            fim_rows = session.query(
+                CaptacaoSnapshot.etapa_atual, func.count(func.distinct(CaptacaoSnapshot.captacao_id))
+            ).filter(
+                CaptacaoSnapshot.captacao_id.in_(ids),
+                CaptacaoSnapshot.data_snapshot == data_fim,
+                or_(CaptacaoSnapshot.status.is_(None), CaptacaoSnapshot.status != "fechado"),
+            ).group_by(CaptacaoSnapshot.etapa_atual).all()
+            no_fim = {etapa: int(total) for etapa, total in fim_rows if etapa}
 
     stages = []
     for key, label in (("prospeccao", "Prospecção"), ("interacao", "Interação"), ("apresentacao", "Apresentação"), ("captacao", "Captação")):
@@ -344,9 +518,21 @@ def _captation(session, start, end, selected_team, selected_broker=None):
             "entraram": int(entraram),
             "no_periodo": no_periodo,
             "ja_estavam": max(no_periodo - int(entraram), 0),
+            "no_fim": int(no_fim.get(key, 0)),
             "total": int(entraram),  # compat com quem já lia `total`
         })
-    return {"trabalhados": worked, "captados": captured, "etapas": stages}
+    return {
+        "entraram": int(entraram_periodo),
+        "captados": int(captados),
+        "em_andamento": int(em_andamento),
+        "encerradas": int(encerradas),
+        # `trabalhados` mantido p/ compatibilidade de quem já lia a chave antiga.
+        "trabalhados": int(entraram_periodo),
+        "etapas": stages,
+        "data_fim": data_fim.isoformat() if data_fim else None,
+        # `ao_vivo` diz à tela se o último número é a Jornada de agora ou uma foto.
+        "ao_vivo": bool(periodo_corrente),
+    }
 
 
 def _clientes_por_equipe(session, start, end, ids_equipes):
@@ -630,6 +816,60 @@ def _data_iso(valor):
         return None
 
 
+# Régua de follow-up das PROPOSTAS: 1 dia parado já pede ação, 2+ é crítico.
+# Não vale para captação: imóvel sem atualização tem régua própria (14 dias), senão
+# 97% da carteira viraria alerta e o painel deixaria de separar sinal de ruído.
+DIAS_FOLLOWUP = 1
+DIAS_CRITICO_ALERTA = 2
+DIAS_IMOVEL_PARADO = 14
+DIAS_ACAO_CRITICA = 7
+# Teto da lista devolvida — antes eram 30 e o corte escondia pendência real.
+MAX_ALERTAS = 300
+
+
+def _nivel_alerta(dias):
+    return "critical" if dias >= DIAS_CRITICO_ALERTA else "warning"
+
+
+def _propostas_sem_acao(session, today, selected_team, selected_broker=None):
+    """Propostas efetivas abertas paradas há >= 1 dia — vira flag de acompanhamento.
+
+    Mesma régua da tela de Propostas (`proposta_service.DIAS_ATENCAO/DIAS_CRITICO`).
+    """
+    query = session.query(PropostaEfetiva).filter(
+        PropostaEfetiva.ativo.is_(True),
+        PropostaEfetiva.situacao.notin_(["aceita", "recusada", "cancelada"]),
+    )
+    if selected_broker:
+        query = query.filter(or_(
+            PropostaEfetiva.id_corretor == selected_broker,
+            PropostaEfetiva.id_gerente == selected_broker,
+        ))
+    elif selected_team:
+        query = query.filter(PropostaEfetiva.team == selected_team)
+
+    agora = datetime.combine(today, datetime.max.time())
+    flags = []
+    for proposta in query.all():
+        referencia = proposta.ultima_acao_em or proposta.updated_at or proposta.created_at
+        if not referencia:
+            continue
+        dias = max((agora - referencia).days, 0)
+        if dias < DIAS_FOLLOWUP:
+            continue
+        endereco = proposta.imovel_endereco or (f"Imóvel #{proposta.codigo_imovel}" if proposta.codigo_imovel else "Proposta sem endereço")
+        flags.append({
+            "id": f"proposta-{proposta.id}",
+            "tipo": "Proposta sem ação",
+            "descricao": f"{endereco} · {proposta.situacao}",
+            "responsavel": proposta.corretor_nome or proposta.gerente_nome or proposta.team or "Não informado",
+            "atraso": f"{dias} dia(s)",
+            "dias": dias,
+            "nivel": _nivel_alerta(dias),
+        })
+    return flags
+
+
 def _alerts(session, selected_team, today, selected_broker=None):
     query = session.query(Captacao)
     if selected_broker:
@@ -646,10 +886,11 @@ def _alerts(session, selected_team, today, selected_broker=None):
         elif row.etapa_atual == "captacao": due, done = row.data_proxima_acao_captacao, row.acao_captacao_realizada
         if due and due < today and not done:
             days = (today - due).days
-            alerts.append({"id": f"acao-{row.id}", "tipo": "Atividade atrasada", "descricao": row.endereco, "responsavel": row.nome_corretor or row.team or "Não informado", "atraso": f"{days} dia(s)", "nivel": "critical" if days >= 7 else "warning"})
+            alerts.append({"id": f"acao-{row.id}", "tipo": "Atividade atrasada", "descricao": row.endereco, "responsavel": row.nome_corretor or row.team or "Não informado", "atraso": f"{days} dia(s)", "dias": days, "nivel": "critical" if days >= DIAS_ACAO_CRITICA else "warning"})
         updated = row.updated_at.date() if row.updated_at else row.created_at.date() if row.created_at else None
-        if updated and (today - updated).days >= 14:
-            alerts.append({"id": f"stale-{row.id}", "tipo": "Imóvel sem atualização", "descricao": row.endereco, "responsavel": row.nome_corretor or row.team or "Não informado", "atraso": f"{(today - updated).days} dias", "nivel": "warning"})
+        parado = (today - updated).days if updated else 0
+        if updated and parado >= DIAS_IMOVEL_PARADO:
+            alerts.append({"id": f"stale-{row.id}", "tipo": "Imóvel sem atualização", "descricao": row.endereco, "responsavel": row.nome_corretor or row.team or "Não informado", "atraso": f"{parado} dia(s)", "dias": parado, "nivel": "warning"})
 
     review_query = session.query(GerenteVisitaVisualizada, Visita).join(Visita, Visita.id_visita == GerenteVisitaVisualizada.id_visita).filter(
         Visita.data_visita >= today - timedelta(days=30),
@@ -659,10 +900,72 @@ def _alerts(session, selected_team, today, selected_broker=None):
         review_query = review_query.filter(Visita.id_corretor == selected_broker)
     elif selected_team:
         review_query = review_query.filter(GerenteVisitaVisualizada.id_gerente == selected_team)
-    for flags, visit in review_query.limit(50).all():
+    for flags, visit in review_query.limit(MAX_ALERTAS).all():
         pending = [label for value, label in ((flags.viu_anexo, "anexo"), (flags.viu_notas, "notas"), (flags.add_motivo, "motivo")) if not value]
-        alerts.append({"id": f"visita-{visit.id_visita}", "tipo": "Revisão de visita pendente", "descricao": f"Pendente: {', '.join(pending)}", "responsavel": flags.id_gerente, "atraso": visit.data_visita.isoformat() if visit.data_visita else "—", "nivel": "critical"})
-    return alerts[:30]
+        dias = (today - visit.data_visita).days if visit.data_visita else 0
+        alerts.append({"id": f"visita-{visit.id_visita}", "tipo": "Revisão de visita pendente", "descricao": f"Pendente: {', '.join(pending)}", "responsavel": flags.id_gerente, "atraso": f"{dias} dia(s)", "dias": dias, "nivel": "critical"})
+
+    # Propostas paradas entram na mesma lista de flags, com a régua de 1/2 dias.
+    alerts.extend(_propostas_sem_acao(session, today, selected_team, selected_broker))
+    # Rodízio entre os tipos: dentro de cada tipo vem o mais atrasado primeiro, e a
+    # lista alterna os tipos. Ordenar só por dias fazia "Proposta sem ação" (1-5 dias)
+    # ser cortada por imóveis parados há 60 — o tipo sumia da tela.
+    por_tipo = {}
+    for item in alerts:
+        por_tipo.setdefault(item["tipo"], []).append(item)
+    for fila in por_tipo.values():
+        fila.sort(key=lambda a: (0 if a["nivel"] == "critical" else 1, -a.get("dias", 0)))
+    intercalados = []
+    filas = list(por_tipo.values())
+    while filas:
+        for fila in list(filas):
+            if fila:
+                intercalados.append(fila.pop(0))
+            else:
+                filas.remove(fila)
+    alerts = intercalados
+    resumo = {
+        "total": len(alerts),
+        "criticos": sum(1 for a in alerts if a["nivel"] == "critical"),
+        "followup": sum(1 for a in alerts if a["nivel"] == "warning"),
+        "por_tipo": {},
+        "exibindo": min(len(alerts), MAX_ALERTAS),
+        "dias_followup": DIAS_FOLLOWUP,
+        "dias_critico": DIAS_CRITICO_ALERTA,
+    }
+    for item in alerts:
+        resumo["por_tipo"][item["tipo"]] = resumo["por_tipo"].get(item["tipo"], 0) + 1
+    # A lista é cortada, o resumo não — senão o rodapé contaria só o que coube na tela.
+    return {"itens": alerts[:MAX_ALERTAS], "resumo": resumo}
+
+
+def _propostas_por_equipe(session, selected_team, selected_broker=None):
+    """Por equipe: quantas propostas estão abertas e quantas estão paradas.
+
+    "Parada" = sem ação há >= DIAS_FOLLOWUP (1 dia), mesma régua da tela de Propostas.
+    """
+    query = session.query(PropostaEfetiva).filter(
+        PropostaEfetiva.ativo.is_(True),
+        PropostaEfetiva.situacao.notin_(["aceita", "recusada", "cancelada"]),
+    )
+    if selected_broker:
+        query = query.filter(or_(
+            PropostaEfetiva.id_corretor == selected_broker,
+            PropostaEfetiva.id_gerente == selected_broker,
+        ))
+    elif selected_team:
+        query = query.filter(PropostaEfetiva.team == selected_team)
+
+    agora = datetime.now()
+    contagem = {}
+    for proposta in query.all():
+        chave = proposta.team or "sem-equipe"
+        alvo = contagem.setdefault(chave, {"abertas": 0, "sem_acao": 0})
+        alvo["abertas"] += 1
+        referencia = proposta.ultima_acao_em or proposta.updated_at or proposta.created_at
+        if referencia and (agora - referencia).days >= DIAS_FOLLOWUP:
+            alvo["sem_acao"] += 1
+    return contagem
 
 
 def _visit_reviews(session, start, end, selected_team, teams, selected_broker=None):
@@ -740,11 +1043,38 @@ def _visit_reviews(session, start, end, selected_team, teams, selected_broker=No
             if not item["adicionou_motivo"]:
                 row["nao_adicionou_motivo"] += 1
 
+    # Propostas paradas entram como mais uma coluna de pendência do gerente: mostra
+    # "X de Y" (sem ação de N dias / total em aberto da equipe).
+    propostas = _propostas_por_equipe(session, selected_team, selected_broker)
+    team_names = {team["id"]: team for team in teams}
+    for team_id, contagem in propostas.items():
+        row = grouped.get(team_id)
+        if row is None:
+            # Equipe sem visita no período mas com proposta parada continua aparecendo.
+            info = team_names.get(team_id, {})
+            row = grouped.setdefault(team_id, {
+                "equipe_id": team_id,
+                "equipe": info.get("nome") or team_id,
+                "gerente": info.get("gerente") or "Sem gerente cadastrado",
+                "total_visitas": 0, "nao_viu_visita": 0,
+                "notas_aplicaveis": 0, "nao_viu_nota": 0,
+                "anexos_aplicaveis": 0, "nao_viu_anexo": 0,
+                "motivos_aplicaveis": 0, "nao_adicionou_motivo": 0,
+            })
+        row["propostas_abertas"] = contagem["abertas"]
+        row["propostas_sem_acao"] = contagem["sem_acao"]
+    for row in grouped.values():
+        row.setdefault("propostas_abertas", 0)
+        row.setdefault("propostas_sem_acao", 0)
+
     by_team = sorted(grouped.values(), key=lambda row: (
-        -(row["nao_viu_visita"] + row["nao_viu_nota"] + row["nao_viu_anexo"] + row["nao_adicionou_motivo"]),
+        -(row["nao_viu_visita"] + row["nao_viu_nota"] + row["nao_viu_anexo"]
+          + row["nao_adicionou_motivo"] + row["propostas_sem_acao"]),
         row["equipe"],
     ))
-    return {"totais": totals, "por_equipe": by_team}
+    totals["propostas_sem_acao"] = sum(r["propostas_sem_acao"] for r in by_team)
+    totals["propostas_abertas"] = sum(r["propostas_abertas"] for r in by_team)
+    return {"totais": totals, "por_equipe": by_team, "dias_followup": DIAS_FOLLOWUP}
 
 
 @cache.memoize(timeout=180)
@@ -798,8 +1128,11 @@ def executive_view(start_value=None, end_value=None, team=None, broker=None, som
         proposal_total = proposals.get("sim", 0)
         previous_proposal_total = previous_proposals.get("sim", 0)
         # VGC/VGV: quanto da venda vira comissao da 61. Sem VGV nao ha percentual.
-        pct_vgc_vgv = round(vgc / vgv * 100, 1) if vgv else None
-        pct_anterior = round(vgc_anterior / vgv_anterior * 100, 1) if vgv_anterior else None
+        # 2 casas: a razao gira em torno de 3% e a diferenca entre 3,4% e 3,5% e
+        # dinheiro — arredondar p/ 1 casa escondia a variacao.
+        pct_vgc_vgv = round(vgc / vgv * 100, 2) if vgv else None
+        pct_anterior = round(vgc_anterior / vgv_anterior * 100, 2) if vgv_anterior else None
+        alertas = _alerts(session, team, today, broker)
         return {
             "ok": True, "atualizado_em": datetime.now().isoformat(),
             "periodo": {"inicio": start.isoformat(), "fim": end.isoformat()},
@@ -823,8 +1156,10 @@ def executive_view(start_value=None, end_value=None, team=None, broker=None, som
             },
             "equipes": team_rows, "propostas": proposals,
             "captacao": _captation(session, start, end, team, broker),
+            "estoque_semanal": _estoque_semanal(session, start, end, team, broker),
             "vendas_recentes": recent_sales, "midia": _media(session, start, end),
-            "pendencias": _alerts(session, team, today, broker),
+            "pendencias": alertas["itens"],
+            "pendencias_resumo": alertas["resumo"],
             "contratos_atrasados": _contratos_atrasados(session, today, team, teams, broker_name),
             "revisao_visitas": _visit_reviews(session, start, end, team, teams, broker),
         }

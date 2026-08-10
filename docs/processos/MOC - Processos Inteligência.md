@@ -41,6 +41,8 @@ tipo: MOC (Map of Content)
 | 2.11 | Registro de Captação e Saída de imóveis | 🟨 🤖 📦 | [[2.11 - Registro de Captação e Saída]] |
 | 2.12 | Rankings e Premiação (VGV/VGC) | 🟨 🤖 📦 | [[2.12 - Rankings e Premiação]] |
 | 2.13 | Relatório de Metas dos Gerentes | 🟨 🤖 📦 | [[2.13 - Relatório de Metas dos Gerentes]] |
+| 2.14 | Visão do Diretor / Executive View | ✅ 🆕 | [[2.14 - Visão do Diretor]] |
+| 2.15 | Propostas Efetivas (proposta formal de compra) | ✅ 🆕 | [[2.15 - Propostas Efetivas]] |
 
 ## Nível 3 — Alta complexidade
 | # | Processo | Status | Nota |
@@ -169,3 +171,47 @@ para avaliar necessidade depois: [[_Backlog - Análise Futura]].
 - Um processo = uma nota. Frontmatter com `tags`, `complexidade`, `dono`, `frequencia`, `sistemas`, `status_evolucao`.
 - **as-is** (como funciona hoje) vs **to-be** (evolução planejada) sinalizados no corpo.
 - Banco: [[MAPA_BANCO]] · [[DIAGRAMA_BANCO]]. Código: `back-end/` e `front-end/` (ver READMEs).
+
+---
+
+## Rodada 2026-08-07 — Painel executivo, Propostas e crons
+
+Dia de muita mudança. Índice do que foi alterado e onde está documentado:
+
+| Frente | Nota |
+|---|---|
+| Visão do Diretor: gerente com acesso, filtro de corretor, 8 KPIs, jornada com 2 leituras, contratos em atraso, tabela de fechamentos | [[2.14 - Visão do Diretor]] §Atualização |
+| Propostas Efetivas (feature nova) | [[2.15 - Propostas Efetivas]] |
+| Lançar Imóvel: bug do proprietário, CEP, CPF opcional, link de vídeo | [[1.9 - Lançamento de Imóvel pelos Assistentes]] §Atualização |
+| Snapshot de captação: cron morto por 401, backfill, script novo | [[2.4 - Snapshot e Evolução de Captação]] §Atualização |
+| Leads C2S: importação reativada, backfill, cron | [[1.1 - Coleta de Leads]] §Atualização |
+| XLSX de VGC no foco: VGV zerado e VGC adicionado | [[2.2 - Rankings]] §Atualização |
+| Crons da VM, fuso UTC, deploy | [[3.8 - Deploy e Produção]] §Atualização |
+| Permissionamento: gerente e estagiário | [[3.7 - Permissionamento]] §Atualização |
+
+### Fio condutor: 3 falhas com a mesma assinatura
+
+Três "bugs" diferentes tinham a **mesma causa** — tabela legada carregada uma vez e nunca mais
+alimentada, enquanto a operação seguia:
+
+| Tabela | Parou em | Sintoma |
+|---|---|---|
+| `captacao_snapshot` | 22/07 (cron 401) | gráfico de evolução congelado |
+| `leads_legado` | 21/06 (import nunca rodou) | KPI de leads em 0 |
+| `vendas_legado` | 18/06 (carga única) | XLSX de VGC com valor zerado |
+
+**Lição operacional:** cron que chama a própria API por `curl` com `>/dev/null 2>&1` falha em
+silêncio. Ver o padrão correto em [[3.8 - Deploy e Produção]].
+
+### Dívidas registradas (não corrigidas)
+
+1. **`solicitante_id` vem da query string**, não do JWT — quem tem a `X-API-KEY` pode se passar
+   por outro usuário ([[3.7 - Permissionamento]]).
+2. **`contratos.codigo_imovel` gravado como número formatado** (`"10.961,00"`), zerando
+   cruzamentos por código ([[2.2 - Rankings]], [[2.14 - Visão do Diretor]]).
+3. **VGV/VGC por equipe podem vir zerados** — o filtro depende do nome do gerente bater
+   ([[2.14 - Visão do Diretor]] §10).
+4. **Metragem histórica é irrecuperável** — imóvel vendido some da API do Imoview; o cache só
+   cobre daqui pra frente ([[2.14 - Visão do Diretor]] §8).
+5. **Estagiário usa o perfil `assistente`**, então todo assistente vê propostas de todas as
+   equipes ([[2.15 - Propostas Efetivas]] §11).

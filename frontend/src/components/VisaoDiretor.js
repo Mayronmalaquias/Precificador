@@ -113,11 +113,18 @@ function VisaoDiretor() {
   const midia = data?.midia?.perfis || [];
   const alertas = data?.pendencias || [];
   const atrasos = data?.contratos_atrasados || {};
+  const pendResumo = data?.pendencias_resumo || {};
+  // Período que alcança hoje (este mês / esta semana / trimestre): a última foto é o
+  // estado atual, não um fechamento passado — o rótulo muda junto.
+  const periodoAtual = dates.end >= iso(new Date());
+  const rotuloFim = periodoAtual ? 'Atual' : 'No fim';
+  const estoque = data?.estoque_semanal || {};
   const kpiData = data?.kpis || {};
   const delta = (value) => value == null ? 'Sem comparativo' : `${value > 0 ? '+' : ''}${String(value).replace('.', ',')}%`;
   // Funil (leads → clientes → visitas → propostas → vendas) + os números de valor.
   const kpi = (chave) => kpiData[chave] || {};
-  const pct = (v) => (v == null ? '—' : `${String(v).replace('.', ',')}%`);
+  // Sempre 2 casas: 3,3% e 3,25% são coisas diferentes quando o VGV é milionário.
+  const pct = (v) => (v == null ? '—' : `${Number(v).toFixed(2).replace('.', ',')}%`);
   const kpis = [
     { label: 'Leads C2S', value: number(kpi('leads').valor || 0), delta: delta(kpi('leads').variacao_pct), positive: (kpi('leads').variacao_pct || 0) >= 0, icon: 'lead', caption: 'Leads do Contact2Sale no período' },
     { label: 'Clientes', value: number(kpi('clientes').valor || 0), delta: delta(kpi('clientes').variacao_pct), positive: (kpi('clientes').variacao_pct || 0) >= 0, icon: 'lead', caption: 'Clientes distintos atendidos em visitas' },
@@ -210,28 +217,39 @@ function VisaoDiretor() {
         </article>
 
         <article className="ev-card ev-prospect">
-          <CardTitle eyebrow="Prospecção ativa" title="Busca & captação" description={porCorretor ? 'Volume trabalhado pelo filtro atual no período' : 'Volume trabalhado pelas equipes no período'} />
-          <div className="ev-prospect-total"><div><span>Imóveis trabalhados</span><strong>{number(data?.captacao?.trabalhados || 0)}</strong><small>Atualizados no período</small></div><div><span>Imóveis captados</span><strong>{number(data?.captacao?.captados || 0)}</strong><small>Marcados como captados</small></div></div>
-          <p className="ev-data-note">“Imóveis buscados” foi substituído por imóveis efetivamente atualizados, pois a base não registra eventos de busca.</p>
+          <CardTitle eyebrow="Estoque" title="Entradas, saídas e estoque" description="Das 3 planilhas que o Imoview gera toda semana" />
+          <div className="ev-prospect-total">
+            <div><span>Captações entradas</span><strong>{number(estoque.entradas || 0)}</strong><small>No período</small></div>
+            <div><span>Saídas</span><strong>{number(estoque.saidas || 0)}</strong><small>No período</small></div>
+            <div className={`ev-saldo ${(estoque.saldo || 0) >= 0 ? 'positivo' : 'negativo'}`}>
+              <span>Saldo</span><strong>{(estoque.saldo || 0) > 0 ? '+' : ''}{number(estoque.saldo || 0)}</strong><small>Entradas − saídas</small>
+            </div>
+            <div><span>Total de estoque</span><strong>{number(estoque.estoque || 0)}</strong><small>{estoque.estoque_fonte === 'imoview' ? 'Imoview, ao vivo' : `Planilha de ${dateLabel(estoque.data_estoque)}`}</small></div>
+          </div>
+          <p className="ev-data-note">{estoque.estoque_fonte === 'imoview'
+            ? `Estoque ao vivo da API do Imoview (vago/disponível, publicado ou não). A planilha de ${dateLabel(estoque.data_estoque)} trazia ${number(estoque.estoque_planilha || 0)}.`
+            : 'Filtrado por equipe: a API do Imoview não devolve captador, então o estoque vem da planilha semanal.'}
+          </p>
         </article>
 
         <article className="ev-card ev-journey">
           <CardTitle
             eyebrow="Jornada de captação"
             title="Etapas no período"
-            description="Entraram = avançaram para a etapa no período. No período = estiveram na etapa em algum dia, somando quem já estava."
-            action={<span className="ev-legend ev-legend-metricas"><em><i className="m-entraram" /> Entraram</em><em><i className="m-periodo" /> No período</em></span>}
+            description={`Entraram no período · estiveram na etapa em algum dia · ${periodoAtual ? `como está atualmente (${dateLabel(data?.captacao?.data_fim)})` : `como fechou em ${dateLabel(data?.captacao?.data_fim)}`}`}
+            action={<span className="ev-legend ev-legend-metricas"><em><i className="m-entraram" /> Entraram</em><em><i className="m-periodo" /> No período</em><em><i className="m-fim" /> {rotuloFim}</em></span>}
           />
           <div className="ev-journey-list">{(data?.captacao?.etapas || []).map((item, index) => (
             <div key={item.etapa}>
               <span className="ev-step">0{index + 1}</span>
               <div>
                 <strong>{item.label}</strong>
-                <span>{number(item.ja_estavam ?? 0)} já estavam + {number(item.entraram ?? 0)} que entraram</span>
+                <span>{number(item.ja_estavam ?? 0)} já estavam + {number(item.entraram ?? 0)} que entraram · {periodoAtual ? 'está com' : 'fechou com'} {number(item.no_fim ?? 0)}</span>
               </div>
               <div className="ev-journey-nums">
-                <em className="entraram">{number(item.entraram ?? item.total ?? 0)}</em>
-                <em className="periodo">{number(item.no_periodo ?? item.total ?? 0)}</em>
+                <em className="entraram" title="Entraram na etapa no período">{number(item.entraram ?? item.total ?? 0)}</em>
+                <em className="periodo" title="Estiveram na etapa em algum dia do período">{number(item.no_periodo ?? item.total ?? 0)}</em>
+                <em className="fim" title={periodoAtual ? 'Estão na etapa agora' : 'Estavam na etapa no último dia do período'}>{number(item.no_fim ?? 0)}</em>
               </div>
             </div>
           ))}</div>
@@ -269,10 +287,10 @@ function VisaoDiretor() {
 
       <div className="ev-section-heading"><div><span>03 · REVISÃO GERENCIAL</span><h2>Flags de acompanhamento das visitas</h2></div><p>Confirmações gravadas quando o gerente interage com cada visita.</p></div>
       <section className="ev-card ev-review-card">
-        <CardTitle eyebrow="Auditoria por equipe" title="O que cada gerente ainda não revisou" description="Quantidades pendentes no período, agrupadas pela equipe responsável." />
+        <CardTitle eyebrow="Auditoria por equipe" title="O que cada gerente ainda não revisou" description={`Pendências no período por equipe · proposta conta como parada após ${data?.revisao_visitas?.dias_followup || 1} dia sem ação.`} />
         <div className="ev-team-review-list">
           {(data?.revisao_visitas?.por_equipe || []).map((item) => {
-            const pending = item.nao_viu_visita + item.nao_viu_nota + item.nao_viu_anexo + item.nao_adicionou_motivo;
+            const pending = item.nao_viu_visita + item.nao_viu_nota + item.nao_viu_anexo + item.nao_adicionou_motivo + (item.propostas_sem_acao || 0);
             return <article key={item.equipe_id} className={pending ? 'has-pending' : 'complete'}>
               <div className="ev-team-review-name"><span>{item.equipe_id}</span><strong>{item.equipe}</strong><small>{item.gerente} · {item.total_visitas} visitas</small></div>
               <div className="ev-team-review-metrics">
@@ -280,6 +298,11 @@ function VisaoDiretor() {
                 <div><span>Não viu notas</span><strong>{item.nao_viu_nota}</strong><small>de {item.notas_aplicaveis}</small></div>
                 <div><span>Não viu anexos</span><strong>{item.nao_viu_anexo}</strong><small>de {item.anexos_aplicaveis}</small></div>
                 <div><span>Não adicionou motivo</span><strong>{item.nao_adicionou_motivo}</strong><small>de {item.motivos_aplicaveis} SIM/TALVEZ</small></div>
+                <div className={item.propostas_sem_acao ? 'ev-review-proposta' : ''}>
+                  <span>Propostas sem ação</span>
+                  <strong>{item.propostas_sem_acao || 0}</strong>
+                  <small>de {item.propostas_abertas || 0} em aberto</small>
+                </div>
               </div>
               <span className={`ev-team-review-status ${pending ? 'pending' : 'done'}`}>{pending ? `${pending} pendências` : 'Tudo revisado'}</span>
             </article>;
@@ -310,7 +333,18 @@ function VisaoDiretor() {
           </div>
         </div>
         <div className="ev-alert-list">{alertasVisiveis.map((item) => <button key={item.id} onClick={() => setDetail(item)}><i className={item.nivel} /><div><span>{item.tipo}</span><strong>{item.descricao}</strong><small>{item.responsavel}</small></div><div><span>Em atraso</span><strong>{item.atraso}</strong></div><Icon name="arrow" size={16}/></button>)}</div>
-        <div className="ev-audit-footer"><span><b>{alertas.filter((i) => i.nivel === 'critical').length} críticos</b> · {alertas.length} pendências no total</span><button>Ver central de pendências <Icon name="arrow" size={14}/></button></div>
+        <div className="ev-audit-footer">
+          <span>
+            <b>{number(pendResumo.criticos || 0)} críticos</b> (≥{pendResumo.dias_critico || 2} dias) ·
+            {' '}{number(pendResumo.followup || 0)} follow-up (≥{pendResumo.dias_followup || 1} dia) ·
+            {' '}{number(pendResumo.total || alertas.length)} no total
+            {pendResumo.total > pendResumo.exibindo ? ` · mostrando os ${number(pendResumo.exibindo)} mais atrasados` : ''}
+          </span>
+          <button>Ver central de pendências <Icon name="arrow" size={14}/></button>
+        </div>
+        <div className="ev-audit-tipos">
+          {Object.entries(pendResumo.por_tipo || {}).map(([tipo, qtd]) => <span key={tipo}>{tipo}<b>{number(qtd)}</b></span>)}
+        </div>
       </section>
     </div>
     <Modal item={detail} onClose={() => setDetail(null)} />

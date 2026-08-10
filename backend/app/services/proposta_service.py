@@ -25,9 +25,10 @@ from app.models.proposta_efetiva import (
 from app.models.usuarios import Usuarios
 from app.models.visita import Visita
 
-# Dias sem acao a partir dos quais a proposta e sinalizada na tela.
-DIAS_ATENCAO = 7
-DIAS_CRITICO = 14
+# Dias sem acao a partir dos quais a proposta e sinalizada na tela. Regua alinhada com
+# a Visao do Diretor (2026-08-10): 1 dia parado ja pede follow-up, 2+ e critico.
+DIAS_ATENCAO = 1
+DIAS_CRITICO = 2
 
 ROTULO_SITUACAO = {
     "em_analise": "Em análise",

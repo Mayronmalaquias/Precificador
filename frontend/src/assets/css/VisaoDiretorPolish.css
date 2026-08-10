@@ -139,3 +139,24 @@
   .ev-contratos-lista > div { grid-template-columns: 3px 1fr auto; }
   .ev-contratos-lista em { display: none; }
 }
+
+/* Busca & captação: 4 números (2x2) em vez dos 2 antigos. */
+.ev-prospect .ev-prospect-total { grid-template-columns: 1fr 1fr; gap: 10px; }
+.ev-prospect .ev-prospect-total strong { font-size: 19px; }
+.ev-prospect .ev-prospect-total small { color: #8b91a2; font-weight: 500; }
+.ev-prospect-total .ev-saldo.positivo strong { color: var(--green, #1c9b6c); }
+.ev-prospect-total .ev-saldo.negativo strong { color: #d33a4f; }
+
+/* Contagem por tipo de flag, embaixo do rodapé de governança. */
+.ev-audit-tipos { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.ev-audit-tipos span { display: flex; align-items: center; gap: 6px; font-size: 9px; color: #9ca2b1;
+  background: #2b3144; border: 1px solid #3a4052; border-radius: 20px; padding: 5px 11px; }
+.ev-audit-tipos b { font-size: 11px; color: #f3bc61; }
+
+/* Coluna de propostas paradas na auditoria por equipe. */
+.ev-team-review-metrics > div.ev-review-proposta strong { color: #d33a4f; }
+.ev-team-review-metrics > div.ev-review-proposta { background: #fff7f8; border-radius: 8px; }
+
+/* Terceiro número da Jornada: como a etapa fechou no último dia do período. */
+.ev-journey-list em.fim { background: #eef1f6; color: #4a5162; }
+.ev-legend-metricas i.m-fim { background: #8b93a6; }
