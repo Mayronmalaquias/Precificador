@@ -11,7 +11,7 @@ from flask_restx import Namespace, Resource
 
 relatorio_visita = Namespace(
     "relatorio_visita",
-    description="Lançamento de visitas",
+    description="Relatório de visita em PDF (o documento assinado pelo cliente)",
 )
 
 

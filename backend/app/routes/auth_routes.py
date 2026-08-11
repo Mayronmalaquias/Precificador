@@ -7,7 +7,7 @@ from app.utils.auth_middleware import gerar_jwt
 from app.utils.helpers import normalizar_user
 from app.utils.security import validate_password_strength
 
-auth_ns = Namespace("auth", description="Autenticacao de usuarios")
+auth_ns = Namespace("auth", description="Login, troca de senha e emissão de JWT")
 
 
 @auth_ns.route("/auth/cadastro")

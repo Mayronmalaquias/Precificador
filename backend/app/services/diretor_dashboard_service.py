@@ -204,10 +204,18 @@ def _sales(session, start, end, selected_team, teams, broker_name=None):
         # Filtra so pelo corretor: o contrato dele conta mesmo se o gerente do negocio
         # for de outra equipe (venda casada entre times).
         return _sales_totals(session, query.filter(by_broker), recent_query.filter(by_broker), selected, teams)
-    if selected and selected["gerente"] != "Sem gerente cadastrado":
-        manager = selected["gerente"]
-        query = query.filter(or_(Contrato.gerente_venda_nome.ilike(manager), Contrato.gerente_captacao_nome.ilike(manager)))
-        recent_query = recent_query.filter(or_(Contrato.gerente_venda_nome.ilike(manager), Contrato.gerente_captacao_nome.ilike(manager)))
+    if selected:
+        # Todos os nomes que valem como gerente da equipe (atual + histórico) — filtrar
+        # só pelo gerente ativo zerava o VGV de equipes cujo contrato traz outro nome.
+        nomes = _nomes_de_gerente_por_equipe(session, teams).get(selected["id"], set())
+        if nomes:
+            condicao = or_(*[
+                coluna.ilike(nome)
+                for nome in nomes
+                for coluna in (Contrato.gerente_venda_nome, Contrato.gerente_captacao_nome)
+            ])
+            query = query.filter(condicao)
+            recent_query = recent_query.filter(condicao)
     return _sales_totals(session, query, recent_query, selected, teams)
 
 
@@ -233,6 +241,47 @@ def _area_por_codigo(session, codigos):
         ImovelArea.codigo.in_(list(alvo)), ImovelArea.area.isnot(None)
     ).all()
     return {codigo: float(area) for codigo, area in rows if area}
+
+
+def _nomes_de_gerente_por_equipe(session, teams):
+    """{id_equipe: {nomes que valem como gerente daquela equipe}}.
+
+    O contrato guarda o gerente por NOME, e o nome nem sempre é o do cadastro — o mesmo
+    Marcelo aparece como "Marcelo Ribeiro" em `usuarios` e "Marcelo Souza" no contrato.
+    Por isso a resolução passa por `pessoa_alias`, que é a tabela de de-para de nomes.
+
+    Também aceita `permissao='diretor'`: há quem acumule diretor e gerente da equipe
+    (José Marques, na AGEF), e filtrar só por 'gerente' deixava a equipe órfã.
+    """
+    from app.models.pessoa_alias import PessoaAlias
+
+    por_equipe = {item["id"]: set() for item in teams}
+    for item in teams:
+        if item["gerente"] and item["gerente"] != "Sem gerente cadastrado":
+            por_equipe[item["id"]].add(item["gerente"])
+
+    # Quem responde pela equipe no cadastro — inclusive inativo e diretor acumulando.
+    responsaveis = session.query(Usuarios.id_usuarios, Usuarios.nome, Usuarios.team).filter(
+        func.lower(Usuarios.permissao).in_(["gerente", "diretor"]),
+        Usuarios.team.isnot(None),
+    ).all()
+    por_usuario = {}
+    for id_usuario, nome, team in responsaveis:
+        if team in por_equipe:
+            if nome:
+                por_equipe[team].add(nome)
+            por_usuario.setdefault(id_usuario, team)
+
+    # Aliases desses usuários: é o que traz "Marcelo Souza" para o time do "Marcelo Ribeiro".
+    if por_usuario:
+        aliases = session.query(PessoaAlias.alias_key, PessoaAlias.id_usuarios).filter(
+            PessoaAlias.id_usuarios.in_(list(por_usuario))
+        ).all()
+        for alias, id_usuario in aliases:
+            team = por_usuario.get(id_usuario)
+            if team and alias:
+                por_equipe[team].add(alias)
+    return por_equipe
 
 
 def _equipe_por_corretor(session, teams):
@@ -262,7 +311,13 @@ def _sales_totals(session, query, recent_query, selected, teams):
     rows = recent_query.order_by(Contrato.data_contrato.desc(), Contrato.created_at.desc()).limit(8).all()
     total = float(query.with_entities(func.coalesce(func.sum(Contrato.valor_negocio), 0)).scalar() or 0)
     comissao = float(query.with_entities(func.coalesce(func.sum(Contrato.valor_total_61), 0)).scalar() or 0)
-    manager_team = {str(item["gerente"] or "").strip().casefold(): item["nome"] for item in teams}
+    # nome do gerente (cadastro OU alias) -> nome da equipe
+    rotulo_equipe = {item["id"]: item["nome"] for item in teams}
+    manager_team = {
+        str(nome).strip().casefold(): rotulo_equipe[team_id]
+        for team_id, nomes in _nomes_de_gerente_por_equipe(session, teams).items()
+        for nome in nomes
+    }
     equipe_de = _equipe_por_corretor(session, teams)
     areas = _area_por_codigo(session, [_codigo_imovel(r.codigo_imovel) for r in rows])
 

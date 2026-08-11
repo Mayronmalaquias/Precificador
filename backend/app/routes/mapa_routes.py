@@ -2,7 +2,7 @@ from flask import request, send_file
 from flask_restx import Namespace, Resource
 from app.services.mapa_service import gerar_mapa_m2_completo, gerar_mapa_m2_cluterizado, gerar_mapa_anuncio_clusterizado, gerar_mapa_anuncio_completo
 
-mapa_ns = Namespace('mapa', description='Operacoes relacionadas a mapas')
+mapa_ns = Namespace('mapa', description='Mapas e geolocalização de imóveis')
 
 @mapa_ns.route('/mapa/carregar')
 class CarregarMapa(Resource):

@@ -5,7 +5,7 @@ from app import cache
 from app.services.analise_service import consultar_estudo_metricas, get_data_cache_token
 
 
-analise_ns = Namespace("analise", description="Operacoes de analise de imoveis")
+analise_ns = Namespace("analise", description="Análise de mercado: precificação, clusters e comparáveis")
 
 
 def _make_cache_key():

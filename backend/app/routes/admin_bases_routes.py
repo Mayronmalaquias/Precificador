@@ -6,7 +6,7 @@ from app.services import leads_service
 from app.services import dfimoveis_service
 from app.services.sync_contratos_service import sync_contratos_from_sheet
 
-admin_bases_ns = Namespace("admin-bases", description="Gestao administrativa das bases (captacao/saida/estoque/venda/destaque)")
+admin_bases_ns = Namespace("admin-bases", description="Bases operacionais: import dos XLSX (captação, saída, estoque, destaque), leads C2S e sync de contratos")
 
 
 def _erro(e, msg="Erro inesperado"):

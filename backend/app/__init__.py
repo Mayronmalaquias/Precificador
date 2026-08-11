@@ -29,12 +29,32 @@ def create_app(config_object=Config):
     from app.utils.auth_middleware import register_auth_middleware
     register_auth_middleware(app)
 
+    # Swagger na raiz: a API vive num subdomínio próprio
+    # (api.inteligencia61imoveis.com.br), então `/` não disputa espaço com nada.
+    # `/docs` continua funcionando por causa do redirect registrado mais abaixo.
     api = Api(
         app,
         version="1.0",
-        title="API Imobiliaria",
-        description="API para analise e mapeamento de imoveis",
-        doc="/docs",
+        title="API — Inteligência 61 Imóveis",
+        description=(
+            "Back-end do sistema da Inteligência: captação, visitas, propostas, vendas, "
+            "rankings e os painéis de gerente e diretoria.\n\n"
+            "**Autenticação** — toda rota exige `X-API-KEY` (chave de serviço) **ou** "
+            "`Authorization: Bearer <JWT>` (login de usuário). Livres: `/health`, esta "
+            "documentação e o preflight CORS.\n\n"
+            "**Escopo por usuário** — várias rotas recebem `solicitante_id` e decidem o "
+            "alcance pelo cadastro (gerente vê a própria equipe; diretor e administrativo "
+            "veem tudo). O parâmetro não é confiável como identidade — ver doc 3.7.\n\n"
+            f"**Prefixo** — todos os endpoints ficam sob `{Config.API_PREFIX}`."
+        ),
+        doc="/",
+        authorizations={
+            "ApiKey": {"type": "apiKey", "in": "header", "name": "X-API-KEY",
+                       "description": "Chave de serviço (`API_SECRET_KEY`)."},
+            "Bearer": {"type": "apiKey", "in": "header", "name": "Authorization",
+                       "description": "Token do login: `Bearer <JWT>`."},
+        },
+        security=["ApiKey", "Bearer"],
     )
 
     from app.routes.admin_bases_routes import admin_bases_ns
@@ -61,27 +81,48 @@ def create_app(config_object=Config):
 
     api_prefix = app.config["API_PREFIX"].rstrip("/")
 
-    api.add_namespace(relatorio_visita, path=api_prefix)
-    api.add_namespace(corretor_ns, path=api_prefix)
-    api.add_namespace(imovel_catalogo_ns, path=api_prefix)
-    api.add_namespace(divisao_ns, path=api_prefix)
-    api.add_namespace(diretor_dashboard_ns, path=f"{api_prefix}/diretor-dashboard")
-    api.add_namespace(equipes_ns, path=api_prefix)
-    api.add_namespace(mapa_ns, path=api_prefix)
-    api.add_namespace(gerente_dashboard_ns, path=f"{api_prefix}/gerente-dashboard")
-    api.add_namespace(analise_ns, path=api_prefix)
+    # A ordem aqui é a ordem das seções no Swagger — agrupada por domínio, do fluxo
+    # operacional para o analítico, e não pela ordem em que os módulos foram criados.
+
+    # Acesso e cadastro
     api.add_namespace(auth_ns, path=api_prefix)
-    api.add_namespace(graph_ns, path=api_prefix)
-    api.add_namespace(report_ns, path=api_prefix)
-    api.add_namespace(visita_ns, path=api_prefix)
+    api.add_namespace(corretor_ns, path=api_prefix)
+    api.add_namespace(equipes_ns, path=api_prefix)
+
+    # Operação: captação -> visita -> proposta -> venda
     api.add_namespace(captacao_ns, path=api_prefix)
-    api.add_namespace(ranking_ns, path=api_prefix)
-    api.add_namespace(parcerias_ns, path=api_prefix)
-    api.add_namespace(proposta_ns, path=api_prefix)
-    api.add_namespace(chat_ns, path=api_prefix)
-    api.add_namespace(admin_bases_ns, path=api_prefix)
     api.add_namespace(assistente_ns, path=api_prefix)
+    api.add_namespace(visita_ns, path=api_prefix)
+    api.add_namespace(relatorio_visita, path=api_prefix)
+    api.add_namespace(proposta_ns, path=api_prefix)
     api.add_namespace(vendas_ns, path=api_prefix)
+    api.add_namespace(divisao_ns, path=api_prefix)
+    api.add_namespace(parcerias_ns, path=api_prefix)
+
+    # Painéis
+    api.add_namespace(diretor_dashboard_ns, path=f"{api_prefix}/diretor-dashboard")
+    api.add_namespace(gerente_dashboard_ns, path=f"{api_prefix}/gerente-dashboard")
+    api.add_namespace(ranking_ns, path=api_prefix)
+
+    # Bases e imóveis
+    api.add_namespace(admin_bases_ns, path=api_prefix)
+    api.add_namespace(imovel_catalogo_ns, path=api_prefix)
+    api.add_namespace(report_ns, path=api_prefix)
+
+    # Análise de mercado
+    api.add_namespace(analise_ns, path=api_prefix)
+    api.add_namespace(mapa_ns, path=api_prefix)
+    api.add_namespace(graph_ns, path=api_prefix)
+
+    # Outros
+    api.add_namespace(chat_ns, path=api_prefix)
     app.register_blueprint(meta_gerente_bp, url_prefix=api_prefix)
+
+    # A doc morava em /docs; quem tiver o link antigo continua chegando na nova.
+    @app.route("/docs")
+    def _docs_legado():
+        from flask import redirect
+
+        return redirect("/", code=301)
 
     return app

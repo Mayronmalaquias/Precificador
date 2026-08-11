@@ -16,7 +16,7 @@ from app.services.captacao_service import (
 
 from app.services import captacao_snapshot_service as snap_svc
 
-captacao_ns = Namespace("captacao", description="Jornada de captacao de imoveis")
+captacao_ns = Namespace("captacao", description="Jornada de Captação: acompanhamento do corretor por etapa até a autorização de venda")
 
 
 @captacao_ns.route("/captacoes/snapshot")

@@ -25,7 +25,7 @@ from app.services.imoview_service import buscar_imoveis_por_endereco
 from app.services.gerente_visitas_service import gerar_json_corretores
 from app.services.rela_gerentes_service import invalidar_cache_visitas
 
-visita_ns = Namespace("visitas", description="Lançamento de visitas")
+visita_ns = Namespace("visitas", description="Visitas: lançamento, edição, upload de ficha e busca de imóvel no Imoview")
 
 
 @visita_ns.route("/visitas")
