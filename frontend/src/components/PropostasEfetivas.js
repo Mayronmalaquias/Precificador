@@ -22,6 +22,7 @@ function Icon({ name, size = 18 }) {
 
 const VAZIO = {
   codigo_imovel: '', imovel_endereco: '', bairro: '', tipo: '', numero: '',
+  bloco: '', complemento: '', quartos: '', vagas: '', area: '',
   valor: '', forma_pagamento: '', valor_permuta: '', descricao_permuta: '',
   situacao: 'em_analise', cliente: '', observacao: '', data_proposta: '',
   id_corretor: '', id_visita: '',
@@ -132,7 +133,14 @@ export default function PropostasEfetivas() {
       codigo_imovel: String(item.codigo || ''),
       imovel_endereco: item.endereco || item.titulo || '',
       bairro: item.bairro || '',
-      numero: item.numero || '',
+      // "S/N" e "n/a" são lixo do Imoview em prédio — não vale preencher com isso.
+      numero: /^(s\/n|n\/a)$/i.test(String(item.numero || '').trim()) ? '' : (item.numero || ''),
+      bloco: item.bloco || '',
+      complemento: item.complemento || '',
+      tipo: item.tipo || f.tipo,
+      quartos: item.quartos || '',
+      vagas: item.vagas || '',
+      area: item.area || '',
     }));
     setImoveis([]);
     setBuscaImovel('');
@@ -144,6 +152,8 @@ export default function PropostasEfetivas() {
     setForm({
       codigo_imovel: item.codigo_imovel || '', imovel_endereco: item.imovel_endereco || '',
       bairro: item.bairro || '', tipo: item.tipo || '', numero: item.numero || '',
+      bloco: item.bloco || '', complemento: item.complemento || '',
+      quartos: item.quartos || '', vagas: item.vagas || '', area: item.area || '',
       valor: item.valor ? moedaInput(String(Math.round(item.valor * 100))) : '',
       forma_pagamento: item.forma_pagamento || '',
       valor_permuta: item.valor_permuta ? moedaInput(String(Math.round(item.valor_permuta * 100))) : '',
@@ -388,7 +398,13 @@ export default function PropostasEfetivas() {
                 <ul className="pe-imovel-lista">
                   {imoveis.map((i) => (
                     <li key={i.codigo}><button type="button" onClick={() => escolherImovel(i)}>
-                      <strong>#{i.codigo}</strong> {i.endereco}{i.numero ? `, ${i.numero}` : ''} · {i.bairro} <em>{i.finalidade}</em>
+                      <strong>#{i.codigo} · {i.tipo || 'Imóvel'}</strong>
+                      <span className="pe-imovel-end">
+                        {[i.endereco, i.bloco ? `Bloco ${i.bloco}` : '', i.complemento, i.bairro].filter(Boolean).join(' · ')}
+                      </span>
+                      <em>
+                        {[i.quartos ? `${i.quartos} quartos` : '', i.vagas ? `${i.vagas} vagas` : '', i.area ? `${i.area} m²` : '', i.valor, i.finalidade].filter(Boolean).join(' · ')}
+                      </em>
                     </button></li>
                   ))}
                 </ul>
@@ -406,8 +422,15 @@ export default function PropostasEfetivas() {
               {visitas.length > 0 && (
                 <ul className="pe-imovel-lista">
                   {visitas.map((v) => (
-                    <li key={v.id_visita}><button type="button" onClick={() => { setForm((f) => ({ ...f, id_visita: v.id_visita })); setVisitas([]); }}>
-                      <strong>{v.imovel}</strong> · {dataBR(v.data_visita)} · {v.corretor} {v.proposta_visita ? <em>proposta na visita: {v.proposta_visita}</em> : null}
+                    <li key={v.id_visita}><button type="button" onClick={() => {
+                      // Cliente vem da visita: quem assinou a ficha é quem faz a proposta.
+                      setForm((f) => ({ ...f, id_visita: v.id_visita, cliente: v.cliente || f.cliente }));
+                      setVisitas([]);
+                      if (v.cliente) toast(`Cliente "${v.cliente}" preenchido pela visita.`, 'success');
+                    }}>
+                      <strong>{v.imovel}</strong>
+                      <span className="pe-imovel-end">{dataBR(v.data_visita)} · {v.corretor}{v.cliente ? ` · cliente: ${v.cliente}` : ''}</span>
+                      {v.proposta_visita ? <em>proposta na visita: {v.proposta_visita}</em> : null}
                     </button></li>
                   ))}
                 </ul>
@@ -424,8 +447,13 @@ export default function PropostasEfetivas() {
               <label>Código do imóvel<input value={form.codigo_imovel} onChange={set('codigo_imovel')} placeholder="Ex.: 12343" /></label>
               <label className="span2">Endereço<input value={form.imovel_endereco} onChange={set('imovel_endereco')} /></label>
               <label>Número<input value={form.numero} onChange={set('numero')} /></label>
+              <label>Bloco<input value={form.bloco} onChange={set('bloco')} /></label>
+              <label>Apto / complemento<input value={form.complemento} onChange={set('complemento')} placeholder="Apto 506" /></label>
               <label>Bairro<input value={form.bairro} onChange={set('bairro')} /></label>
               <label>Tipo<input value={form.tipo} onChange={set('tipo')} placeholder="Apartamento, casa…" /></label>
+              <label>Quartos<input value={form.quartos} onChange={set('quartos')} inputMode="numeric" /></label>
+              <label>Vagas<input value={form.vagas} onChange={set('vagas')} inputMode="numeric" /></label>
+              <label>Área (m²)<input value={form.area} onChange={set('area')} /></label>
               <label>Valor da proposta *<input value={form.valor} onChange={set('valor')} inputMode="numeric" placeholder="0,00" required /></label>
               <label>Forma de pagamento
                 <select value={form.forma_pagamento} onChange={set('forma_pagamento')}>

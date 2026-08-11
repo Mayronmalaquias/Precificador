@@ -356,6 +356,51 @@ def fechar_captacao(captacao_id: int, motivo: str) -> dict:
         session.close()
 
 
+def recuperar_captacao(captacao_id: int, motivo: str) -> dict:
+    """Traz de volta uma captacao encerrada.
+
+    Volta pro fluxo na MESMA etapa em que parou (nao reinicia a jornada) e zera o
+    fechamento. O motivo do encerramento anterior nao e apagado do historico — fica a
+    trilha completa: encerrou por X, recuperou por Y.
+
+    `data_entrada_etapa` e reiniciada: o imovel volta pra fila hoje, entao o contador
+    de "parado ha N dias" nao pode herdar o tempo em que ficou encerrado.
+    """
+    motivo = str(motivo or "").strip()
+    if not motivo:
+        return {"ok": False, "error": "Informe o motivo da recuperacao"}
+
+    session = SessionLocal()
+    try:
+        c = session.query(Captacao).filter_by(id=captacao_id).first()
+        if not c:
+            return {"ok": False, "error": "Captacao nao encontrada"}
+        if c.status != "fechado":
+            return {"ok": False, "error": "So da pra recuperar captacao encerrada"}
+
+        motivo_anterior = c.motivo_fechamento
+        c.status = "ativo"
+        c.motivo_fechamento = None
+        c.data_fechamento = None
+        c.data_entrada_etapa = datetime.now()
+        c.updated_at = datetime.now()
+        session.commit()
+        session.refresh(c)
+
+        descricao = f"Recuperado: {motivo}"
+        if motivo_anterior:
+            descricao += f" (encerrado antes por: {motivo_anterior})"
+        _add_hist(session, captacao_id, c.etapa_atual, "recuperacao", descricao, date.today())
+        session.commit()
+
+        return {"ok": True, "captacao": _to_dict(c)}
+    except Exception:
+        session.rollback()
+        raise
+    finally:
+        session.close()
+
+
 def excluir_captacao(captacao_id: int) -> dict:
     session = SessionLocal()
     try:

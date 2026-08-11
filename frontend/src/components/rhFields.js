@@ -76,6 +76,8 @@ export const RH_FIELDS = [
   { name: "codigo_conduta_assinado", label: "Código de conduta assinado", type: "boolean" },
   { name: "lgpd_assinada", label: "LGPD assinada", type: "boolean" },
   { name: "onboarding_realizado", label: "Onboarding realizado", type: "boolean" },
+  // Link pra pasta do Drive com os documentos — não é upload, só o endereço.
+  { name: "link_documentos", label: "Documentos (link do Drive)", type: "url", placeholder: "https://drive.google.com/drive/folders/…" },
   { name: "desligado", label: "Desligado?", type: "boolean" },
   { name: "data_desligamento", label: "Data de desligamento", type: "date" },
   { name: "observacoes", label: "Observações", type: "textarea" },

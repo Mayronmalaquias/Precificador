@@ -208,3 +208,9 @@
   .pe-detalhe-topo { flex-direction: column; align-items: flex-start; }
   .pe-detalhe-valor strong { font-size: 25px; }
 }
+
+/* Resultado da busca com 3 linhas: título, endereço completo e características. */
+.pe-imovel-lista button { display: grid; gap: 3px; }
+.pe-imovel-lista strong { font-size: 12px; }
+.pe-imovel-end { font-size: 11px; color: #5f6679; }
+.pe-imovel-lista em { font-size: 10px; color: #7b8296; }

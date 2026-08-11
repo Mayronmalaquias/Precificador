@@ -28,6 +28,13 @@ class PropostaEfetiva(Base):
     bairro = Column(String(120), nullable=True)
     tipo = Column(String(80), nullable=True)
     numero = Column(String(40), nullable=True)
+    # `numero` e o numero do logradouro (as vezes "S/N"); o apartamento vem do
+    # `complemento` do Imoview ("Apto 506"). Guardados separados de proposito.
+    bloco = Column(String(40), nullable=True)
+    complemento = Column(String(80), nullable=True)
+    quartos = Column(String(10), nullable=True)
+    vagas = Column(String(10), nullable=True)
+    area = Column(String(20), nullable=True)
 
     valor = Column(Numeric(14, 2), nullable=True)
     # Permuta entra como 2a proposta: o bem dado em troca tem valor proprio.

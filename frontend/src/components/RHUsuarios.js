@@ -458,6 +458,28 @@ function RHUsuarios() {
       );
     }
 
+    // Link: edita como texto e ganha um "Abrir" ao lado quando já tem valor.
+    if (field.type === "url") {
+      const preenchido = String(value).trim();
+      return (
+        <div key={field.name} className="controle-corretores__field controle-corretores__field--full">
+          <label className="controle-corretores__label">{label}</label>
+          <div className="rh-usuarios__link-wrap">
+            <input
+              className="controle-corretores__search"
+              type="url"
+              value={value}
+              placeholder={field.placeholder}
+              onChange={(e) => setEditando((prev) => ({ ...prev, [field.name]: e.target.value }))}
+            />
+            {preenchido && (
+              <a className="rh-usuarios__link-abrir" href={preenchido} target="_blank" rel="noreferrer">Abrir ↗</a>
+            )}
+          </div>
+        </div>
+      );
+    }
+
     return (
       <div key={field.name} className="controle-corretores__field">
         <label className="controle-corretores__label">{label}</label>

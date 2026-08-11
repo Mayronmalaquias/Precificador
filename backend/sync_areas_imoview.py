@@ -45,6 +45,11 @@ def _num(valor):
     return numero if numero > 0 else None
 
 
+def _inteiro(valor):
+    numero = _num(valor)
+    return int(numero) if numero is not None else None
+
+
 def coletar():
     """Percorre o catalogo e devolve {codigo: dados de area}."""
     catalogo = {}
@@ -73,6 +78,9 @@ def coletar():
                 "area_interna": interna,
                 "area_privativa": privativa,
                 "area_lote": _num(item.get("arealote")),
+                "quartos": _inteiro(item.get("numeroquartos")),
+                "vagas": _inteiro(item.get("numerovagas")),
+                "valor": _num(item.get("valor")),
                 "endereco": item.get("endereco"),
                 "bairro": item.get("bairro"),
                 "tipo": item.get("tipo") or item.get("descricaotipo"),

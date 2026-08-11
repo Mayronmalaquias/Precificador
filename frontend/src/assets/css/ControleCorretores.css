@@ -1595,3 +1595,19 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* Campo de link (pasta de documentos no Drive): input + atalho pra abrir. */
+.rh-usuarios__link-wrap { display: flex; gap: 8px; align-items: center; }
+.rh-usuarios__link-wrap input { flex: 1; min-width: 0; }
+.rh-usuarios__link-abrir {
+  white-space: nowrap;
+  padding: 9px 13px;
+  border: 1px solid #d7dbe4;
+  border-radius: 8px;
+  background: #f7f8fa;
+  color: #2f6c96;
+  font-size: 12px;
+  font-weight: 700;
+  text-decoration: none;
+}
+.rh-usuarios__link-abrir:hover { background: #eef4f9; border-color: #b9c8d8; }

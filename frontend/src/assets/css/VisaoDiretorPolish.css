@@ -160,3 +160,121 @@
 /* Terceiro número da Jornada: como a etapa fechou no último dia do período. */
 .ev-journey-list em.fim { background: #eef1f6; color: #4a5162; }
 .ev-legend-metricas i.m-fim { background: #8b93a6; }
+
+/* Imóveis parados na jornada: azul 7-14, amarelo 14-30, vermelho 30+. */
+.ev-parados-resumo { display: grid; grid-template-columns: repeat(4, 1fr); gap: 9px; margin-bottom: 12px; }
+.ev-parados-resumo > div { background: #2b3144; border: 1px solid #3a4052; border-radius: 10px; padding: 12px; border-left-width: 3px; }
+.ev-parados-resumo span { display: block; font-size: 9px; color: #9ca2b1; text-transform: uppercase; letter-spacing: .5px; }
+.ev-parados-resumo strong { display: block; font-size: 24px; margin: 6px 0 3px; }
+.ev-parados-resumo small { font-size: 9px; color: #8f96a7; }
+.ev-parados-resumo .faixa-leve { border-left-color: #5b9ddb; }
+.ev-parados-resumo .faixa-leve strong { color: #7ab6ec; }
+.ev-parados-resumo .faixa-media { border-left-color: #e4a93d; }
+.ev-parados-resumo .faixa-media strong { color: #f3bc61; }
+.ev-parados-resumo .faixa-alta { border-left-color: #e0576b; }
+.ev-parados-resumo .faixa-alta strong { color: #f05e70; }
+.ev-contratos-lista > div.atencao_leve > i { background: #5b9ddb; }
+.ev-contratos-lista > div.atencao > i { background: #ffc15e; }
+.ev-contratos-lista > div.critico > i { background: #f05e70; }
+.ev-contratos-lista > div.atencao_leve .ev-contratos-num b { color: #7ab6ec; }
+.ev-contratos-lista > div.critico .ev-contratos-num b { color: #f05e70; }
+
+@media (max-width: 700px) { .ev-parados-resumo { grid-template-columns: 1fr 1fr; } }
+
+/* Faixas viram botões de filtro; itens viram link pro card da Jornada. */
+.ev-parados-resumo > button { text-align: left; cursor: pointer; font: inherit; color: #fff;
+  background: #2b3144; border: 1px solid #3a4052; border-radius: 10px; padding: 12px; border-left-width: 3px;
+  transition: border-color .16s ease, transform .16s ease; }
+.ev-parados-resumo > button:hover { transform: translateY(-1px); border-color: #55607a; }
+.ev-parados-resumo > button.is-ativa { border-color: #d9d5ff; box-shadow: 0 0 0 2px rgba(217,213,255,.18); }
+
+.ev-parados-filtros { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 10px; }
+.ev-parados-filtros label { display: flex; align-items: center; gap: 6px; font-size: 9px; text-transform: uppercase; letter-spacing: .5px; color: #9ca2b1; }
+.ev-parados-filtros select, .ev-parados-filtros input {
+  background: #2b3144; border: 1px solid #3a4052; color: #fff; border-radius: 8px; padding: 8px 10px;
+  font: 500 11px var(--ds-font); outline: 0; }
+.ev-parados-filtros input { flex: 1; min-width: 200px; }
+.ev-parados-filtros input::placeholder { color: #8f96a7; }
+.ev-parados-filtros > span { font-size: 9px; color: #8f96a7; }
+
+.ev-parado-item { width: 100%; text-align: left; cursor: pointer; font: inherit; color: #fff;
+  grid-template-columns: 3px 1fr auto 16px !important; }
+.ev-parado-item:hover { border-color: #55607a; }
+.ev-parado-item .ev-icon { color: #9ca2b1; }
+
+/* ── Imóveis parados: itens são <button> ───────────────────────────────────
+   As regras acima miram `.ev-contratos-lista > div` e não pegavam o botão —
+   ele caía num estilo global e saía rosa. Aqui o item é estilizado por inteiro. */
+.ev-contratos-lista > button.ev-parado-item {
+  display: grid;
+  grid-template-columns: 4px 1fr auto 14px;
+  gap: 13px;
+  align-items: center;
+  width: 100%;
+  margin: 0;
+  padding: 13px 15px;
+  border: 1px solid #3a4052;
+  border-radius: 11px;
+  background: #2b3144;
+  color: #fff;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background .16s ease, border-color .16s ease, transform .16s ease;
+}
+.ev-contratos-lista > button.ev-parado-item:hover {
+  background: #333a50;
+  border-color: #5a6480;
+  transform: translateY(-1px);
+}
+.ev-contratos-lista > button.ev-parado-item:focus-visible {
+  outline: 3px solid rgba(217, 213, 255, .35);
+  outline-offset: 2px;
+}
+.ev-parado-item > i { width: 4px; height: 34px; border-radius: 4px; background: #5b9ddb; }
+.ev-parado-item.atencao_leve > i { background: #5b9ddb; }
+.ev-parado-item.atencao > i { background: #e4a93d; }
+.ev-parado-item.critico > i { background: #e0576b; }
+
+.ev-parado-item strong { display: block; font-size: 12px; font-weight: 700; color: #fff; letter-spacing: -.1px; }
+.ev-parado-item small { display: block; margin-top: 4px; font-size: 10px; color: #a7adbc; }
+.ev-parado-item .ev-contratos-num { text-align: right; line-height: 1.1; }
+.ev-parado-item .ev-contratos-num b { font-size: 19px; font-weight: 700; color: #7ab6ec; }
+.ev-parado-item .ev-contratos-num span { display: block; margin-top: 2px; font-size: 8px; color: #8f96a7; text-transform: uppercase; letter-spacing: .5px; }
+.ev-parado-item.atencao .ev-contratos-num b { color: #f3bc61; }
+.ev-parado-item.critico .ev-contratos-num b { color: #f05e70; }
+.ev-parado-item .ev-icon { color: #8f96a7; }
+.ev-parado-item:hover .ev-icon { color: #d9d5ff; }
+
+@media (max-width: 700px) {
+  .ev-contratos-lista > button.ev-parado-item { grid-template-columns: 4px 1fr auto; }
+  .ev-parado-item .ev-icon { display: none; }
+}
+.ev-etapa-chip { display: inline-block; margin-right: 8px; padding: 2px 8px; border-radius: 20px;
+  font-style: normal; font-size: 9px; font-weight: 700; background: #1f4a6b; color: #9fd0f5; }
+.ev-etapa-chip.atencao { background: #5a4318; color: #f3c982; }
+.ev-etapa-chip.critico { background: #5c2530; color: #f6a3ae; }
+
+/* Paginação da lista de imóveis parados. */
+.ev-paginacao { display: flex; align-items: center; justify-content: center; gap: 14px; margin-top: 12px; }
+.ev-paginacao button {
+  border: 1px solid #3a4052; background: #2b3144; color: #d9d5ff;
+  border-radius: 8px; padding: 8px 13px; font: 700 11px var(--ds-font); cursor: pointer;
+  transition: background .16s ease, border-color .16s ease;
+}
+.ev-paginacao button:hover:not(:disabled) { background: #333a50; border-color: #5a6480; }
+.ev-paginacao button:disabled { opacity: .4; cursor: default; }
+.ev-paginacao span { font-size: 10px; color: #9ca2b1; }
+.ev-paginacao b { color: #fff; }
+
+/* Abas de dimensão do card de mídia + coluna de conversão. */
+.ev-dim-tabs { display: flex; gap: 3px; background: #f3f4f7; border-radius: 9px; padding: 3px; }
+.ev-dim-tabs button { border: 0; background: transparent; color: #737b91; border-radius: 7px;
+  padding: 6px 11px; font: 700 10px var(--ds-font); cursor: pointer; transition: background .16s ease, color .16s ease; }
+.ev-dim-tabs button:hover { color: #252b3d; }
+.ev-dim-tabs button.is-ativa { background: #fff; color: #5948d6; box-shadow: 0 1px 3px rgba(38,44,73,.12); }
+
+.ev-profile-list button { grid-template-columns: 1.2fr 1.8fr 52px !important; }
+.ev-profile-list em { font-style: normal; font-size: 11px; font-weight: 800; text-align: right;
+  color: #6f7689; background: #f3f4f7; border-radius: 20px; padding: 4px 8px; }
+.ev-profile-list em.up { background: #e9f8f2; color: #18885f; }

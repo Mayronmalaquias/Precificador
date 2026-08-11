@@ -23,7 +23,7 @@ from app.models.proposta_efetiva import (
     PropostaEfetivaAcao,
 )
 from app.models.usuarios import Usuarios
-from app.models.visita import Visita
+from app.models.visita import ClienteVisita, Visita
 
 # Dias sem acao a partir dos quais a proposta e sinalizada na tela. Regua alinhada com
 # a Visao do Diretor (2026-08-10): 1 dia parado ja pede follow-up, 2+ e critico.
@@ -142,8 +142,12 @@ def visitas_relacionadas(solicitante_id, filtros=None):
     filtros = filtros or {}
     session = SessionLocal()
     try:
-        query = session.query(Visita, Usuarios).join(
+        # `outerjoin` no cliente assinante: a visita traz o nome de quem assinou a
+        # ficha, que é o cliente que a proposta deve herdar.
+        query = session.query(Visita, Usuarios, ClienteVisita).join(
             Usuarios, Usuarios.id_usuarios == Visita.id_corretor
+        ).outerjoin(
+            ClienteVisita, ClienteVisita.id_cliente == Visita.id_cliente_assinante
         )
         if not escopo["ve_tudo"]:
             query = query.filter(Usuarios.team == escopo["team"])
@@ -171,7 +175,9 @@ def visitas_relacionadas(solicitante_id, filtros=None):
                 "id_corretor": visita.id_corretor,
                 "team": corretor.team,
                 "proposta_visita": visita.proposta,
-            } for visita, corretor in rows],
+                "cliente": cliente.nome_cliente if cliente else None,
+                "telefone_cliente": cliente.telefone_cliente if cliente else None,
+            } for visita, corretor, cliente in rows],
         }
     finally:
         session.close()
@@ -235,6 +241,11 @@ def _serializar(proposta, hoje=None, com_acoes=False):
         "bairro": proposta.bairro,
         "tipo": proposta.tipo,
         "numero": proposta.numero,
+        "bloco": proposta.bloco,
+        "complemento": proposta.complemento,
+        "quartos": proposta.quartos,
+        "vagas": proposta.vagas,
+        "area": proposta.area,
         "valor": float(proposta.valor) if proposta.valor is not None else None,
         "valor_permuta": float(proposta.valor_permuta) if proposta.valor_permuta is not None else None,
         "descricao_permuta": proposta.descricao_permuta,
@@ -344,17 +355,20 @@ def obter(solicitante_id, proposta_id):
         # Dados da visita de origem, p/ a tela não precisar de outra chamada.
         dados["visita"] = None
         if proposta.id_visita:
-            linha = session.query(Visita, Usuarios).outerjoin(
+            linha = session.query(Visita, Usuarios, ClienteVisita).outerjoin(
                 Usuarios, Usuarios.id_usuarios == Visita.id_corretor
+            ).outerjoin(
+                ClienteVisita, ClienteVisita.id_cliente == Visita.id_cliente_assinante
             ).filter(Visita.id_visita == proposta.id_visita).first()
             if linha:
-                visita, corretor = linha
+                visita, corretor, cliente_visita = linha
                 dados["visita"] = {
                     "id_visita": visita.id_visita,
                     "data_visita": visita.data_visita.isoformat() if visita.data_visita else None,
                     "imovel": visita.id_imovel or visita.endereco_externo or "Imóvel não informado",
                     "corretor": (corretor.nome or corretor.username) if corretor else visita.id_corretor,
                     "proposta_visita": visita.proposta,
+                    "cliente": cliente_visita.nome_cliente if cliente_visita else None,
                 }
         return {"ok": True, "proposta": dados, "pode_editar": escopo["edita"]}
     finally:
@@ -404,6 +418,11 @@ def criar(solicitante_id, dados):
             bairro=_texto(dados.get("bairro"), 120) or None,
             tipo=_texto(dados.get("tipo"), 80) or None,
             numero=_texto(dados.get("numero"), 40) or None,
+            bloco=_texto(dados.get("bloco"), 40) or None,
+            complemento=_texto(dados.get("complemento"), 80) or None,
+            quartos=_texto(dados.get("quartos"), 10) or None,
+            vagas=_texto(dados.get("vagas"), 10) or None,
+            area=_texto(dados.get("area"), 20) or None,
             valor=valor,
             valor_permuta=valor_permuta if forma == "permuta" else None,
             descricao_permuta=_texto(dados.get("descricao_permuta")) or None if forma == "permuta" else None,
@@ -437,7 +456,8 @@ def criar(solicitante_id, dados):
         session.close()
 
 
-CAMPOS_TEXTO = ("codigo_imovel", "imovel_endereco", "bairro", "tipo", "numero", "cliente", "observacao", "descricao_permuta")
+CAMPOS_TEXTO = ("codigo_imovel", "imovel_endereco", "bairro", "tipo", "numero", "bloco",
+                "complemento", "quartos", "vagas", "area", "cliente", "observacao", "descricao_permuta")
 
 
 def atualizar(solicitante_id, proposta_id, dados):

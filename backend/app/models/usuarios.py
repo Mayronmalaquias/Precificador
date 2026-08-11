@@ -48,6 +48,9 @@ class Usuarios(Base):
     onboarding_realizado = Column(Boolean, nullable=True)
     desligado = Column(Boolean, nullable=True, default=False)
     data_desligamento = Column(Date, nullable=True)
+    # Pasta do Drive com os documentos do corretor (contrato, CRECI, RG...).
+    # E link, nao upload: os arquivos continuam no Drive do RH.
+    link_documentos = Column(Text, nullable=True)
     observacoes = Column(Text, nullable=True)
 
 

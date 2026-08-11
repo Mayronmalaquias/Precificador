@@ -9,6 +9,7 @@ from app.services.captacao_service import (
     atualizar_captacao,
     fechar_captacao,
     marcar_exclusividade,
+    recuperar_captacao,
     excluir_captacao,
     listar_historico,
 )
@@ -147,6 +148,22 @@ class FecharCaptacao(Resource):
             return result, 200 if result.get("ok") else 404
         except Exception as e:
             current_app.logger.exception("Erro ao fechar captacao")
+            return {"ok": False, "error": str(e)}, 500
+
+
+@captacao_ns.route("/captacoes/<int:captacao_id>/recuperar")
+class RecuperarCaptacao(Resource):
+    @captacao_ns.doc(description="Traz de volta uma captação encerrada. Exige `motivo`, que vai pro histórico.")
+    def post(self, captacao_id):
+        data = request.get_json() or {}
+        motivo = (data.get("motivo") or "").strip()
+        if not motivo:
+            return {"ok": False, "error": "Motivo da recuperacao e obrigatorio"}, 400
+        try:
+            result = recuperar_captacao(captacao_id, motivo)
+            return result, 200 if result.get("ok") else 400
+        except Exception as e:
+            current_app.logger.exception("Erro ao recuperar captacao")
             return {"ok": False, "error": str(e)}, 500
 
 

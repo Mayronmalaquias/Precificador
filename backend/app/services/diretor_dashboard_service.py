@@ -418,7 +418,8 @@ def _estoque_semanal(session, start, end, selected_team, selected_broker=None):
 
 
 def _captation(session, start, end, selected_team, selected_broker=None):
-    base = session.query(Captacao)
+    # Só carteira de corretor ativo — ver `_somente_corretor_ativo`.
+    base = _somente_corretor_ativo(session.query(Captacao))
     if selected_broker:
         base = base.filter(Captacao.id_corretor == selected_broker)
     elif selected_team:
@@ -619,13 +620,25 @@ def _propostas_efetivas(session, start, end, selected_team, selected_broker=None
     Nao tem relacao com `Visita.proposta` (SIM/NAO/TALVEZ). A proposta pertence ao
     gerente, entao filtrar por corretor so acha algo se o corretor for o gerente.
     """
+    # TODAS as situações entram (em análise, contraproposta, aceita, recusada,
+    # cancelada) — o card é volume de proposta, não de fechamento.
+    #
+    # Período pela data de LANÇAMENTO (`created_at`), não por `data_proposta`: esta
+    # última é digitada e vem retroativa ou futura com frequência (em 10/08/2026, 5 das
+    # 6 propostas lançadas no mês tinham data de julho ou 13/08), o que fazia o card
+    # mostrar 1 onde havia 6.
+    inicio = datetime.combine(start, datetime.min.time())
+    fim = datetime.combine(end, datetime.max.time())
     query = session.query(func.count(PropostaEfetiva.id)).filter(
         PropostaEfetiva.ativo.is_(True),
-        PropostaEfetiva.data_proposta >= start,
-        PropostaEfetiva.data_proposta <= end,
+        PropostaEfetiva.created_at >= inicio,
+        PropostaEfetiva.created_at <= fim,
     )
     if selected_broker:
-        query = query.filter(PropostaEfetiva.id_gerente == selected_broker)
+        query = query.filter(or_(
+            PropostaEfetiva.id_corretor == selected_broker,
+            PropostaEfetiva.id_gerente == selected_broker,
+        ))
     elif selected_team:
         query = query.filter(PropostaEfetiva.team == selected_team)
     return int(query.scalar() or 0)
@@ -653,6 +666,98 @@ def _read_dfimoveis_report(file_path, modified_ns):
     return df
 
 
+def _faixa_metragem(area):
+    """0-100, 100-200, … 1000+ — rótulo e chave de ordenação."""
+    if area is None or area <= 0:
+        return None, 9999
+    limite = min(int(area // 100) * 100, 1000)
+    if limite >= 1000:
+        return "1000+ m²", 1000
+    return f"{limite}–{limite + 100} m²", limite
+
+
+def _faixa_valor(valor):
+    """200k-400k, 400k-600k, … 10M+. Abaixo de 200k entra numa faixa própria."""
+    if valor is None or valor <= 0:
+        return None, 999999999
+    valor = float(valor)
+    if valor < 200_000:
+        return "até R$ 200 mil", 0
+    if valor >= 10_000_000:
+        return "R$ 10 mi+", 10_000_000
+    limite = int(valor // 200_000) * 200_000
+    return f"R$ {limite // 1000} mil – {(limite + 200_000) // 1000} mil", limite
+
+
+def _perfis_midia(session, data_relatorio):
+    """Perfis de conversão da mídia em 4 dimensões.
+
+    Bairro sai do próprio relatório do DFImóveis. Quartos, metragem e valor **não
+    existem no arquivo** — vêm de `imovel_area` (cache do catálogo Imoview), casando
+    pelo código do imóvel. Imóvel sem correspondência fica de fora dessas três.
+    """
+    linhas = session.query(
+        DfImoveisAcesso.codigo_busca,
+        DfImoveisAcesso.bairro,
+        DfImoveisAcesso.impressao,
+        DfImoveisAcesso.acesso,
+        (DfImoveisAcesso.emails + DfImoveisAcesso.telefone + DfImoveisAcesso.whatsapp_emails_gerados
+         + DfImoveisAcesso.visita + DfImoveisAcesso.proposta).label("leads"),
+        ImovelArea.quartos,
+        ImovelArea.area,
+        ImovelArea.valor,
+    ).outerjoin(
+        ImovelArea, ImovelArea.codigo == DfImoveisAcesso.codigo_busca
+    ).filter(DfImoveisAcesso.data_relatorio == data_relatorio).all()
+
+    dimensoes = {"bairro": {}, "quartos": {}, "metragem": {}, "valor": {}}
+
+    def _somar(dimensao, chave, ordem, impressao, acesso, leads):
+        if chave is None:
+            return
+        alvo = dimensoes[dimensao].setdefault(
+            chave, {"imoveis": 0, "impressoes": 0, "acessos": 0, "leads": 0, "ordem": ordem}
+        )
+        alvo["imoveis"] += 1
+        alvo["impressoes"] += int(impressao or 0)
+        alvo["acessos"] += int(acesso or 0)
+        alvo["leads"] += int(leads or 0)
+
+    for _codigo, bairro, impressao, acesso, leads, quartos, area, valor in linhas:
+        _somar("bairro", bairro or "Não identificado", 0, impressao, acesso, leads)
+        if quartos:
+            _somar("quartos", f"{quartos} quarto{'s' if quartos > 1 else ''}", quartos, impressao, acesso, leads)
+        rotulo_area, ordem_area = _faixa_metragem(float(area) if area else None)
+        _somar("metragem", rotulo_area, ordem_area, impressao, acesso, leads)
+        rotulo_valor, ordem_valor = _faixa_valor(valor)
+        _somar("valor", rotulo_valor, ordem_valor, impressao, acesso, leads)
+
+    def _formatar(dimensao, ordenar_por_ordem):
+        itens = [{
+            "id": f"{dimensao}-{chave}", "perfil": chave, "bairro": chave,
+            "detalhe": f"{dados['imoveis']} imóveis no relatório",
+            "impressoes": dados["impressoes"], "acessos": dados["acessos"],
+            "leads": dados["leads"], "delta": None,
+            "conversao": round(dados["leads"] / dados["acessos"] * 100, 2) if dados["acessos"] else None,
+            "_ordem": dados["ordem"],
+        } for chave, dados in dimensoes[dimensao].items()]
+        if ordenar_por_ordem:
+            itens.sort(key=lambda i: i["_ordem"])
+        else:
+            itens.sort(key=lambda i: -i["acessos"])
+            itens = itens[:12]
+        for item in itens:
+            item.pop("_ordem", None)
+        return itens
+
+    return {
+        "bairro": _formatar("bairro", False),
+        "quartos": _formatar("quartos", True),
+        "metragem": _formatar("metragem", True),
+        "valor": _formatar("valor", True),
+    }
+
+
 def _media(session, start, end):
     latest_date = session.query(func.max(DfImoveisAcesso.data_relatorio)).scalar()
     if latest_date:
@@ -676,6 +781,9 @@ def _media(session, start, end):
             "perfil": bairro or "Não identificado", "detalhe": f"{int(imoveis)} imóveis no relatório",
             "impressoes": int(impressions), "acessos": int(accesses), "leads": int(leads), "delta": None,
         } for bairro, imoveis, impressions, accesses, leads in grouped]
+        # Perfis nas 4 dimensões (bairro, quartos, metragem, valor). `perfis` continua
+        # sendo o de bairro p/ não quebrar quem já lia a chave antiga.
+        perfis_por_dimensao = _perfis_midia(session, latest_date)
         first = rows[0]
         leads_total = sum(row.emails + row.telefone + row.whatsapp_emails_gerados + row.visita + row.proposta for row in rows)
         return {
@@ -683,7 +791,8 @@ def _media(session, start, end):
             "data_relatorio": latest_date.isoformat(), "impressoes": sum(row.impressao for row in rows),
             "acessos": sum(row.acesso for row in rows), "leads": leads_total,
             "imoveis": len({row.codigo_busca for row in rows}), "perfis": profiles,
-            "mensagem": "Tipologia, faixa de valor e metragem não existem no arquivo exportado pelo DFImóveis.",
+            "perfis_por_dimensao": perfis_por_dimensao,
+            "mensagem": "Quartos, metragem e valor não vêm do DFImóveis — são cruzados por código com o catálogo do Imoview.",
         }
 
     report_dir = Path(__file__).resolve().parents[3] / "legado"
@@ -744,6 +853,90 @@ DIAS_SEM_ASSINATURA = 30
 # Contrato anterior a isso não é backlog, é base histórica incompleta: os de 2015-2024
 # simplesmente não têm data de assinatura preenchida.
 JANELA_ATRASO_DIAS = 365
+
+
+ROTULO_ETAPA = {
+    "escolha": "Escolha",
+    "prospeccao": "Prospecção",
+    "interacao": "Interação",
+    "apresentacao": "Apresentação",
+    "captacao": "Captação",
+}
+
+
+def _somente_corretor_ativo(query):
+    """Descarta captação de corretor desativado (ou que sumiu de `usuarios`).
+
+    Carteira de quem saiu da empresa não é pendência de ninguém — some do painel até a
+    reatribuição acontecer. São 48 imóveis em 10/08/2026.
+    """
+    return query.join(Usuarios, Usuarios.id_usuarios == Captacao.id_corretor).filter(
+        Usuarios.ativo.is_(True)
+    )
+
+
+def _imoveis_parados(session, today, selected_team, selected_broker=None):
+    """Imóveis da Jornada parados, pelo tempo na ETAPA ATUAL.
+
+    O relógio é `data_entrada_etapa` — avançar de etapa zera a contagem, então o número
+    mede estagnação real, não idade do imóvel.
+
+    Fora da conta: encerradas, captadas e quem já está na etapa **Captação** (fim da
+    jornada — ficar lá não é estar parado).
+
+    Faixas: 7–14 (azul), 14–30 (amarelo), 30+ (vermelho).
+    """
+    query = _somente_corretor_ativo(session.query(Captacao)).filter(
+        Captacao.status.notin_(["fechado", "captado"]),
+        Captacao.etapa_atual != "captacao",
+    )
+    if selected_broker:
+        query = query.filter(Captacao.id_corretor == selected_broker)
+    elif selected_team:
+        query = query.filter(Captacao.team == selected_team)
+
+    faixas = {"7_14": 0, "14_30": 0, "30_mais": 0}
+    itens = []
+    for row in query.all():
+        referencia = row.data_entrada_etapa or row.created_at
+        if not referencia:
+            continue
+        dias = (today - referencia.date()).days
+        if dias < 7:
+            continue
+        if dias < 14:
+            faixa, nivel = "7_14", "atencao_leve"
+        elif dias < 30:
+            faixa, nivel = "14_30", "atencao"
+        else:
+            faixa, nivel = "30_mais", "critico"
+        faixas[faixa] += 1
+        itens.append({
+            "id": row.id,
+            "endereco": row.endereco or "Sem endereço",
+            "bairro": row.bairro,
+            "etapa": row.etapa_atual,
+            "etapa_label": ROTULO_ETAPA.get(row.etapa_atual, row.etapa_atual),
+            "responsavel": row.nome_corretor or row.team or "Não informado",
+            "dias": dias,
+            "faixa": faixa,
+            "nivel": nivel,
+        })
+
+    itens.sort(key=lambda i: -i["dias"])
+    # Manda a lista COMPLETA: filtro e paginação da tela são client-side, e cortar aqui
+    # faria a última página sumir. São ~700 itens pequenos (endereço, etapa, dias).
+    por_etapa = {}
+    for item in itens:
+        por_etapa[item["etapa_label"]] = por_etapa.get(item["etapa_label"], 0) + 1
+    return {
+        "faixa_7_14": faixas["7_14"],
+        "faixa_14_30": faixas["14_30"],
+        "faixa_30_mais": faixas["30_mais"],
+        "total": sum(faixas.values()),
+        "por_etapa": por_etapa,
+        "itens": itens,
+    }
 
 
 def _contratos_atrasados(session, today, selected_team, teams, broker_name=None):
@@ -1132,7 +1325,6 @@ def executive_view(start_value=None, end_value=None, team=None, broker=None, som
         # dinheiro — arredondar p/ 1 casa escondia a variacao.
         pct_vgc_vgv = round(vgc / vgv * 100, 2) if vgv else None
         pct_anterior = round(vgc_anterior / vgv_anterior * 100, 2) if vgv_anterior else None
-        alertas = _alerts(session, team, today, broker)
         return {
             "ok": True, "atualizado_em": datetime.now().isoformat(),
             "periodo": {"inicio": start.isoformat(), "fim": end.isoformat()},
@@ -1158,9 +1350,7 @@ def executive_view(start_value=None, end_value=None, team=None, broker=None, som
             "captacao": _captation(session, start, end, team, broker),
             "estoque_semanal": _estoque_semanal(session, start, end, team, broker),
             "vendas_recentes": recent_sales, "midia": _media(session, start, end),
-            "pendencias": alertas["itens"],
-            "pendencias_resumo": alertas["resumo"],
-            "contratos_atrasados": _contratos_atrasados(session, today, team, teams, broker_name),
+            "imoveis_parados": _imoveis_parados(session, today, team, broker),
             "revisao_visitas": _visit_reviews(session, start, end, team, teams, broker),
         }
     finally:

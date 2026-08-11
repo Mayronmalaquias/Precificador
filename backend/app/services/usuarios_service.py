@@ -45,6 +45,7 @@ RH_CAMPOS_EDITAVEIS = {
     "razao_social", "banco", "agencia", "conta", "tipo_conta", "chave_pix",
     "contrato_assinado", "codigo_conduta_assinado", "lgpd_assinada",
     "onboarding_realizado", "desligado", "data_desligamento", "observacoes",
+    "link_documentos",
 }
 
 DATE_FIELDS = {
@@ -173,6 +174,7 @@ def _usuario_to_dict(usuario):
         "desligado": getattr(usuario, "desligado", None),
         "data_desligamento": _date_to_iso(getattr(usuario, "data_desligamento", None)),
         "observacoes": getattr(usuario, "observacoes", None),
+        "link_documentos": getattr(usuario, "link_documentos", None),
     }
 
 

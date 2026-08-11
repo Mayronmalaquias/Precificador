@@ -1624,6 +1624,9 @@ export default function JornadaCaptacao() {
   const [selecionada, setSelecionada]   = useState(null);
   const [avancarLoading, setAvancarLoading] = useState(false);
   const [showFechar, setShowFechar]     = useState(false);
+  const [recuperando, setRecuperando]   = useState(null);   // captação encerrada escolhida
+  const [motivoRecuperacao, setMotivoRecuperacao] = useState("");
+  const [salvandoRecuperacao, setSalvandoRecuperacao] = useState(false);
   const [fecharLoading, setFecharLoading] = useState(false);
 
   const [filtroCorretor, setFiltroCorretor] = useState("");
@@ -1680,6 +1683,27 @@ export default function JornadaCaptacao() {
       navigate("/JornadaCaptacao", { replace: true });
     }
   }, [location.search, navigate]);
+
+  // ?id=123 abre o card daquela captação — é como a Visão do Diretor manda o usuário
+  // direto pro imóvel parado. Busca no que já foi carregado; se não achar (fora do
+  // escopo da lista), pede a captação ao back.
+  useEffect(() => {
+    const alvo = new URLSearchParams(location.search).get("id");
+    if (!alvo) return;
+    const abrir = async () => {
+      const naLista = captacoes.find((c) => String(c.id) === String(alvo));
+      if (naLista) { setSelecionada(naLista); navigate("/JornadaCaptacao", { replace: true }); return; }
+      if (loading) return;   // espera a lista chegar antes de desistir
+      try {
+        const r = await fetch(`${BASE}/captacoes/${alvo}`);
+        const d = await r.json().catch(() => ({}));
+        if (r.ok && d.ok) setSelecionada(d.captacao);
+        else toast("Captação não encontrada.", "error");
+      } catch { toast("Erro ao abrir a captação.", "error"); }
+      navigate("/JornadaCaptacao", { replace: true });
+    };
+    abrir();
+  }, [location.search, captacoes, loading, navigate, toast]);
 
   // Carrega corretores ativos (apenas para admin, ao montar).
   // Gerente escopa pela equipe dele (`team`), não pelo id — corretores compartilham o team.
@@ -1848,6 +1872,26 @@ export default function JornadaCaptacao() {
       else toast(d.error || "Erro", "error");
     } catch { toast("Erro ao encerrar", "error"); }
     finally { setFecharLoading(false); }
+  };
+
+  // Recupera um imóvel encerrado: volta pro fluxo na mesma etapa, com o motivo no histórico.
+  const handleRecuperarConfirmar = async () => {
+    if (!recuperando || !motivoRecuperacao.trim()) { toast("Informe o motivo da recuperação", "error"); return; }
+    setSalvandoRecuperacao(true);
+    try {
+      const r = await fetch(`${BASE}/captacoes/${recuperando.id}/recuperar`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ motivo: motivoRecuperacao.trim() }),
+      });
+      const d = await r.json().catch(() => ({}));
+      if (r.ok && d.ok) {
+        toast("Imóvel recuperado — voltou pra jornada", "success");
+        setRecuperando(null);
+        setMotivoRecuperacao("");
+        carregarCaptacoes();
+      } else toast(d.error || "Erro ao recuperar", "error");
+    } catch { toast("Erro ao recuperar", "error"); }
+    finally { setSalvandoRecuperacao(false); }
   };
 
   const handleExclusividadeConfirmar = async (dataExclusividade) => {
@@ -2024,6 +2068,13 @@ export default function JornadaCaptacao() {
                         <span className="cap-fechado-data">Encerrado em {fmt(c.data_fechamento)}</span>
                       </div>
                       <div className="cap-fechado-motivo">"{c.motivo_fechamento}"</div>
+                      <button
+                        type="button"
+                        className="cap-recuperar-btn"
+                        onClick={(e) => { e.stopPropagation(); setRecuperando(c); setMotivoRecuperacao(""); }}
+                      >
+                        ↩ Recuperar imóvel
+                      </button>
                     </div>
                   ))
               }
@@ -2078,6 +2129,41 @@ export default function JornadaCaptacao() {
           corretores={corretoresAtivos}
         />
       )}
+      {recuperando && (
+        <div className="cap-overlay" onClick={() => setRecuperando(null)}>
+          <div className="cap-modal cap-modal--sm" onClick={(e) => e.stopPropagation()}>
+            <div className="cap-modal-header">
+              <div className="cap-modal-header-main">
+                <h3>Recuperar imóvel</h3>
+                <p className="cap-recuperar-sub">{recuperando.endereco}</p>
+              </div>
+              <button className="cap-modal-close" onClick={() => setRecuperando(null)}>✕</button>
+            </div>
+            <div className="cap-recuperar-body">
+              <p className="cap-recuperar-info">
+                Volta pra jornada na etapa <b>{ETAPA_INFO[recuperando.etapa_atual]?.label}</b>, onde tinha parado.
+                O encerramento anterior {recuperando.motivo_fechamento ? <>(“{recuperando.motivo_fechamento}”)</> : null} continua no histórico.
+              </p>
+              <label className="cap-recuperar-label">
+                Motivo da recuperação *
+                <textarea
+                  rows={3}
+                  value={motivoRecuperacao}
+                  onChange={(e) => setMotivoRecuperacao(e.target.value)}
+                  placeholder="Ex.: proprietário voltou atrás e quer reativar o anúncio"
+                />
+              </label>
+            </div>
+            <div className="cap-modal-footer">
+              <button className="cap-ghost-btn" onClick={() => setRecuperando(null)}>Cancelar</button>
+              <button className="cap-recuperar-confirmar" onClick={handleRecuperarConfirmar} disabled={salvandoRecuperacao || !motivoRecuperacao.trim()}>
+                {salvandoRecuperacao ? "Recuperando…" : "Recuperar imóvel"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {selecionada && !showFechar && (
         <ModalDetalhe
           captacao={selecionada}

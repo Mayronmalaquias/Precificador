@@ -13,6 +13,12 @@ const dateLabel = (value) => value ? new Date(`${value}T12:00:00`).toLocaleDateS
 // Métricas do card de execução comercial, na ordem do funil.
 const METRICAS = [['leads', 'Leads'], ['clientes', 'Clientes'], ['visitas', 'Visitas']];
 
+// Imóveis parados por página no bloco de governança.
+const PARADOS_POR_PAGINA = 8;
+
+// Dimensões do card de performance de mídia.
+const DIMENSOES_MIDIA = [['bairro', 'Bairro'], ['quartos', 'Quartos'], ['metragem', 'Metragem'], ['valor', 'Valor']];
+
 function rangeFor(period) {
   const end = new Date();
   const start = new Date(end);
@@ -62,8 +68,11 @@ function VisaoDiretor() {
   const [corretor, setCorretor] = useState('todos');
   const [customOpen, setCustomOpen] = useState(false);
   const [detail, setDetail] = useState(null);
-  const [mediaFilter, setMediaFilter] = useState('todos');
-  const [alertsOnly, setAlertsOnly] = useState(false);
+  const [dimMidia, setDimMidia] = useState('bairro');
+  const [faixaParados, setFaixaParados] = useState('');
+  const [etapaParados, setEtapaParados] = useState('');
+  const [buscaParados, setBuscaParados] = useState('');
+  const [paginaParados, setPaginaParados] = useState(1);
   const initialRange = useMemo(() => rangeFor('mes'), []);
   const [dates, setDates] = useState(initialRange);
   const [draftDates, setDraftDates] = useState(initialRange);
@@ -110,10 +119,20 @@ function VisaoDiretor() {
   const unidade = porCorretor ? 'corretor' : 'equipe';
   const equipesVisiveis = data?.equipes || [];
   const vendas = data?.vendas_recentes || [];
-  const midia = data?.midia?.perfis || [];
-  const alertas = data?.pendencias || [];
-  const atrasos = data?.contratos_atrasados || {};
-  const pendResumo = data?.pendencias_resumo || {};
+  const perfisMidia = data?.midia?.perfis_por_dimensao?.[dimMidia] || data?.midia?.perfis || [];
+  const parados = data?.imoveis_parados || {};
+  const paradosVisiveis = useMemo(() => {
+    const alvo = buscaParados.trim().toLowerCase();
+    return (parados.itens || []).filter((i) => (
+      (!faixaParados || i.faixa === faixaParados)
+      && (!etapaParados || i.etapa_label === etapaParados)
+      && (!alvo || `${i.endereco} ${i.bairro || ''} ${i.responsavel}`.toLowerCase().includes(alvo))
+    ));
+  }, [parados.itens, faixaParados, etapaParados, buscaParados]);
+  const totalPaginas = Math.max(Math.ceil(paradosVisiveis.length / PARADOS_POR_PAGINA), 1);
+  // Trocar de filtro tem que voltar pra página 1, senão o usuário cai numa página vazia.
+  useEffect(() => { setPaginaParados(1); }, [faixaParados, etapaParados, buscaParados]);
+  const paradosPagina = paradosVisiveis.slice((paginaParados - 1) * PARADOS_POR_PAGINA, paginaParados * PARADOS_POR_PAGINA);
   // Período que alcança hoje (este mês / esta semana / trimestre): a última foto é o
   // estado atual, não um fechamento passado — o rótulo muda junto.
   const periodoAtual = dates.end >= iso(new Date());
@@ -146,8 +165,6 @@ function VisaoDiretor() {
   }), [equipesVisiveis]);
   const totalClientes = equipesVisiveis.reduce((acc, i) => acc + (i.clientes || 0), 0);
   const totalLeads = equipesVisiveis.reduce((acc, i) => acc + (i.leads || 0), 0);
-  const midiaVisivel = mediaFilter === 'todos' ? midia : midia.filter((item) => item.perfil === mediaFilter);
-  const alertasVisiveis = alertsOnly ? alertas.filter((item) => item.nivel === 'critical') : alertas;
 
   return <div className="ev-page">
     <div className="ev-shell">
@@ -280,8 +297,28 @@ function VisaoDiretor() {
           <p className="ev-data-note">{data?.midia?.mensagem}</p>
         </article>
         <article className="ev-card ev-profiles">
-          <CardTitle eyebrow="Performance por perfil" title="Onde a mídia converte melhor" action={<label className="ev-inline-select"><Icon name="filter" size={14}/><select value={mediaFilter} onChange={(e) => setMediaFilter(e.target.value)}><option value="todos">Todos os bairros</option>{midia.map((item) => <option key={item.id}>{item.perfil}</option>)}</select></label>} />
-          <div className="ev-profile-list">{midiaVisivel.map((item) => <button key={item.id} onClick={() => setDetail(item)}><div><strong>{item.bairro || item.perfil || 'Não identificado'}</strong><span>{item.detalhe}</span></div><div className="ev-profile-metrics"><span><b>{number(item.acessos)}</b> acessos</span><Icon name="arrow" size={12}/><span><b>{number(item.impressoes)}</b> impressões</span><Icon name="arrow" size={12}/><span><b>{item.leads}</b> interações</span></div></button>)}{!midiaVisivel.length && <p className="ev-empty">Nenhum relatório DFImóveis disponível.</p>}</div>
+          <CardTitle
+            eyebrow="Performance por perfil"
+            title="Onde a mídia converte melhor"
+            description="Conversão = interações ÷ acessos"
+            action={<div className="ev-dim-tabs">{DIMENSOES_MIDIA.map(([chave, rotulo]) => (
+              <button key={chave} type="button" className={dimMidia === chave ? 'is-ativa' : ''} onClick={() => setDimMidia(chave)}>{rotulo}</button>
+            ))}</div>}
+          />
+          <div className="ev-profile-list">
+            {perfisMidia.map((item) => (
+              <button key={item.id} onClick={() => setDetail(item)}>
+                <div><strong>{item.perfil || 'Não identificado'}</strong><span>{item.detalhe}</span></div>
+                <div className="ev-profile-metrics">
+                  <span><b>{number(item.acessos)}</b> acessos</span><Icon name="arrow" size={12}/>
+                  <span><b>{number(item.impressoes)}</b> impressões</span><Icon name="arrow" size={12}/>
+                  <span><b>{item.leads}</b> interações</span>
+                </div>
+                <em className={item.conversao >= 2 ? 'up' : ''}>{item.conversao == null ? '—' : `${item.conversao.toFixed(2).replace('.', ',')}%`}</em>
+              </button>
+            ))}
+            {!perfisMidia.length && <p className="ev-empty">Sem dados nesse perfil — quartos, metragem e valor dependem do cruzamento com o catálogo do Imoview.</p>}
+          </div>
         </article>
       </section>
 
@@ -312,38 +349,64 @@ function VisaoDiretor() {
       </section>
 
       <section className="ev-audit">
-        <div className="ev-audit-head"><div><span className="ev-alert-icon"><Icon name="alert" /></span><div><small>04 · GOVERNANÇA</small><h2>Pendências que exigem atenção</h2><p>Sinais operacionais gerados pelas flags de visualização e atualização.</p></div></div><label><input type="checkbox" checked={alertsOnly} onChange={(e) => setAlertsOnly(e.target.checked)} /><span /> Somente críticos</label></div>
+        <div className="ev-audit-head"><div><span className="ev-alert-icon"><Icon name="alert" /></span><div><small>04 · GOVERNANÇA</small><h2>Imóveis parados na jornada</h2><p>Tempo na etapa atual. Captação, encerradas e captadas ficam de fora.</p></div></div></div>
 
         <div className="ev-contratos-atraso">
-          <div className="ev-contratos-resumo">
-            <div><span>Contratos em atraso</span><strong>{number(atrasos.total || 0)}</strong><small>últimos 12 meses</small></div>
-            <div><span>Comissão vencida</span><strong>{number(atrasos.comissao_vencida || 0)}</strong><small>prazo da comissão passou</small></div>
-            <div><span>Sem assinatura</span><strong>{number(atrasos.sem_assinatura || 0)}</strong><small>+{atrasos.dias_sem_assinatura || 30} dias do fechamento</small></div>
-          </div>
-          <div className="ev-contratos-lista">
-            {(atrasos.itens || []).slice(0, 6).map((item) => (
-              <div key={item.id} className={item.nivel}>
-                <i />
-                <div><strong>{item.endereco}</strong><small>{item.motivo} · {item.gerente}</small></div>
-                <div className="ev-contratos-num"><b>{number(item.dias)}</b><span>dias</span></div>
-                <em>{currency(item.valor)}</em>
-              </div>
+          {/* Cards de faixa são o filtro: clicar seleciona, clicar de novo limpa. */}
+          <div className="ev-parados-resumo">
+            {[
+              ['7_14', 'faixa-leve', 'Parados 7 a 14 dias', parados.faixa_7_14, 'Atenção inicial'],
+              ['14_30', 'faixa-media', 'Parados 14 a 30 dias', parados.faixa_14_30, 'Precisam de ação'],
+              ['30_mais', 'faixa-alta', 'Parados 30+ dias', parados.faixa_30_mais, 'Travados'],
+              ['', '', 'Total parados', parados.total, 'Jornada de captação'],
+            ].map(([chave, classe, rotulo, valor, nota]) => (
+              <button type="button" key={rotulo}
+                className={`${classe} ${faixaParados === chave ? 'is-ativa' : ''}`}
+                onClick={() => setFaixaParados(faixaParados === chave ? '' : chave)}>
+                <span>{rotulo}</span><strong>{number(valor || 0)}</strong><small>{nota}</small>
+              </button>
             ))}
-            {!(atrasos.itens || []).length && <p className="ev-empty">Nenhum contrato em atraso no período.</p>}
           </div>
-        </div>
-        <div className="ev-alert-list">{alertasVisiveis.map((item) => <button key={item.id} onClick={() => setDetail(item)}><i className={item.nivel} /><div><span>{item.tipo}</span><strong>{item.descricao}</strong><small>{item.responsavel}</small></div><div><span>Em atraso</span><strong>{item.atraso}</strong></div><Icon name="arrow" size={16}/></button>)}</div>
-        <div className="ev-audit-footer">
-          <span>
-            <b>{number(pendResumo.criticos || 0)} críticos</b> (≥{pendResumo.dias_critico || 2} dias) ·
-            {' '}{number(pendResumo.followup || 0)} follow-up (≥{pendResumo.dias_followup || 1} dia) ·
-            {' '}{number(pendResumo.total || alertas.length)} no total
-            {pendResumo.total > pendResumo.exibindo ? ` · mostrando os ${number(pendResumo.exibindo)} mais atrasados` : ''}
-          </span>
-          <button>Ver central de pendências <Icon name="arrow" size={14}/></button>
-        </div>
-        <div className="ev-audit-tipos">
-          {Object.entries(pendResumo.por_tipo || {}).map(([tipo, qtd]) => <span key={tipo}>{tipo}<b>{number(qtd)}</b></span>)}
+
+          <div className="ev-parados-filtros">
+            <label>
+              Etapa
+              <select value={etapaParados} onChange={(e) => setEtapaParados(e.target.value)}>
+                <option value="">Todas as etapas</option>
+                {Object.entries(parados.por_etapa || {}).map(([etapa, qtd]) => <option key={etapa} value={etapa}>{etapa} ({qtd})</option>)}
+              </select>
+            </label>
+            <input placeholder="Buscar endereço, bairro ou responsável" value={buscaParados} onChange={(e) => setBuscaParados(e.target.value)} />
+            <span>{number(paradosVisiveis.length)} de {number((parados.itens || []).length)} imóveis</span>
+          </div>
+
+          <div className="ev-contratos-lista">
+            {paradosPagina.map((item) => (
+              <button type="button" key={item.id} className={`${item.nivel} ev-parado-item`}
+                title="Abrir o card na Jornada de Captação"
+                onClick={() => navigate(`/JornadaCaptacao?id=${item.id}`)}>
+                <i />
+                <div>
+                  <strong>{item.endereco}</strong>
+                  <small><em className={`ev-etapa-chip ${item.nivel}`}>{item.etapa_label}</em>{item.responsavel}{item.bairro ? ` · ${item.bairro}` : ''}</small>
+                </div>
+                <div className="ev-contratos-num"><b>{number(item.dias)}</b><span>dias parado</span></div>
+                <Icon name="arrow" size={15} />
+              </button>
+            ))}
+            {!paradosVisiveis.length && <p className="ev-empty">Nenhum imóvel parado com esse filtro.</p>}
+          </div>
+
+          {totalPaginas > 1 && (
+            <div className="ev-paginacao">
+              <button type="button" onClick={() => setPaginaParados((p) => Math.max(p - 1, 1))} disabled={paginaParados <= 1}>← Anterior</button>
+              <span>
+                Página <b>{paginaParados}</b> de {totalPaginas}
+                {' · '}{number((paginaParados - 1) * PARADOS_POR_PAGINA + 1)}–{number(Math.min(paginaParados * PARADOS_POR_PAGINA, paradosVisiveis.length))} de {number(paradosVisiveis.length)}
+              </span>
+              <button type="button" onClick={() => setPaginaParados((p) => Math.min(p + 1, totalPaginas))} disabled={paginaParados >= totalPaginas}>Próxima →</button>
+            </div>
+          )}
         </div>
       </section>
     </div>
