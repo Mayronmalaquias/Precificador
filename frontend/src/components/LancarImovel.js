@@ -69,7 +69,34 @@ const VAZIO = {
   descricao: "",
   proprietarios: [propVazio()],
   matricula: "", inscricao_iptu: "", exclusivo: false, cessao_direitos: false,
+  foco: "",
 };
+
+// Mesma régra do back (admin_bases_service.classificar_foco) — aqui só p/ sugerir.
+const BAIRROS_PP = ["PLANO PILOTO", "ASA SUL", "ASA NORTE", "NOROESTE", "SUDOESTE", "JARDIM BOTANICO", "LAGO NORTE", "LAGO SUL", "SETOR SUDOESTE"];
+const BAIRROS_AC = ["AGUAS CLARAS"];
+const semAcento = (v) => String(v || "").normalize("NFD").replace(/[̀-ͯ]/g, "").trim().toUpperCase();
+
+function sugerirFoco({ bairro, valor, comissao, destinacao }) {
+  const b = semAcento(bairro);
+  const v = Number(String(valor).replace(/\./g, "").replace(",", ".")) || 0;
+  const c = Number(String(comissao).replace(",", ".")) || 0;
+  const residencial = ["1", "3"].includes(String(destinacao || "").trim());
+  if (!b || !v || !c || !residencial) return "";
+  const pp = BAIRROS_PP.some((x) => b === x) && v >= 1000000 && c >= 3.5;
+  const ac = BAIRROS_AC.some((x) => b.includes(x)) && v >= 600000 && c >= 3.5;
+  if (pp && ac) return "pp_ac";
+  if (pp) return "pp";
+  if (ac) return "ac";
+  return "nao_foco";
+}
+
+const FOCO_OPCOES = [
+  { value: "nao_foco", label: "Não foco" },
+  { value: "pp", label: "Foco PP (Plano Piloto)" },
+  { value: "ac", label: "Foco AC (Águas Claras)" },
+  { value: "pp_ac", label: "Foco PP + AC" },
+];
 
 export default function LancarImovel() {
   const toast = useToast();
@@ -196,6 +223,12 @@ export default function LancarImovel() {
         : f.proprietarios,
     }));
 
+  // Sugestão da regra oficial — o estagiário decide, mas vê o que a regra diria.
+  const focoSugerido = useMemo(
+    () => sugerirFoco({ bairro: form.bairro, valor: form.valor, comissao: form.comissao, destinacao: form.destinacao }),
+    [form.bairro, form.valor, form.comissao, form.destinacao]
+  );
+
   const somaPercentual = useMemo(
     () => form.proprietarios.reduce((acc, p) => acc + (Number(String(p.percentual).replace(",", ".")) || 0), 0),
     [form.proprietarios]
@@ -211,6 +244,7 @@ export default function LancarImovel() {
     if (!form.rua) { toast("Informe a rua.", "error"); return; }
     if (!form.descricao) { toast("Informe a descrição.", "error"); return; }
     if (!String(form.urlvideo).trim()) { toast("Informe o link do vídeo.", "error"); return; }
+    if (!form.foco) { toast("Selecione se o imóvel é foco.", "error"); return; }
 
     const props = form.proprietarios.filter((p) => String(p.nome).trim());
     if (!props.length) { toast("Informe ao menos um proprietário.", "error"); return; }
@@ -253,7 +287,8 @@ export default function LancarImovel() {
         comissao: form.comissao,
         corretor: form.corretor_nome,
       });
-      setFoco(true);
+      // O texto do grupo já sai com o foco que foi lançado (o botão segue editável).
+      setFoco(form.foco !== "nao_foco");
       setCopiado(false);
       toast(`Imóvel lançado! Código ${d.codigo ?? "—"}.`, "success");
       window.scrollTo({ top: 0, behavior: "smooth" });
@@ -376,6 +411,17 @@ export default function LancarImovel() {
           <TextField label="Condomínio" value={formatarMoedaInput(form.valorcondominio)} onChange={setMoeda("valorcondominio")} prefix="R$" inputMode="numeric" />
           <TextField label="IPTU (valor)" value={formatarMoedaInput(form.valoriptu)} onChange={setMoeda("valoriptu")} prefix="R$" inputMode="numeric" />
           <TextField label="Comissão" value={form.comissao} onChange={set("comissao")} suffix="%" />
+          <Field label="Foco" req>
+            <select value={form.foco} onChange={set("foco")} required>
+              <option value="">Selecione…</option>
+              {FOCO_OPCOES.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+            </select>
+            {focoSugerido && form.foco !== focoSugerido && (
+              <button type="button" className="li-foco-sugestao" onClick={() => setForm((f) => ({ ...f, foco: focoSugerido }))}>
+                Regra sugere: <b>{FOCO_OPCOES.find((o) => o.value === focoSugerido)?.label}</b> — usar
+              </button>
+            )}
+          </Field>
           <TextField label="Área interna" value={form.areainterna} onChange={set("areainterna")} req suffix="m²" />
           <TextField label="Área externa" value={form.areaexterna} onChange={set("areaexterna")} suffix="m²" />
         </Section>

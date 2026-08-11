@@ -292,3 +292,12 @@
 }
 .li-cep button:hover:not(:disabled) { border-color: #cfd3dd; background: #eef0f4; }
 .li-cep button:disabled { opacity: .6; cursor: default; }
+
+/* Sugestão da regra de foco — atalho, não imposição. */
+.li-foco-sugestao {
+  margin-top: 6px; width: 100%; text-align: left;
+  border: 1px dashed #cfd3dd; border-radius: 8px; background: #f9fafb;
+  color: #5f6679; font: 500 11px var(--ds-font); padding: 7px 10px; cursor: pointer;
+}
+.li-foco-sugestao:hover { background: #f2f4f7; border-color: #b6bcc9; }
+.li-foco-sugestao b { color: #18213b; }

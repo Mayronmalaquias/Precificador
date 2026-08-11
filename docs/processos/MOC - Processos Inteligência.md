@@ -215,3 +215,25 @@ silêncio. Ver o padrão correto em [[3.8 - Deploy e Produção]].
    cobre daqui pra frente ([[2.14 - Visão do Diretor]] §8).
 5. **Estagiário usa o perfil `assistente`**, então todo assistente vê propostas de todas as
    equipes ([[2.15 - Propostas Efetivas]] §11).
+
+### Rodada 2026-08-10/11 — complemento
+
+| Frente | Nota |
+|---|---|
+| Foco vira declaração do estagiário + auditoria da divergência | [[2.11 - Registro de Captação e Saída]] §Foco |
+| Lançar Imóvel: CEP, CPF opcional, vídeo obrigatório, campo Foco | [[1.9 - Lançamento de Imóvel pelos Assistentes]] §Atualização |
+| Link da pasta de documentos no Drive (RH) | [[1.3 - Cadastro de Usuários]] §Atualização |
+| Painel: estoque via API, imóveis parados, perfis de mídia por quartos/metragem/valor | [[2.14 - Visão do Diretor]] |
+| Recuperar imóvel encerrado na Jornada | [[2.3 - Jornada de Captação]] |
+
+**Distinção que estava faltando na documentação:** a **Jornada de Captação** é o
+acompanhamento do gerente sobre o corretor até sair a **autorização de venda**. Ela
+**não** é a captação. A captação de fato é o lançamento no CRM, feito pelo estagiário
+quando a autorização chega — e é por isso que foco, valor e comissão vivem no Lançar
+Imóvel, não na Jornada. Não cruzar as duas bases.
+
+**Dívida nova registrada:** a classificação histórica de foco tem 206 códigos com marcação
+conflitante, 1.688 marcados PP abaixo do valor da regra e 890 acima do valor sem foco. O
+histórico **não foi recalculado** de propósito; a partir de 11/08/2026 o foco é declarado
+e a divergência com a regra fica gravada para decidir depois quem ajusta — a regra ou o
+processo.

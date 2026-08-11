@@ -70,10 +70,35 @@ def _nome_corretor_planilha(cod_usuario: Any) -> str:
         return ""
 
 
+FOCO_OPCOES = {
+    "nao_foco": (False, False),
+    "pp": (True, False),
+    "ac": (False, True),
+    "pp_ac": (True, True),
+}
+
+
+def _foco_escolhido(dados: Dict[str, Any]):
+    """Foco marcado à mão no formulário. Devolve None quando não veio nada.
+
+    Quem lança é o estagiário, no momento em que recebe a autorização de venda — é ele
+    que sabe se o imóvel é foco. A regra automática (bairro/valor/comissão) fica como
+    sugestão na tela e como plano B aqui, p/ lançamento vindo de fora do formulário.
+    """
+    escolha = str(dados.get("foco") or "").strip().lower()
+    if escolha in FOCO_OPCOES:
+        return FOCO_OPCOES[escolha]
+    if "foco_pp" in dados or "foco_ac" in dados:
+        return _bool(dados.get("foco_pp")), _bool(dados.get("foco_ac"))
+    return None
+
+
 def _persistir_foco(dados: Dict[str, Any], codigo: Any) -> Dict[str, Any]:
-    """Classifica o foco (regra de bairro/valor/comissão) e grava em `imovel_legado`
-    (foco_pp/foco_ac), keyado pelo código do Imoview. É o que a classificação de foco do
-    ranking lê — sem isso o imóvel aparece como 'NÃO LOCALIZADO'."""
+    """Grava foco_pp/foco_ac em `imovel_legado`, keyado pelo código do Imoview.
+
+    É o que a classificação de foco do ranking lê — sem isso o imóvel aparece como
+    'NÃO LOCALIZADO'. Usa a escolha do formulário; sem ela, classifica pela regra.
+    """
     from app.database import SessionLocal
     from app.services import admin_bases_service as abs_
 
@@ -85,13 +110,23 @@ def _persistir_foco(dados: Dict[str, Any], codigo: Any) -> Dict[str, Any]:
         # residencial pela destinação do Imoview (1=Residencial, 3=Residencial/Comercial)
         is_res = str(dados.get("destinacao") or "").strip() in {"1", "3"}
 
-        foco_pp, foco_ac = abs_.classificar_foco(bairro, valor, comissao, is_res)
+        # A regra roda SEMPRE, mesmo com escolha manual — é o que permite auditar a
+        # divergência depois (foco_origem + foco_pp_sugerido/foco_ac_sugerido em
+        # fato_captacao).
+        sugerido_pp, sugerido_ac = abs_.classificar_foco(bairro, valor, comissao, is_res)
+        manual = _foco_escolhido(dados)
+        foco_pp, foco_ac = manual if manual is not None else (sugerido_pp, sugerido_ac)
 
         mapas = abs_.carregar_mapas(session)
         bairro_id, _ = abs_.ensure_bairro(session, mapas, bairro)
         abs_.upsert_imovel_legado(session, str(codigo), None, valor, bairro_id, foco_pp, foco_ac)
         session.commit()
-        return {"ok": True, "foco_pp": foco_pp, "foco_ac": foco_ac, "bairro_id": bairro_id}
+        return {
+            "ok": True, "foco_pp": foco_pp, "foco_ac": foco_ac, "bairro_id": bairro_id,
+            "origem": "manual" if manual is not None else "regra",
+            "foco_pp_sugerido": sugerido_pp, "foco_ac_sugerido": sugerido_ac,
+            "divergiu": manual is not None and manual != (sugerido_pp, sugerido_ac),
+        }
     except Exception as e:
         session.rollback()
         return {"ok": False, "error": str(e)}
@@ -162,6 +197,9 @@ def _persistir_captacao(dados: Dict[str, Any], codigo: Any, foco: Dict[str, Any]
         registro.comissao_pct = _num(dados.get("comissao"))
         registro.foco_pp = bool(foco.get("foco_pp"))
         registro.foco_ac = bool(foco.get("foco_ac"))
+        registro.foco_origem = foco.get("origem")
+        registro.foco_pp_sugerido = foco.get("foco_pp_sugerido")
+        registro.foco_ac_sugerido = foco.get("foco_ac_sugerido")
         registro.finalidade = dados.get("finalidade_nome") or None
         registro.origem = "lancamento"
         registro.criado_por = dados.get("assistente_id") or dados.get("assistente_nome") or None

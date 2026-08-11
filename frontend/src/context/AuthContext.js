@@ -36,8 +36,13 @@ export function AuthProvider({ children }) {
 
   // Hierarquia: corretor < gerente < administrador < diretor
   const isGerente      = useMemo(() => ['gerente', 'administrador', 'diretor'].includes(permissao) || isAdministrativo, [permissao, isAdministrativo]);
-  // Operação administrativa: administrador/RH, mas não diretor.
-  const isAdministrador = useMemo(() => permissao === 'administrador' || isAdministrativo, [permissao, isAdministrativo]);
+  // Operação administrativa: administrador/RH + administrativo. Desde 11/08/2026 o
+  // diretor também entra — ele enxerga e opera tudo que o administrador opera
+  // (serviços e gestão). Ver [3.7 - Permissionamento].
+  const isAdministrador = useMemo(
+    () => permissao === 'administrador' || permissao === 'diretor' || isAdministrativo,
+    [permissao, isAdministrativo]
+  );
   // Capacidade executiva/multi-equipe: diretor e administrativo.
   const isDiretor      = useMemo(() => permissao === 'diretor' || isAdministrativo, [permissao, isAdministrativo]);
   const isAssistente   = useMemo(() => permissao === 'assistente', [permissao]);

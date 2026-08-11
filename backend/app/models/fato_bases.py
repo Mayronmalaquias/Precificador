@@ -35,6 +35,11 @@ class FatoCaptacao(Base):
     comissao_pct = Column(Numeric(6, 2), nullable=True)
     foco_pp = Column(Boolean, nullable=True)
     foco_ac = Column(Boolean, nullable=True)
+    # Auditoria do foco: o que a REGRA diria vs o que foi declarado. Serve p/ medir
+    # divergencia e decidir se a regra precisa ser revista. Ver doc 1.9.
+    foco_origem = Column(String(10), nullable=True)          # 'manual' | 'regra'
+    foco_pp_sugerido = Column(Boolean, nullable=True)
+    foco_ac_sugerido = Column(Boolean, nullable=True)
     finalidade = Column(String(50), nullable=True)
 
     # proveniencia
