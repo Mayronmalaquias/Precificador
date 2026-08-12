@@ -1,0 +1,193 @@
+/* Consulta de imóveis — mesma linguagem das outras telas internas: fundo cinza,
+   cards brancos, rosa 61 na ação principal. Azul marca o que vem do CRM (só leitura)
+   e verde o que é nosso (editável), pra diferença ficar óbvia no relance. */
+.ci-page {
+  --ink: #18213b; --muted: #6f7689; --line: #e9ebf2; --rosa: #e1005b;
+  --crm: #2f6c96; --interno: #1c9b6c;
+  background: #f5f6fa; color: var(--ink); min-height: 100vh;
+  padding: 34px 22px 70px; font-family: var(--ds-font);
+}
+.ci-page * { box-sizing: border-box; }
+
+.ci-hero {
+  max-width: 1440px; margin: 0 auto 18px; padding: 24px 26px;
+  border: 1px solid #f5d6e2; border-radius: 17px;
+  background: linear-gradient(135deg, #fff 0%, #fffafc 60%, #ffeef4 100%);
+  box-shadow: 0 8px 28px rgba(105, 45, 70, .07);
+}
+.ci-hero h1 { font-size: 30px; letter-spacing: -.9px; margin: 8px 0 6px; }
+.ci-hero p { margin: 0; color: #5f6679; font-size: 13px; max-width: 720px; }
+.ci-eyebrow { display: inline-flex; align-items: center; gap: 8px; font-size: 10px; font-weight: 800;
+  letter-spacing: 1.5px; text-transform: uppercase; color: var(--rosa); }
+.ci-eyebrow i { width: 19px; height: 2px; background: var(--rosa); display: inline-block; }
+
+/* ── Busca ─────────────────────────────────────────────────────────────── */
+.ci-busca {
+  max-width: 1440px; margin: 0 auto 16px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap;
+  background: #fff; border: 1px solid var(--line); border-radius: 12px; padding: 11px 13px;
+  box-shadow: 0 3px 13px rgba(38, 44, 73, .035);
+}
+.ci-busca input {
+  flex: 1; min-width: 260px; border: 1px solid var(--line); border-radius: 9px;
+  padding: 11px 13px; font: 500 13px var(--ds-font); color: var(--ink);
+}
+.ci-busca input:focus { outline: 3px solid rgba(225, 0, 91, .12); border-color: #f0a9c4; }
+.ci-cta { border: 0; border-radius: 9px; background: var(--rosa); color: #fff;
+  font: 700 13px var(--ds-font); padding: 11px 20px; cursor: pointer; }
+.ci-cta:disabled { opacity: .5; cursor: default; }
+.ci-limpar { border: 1px solid var(--line); background: #fff; color: var(--ink);
+  border-radius: 9px; padding: 11px 15px; font: 700 12px var(--ds-font); cursor: pointer; }
+.ci-contador { font-size: 11px; color: var(--muted); }
+
+.ci-estado { max-width: 1440px; margin: 0 auto 16px; padding: 16px; text-align: center;
+  background: #fff; border: 1px solid var(--line); border-radius: 12px; color: var(--muted); font-size: 13px; }
+.ci-estado--erro { background: #fff5f6; border-color: #f3ccd3; color: #a12b3d; }
+
+/* ── Grade de cards ────────────────────────────────────────────────────── */
+.ci-grid {
+  max-width: 1440px; margin: 0 auto; display: grid; gap: 12px;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+}
+/* O card é um <button>: precisa declarar fundo e cor no hover/focus, senão qualquer
+   regra global de `button` do bundle (havia uma pintando tudo de rosa) vence no hover,
+   porque `button:hover:not(:disabled)` tem especificidade maior que `.ci-card:hover`. */
+.ci-card {
+  position: relative; overflow: hidden;
+  text-align: left; cursor: pointer; font: inherit; color: var(--ink);
+  background: #fff; border: 1px solid var(--line); border-radius: 13px; padding: 15px 16px;
+  display: grid; gap: 7px;
+  transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease;
+}
+/* Fita rosa que cresce na lateral — dá o toque da marca sem repintar o card. */
+.ci-card::before {
+  content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 3px;
+  background: var(--rosa); transform: scaleY(0); transform-origin: top;
+  transition: transform .18s ease;
+}
+.ci-card:hover, .ci-card:focus-visible {
+  background: #fff; color: var(--ink);
+  transform: translateY(-3px); border-color: #f2c2d6;
+  box-shadow: 0 14px 30px rgba(225, 0, 91, .12), 0 2px 6px rgba(38, 44, 73, .06);
+}
+.ci-card:focus-visible { outline: 3px solid rgba(225, 0, 91, .16); outline-offset: 2px; }
+.ci-card:hover::before, .ci-card:focus-visible::before { transform: scaleY(1); }
+.ci-card:hover .ci-card-topo strong { color: var(--rosa); }
+.ci-card:active { transform: translateY(-1px); }
+.ci-card-topo strong { transition: color .18s ease; }
+.ci-card-topo { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.ci-card-topo strong { font-size: 14px; letter-spacing: -.3px; }
+.ci-card-endereco { margin: 0; font-size: 13px; font-weight: 600; line-height: 1.35; }
+.ci-card-bairro { margin: 0; font-size: 11px; color: var(--muted); }
+.ci-card-specs { display: flex; gap: 10px; font-size: 11px; color: #5f6679; }
+.ci-card-specs span { background: #f5f6fa; border-radius: 6px; padding: 3px 8px; }
+.ci-card-rodape { display: flex; align-items: center; justify-content: space-between; margin-top: 3px; }
+.ci-card-rodape b { font-size: 15px; }
+.ci-card-rodape em { font-style: normal; font-size: 9px; font-weight: 800; text-transform: uppercase;
+  letter-spacing: .5px; background: #e9f8f2; color: #14785a; border-radius: 20px; padding: 3px 8px; }
+
+.ci-foco { font-size: 9px; font-weight: 800; border-radius: 20px; padding: 3px 8px;
+  background: #f1f2f6; color: #5f6679; white-space: nowrap; }
+.ci-foco.ffocopp { background: #eef0ff; color: #4a52c9; }
+.ci-foco.ffocoac { background: #e9f8f2; color: #14785a; }
+.ci-foco.ffocoppac { background: #fff3e3; color: #a56a15; }
+
+.ci-paginacao { max-width: 1440px; margin: 16px auto 0; display: flex; gap: 14px;
+  align-items: center; justify-content: center; }
+.ci-paginacao button { border: 1px solid var(--line); background: #fff; color: var(--ink);
+  border-radius: 9px; padding: 9px 14px; font: 700 12px var(--ds-font); cursor: pointer; }
+.ci-paginacao button:disabled { opacity: .45; cursor: default; }
+.ci-paginacao span { font-size: 11px; color: var(--muted); }
+
+/* ── Modal de detalhe ──────────────────────────────────────────────────── */
+.ci-modal-bg { position: fixed; inset: 0; background: #171b2c99; backdrop-filter: blur(4px);
+  z-index: 1000; display: grid; place-items: center; padding: 20px; }
+.ci-modal { background: #fff; width: min(1040px, 100%); max-height: 92vh; overflow-y: auto;
+  border-radius: 16px; box-shadow: 0 25px 80px rgba(23, 27, 44, .32); padding: 22px; }
+/* Topo do modal: mesmo degradê do hero da página, sangrando até a borda e grudado no
+   topo — o modal rola, e sem sticky você perde de vista de que imóvel está lendo. */
+.ci-modal-topo {
+  position: sticky; top: 0; z-index: 3;
+  display: flex; justify-content: space-between; align-items: flex-start; gap: 16px;
+  margin: -22px -22px 18px; padding: 20px 22px 16px;
+  border-radius: 16px 16px 0 0; border-bottom: 1px solid #f5d6e2;
+  background: linear-gradient(135deg, #fff 0%, #fffafc 55%, #ffeef4 100%);
+}
+.ci-modal-titulo { min-width: 0; }
+.ci-modal h2 { font-size: 21px; margin: 8px 0 4px; letter-spacing: -.5px; line-height: 1.25; }
+.ci-modal-topo small { font-size: 11.5px; color: var(--muted); }
+.ci-modal-chips { display: flex; flex-wrap: wrap; align-items: center; gap: 7px; margin-top: 11px; }
+.ci-modal-valor { font-size: 13px; font-weight: 800; letter-spacing: -.2px;
+  background: #fff; border: 1px solid #f0d2e0; color: var(--rosa); border-radius: 20px; padding: 3px 11px; }
+
+.ci-fechar {
+  flex: none; width: 34px; height: 34px; border-radius: 10px; cursor: pointer;
+  border: 1px solid #f0d2e0; background: #fff; color: #94566f; font-size: 13px; line-height: 1;
+  transition: background .16s ease, color .16s ease, border-color .16s ease;
+}
+.ci-fechar:hover { background: var(--rosa); border-color: var(--rosa); color: #fff; }
+.ci-fechar:focus-visible { outline: 3px solid rgba(225, 0, 91, .2); outline-offset: 2px; }
+
+.ci-blocos { display: grid; gap: 14px; }
+.ci-bloco { border: 1px solid var(--line); border-radius: 12px; padding: 15px 17px; }
+.ci-bloco h3 { display: flex; align-items: center; gap: 9px; font-size: 14px; margin: 0 0 12px; }
+.ci-bloco h3 em { font-style: normal; font-size: 9px; font-weight: 800; text-transform: uppercase;
+  letter-spacing: .6px; border-radius: 20px; padding: 3px 9px; background: #f1f2f6; color: var(--muted); }
+.ci-bloco--crm { border-left: 3px solid var(--crm); }
+.ci-bloco--crm h3 em { background: #eaf3f9; color: var(--crm); }
+.ci-bloco--interno { border-left: 3px solid var(--interno); }
+.ci-bloco--interno h3 em { background: #e9f8f2; color: #14785a; }
+
+.ci-dados { display: grid; grid-template-columns: repeat(auto-fill, minmax(165px, 1fr)); gap: 10px; }
+.ci-dado { background: #fafbfc; border: 1px solid var(--line); border-radius: 9px; padding: 10px 11px; }
+.ci-dado span { display: block; font-size: 9px; text-transform: uppercase; letter-spacing: .5px;
+  color: #999faf; margin-bottom: 4px; }
+.ci-dado strong { font-size: 13px; word-break: break-word; }
+
+.ci-nota { margin: 0 0 11px; padding: 9px 11px; border-radius: 8px; font-size: 11px;
+  background: #fff8e8; border: 1px solid #f2dcb4; color: #8a6320; }
+.ci-nota--fraca { margin: 11px 0 0; background: #f7f8fb; border-color: var(--line); color: var(--muted); }
+
+.ci-foco-editor { display: flex; gap: 9px; align-items: center; flex-wrap: wrap; margin-bottom: 13px;
+  background: #f7fbf9; border: 1px solid #cdeade; border-radius: 10px; padding: 11px 13px; }
+.ci-foco-editor label { font-size: 11px; font-weight: 700; color: #4b5563; }
+.ci-foco-editor select { border: 1px solid var(--line); border-radius: 8px; padding: 9px 11px;
+  font: 500 13px var(--ds-font); color: var(--ink); background: #fff; }
+.ci-tag { font-size: 10px; color: var(--muted); }
+
+.ci-tabela { width: 100%; border-collapse: collapse; margin-top: 12px; }
+.ci-tabela th { text-align: left; font-size: 9px; text-transform: uppercase; letter-spacing: .6px;
+  color: #9ba0b0; padding: 8px 10px; border-bottom: 1px solid var(--line); }
+.ci-tabela td { padding: 9px 10px; border-bottom: 1px solid #f2f3f6; font-size: 12px; }
+
+@media (max-width: 700px) {
+  .ci-page { padding: 22px 12px 50px; }
+  .ci-hero h1 { font-size: 24px; }
+  .ci-busca input { min-width: 100%; }
+}
+
+/* Chips de situação + selo no card. */
+.ci-chips { display: flex; gap: 3px; background: #f3f4f7; border-radius: 9px; padding: 3px; }
+.ci-chips button { border: 0; background: transparent; color: #737b91; border-radius: 7px;
+  padding: 8px 13px; font: 700 11px var(--ds-font); cursor: pointer; transition: background .16s ease, color .16s ease; }
+.ci-chips button:hover { color: #252b3d; }
+.ci-chips button.is-ativo { background: #fff; color: var(--rosa); box-shadow: 0 1px 3px rgba(38,44,73,.12); }
+
+.ci-card-situacao { display: flex; }
+.ci-sit { font-size: 9px; font-weight: 800; text-transform: uppercase; letter-spacing: .4px;
+  border-radius: 20px; padding: 3px 8px; }
+.ci-sit.s-disponivel { background: #e9f8f2; color: #14785a; }
+.ci-sit.s-vendido { background: #fdecee; color: #b03040; }
+.ci-sit.s-novo { background: #eef0ff; color: #4a52c9; }
+
+/* Subgrupos do bloco do Imoview (características, valores, gestão). */
+.ci-subtitulo { margin: 16px 0 9px; font-size: 11px; font-weight: 800; text-transform: uppercase;
+  letter-spacing: .8px; color: var(--crm); }
+.ci-extras { display: flex; flex-wrap: wrap; gap: 6px; }
+.ci-extras span { font-size: 10px; background: #eaf3f9; color: var(--crm);
+  border-radius: 20px; padding: 4px 10px; }
+.ci-links { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+.ci-links a { font-size: 11px; font-weight: 700; text-decoration: none; color: var(--crm);
+  background: #f7fafd; border: 1px solid #d9e8f5; border-radius: 8px; padding: 8px 12px; }
+.ci-links a:hover { background: #eaf3f9; border-color: #b9d3e8; }
+.ci-descricao { margin: 13px 0 0; padding: 11px 13px; background: #fafbfc; border: 1px solid var(--line);
+  border-radius: 9px; font-size: 12px; line-height: 1.55; color: #4b5563; white-space: pre-wrap; }

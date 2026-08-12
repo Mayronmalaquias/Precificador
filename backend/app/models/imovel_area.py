@@ -27,5 +27,7 @@ class ImovelArea(Base):
     quartos = Column(Integer, nullable=True)
     vagas = Column(Integer, nullable=True)
     valor = Column(Numeric(14, 2), nullable=True)
+    # Vago/Disponivel | Vendido | Desativado | Em moderacao | Em reforma
+    situacao = Column(String(40), nullable=True, index=True)
     origem = Column(String(30), nullable=True, default="imoview")
     atualizado_em = Column(DateTime, server_default=func.now(), onupdate=func.now(), nullable=True)

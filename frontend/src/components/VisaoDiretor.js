@@ -234,18 +234,21 @@ function VisaoDiretor() {
         </article>
 
         <article className="ev-card ev-prospect">
-          <CardTitle eyebrow="Estoque" title="Entradas, saídas e estoque" description="Das 3 planilhas que o Imoview gera toda semana" />
+          <CardTitle eyebrow="Estoque" title="Captações, saídas e estoque" description="Movimento de imóveis, direto da situação no Imoview" />
           <div className="ev-prospect-total">
-            <div><span>Captações entradas</span><strong>{number(estoque.entradas || 0)}</strong><small>No período</small></div>
-            <div><span>Saídas</span><strong>{number(estoque.saidas || 0)}</strong><small>No período</small></div>
+            <div><span>Captações</span><strong>{number(estoque.entradas || 0)}</strong><small>Registradas no período</small></div>
+            <div><span>Saídas</span><strong>{number(estoque.saidas || 0)}</strong><small>Deixaram de estar disponíveis</small></div>
             <div className={`ev-saldo ${(estoque.saldo || 0) >= 0 ? 'positivo' : 'negativo'}`}>
-              <span>Saldo</span><strong>{(estoque.saldo || 0) > 0 ? '+' : ''}{number(estoque.saldo || 0)}</strong><small>Entradas − saídas</small>
+              <span>Saldo</span><strong>{(estoque.saldo || 0) > 0 ? '+' : ''}{number(estoque.saldo || 0)}</strong><small>Captações − saídas</small>
             </div>
-            <div><span>Total de estoque</span><strong>{number(estoque.estoque || 0)}</strong><small>{estoque.estoque_fonte === 'imoview' ? 'Imoview, ao vivo' : `Planilha de ${dateLabel(estoque.data_estoque)}`}</small></div>
+            {/* Estoque é saldo, não acumulado: mostra o agora, independente do período. */}
+            <div><span>Total de estoque</span><strong>{number(estoque.estoque || 0)}</strong><small>Disponíveis hoje</small></div>
           </div>
-          <p className="ev-data-note">{estoque.estoque_fonte === 'imoview'
-            ? `Estoque ao vivo da API do Imoview (vago/disponível, publicado ou não). A planilha de ${dateLabel(estoque.data_estoque)} trazia ${number(estoque.estoque_planilha || 0)}.`
-            : 'Filtrado por equipe: a API do Imoview não devolve captador, então o estoque vem da planilha semanal.'}
+          <p className="ev-data-note">
+            Estoque = imóveis <b>vago/disponível</b> no catálogo (varredura de {dateLabel(estoque.data_estoque)}).
+            Saída = mudou de disponível para vendido, desativado ou em reforma — <b>em moderação não conta</b>, o imóvel continua sendo nosso.
+            {String(estoque.saidas_fonte || '').includes('planilha') && ' Parte das saídas deste período ainda vem da planilha semanal: o log de situação começou depois.'}
+            {(equipe !== 'todas' || corretor !== 'todos') && ' Com filtro, entra só imóvel com captação registrada — é a única ligação entre imóvel e equipe.'}
           </p>
         </article>
 

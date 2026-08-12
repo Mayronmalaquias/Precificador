@@ -19,6 +19,7 @@ from app.models.estoque_legado import LeadLegado
 from app.models.fato_bases import FatoCaptacao, FatoEstoque, FatoSaida
 from app.models.gerente_visita_visualizada import GerenteVisitaVisualizada
 from app.models.imovel_area import ImovelArea
+from app.models.imovel_situacao_evento import ImovelSituacaoEvento
 from app.models.legado_diversos import CampanhaLegado
 from app.models.proposta_efetiva import PropostaEfetiva
 from app.models.usuarios import Usuarios
@@ -357,46 +358,51 @@ def _sales_totals(session, query, recent_query, selected, teams):
     return total, comissao, query.count(), items
 
 
-@cache.memoize(timeout=1800)
-def _estoque_imoview_total():
-    """Total de imóveis no Imoview, direto da API.
+# "Disponível" chega do Imoview como "Vago/Disponível". O prefixo é ASCII, então o
+# ILIKE casa a versão acentuada da API e a sem acento do fallback local.
+DISPONIVEL_LIKE = "vago%"
+# Moderação é a exceção pedida na regra: o imóvel sai da vitrine mas continua sendo
+# nosso, o corretor está só ajustando o anúncio. Contar como saída inflaria o número.
+MODERACAO_LIKE = "%modera%"
 
-    O XLSX de estoque vem cortado (a exportação parou em 999 linhas em 03/08), então o
-    número da empresa sai daqui: `RetornarImoveis` devolve `quantidade` na primeira
-    página, sem precisar paginar. Cacheado 30min — é uma chamada externa num painel
-    que recarrega a cada filtro.
 
-    Limite conhecido: a resposta NÃO traz captador (`captadores` vem vazio), então este
-    total não se divide por equipe — o recorte filtrado continua vindo da planilha.
+def _escopo_por_captacao(session, query, coluna_codigo, selected_team, selected_broker):
+    """Amarra uma tabela de imóveis à equipe/corretor pelo código, via `fato_captacao`.
+
+    Nem o catálogo nem o log de situação sabem de quem é o imóvel — a única ponte é a
+    captação. Efeito colateral aceito: imóvel sem captação registrada não aparece em
+    visão filtrada (só no total da empresa).
     """
-    from app.services.imoview_service import IMOVIEW_BASE, _headers
-
-    import requests
-
-    # `naoconsiderarmeusite` inclui o que não está publicado no site (sem ele são só
-    # 746, o que o site mostra); `situacao=1` = Vago/Disponível, que é o estoque de
-    # verdade — sem ele a API devolve a base histórica inteira (11.418).
-    resposta = requests.post(
-        f"{IMOVIEW_BASE}/Imovel/RetornarImoveis", headers=_headers(),
-        json={"numeropagina": 1, "numeroregistros": 1, "naoconsiderarmeusite": True, "situacao": 1},
-        timeout=30,
+    if not (selected_team or selected_broker):
+        return query
+    dono = session.query(
+        FatoCaptacao.codigo_imovel.label("codigo"), FatoCaptacao.captador1.label("captador")
+    ).filter(FatoCaptacao.codigo_imovel.isnot(None)).distinct().subquery()
+    query = query.join(dono, dono.c.codigo == coluna_codigo)
+    if selected_broker:
+        return query.filter(dono.c.captador == selected_broker)
+    return query.join(Usuarios, Usuarios.id_usuarios == dono.c.captador).filter(
+        Usuarios.team == selected_team
     )
-    if resposta.status_code >= 400:
-        raise RuntimeError(f"Imoview HTTP {resposta.status_code}: {resposta.text[:200]}")
-    return int((resposta.json() or {}).get("quantidade") or 0)
 
 
 def _estoque_semanal(session, start, end, selected_team, selected_broker=None):
-    """Entradas, saídas e estoque — dos 3 XLSX que o Imoview gera toda semana.
+    """Captações, saídas e estoque — as três leituras do movimento de imóveis.
 
-    Fontes: `fato_captacao` (entradas), `fato_saida` (saídas) e `fato_estoque` (foto do
-    estoque). O estoque é um **snapshot semanal**: o total é a contagem do último
-    `data_estoque` disponível dentro do período, não uma soma de linhas.
+    Definições (fechadas com a diretoria em 12/08/2026):
 
-    Escopo: o corretor sai de `captador1/2/3`; a equipe vem do cadastro do captador
-    (`usuarios.team`), porque `id_gerente` está vazio em 98% de `fato_captacao`.
-    `fato_saida` quase não traz captador (2 de 109), então a equipe da saída é herdada
-    do imóvel em `fato_captacao` pelo `codigo_imovel`.
+    - **Estoque** = imóveis com situação *Vago/Disponível* AGORA, do catálogo
+      `imovel_area`. É um saldo, não um acumulado: não tem recorte de período.
+    - **Captações** = imóveis registrados no sistema dentro do período
+      (`fato_captacao.data_entrada`).
+    - **Saídas** = imóveis que *deixaram* de estar disponíveis no período — vendido,
+      desativado, em reforma. **Em moderação não conta**, o imóvel continua sendo nosso.
+
+    Saída é uma transição, e a API do Imoview não tem endpoint de movimentação: quem
+    detecta é o `sync_areas_imoview.py`, comparando varreduras e gravando em
+    `imovel_situacao_evento`. Antes da primeira varredura não há log — para períodos
+    anteriores a ele, cai na planilha semanal (`fato_saida`), sinalizado em
+    `saidas_fonte`.
     """
     def _escopo(query, tabela, usa_join=True):
         if selected_broker:
@@ -417,57 +423,60 @@ def _estoque_semanal(session, start, end, selected_team, selected_broker=None):
         ), FatoCaptacao
     ).scalar() or 0
 
-    # Saída: o captador vem do imóvel na base de captação (a planilha de saída não traz).
-    captacao_do_imovel = session.query(
-        FatoCaptacao.codigo_imovel.label("codigo"), FatoCaptacao.captador1.label("captador")
-    ).filter(FatoCaptacao.codigo_imovel.isnot(None)).distinct().subquery()
+    # ── Saídas: log de transição de situação, com a planilha cobrindo o passado ──
+    # As duas fontes são separadas por DATA, nunca sobrepostas: até a véspera do
+    # primeiro evento vale a planilha semanal; dali em diante, o log. Um período que
+    # cruza a virada soma os dois pedaços — senão o mês da virada apareceria vazio.
+    primeiro_evento = session.query(func.min(ImovelSituacaoEvento.detectado_em)).scalar()
+    corte = primeiro_evento if primeiro_evento else None
+    saidas = 0
+    fontes = []
 
-    saidas_query = session.query(func.count(func.distinct(FatoSaida.id))).filter(
-        FatoSaida.data_saida >= start, FatoSaida.data_saida <= end
-    )
-    if selected_broker or selected_team:
-        saidas_query = saidas_query.join(
-            captacao_do_imovel, captacao_do_imovel.c.codigo == FatoSaida.codigo_imovel
+    if corte is None or start < corte:
+        fim_planilha = min(end, corte - timedelta(days=1)) if corte else end
+        if fim_planilha >= start:
+            planilha_query = session.query(func.count(func.distinct(FatoSaida.id))).filter(
+                FatoSaida.data_saida >= start, FatoSaida.data_saida <= fim_planilha
+            )
+            parcial = _escopo_por_captacao(
+                session, planilha_query, FatoSaida.codigo_imovel, selected_team, selected_broker
+            ).scalar() or 0
+            saidas += int(parcial)
+            if parcial or corte is None:
+                fontes.append("planilha")
+
+    if corte and end >= corte:
+        log_query = session.query(func.count(func.distinct(ImovelSituacaoEvento.codigo))).filter(
+            ImovelSituacaoEvento.detectado_em >= max(start, corte),
+            ImovelSituacaoEvento.detectado_em <= end,
+            ImovelSituacaoEvento.situacao_anterior.ilike(DISPONIVEL_LIKE),
+            ~ImovelSituacaoEvento.situacao_nova.ilike(DISPONIVEL_LIKE),
+            ~ImovelSituacaoEvento.situacao_nova.ilike(MODERACAO_LIKE),
         )
-        if selected_broker:
-            saidas_query = saidas_query.filter(captacao_do_imovel.c.captador == selected_broker)
-        else:
-            saidas_query = saidas_query.join(
-                Usuarios, Usuarios.id_usuarios == captacao_do_imovel.c.captador
-            ).filter(Usuarios.team == selected_team)
-    saidas = saidas_query.scalar() or 0
-
-    # Estoque: última foto semanal até o fim do período (cai na mais recente se o
-    # período for anterior a qualquer upload).
-    data_foto = session.query(func.max(FatoEstoque.data_estoque)).filter(
-        FatoEstoque.data_estoque <= end
-    ).scalar() or session.query(func.max(FatoEstoque.data_estoque)).scalar()
-
-    estoque = 0
-    if data_foto:
-        estoque = _escopo(
-            session.query(func.count(func.distinct(FatoEstoque.codigo_imovel))).filter(
-                FatoEstoque.data_estoque == data_foto
-            ), FatoEstoque
+        parcial = _escopo_por_captacao(
+            session, log_query, ImovelSituacaoEvento.codigo, selected_team, selected_broker
         ).scalar() or 0
+        saidas += int(parcial)
+        fontes.append("situacao")
 
-    # Total da empresa vem da API (a planilha vem cortada). Com filtro de equipe ou
-    # corretor a API não serve — ela não devolve captador —, então mantém a planilha.
-    estoque_planilha = int(estoque)
-    estoque_api = None
-    if not (selected_team or selected_broker):
-        try:
-            estoque_api = _estoque_imoview_total()
-        except Exception:
-            estoque_api = None  # API fora do ar não pode derrubar o painel
+    saidas_fonte = "+".join(fontes) if fontes else "planilha"
+
+    # ── Estoque: quantos estão disponíveis agora ────────────────────────────────
+    estoque_query = session.query(func.count(func.distinct(ImovelArea.codigo))).filter(
+        ImovelArea.situacao.ilike(DISPONIVEL_LIKE)
+    )
+    estoque = _escopo_por_captacao(
+        session, estoque_query, ImovelArea.codigo, selected_team, selected_broker
+    ).scalar() or 0
+    data_catalogo = session.query(func.max(ImovelArea.atualizado_em)).scalar()
 
     return {
         "entradas": int(entradas),
         "saidas": int(saidas),
-        "estoque": estoque_api if estoque_api else estoque_planilha,
-        "estoque_planilha": estoque_planilha,
-        "estoque_fonte": "imoview" if estoque_api else "planilha",
-        "data_estoque": data_foto.isoformat() if data_foto else None,
+        "estoque": int(estoque),
+        "estoque_fonte": "catalogo",
+        "saidas_fonte": saidas_fonte,
+        "data_estoque": data_catalogo.date().isoformat() if data_catalogo else None,
         "saldo": int(entradas) - int(saidas),
     }
 

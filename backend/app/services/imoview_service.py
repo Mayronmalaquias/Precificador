@@ -130,6 +130,114 @@ def buscar_imoveis_por_endereco(
     return list(resultados.values())
 
 
+IMOVIEW_TODOS = f"{IMOVIEW_BASE}/Imovel/RetornarImoveis"
+
+
+def buscar_brutos_por_endereco(endereco: str, page_size: int = 20) -> List[Dict[str, Any]]:
+    """Igual a `buscar_imoveis_por_endereco`, mas devolve o item CRU do Imoview.
+
+    A versão reduzida existe p/ o autocomplete de visita/proposta, que só precisa de
+    código e endereço. A consulta de imóvel precisa do payload inteiro (~120 campos:
+    valores, características, datas, extras), por isso esta.
+    """
+    endereco = (endereco or "").strip()
+    if len(endereco) < 3:
+        return []
+
+    resultados: Dict[str, Dict[str, Any]] = {}
+    for finalidade in (1, 2):
+        data = _call_imoview_json({
+            "numeropagina": 1, "numeroregistros": min(max(page_size, 1), 20),
+            "endereco": endereco, "finalidade": finalidade,
+            "ordenacao": "dataatualizacaodesc",
+        })
+        for item in data.get("lista") or []:
+            codigo = item.get("codigo")
+            if codigo is not None:
+                resultados[str(codigo)] = item
+    return list(resultados.values())
+
+
+def _pagina_por_codigo(pagina: int) -> Dict[str, Any]:
+    """Uma página do catálogo ordenada por código decrescente.
+
+    `naoconsiderarmeusite=True` é obrigatório: imóvel recém-cadastrado ainda não está
+    publicado no site e some do resultado padrão (o 12400 era assim). Com a flag, a base
+    vai de 741 para 11.426 imóveis.
+    """
+    resp = requests.post(
+        IMOVIEW_TODOS,
+        headers=_headers(),
+        json={
+            "numeropagina": pagina, "numeroregistros": 20,
+            "ordenacao": "codigodesc", "naoconsiderarmeusite": True,
+        },
+        timeout=30,
+    )
+    if resp.status_code >= 400:
+        raise RuntimeError(f"Imoview HTTP {resp.status_code}: {resp.text[:300]}")
+    return resp.json() or {}
+
+
+def buscar_imovel_por_codigo(codigo: Any) -> Optional[Dict[str, Any]]:
+    """Busca UM imóvel pelo código, ao vivo, por **busca binária**.
+
+    A API não tem filtro por código. Mas ela aceita `ordenacao=codigodesc` e informa a
+    `quantidade` total — com a lista ordenada, dá p/ saltar direto para a página provável
+    em vez de varrer da primeira em diante.
+
+    Custo: ~log2(572 páginas) ≈ **10 requisições no pior caso**, para qualquer código.
+    A varredura sequencial anterior gastava 15 requisições e mesmo assim só alcançava os
+    300 códigos mais altos — imóvel antigo nunca era encontrado.
+    """
+    alvo_texto = "".join(ch for ch in str(codigo or "") if ch.isdigit())
+    if not alvo_texto:
+        return None
+    alvo = int(alvo_texto)
+
+    primeira = _pagina_por_codigo(1)
+    total = int(primeira.get("quantidade") or 0)
+    if not total:
+        return None
+    ultima_pagina = max(-(-total // 20), 1)
+
+    def _procurar(lista):
+        for item in lista:
+            if str(item.get("codigo") or "") == alvo_texto:
+                return item
+        return None
+
+    def _faixa(lista):
+        numeros = [int(str(i.get("codigo"))) for i in lista if str(i.get("codigo") or "").isdigit()]
+        return (max(numeros), min(numeros)) if numeros else (None, None)
+
+    baixo, alto = 1, ultima_pagina
+    pagina_atual, dados = 1, primeira
+    while baixo <= alto:
+        lista = dados.get("lista") or []
+        if not lista:
+            return None
+        achado = _procurar(lista)
+        if achado:
+            return achado
+
+        maior, menor = _faixa(lista)
+        if maior is None:
+            return None
+        if alvo > maior:            # códigos maiores estão nas páginas anteriores
+            alto = pagina_atual - 1
+        elif alvo < menor:          # e os menores, nas seguintes
+            baixo = pagina_atual + 1
+        else:
+            return None             # cairia nesta página; não existe
+
+        if baixo > alto:
+            return None
+        pagina_atual = (baixo + alto) // 2
+        dados = _pagina_por_codigo(pagina_atual)
+    return None
+
+
 # ============================================================================
 # Inclusão de imóvel (lançamento pelos assistentes) + listas de lookup
 # ============================================================================

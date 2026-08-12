@@ -1,4 +1,7 @@
-/* Estilos gerais */
+/* Estilos da pagina publica (FormularioPublico).
+   TODOS os seletores de elemento aqui sao escopados em `.home-page`: o CSS do CRA vira
+   um bundle unico, entao `header {}` / `button {}` soltos pintavam de rosa todo <header>
+   e todo <button> do sistema interno. */
 body {
   font-family: Arial, sans-serif;
   margin: 0;
@@ -6,7 +9,7 @@ body {
   color: #333;
 }
 
-header {
+.home-page header {
   background-color: #e1005b;
   color: rgb(255, 255, 255);
   text-align: center;
@@ -25,13 +28,14 @@ header {
   box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
 }
 
-label {
+.home-page label {
   font-weight: bold;
   display: block;
   margin-top: 10px;
 }
 
-select, input[type="range"] {
+.home-page select,
+.home-page input[type="range"] {
   width: 100%;
   padding: 10px;
   margin-top: 5px;
@@ -39,7 +43,7 @@ select, input[type="range"] {
   border-radius: 5px;
 }
 
-button {
+.home-page button {
   background-color: #e1005b;
   color: white;
   border: none;
@@ -49,7 +53,7 @@ button {
   border-radius: 5px;
 }
 
-button:hover {
+.home-page button:hover {
   background-color: #e1005b;
 }
 
@@ -71,19 +75,19 @@ button:hover {
   font-weight: bold;
 }
 
-ul {
+.home-page ul {
   list-style: none;
   padding: 0;
 }
 
-li {
+.home-page li {
   padding: 10px;
   background: #ecf0f1;
   margin: 5px 0;
   border-radius: 5px;
 }
 
-footer {
+.home-page footer {
   text-align: center;
   padding: 15px;
   background-color: #e1005b;
@@ -91,7 +95,7 @@ footer {
   margin-top: 20px;
 }
 
-footer a {
+.home-page footer a {
   color: #f1c40f;
   text-decoration: none;
 }
@@ -129,7 +133,7 @@ footer a {
 }
 
 
-label {
+.home-page label {
   font-size: 16px;
   font-weight: bold;
   color: #333;
@@ -137,7 +141,7 @@ label {
   margin-bottom: 5px;
 }
 
-input[type="number"] {
+.home-page input[type="number"] {
   width: 100%;
   max-width: 200px;
   margin-right: 70px;
@@ -149,12 +153,12 @@ input[type="number"] {
   transition: border-color 0.3s ease-in-out;
 }
 
-input[type="number"]:focus {
+.home-page input[type="number"]:focus {
   border-color: #007bff;
   box-shadow: 0 0 5px rgba(0, 123, 255, 0.5);
 }
 
-input[type="number"]::placeholder {
+.home-page input[type="number"]::placeholder {
   color: #999;
 }
 

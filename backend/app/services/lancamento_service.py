@@ -134,6 +134,45 @@ def _persistir_foco(dados: Dict[str, Any], codigo: Any) -> Dict[str, Any]:
         session.close()
 
 
+def _persistir_cache_imovel(dados: Dict[str, Any], codigo: Any) -> Dict[str, Any]:
+    """Grava o imóvel recém-lançado em `imovel_area`.
+
+    Esse cache é o catálogo que a Consulta de Imóveis pesquisa. Ele é alimentado pelo
+    `sync_areas_imoview.py`, que roda 1x/dia — sem isto, imóvel lançado agora só
+    apareceria na busca amanhã. O sync seguinte sobrescreve com o dado do CRM.
+    """
+    from app.database import SessionLocal
+    from app.models.imovel_area import ImovelArea
+
+    cod = str(codigo or "").strip()
+    if not cod:
+        return {"ok": False, "error": "sem código"}
+
+    session = SessionLocal()
+    try:
+        area = _num(dados.get("areainterna")) or _num(dados.get("areaexterna"))
+        registro = session.query(ImovelArea).filter(ImovelArea.codigo == cod).first()
+        if registro is None:
+            registro = ImovelArea(codigo=cod)
+            session.add(registro)
+        registro.area = area
+        registro.area_interna = _num(dados.get("areainterna"))
+        registro.endereco = " ".join(str(dados.get(c) or "").strip() for c in ("rua", "numero") if dados.get(c)).strip() or None
+        registro.bairro = dados.get("bairro") or None
+        registro.tipo = dados.get("tipo_nome") or None
+        registro.quartos = _int(dados.get("numeroquartos"))
+        registro.vagas = _int(dados.get("numerovagas"))
+        registro.valor = _num(dados.get("valor"))
+        registro.origem = "lancamento"
+        session.commit()
+        return {"ok": True}
+    except Exception as e:
+        session.rollback()
+        return {"ok": False, "error": str(e)}
+    finally:
+        session.close()
+
+
 def _usuario_por_imoview(session, cod_usuario: Any) -> Optional[Any]:
     """Usuário dono do código Imoview. É como o lançamento descobre o `id_usuarios`
     (C61xxx) do captador — o formulário só conhece o código do CRM."""
@@ -449,6 +488,10 @@ def lancar_imovel(
     # Classifica e persiste o foco em imovel_legado (é o que a classificação de foco lê;
     # sem isso o imóvel entra como 'NÃO LOCALIZADO'). Não-fatal.
     foco = _persistir_foco(dados, codigo)
+
+    # Cache do catálogo, p/ o imóvel já aparecer na Consulta de Imóveis (o sync do
+    # Imoview só roda 1x/dia). Não-fatal: falhar aqui não desfaz o lançamento.
+    _persistir_cache_imovel(dados, codigo)
 
     # Registra a captação (fonte do ranking de captação). Não-fatal: o imóvel já entrou
     # no CRM, e um erro aqui não pode desfazer isso — aparece no retorno p/ correção.

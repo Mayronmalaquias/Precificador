@@ -43,6 +43,7 @@ tipo: MOC (Map of Content)
 | 2.13 | Relatório de Metas dos Gerentes | 🟨 🤖 📦 | [[2.13 - Relatório de Metas dos Gerentes]] |
 | 2.14 | Visão do Diretor / Executive View | ✅ 🆕 | [[2.14 - Visão do Diretor]] |
 | 2.15 | Propostas Efetivas (proposta formal de compra) | ✅ 🆕 | [[2.15 - Propostas Efetivas]] |
+| 2.16 | Consulta de Imóveis (controle total do estoque) | ✅ 🆕 | [[2.16 - Consulta de Imóveis]] |
 
 ## Nível 3 — Alta complexidade
 | # | Processo | Status | Nota |

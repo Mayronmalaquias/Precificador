@@ -86,6 +86,7 @@ function Header() {
     { to: '/GestaoClientes', label: 'Gestao de Clientes', show: isLogado },
     { to: '/RelatorioGerente', label: 'Relatório Gerente', show: isLogado && isAdmin },
     { to: '/VisaoDiretor', label: 'Visão do Diretor', show: isLogado && (isDiretor || permissao === 'gerente') },
+    { to: '/ConsultaImoveis', label: 'Consulta de Imóveis', subtitle: 'CRM + inteligência', show: isLogado && (isDiretor || isAdministrador || isAssistente || permissao === 'gerente') },
     { to: '/PropostasEfetivas', label: 'Propostas Efetivas', subtitle: 'propostas de compra', show: isLogado && (isDiretor || isAdministrador || isAssistente || permissao === 'gerente') },
     { to: '/ranking', label: 'Ranking', show: isLogado && isAdmin },
     { to: '/AdminBases', label: 'Gestão de Bases', show: isLogado && isAdministrador },
@@ -93,7 +94,7 @@ function Header() {
     { to: '/JornadaCaptacao', label: 'Jornada Captação', show: isLogado },
     { to: '/LancarImovel', label: 'Lançar Imóvel', subtitle: 'Imoview + Trello', show: isLogado && (isAssistente || isAdministrador) },
     // Assistente (perfil do estagiário) só enxerga Lançar Imóvel e o acompanhamento das propostas.
-  ].filter((item) => item.show).filter((item) => !isAssistente || ['/LancarImovel', '/PropostasEfetivas'].includes(item.to));
+  ].filter((item) => item.show).filter((item) => !isAssistente || ['/LancarImovel', '/PropostasEfetivas', '/ConsultaImoveis'].includes(item.to));
 
   const gestao = [
     { to: '/GerenteRH', label: 'Controle Equipe', show: isLogado && (permissao === 'gerente' || isAdministrador) },

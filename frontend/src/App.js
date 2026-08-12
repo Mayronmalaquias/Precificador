@@ -43,11 +43,14 @@ import GerenteRHCorretores from './components/GerenteRHCorretores'
 import LancarImovel from './components/LancarImovel'
 import VisaoDiretor from './components/VisaoDiretor'
 import PropostasEfetivas from './components/PropostasEfetivas'
+import ConsultaImoveis from './components/ConsultaImoveis'
 
 import './assets/css/styles.css';
 import './assets/css/report.css';
 import './assets/css/map.css';
-import './assets/css/footer.css';
+// footer.css (rodapé rosa centralizado) foi substituído pelo `.site-footer` de
+// footerPaginaUnica.css. Ficava no bundle pintando de rosa qualquer <footer> sem classe —
+// o rodapé do modal de Propostas Efetivas, por exemplo.
 import './assets/css/chat.css';
 import './assets/css/FormVisita.css';
 
@@ -105,6 +108,10 @@ function App() {
                 <Route
                   path="/VisaoDiretor"
                   element={<DiretorRoute><VisaoDiretor /></DiretorRoute>}
+                />
+                <Route
+                  path="/ConsultaImoveis"
+                  element={<PropostasRoute><ConsultaImoveis /></PropostasRoute>}
                 />
                 <Route
                   path="/PropostasEfetivas"

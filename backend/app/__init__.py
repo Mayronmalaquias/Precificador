@@ -63,6 +63,7 @@ def create_app(config_object=Config):
     from app.routes.auth_routes import auth_ns
     from app.routes.captacao_routes import captacao_ns
     from app.routes.chat_routes import chat_ns
+    from app.routes.consulta_imovel_routes import consulta_imovel_ns
     from app.routes.divisao_comissao_routes import divisao_ns
     from app.routes.diretor_dashboard_routes import diretor_dashboard_ns
     from app.routes.equipes_routes import equipes_ns
@@ -106,6 +107,7 @@ def create_app(config_object=Config):
 
     # Bases e imóveis
     api.add_namespace(admin_bases_ns, path=api_prefix)
+    api.add_namespace(consulta_imovel_ns, path=api_prefix)
     api.add_namespace(imovel_catalogo_ns, path=api_prefix)
     api.add_namespace(report_ns, path=api_prefix)
 
