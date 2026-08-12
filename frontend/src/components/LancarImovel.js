@@ -53,7 +53,9 @@ function textoAviso(a, foco) {
   ].filter((x) => String(x).trim() !== "").join("\n");
 }
 
-const propVazio = () => ({ nome: "", cpfoucnpj: "", telefone: "", email: "", percentual: "100" });
+// `tem_documento` só existe no formulário: o back recebe o CPF vazio e grava o
+// marcador 00000000000 (o Imoview não aceita proprietário sem documento).
+const propVazio = () => ({ nome: "", cpfoucnpj: "", telefone: "", email: "", percentual: "100", tem_documento: true });
 
 const VAZIO = {
   // Principal = o que vai pro Imoview (codigousuario) e pra planilha. O 2º corretor só
@@ -246,13 +248,20 @@ export default function LancarImovel() {
     if (!String(form.urlvideo).trim()) { toast("Informe o link do vídeo.", "error"); return; }
     if (!form.foco) { toast("Selecione se o imóvel é foco.", "error"); return; }
 
-    const props = form.proprietarios.filter((p) => String(p.nome).trim());
+    const props = form.proprietarios
+      .filter((p) => String(p.nome).trim())
+      // Quem marcou "sem documento" vai com o campo vazio: o back aplica o
+      // 00000000000, que é o marcador único de proprietário sem CPF/CNPJ.
+      .map(({ tem_documento, ...p }) => ({ ...p, cpfoucnpj: tem_documento ? p.cpfoucnpj : "" }));
     if (!props.length) { toast("Informe ao menos um proprietário.", "error"); return; }
-    // CPF/CNPJ é opcional — sem ele o back grava 00000000000 no Imoview, que não
-    // aceita proprietário sem documento. Telefone continua obrigatório.
-    const incompleto = props.find((p) => !String(p.telefone).trim());
-    if (incompleto) {
-      toast(`Proprietário "${incompleto.nome}": preencha o telefone.`, "error"); return;
+    const semTelefone = props.find((p) => !String(p.telefone).trim());
+    if (semTelefone) {
+      toast(`Proprietário "${semTelefone.nome}": preencha o telefone.`, "error"); return;
+    }
+    // Marcou que tem documento? Então tem que preencher.
+    const semDoc = form.proprietarios.find((p) => String(p.nome).trim() && p.tem_documento && !String(p.cpfoucnpj).trim());
+    if (semDoc) {
+      toast(`Proprietário "${semDoc.nome}": informe o CPF/CNPJ ou desmarque "Tem CPF / CNPJ".`, "error"); return;
     }
 
     setEnviando(true);
@@ -448,7 +457,24 @@ export default function LancarImovel() {
               </div>
               <div className="li-grid">
                 <TextField label="Nome" value={p.nome} onChange={setProp(i, "nome")} req span={2} />
-                <TextField label="CPF / CNPJ" value={p.cpfoucnpj} onChange={setProp(i, "cpfoucnpj")} placeholder="Opcional — em branco vai 00000000000" />
+                <Field label="Documento">
+                  <Toggle
+                    label={p.tem_documento ? "Tem CPF / CNPJ" : "Sem CPF / CNPJ — vai 00000000000"}
+                    checked={p.tem_documento}
+                    onChange={(e) => {
+                      const marcado = e.target.checked;
+                      setForm((f) => ({
+                        ...f,
+                        proprietarios: f.proprietarios.map((item, idx) => idx === i
+                          ? { ...item, tem_documento: marcado, cpfoucnpj: marcado ? item.cpfoucnpj : "" }
+                          : item),
+                      }));
+                    }}
+                  />
+                </Field>
+                {p.tem_documento
+                  ? <TextField label="CPF / CNPJ" value={p.cpfoucnpj} onChange={setProp(i, "cpfoucnpj")} req placeholder="Só números ou com pontuação" />
+                  : <Field label="CPF / CNPJ"><input value="00000000000" readOnly className="li-doc-placeholder" title="Marcador de proprietário sem documento" /></Field>}
                 <TextField label="Telefone" value={p.telefone} onChange={setProp(i, "telefone")} req />
                 <TextField label="E-mail" value={p.email} onChange={setProp(i, "email")} />
                 <TextField label="% participação" value={p.percentual} onChange={setProp(i, "percentual")} suffix="%" />

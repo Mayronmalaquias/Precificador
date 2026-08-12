@@ -301,3 +301,11 @@
 }
 .li-foco-sugestao:hover { background: #f2f4f7; border-color: #b6bcc9; }
 .li-foco-sugestao b { color: #18213b; }
+
+/* Proprietário sem CPF/CNPJ: mostra o marcador que será gravado, sem deixar editar. */
+.li-doc-placeholder {
+  background: #f3f4f7;
+  color: #7b8296;
+  font-style: italic;
+  cursor: not-allowed;
+}
