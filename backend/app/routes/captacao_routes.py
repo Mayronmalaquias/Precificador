@@ -5,6 +5,7 @@ from app.services.captacao_service import (
     criar_captacao,
     listar_captacoes_corretor,
     listar_captacoes_gerente,
+    escopo_jornada,
     obter_captacao,
     atualizar_captacao,
     fechar_captacao,
@@ -76,7 +77,33 @@ class CaptacaoEvolucao(Resource):
 
 @captacao_ns.route("/captacoes")
 class Captacoes(Resource):
+    @captacao_ns.doc(params={
+        "solicitante_id": "Id do usuário. Quando vem, o escopo sai do cadastro (recomendado).",
+        "gerente": "true p/ listar a equipe inteira (modo legado, sem solicitante_id).",
+        "team": "Equipe a listar (modo legado).",
+        "id_corretor": "Corretor a listar (modo legado).",
+    })
     def get(self):
+        # Caminho novo: o escopo vem do cadastro, não do que a tela mandou. A tela lia
+        # `localStorage`, que fica velho quando a pessoa troca de papel/equipe.
+        solicitante_id = (request.args.get("solicitante_id") or "").strip()
+        if solicitante_id:
+            escopo = escopo_jornada(solicitante_id)
+            if not escopo:
+                return {"ok": False, "error": "Solicitante nao encontrado"}, 404
+            try:
+                if escopo["ve_tudo"]:
+                    return listar_captacoes_gerente(), 200
+                if escopo["gestor"]:
+                    # Equipe + as próprias: quem virou gerente não perde o que fez antes.
+                    return listar_captacoes_gerente(
+                        team=escopo["team"] or None, incluir_corretor=escopo["id_usuarios"]
+                    ), 200
+                return listar_captacoes_corretor(escopo["id_usuarios"]), 200
+            except Exception as e:
+                current_app.logger.exception("Erro ao listar captacoes por solicitante")
+                return {"ok": False, "error": str(e)}, 500
+
         gerente = request.args.get("gerente", "false").lower() == "true"
         if gerente:
             team = (request.args.get("team") or "").strip() or None

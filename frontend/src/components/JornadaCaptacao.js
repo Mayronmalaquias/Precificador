@@ -1660,11 +1660,10 @@ export default function JornadaCaptacao() {
     if (!userInfo.id) return;
     setLoading(true);
     try {
-      const url = isDiretor
-        ? `${BASE}/captacoes?gerente=true`
-        : isAdmin
-          ? `${BASE}/captacoes?gerente=true&team=${encodeURIComponent(userInfo.team)}`
-          : `${BASE}/captacoes?id_corretor=${encodeURIComponent(userInfo.id)}`;
+      // O escopo é resolvido no servidor pelo cadastro. Antes vinha do `localStorage`,
+      // que fica velho quando a pessoa muda de papel ou de equipe — era o que sumia com
+      // as captações de quem virou gerente.
+      const url = `${BASE}/captacoes?solicitante_id=${encodeURIComponent(userInfo.id)}`;
       const r = await fetch(url);
       const d = await r.json().catch(() => ({}));
       if (r.ok && d.ok) setCaptacoes(d.captacoes || []);

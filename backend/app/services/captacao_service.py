@@ -168,14 +168,56 @@ def listar_captacoes_corretor(id_corretor: str) -> dict:
         session.close()
 
 
-def listar_captacoes_gerente(team: str = None) -> dict:
+def listar_captacoes_gerente(team: str = None, incluir_corretor: str = None) -> dict:
+    """Captacoes da equipe. `incluir_corretor` acrescenta as do proprio solicitante.
+
+    Quem virou gerente continua dono das captacoes que fez como corretor, e elas podem
+    ter ficado com o `team` antigo — sem esse OR, o trabalho dele some da tela dele.
+    """
+    from sqlalchemy import or_
+
     session = SessionLocal()
     try:
         q = session.query(Captacao)
+        condicoes = []
         if team:
-            q = q.filter_by(team=team)
+            condicoes.append(Captacao.team == team)
+        if incluir_corretor:
+            condicoes.append(Captacao.id_corretor == incluir_corretor)
+        if condicoes:
+            q = q.filter(or_(*condicoes))
         items = q.order_by(Captacao.updated_at.desc()).all()
         return {"ok": True, "captacoes": [_to_dict(c) for c in items]}
+    finally:
+        session.close()
+
+
+def escopo_jornada(solicitante_id: str) -> dict:
+    """Escopo da Jornada resolvido pelo CADASTRO, não pelo que a tela mandou.
+
+    A tela lia `localStorage.userData`, que fica velho quando a pessoa muda de papel ou
+    de equipe — e aí o filtro sai errado (equipe antiga, ou vazia). Aqui vem do banco.
+    """
+    from app.models.usuarios import Usuarios
+
+    session = SessionLocal()
+    try:
+        user = session.query(Usuarios).filter(
+            Usuarios.id_usuarios == str(solicitante_id or "").strip()
+        ).first()
+        if not user:
+            return {}
+        permissao = str(user.permissao or "").lower()
+        team = str(user.team or "").strip()
+        ve_tudo = permissao == "diretor" or permissao == "administrativo" or team.lower() == "administrativo"
+        gestor = ve_tudo or permissao in {"gerente", "administrador"}
+        return {
+            "id_usuarios": user.id_usuarios,
+            "permissao": permissao,
+            "team": team,
+            "ve_tudo": ve_tudo,
+            "gestor": gestor,
+        }
     finally:
         session.close()
 
