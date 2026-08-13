@@ -58,6 +58,8 @@ export default function ConsultaImoveis() {
   const [erroDetalhe, setErroDetalhe] = useState('');
   const [focoEditado, setFocoEditado] = useState('');
   const [salvandoFoco, setSalvandoFoco] = useState(false);
+  const [doc, setDoc] = useState({ matricula: '', inscricao_iptu: '' });
+  const [salvandoDoc, setSalvandoDoc] = useState(false);
 
   const carregar = useCallback(async (termo, page = 1, filtroSituacao = situacao) => {
     setCarregando(true);
@@ -98,6 +100,10 @@ export default function ConsultaImoveis() {
       if (!r.ok || d.ok === false) throw new Error(d.error || 'Erro ao carregar o imóvel');
       setDetalhe(d);
       setFocoEditado(focoParaValor(d.interno?.foco));
+      setDoc({
+        matricula: d.interno?.documentacao?.matricula || '',
+        inscricao_iptu: d.interno?.documentacao?.inscricao_iptu || '',
+      });
     } catch (e) {
       setErroDetalhe(e.message || 'Erro ao carregar o imóvel');
     } finally {
@@ -124,9 +130,34 @@ export default function ConsultaImoveis() {
     }
   };
 
+  const salvarDoc = async () => {
+    if (!detalhe) return;
+    setSalvandoDoc(true);
+    try {
+      const r = await fetch(`${BASE}/imoveis/consulta/${encodeURIComponent(detalhe.codigo)}?solicitante_id=${idCorretor}`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(doc),
+      });
+      const d = await r.json();
+      if (!r.ok || d.ok === false) throw new Error(d.error || 'Erro ao salvar');
+      toast('Matrícula e inscrição atualizadas.', 'success');
+      setDetalhe((prev) => ({
+        ...prev,
+        interno: { ...prev.interno, documentacao: { ...prev.interno.documentacao, ...doc } },
+      }));
+    } catch (e) {
+      toast(e.message, 'error');
+    } finally {
+      setSalvandoDoc(false);
+    }
+  };
+
   const imoview = detalhe?.imoview;
   const interno = detalhe?.interno;
   const focoMudou = interno && focoEditado !== focoParaValor(interno.foco);
+  const docMudou = interno && (
+    doc.matricula !== (interno.documentacao?.matricula || '')
+    || doc.inscricao_iptu !== (interno.documentacao?.inscricao_iptu || '')
+  );
 
   return (
     <div className="ci-page">
@@ -325,6 +356,35 @@ export default function ConsultaImoveis() {
                     </button>
                     {interno?.foco?.origem && <span className="ci-tag">registrado: {interno.foco.origem}</span>}
                   </div>
+
+                  {/* Matrícula e inscrição não vêm do CRM: são digitadas no lançamento
+                      (iam só p/ o Sheets e o Trello) e ficam editáveis aqui. */}
+                  <div className="ci-doc-editor">
+                    <label>
+                      <span>Matrícula</span>
+                      <input
+                        value={doc.matricula}
+                        onChange={(e) => setDoc((d) => ({ ...d, matricula: e.target.value }))}
+                        placeholder="Nº da matrícula no cartório"
+                        disabled={interno?.documentacao?.editavel === false}
+                      />
+                    </label>
+                    <label>
+                      <span>Inscrição IPTU</span>
+                      <input
+                        value={doc.inscricao_iptu}
+                        onChange={(e) => setDoc((d) => ({ ...d, inscricao_iptu: e.target.value }))}
+                        placeholder="Inscrição do imóvel"
+                        disabled={interno?.documentacao?.editavel === false}
+                      />
+                    </label>
+                    <button type="button" className="ci-cta" disabled={!docMudou || salvandoDoc} onClick={salvarDoc}>
+                      {salvandoDoc ? 'Salvando…' : 'Salvar'}
+                    </button>
+                  </div>
+                  {interno?.documentacao?.editavel === false && (
+                    <p className="ci-nota">Imóvel fora do catálogo — matrícula e inscrição só podem ser gravadas depois que a varredura do Imoview trouxer o imóvel.</p>
+                  )}
 
                   <div className="ci-dados">
                     <Dado label="Captadores">{interno?.captacao?.captadores?.map((c) => c.nome).join(', ')}</Dado>

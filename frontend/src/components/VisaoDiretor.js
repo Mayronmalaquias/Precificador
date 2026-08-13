@@ -12,6 +12,12 @@ const dateLabel = (value) => value ? new Date(`${value}T12:00:00`).toLocaleDateS
 
 // Métricas do card de execução comercial, na ordem do funil.
 const METRICAS = [['leads', 'Leads'], ['clientes', 'Clientes'], ['visitas', 'Visitas']];
+// Teto fixo das barras de execução comercial. Escala relativa ao líder fazia a barra
+// cheia mudar de significado a cada filtro; com teto fixo, 150 é sempre 150.
+const TETO_BARRA = 150;
+// Recortes do funil. O valor casa com a chave devolvida em `data.funil`.
+const RECORTES_FUNIL = [['empresa', '61'], ['gerentes', 'Gerente'], ['corretores', 'Corretor']];
+const ETAPAS_FUNIL = [['leads', 'Leads'], ['clientes', 'Clientes'], ['visitas', 'Visitas'], ['propostas', 'Propostas'], ['vendas', 'Vendas']];
 
 // Imóveis parados por página no bloco de governança.
 const PARADOS_POR_PAGINA = 8;
@@ -66,10 +72,16 @@ function VisaoDiretor() {
   const [periodo, setPeriodo] = useState('mes');
   const [equipe, setEquipe] = useState('todas');
   const [corretor, setCorretor] = useState('todos');
+  const [recorteFunil, setRecorteFunil] = useState('empresa');
+  const [alvoFunil, setAlvoFunil] = useState('');
+  const [recorteEstoque, setRecorteEstoque] = useState('empresa');
+  const [alvoEstoque, setAlvoEstoque] = useState('');
   const [customOpen, setCustomOpen] = useState(false);
   const [detail, setDetail] = useState(null);
   const [dimMidia, setDimMidia] = useState('bairro');
   const [faixaParados, setFaixaParados] = useState('');
+  const [recorteParados, setRecorteParados] = useState('empresa');
+  const [alvoParados, setAlvoParados] = useState('');
   const [etapaParados, setEtapaParados] = useState('');
   const [buscaParados, setBuscaParados] = useState('');
   const [paginaParados, setPaginaParados] = useState(1);
@@ -121,14 +133,47 @@ function VisaoDiretor() {
   const vendas = data?.vendas_recentes || [];
   const perfisMidia = data?.midia?.perfis_por_dimensao?.[dimMidia] || data?.midia?.perfis || [];
   const parados = data?.imoveis_parados || {};
+  // Recorte do bloco (61 / gerente / corretor). Vem ANTES dos demais filtros: os cards
+  // de faixa e o cruzamento etapa x faixa sao contados sobre ele, senao o card mostraria
+  // o numero da empresa e a lista, o do corretor.
+  const opcoesParados = recorteParados === 'empresa' ? [] : (parados.opcoes?.[recorteParados] || []);
+  const alvoParadosAtivo = recorteParados === 'empresa'
+    ? null
+    : (opcoesParados.find((o) => o.id === alvoParados) || opcoesParados[0]);
+  const paradosBase = useMemo(() => {
+    const itens = parados.itens || [];
+    if (!alvoParadosAtivo) return itens;
+    const campo = recorteParados === 'gerentes' ? 'team' : 'id_corretor';
+    return itens.filter((i) => i[campo] === alvoParadosAtivo.id);
+  }, [parados.itens, recorteParados, alvoParadosAtivo]);
+
+  const faixasParados = useMemo(() => {
+    const conta = { '7_14': 0, '14_30': 0, '30_mais': 0 };
+    paradosBase.forEach((i) => { conta[i.faixa] += 1; });
+    return { ...conta, total: paradosBase.length };
+  }, [paradosBase]);
+
+  // Cruzamento etapa x faixa: onde os imoveis travam e ha quanto tempo.
+  const matrizParados = useMemo(() => {
+    const linhas = new Map();
+    paradosBase.forEach((i) => {
+      const linha = linhas.get(i.etapa_label)
+        || { etapa: i.etapa_label, '7_14': 0, '14_30': 0, '30_mais': 0, total: 0 };
+      linha[i.faixa] += 1;
+      linha.total += 1;
+      linhas.set(i.etapa_label, linha);
+    });
+    return [...linhas.values()].sort((a, b) => b.total - a.total);
+  }, [paradosBase]);
+
   const paradosVisiveis = useMemo(() => {
     const alvo = buscaParados.trim().toLowerCase();
-    return (parados.itens || []).filter((i) => (
+    return paradosBase.filter((i) => (
       (!faixaParados || i.faixa === faixaParados)
       && (!etapaParados || i.etapa_label === etapaParados)
       && (!alvo || `${i.endereco} ${i.bairro || ''} ${i.responsavel}`.toLowerCase().includes(alvo))
     ));
-  }, [parados.itens, faixaParados, etapaParados, buscaParados]);
+  }, [paradosBase, faixaParados, etapaParados, buscaParados]);
   const totalPaginas = Math.max(Math.ceil(paradosVisiveis.length / PARADOS_POR_PAGINA), 1);
   // Trocar de filtro tem que voltar pra página 1, senão o usuário cai numa página vazia.
   useEffect(() => { setPaginaParados(1); }, [faixaParados, etapaParados, buscaParados]);
@@ -153,16 +198,60 @@ function VisaoDiretor() {
     { label: 'VGV', value: currency(kpi('vgv').valor || 0), delta: delta(kpi('vgv').variacao_pct), positive: (kpi('vgv').variacao_pct || 0) >= 0, icon: 'revenue', caption: 'Valor geral de vendas' },
     { label: 'VGC', value: currency(kpi('vgc').valor || 0), delta: delta(kpi('vgc').variacao_pct), positive: (kpi('vgc').variacao_pct || 0) >= 0, icon: 'revenue', caption: 'Comissão que fica com a 61' },
     { label: '% VGC / VGV', value: pct(kpi('vgc_sobre_vgv').valor), delta: delta(kpi('vgc_sobre_vgv').variacao_pct), positive: (kpi('vgc_sobre_vgv').variacao_pct || 0) >= 0, icon: 'revenue', caption: 'Quanto da venda virou comissão' },
+    // Degraus da comissão: total do negócio → o que fica com a 61 (VGC) → faturado → líquido.
+    { label: 'Valor comissão', value: currency(kpi('comissao_negocio').valor || 0), delta: delta(kpi('comissao_negocio').variacao_pct), positive: (kpi('comissao_negocio').variacao_pct || 0) >= 0, icon: 'revenue', caption: 'Comissão total do negócio, incluindo parceiros' },
+    { label: 'NF 61', value: currency(kpi('nf_61').valor || 0), delta: delta(kpi('nf_61').variacao_pct), positive: (kpi('nf_61').variacao_pct || 0) >= 0, icon: 'revenue', caption: 'Comissão faturada pela 61' },
+    { label: 'Líquido 61', value: currency(kpi('liquido_61').valor || 0), delta: delta(kpi('liquido_61').variacao_pct), positive: (kpi('liquido_61').variacao_pct || 0) >= 0, icon: 'revenue', caption: 'O que sobra depois dos impostos' },
   ];
+  const freqClientes = data?.clientes_frequencia || {};
+
+  // ── Estoque: mesmo padrão do funil (61 / gerente / corretor, tudo no payload) ──
+  const opcoesEstoque = recorteEstoque === 'empresa' ? [] : (estoque.recortes?.[recorteEstoque] || []);
+  const linhaEstoque = recorteEstoque === 'empresa'
+    ? estoque
+    : (opcoesEstoque.find((o) => o.id === alvoEstoque) || opcoesEstoque[0]);
+
+  // ── Funil ───────────────────────────────────────────────────────────────────
+  const funil = data?.funil || {};
+  const opcoesFunil = recorteFunil === 'empresa' ? [] : (funil[recorteFunil] || []);
+  // O alvo escolhido pode sumir ao trocar de período (corretor sem atividade sai da
+  // lista); cair no primeiro evita a tela vazia sem explicação.
+  const linhaFunil = recorteFunil === 'empresa'
+    ? funil.empresa
+    : (opcoesFunil.find((o) => o.id === alvoFunil) || opcoesFunil[0]);
+  const etapasFunil = ETAPAS_FUNIL.map(([chave, rotulo], indice) => {
+    const valor = linhaFunil?.[chave] || 0;
+    const anterior = indice ? (linhaFunil?.[ETAPAS_FUNIL[indice - 1][0]] || 0) : null;
+    return {
+      chave, rotulo, valor,
+      // Conversão entre etapas VIZINHAS. Sem base não há percentual — 0 leads não
+      // significa 0% de conversão, significa que não dá para calcular.
+      conversao: indice && anterior ? (valor / anterior) * 100 : null,
+      // Largura relativa ao topo do funil, para o desenho afunilar de verdade.
+      largura: linhaFunil?.[ETAPAS_FUNIL[0][0]] ? Math.max((valor / linhaFunil[ETAPAS_FUNIL[0][0]]) * 100, 4) : (valor ? 100 : 4),
+    };
+  });
+
+  // Indicadores de esforco: quantos de A foram precisos para 1 de B. Dividem SEMPRE
+  // pela etapa mais adiante — sem ela nao ha razao, e "0 propostas" nao vira 0, vira "—":
+  // zero e "nao da para calcular" sao coisas diferentes.
+  const razao = (de, para) => (para ? de / para : null);
+  const INDICADORES = [
+    ['Clientes por proposta', razao(linhaFunil?.clientes, linhaFunil?.propostas),
+     `${number(linhaFunil?.clientes || 0)} clientes / ${number(linhaFunil?.propostas || 0)} propostas`],
+    ['Visitas por proposta', razao(linhaFunil?.visitas, linhaFunil?.propostas),
+     `${number(linhaFunil?.visitas || 0)} visitas / ${number(linhaFunil?.propostas || 0)} propostas`],
+    ['Propostas por venda', razao(linhaFunil?.propostas, linhaFunil?.vendas),
+     `${number(linhaFunil?.propostas || 0)} propostas / ${number(linhaFunil?.vendas || 0)} vendas`],
+  ];
+
   const totalPropostas = equipesVisiveis.reduce((acc, item) => acc + item.sim + item.nao + item.talvez, 0);
   const maxClassificadas = Math.max(...equipesVisiveis.map((i) => i.sim + i.nao + i.talvez), 1);
   const proposalDenominator = Math.max(totalPropostas, 1);
-  // Cada métrica tem escala própria: a barra cheia é sempre o líder daquela métrica.
-  const maxPorMetrica = useMemo(() => ({
-    visitas: Math.max(...equipesVisiveis.map((i) => i.visitas || 0), 1),
-    clientes: Math.max(...equipesVisiveis.map((i) => i.clientes || 0), 1),
-    leads: Math.max(...equipesVisiveis.map((i) => i.leads || 0), 1),
-  }), [equipesVisiveis]);
+  // Escala FIXA em 150 para as três métricas. Com escala relativa ao líder, a barra
+  // cheia significava coisas diferentes a cada filtro e a cada período — dava para
+  // "crescer" trocando o recorte. Teto fixo torna as barras comparáveis entre telas.
+  // Quem passa de 150 estoura a barra e é marcado (ver `.ev-bar-track b.estourou`).
   const totalClientes = equipesVisiveis.reduce((acc, i) => acc + (i.clientes || 0), 0);
   const totalLeads = equipesVisiveis.reduce((acc, i) => acc + (i.leads || 0), 0);
 
@@ -200,7 +289,7 @@ function VisaoDiretor() {
           <CardTitle
             eyebrow="Execução comercial"
             title={`Visitas, clientes e leads por ${unidade}`}
-            description={`Cada barra cheia é ${porCorretor ? 'o corretor' : 'a equipe'} com o maior número da métrica`}
+            description={`Barra cheia = ${TETO_BARRA}. Quem passa disso aparece marcado`}
             action={<span className="ev-legend ev-legend-metricas">{METRICAS.map(([chave, rotulo]) => <em key={chave}><i className={`m-${chave}`} /> {rotulo}</em>)}</span>}
           />
           <div className="ev-bar-chart">
@@ -211,7 +300,12 @@ function VisaoDiretor() {
                   {METRICAS.map(([chave, rotulo]) => (
                     <div className="ev-bar-linha" key={chave}>
                       <span>{rotulo}</span>
-                      <div className="ev-bar-track"><b className={`m-${chave}`} style={{ width: `${((item[chave] || 0) / maxPorMetrica[chave]) * 100}%` }} /></div>
+                      <div className="ev-bar-track">
+                        <b
+                          className={`m-${chave}${(item[chave] || 0) > TETO_BARRA ? ' estourou' : ''}`}
+                          style={{ width: `${Math.min((item[chave] || 0) / TETO_BARRA, 1) * 100}%` }}
+                        />
+                      </div>
                       <strong>{number(item[chave] || 0)}</strong>
                     </div>
                   ))}
@@ -224,31 +318,107 @@ function VisaoDiretor() {
         </article>
 
         <article className="ev-card ev-funnel">
-          <CardTitle eyebrow="Qualidade das visitas" title="Visitas" description="Visitas classificadas pela proposta registrada: SIM, NÃO ou TALVEZ" />
+          <CardTitle eyebrow="Qualidade atendimento" title="Qualidade atendimento" description="Visitas classificadas pela proposta registrada: SIM, NÃO ou TALVEZ" />
           <div className="ev-donut-wrap"><div className="ev-donut" style={{ '--sim': `${(equipesVisiveis.reduce((a, i) => a + i.sim, 0) / proposalDenominator) * 360}deg`, '--talvez': `${((equipesVisiveis.reduce((a, i) => a + i.sim + i.talvez, 0)) / proposalDenominator) * 360}deg` }}><div><strong>{totalPropostas}</strong><span>visitas</span></div></div>
             <div className="ev-funnel-legend">{[['sim', 'Proposta SIM', equipesVisiveis.reduce((a, i) => a + i.sim, 0)], ['talvez', 'Proposta TALVEZ', equipesVisiveis.reduce((a, i) => a + i.talvez, 0)], ['nao', 'Proposta NÃO', equipesVisiveis.reduce((a, i) => a + i.nao, 0)]].map(([tone, label, value]) => <div key={tone}><i className={tone} /><span>{label}</span><strong>{value}</strong></div>)}</div>
           </div>
           {/* Quantitativa: a largura é o volume de visitas, não a proporção interna —
-              a barra cheia é quem tem mais visitas classificadas no período. */}
-          <div className="ev-stacked ev-stacked-qtd">{equipesVisiveis.filter((item) => item.sim + item.nao + item.talvez > 0).map((item) => { const total = item.sim + item.nao + item.talvez; return <div key={item.id}><span>{item.nome}</span><div style={{ width: `${(total / maxClassificadas) * 100}%` }}><i className="sim" style={{ width: `${item.sim / total * 100}%` }} /><i className="talvez" style={{ width: `${item.talvez / total * 100}%` }} /><i className="nao" style={{ width: `${item.nao / total * 100}%` }} /></div><b>{number(total)}</b></div>})}</div>
+              a barra cheia é quem tem mais visitas classificadas no período.
+              O total sozinho escondia a composição: 40 visitas com 2 SIM e 40 com 30 SIM
+              desenhavam a mesma barra. Agora cada parte mostra o próprio número. */}
+          <div className="ev-stacked ev-stacked-qtd">
+            {equipesVisiveis.filter((item) => item.sim + item.nao + item.talvez > 0).map((item) => {
+              const total = item.sim + item.nao + item.talvez;
+              return (
+                <div key={item.id}>
+                  <span>{item.nome}</span>
+                  <div style={{ width: `${(total / maxClassificadas) * 100}%` }}>
+                    <i className="sim" style={{ width: `${item.sim / total * 100}%` }} />
+                    <i className="talvez" style={{ width: `${item.talvez / total * 100}%` }} />
+                    <i className="nao" style={{ width: `${item.nao / total * 100}%` }} />
+                  </div>
+                  <b className="ev-stacked-partes">
+                    <em className="sim" title="Proposta SIM">{number(item.sim)}</em>
+                    <em className="talvez" title="Proposta TALVEZ">{number(item.talvez)}</em>
+                    <em className="nao" title="Proposta NÃO">{number(item.nao)}</em>
+                    <span>{number(total)}</span>
+                  </b>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Recorrência: quantas visitas cada cliente do período já fez NA VIDA. */}
+          <div className="ev-freq">
+            <div className="ev-freq-head">
+              <strong>Clientes por recorrência</strong>
+              <span>{number(freqClientes.total || 0)} clientes visitaram no período</span>
+            </div>
+            <div className="ev-freq-list">
+              {(freqClientes.faixas || []).map((faixa) => (
+                <div key={faixa.label}>
+                  <span>{faixa.label} {faixa.label === '1' ? 'visita' : 'visitas'}</span>
+                  <div className="ev-bar-track"><b style={{ width: `${Math.min(faixa.percentual, 100)}%` }} /></div>
+                  <strong>{number(faixa.clientes)}</strong>
+                  <em>{pct(faixa.percentual)}</em>
+                </div>
+              ))}
+            </div>
+            <p className="ev-freq-nota">
+              Entram os clientes com visita no período; a faixa é o <b>histórico inteiro</b> deles,
+              sem recorte de data ou equipe. “10+” é acima de 10.
+            </p>
+          </div>
         </article>
 
         <article className="ev-card ev-prospect">
-          <CardTitle eyebrow="Estoque" title="Captações, saídas e estoque" description="Movimento de imóveis, direto da situação no Imoview" />
+          <CardTitle
+            eyebrow="Estoque"
+            title="Captações, saídas e estoque"
+            description="Só imóveis de venda — locação é outra operação e fica fora"
+            action={(
+              <div className="ev-funil-filtros">
+                <div className="ev-chips">
+                  {RECORTES_FUNIL.map(([valor, rotulo]) => (
+                    <button
+                      key={valor}
+                      type="button"
+                      className={recorteEstoque === valor ? 'is-ativo' : ''}
+                      onClick={() => { setRecorteEstoque(valor); setAlvoEstoque(''); }}
+                    >
+                      {rotulo}
+                    </button>
+                  ))}
+                </div>
+                {recorteEstoque !== 'empresa' && (
+                  <select value={linhaEstoque?.id || ''} onChange={(e) => setAlvoEstoque(e.target.value)}>
+                    {opcoesEstoque.map((o) => (
+                      <option key={o.id} value={o.id}>{o.nome}{o.equipe ? ` · ${o.equipe}` : ''}</option>
+                    ))}
+                  </select>
+                )}
+              </div>
+            )}
+          />
+          {recorteEstoque !== 'empresa' && !linhaEstoque && (
+            <p className="ev-empty">Nenhum {recorteEstoque === 'gerentes' ? 'gerente' : 'corretor'} com movimento de estoque no período.</p>
+          )}
+          {linhaEstoque && (
           <div className="ev-prospect-total">
-            <div><span>Captações</span><strong>{number(estoque.entradas || 0)}</strong><small>Registradas no período</small></div>
-            <div><span>Saídas</span><strong>{number(estoque.saidas || 0)}</strong><small>Deixaram de estar disponíveis</small></div>
-            <div className={`ev-saldo ${(estoque.saldo || 0) >= 0 ? 'positivo' : 'negativo'}`}>
-              <span>Saldo</span><strong>{(estoque.saldo || 0) > 0 ? '+' : ''}{number(estoque.saldo || 0)}</strong><small>Captações − saídas</small>
+            <div><span>Captações</span><strong>{number(linhaEstoque.entradas || 0)}</strong><small>Registradas no período</small></div>
+            <div><span>Saídas</span><strong>{number(linhaEstoque.saidas || 0)}</strong><small>Deixaram de estar disponíveis</small></div>
+            <div className={`ev-saldo ${(linhaEstoque.saldo || 0) >= 0 ? 'positivo' : 'negativo'}`}>
+              <span>Saldo</span><strong>{(linhaEstoque.saldo || 0) > 0 ? '+' : ''}{number(linhaEstoque.saldo || 0)}</strong><small>Captações − saídas</small>
             </div>
             {/* Estoque é saldo, não acumulado: mostra o agora, independente do período. */}
-            <div><span>Total de estoque</span><strong>{number(estoque.estoque || 0)}</strong><small>Disponíveis hoje</small></div>
+            <div><span>Total de estoque</span><strong>{number(linhaEstoque.estoque || 0)}</strong><small>Disponíveis hoje</small></div>
           </div>
+          )}
           <p className="ev-data-note">
             Estoque = imóveis <b>vago/disponível</b> no catálogo (varredura de {dateLabel(estoque.data_estoque)}).
-            Saída = mudou de disponível para vendido, desativado ou em reforma — <b>em moderação não conta</b>, o imóvel continua sendo nosso.
-            {String(estoque.saidas_fonte || '').includes('planilha') && ' Parte das saídas deste período ainda vem da planilha semanal: o log de situação começou depois.'}
-            {(equipe !== 'todas' || corretor !== 'todos') && ' Com filtro, entra só imóvel com captação registrada — é a única ligação entre imóvel e equipe.'}
+            Saída = a <b>data da última mudança de situação</b> caiu no período e a situação atual não é disponível nem moderação
+            — em moderação o imóvel continua sendo nosso, o corretor só está ajustando o anúncio.
+            {(recorteEstoque !== 'empresa' || equipe !== 'todas' || corretor !== 'todos') && ' Com recorte, entra só imóvel com captação registrada — é a única ligação entre imóvel e equipe.'}
           </p>
         </article>
 
@@ -274,6 +444,87 @@ function VisaoDiretor() {
             </div>
           ))}</div>
         </article>
+        <article className="ev-card ev-funil">
+          <CardTitle
+            eyebrow="Conversão"
+            title="Funil"
+            description="Lead → cliente → visita → proposta → venda, com a conversão entre etapas vizinhas"
+            action={(
+              <div className="ev-funil-filtros">
+                <div className="ev-chips">
+                  {RECORTES_FUNIL.map(([valor, rotulo]) => (
+                    <button
+                      key={valor}
+                      type="button"
+                      className={recorteFunil === valor ? 'is-ativo' : ''}
+                      onClick={() => { setRecorteFunil(valor); setAlvoFunil(''); }}
+                    >
+                      {rotulo}
+                    </button>
+                  ))}
+                </div>
+                {recorteFunil !== 'empresa' && (
+                  <select value={linhaFunil?.id || ''} onChange={(e) => setAlvoFunil(e.target.value)}>
+                    {opcoesFunil.map((o) => (
+                      <option key={o.id} value={o.id}>{o.nome}{o.equipe ? ` · ${o.equipe}` : ''}</option>
+                    ))}
+                  </select>
+                )}
+              </div>
+            )}
+          />
+          {!linhaFunil && <p className="ev-empty">Nenhum {recorteFunil === 'gerentes' ? 'gerente' : 'corretor'} com movimento no período.</p>}
+          {linhaFunil && (
+            <>
+              <div className="ev-funil-alvo">{linhaFunil.nome}{linhaFunil.equipe ? <span> · {linhaFunil.equipe}</span> : null}</div>
+              <div className="ev-funil-etapas">
+                {etapasFunil.map((etapa) => (
+                  <div className="ev-funil-etapa" key={etapa.chave}>
+                    <div className="ev-funil-barra">
+                      <i className={`f-${etapa.chave}`} style={{ width: `${etapa.largura}%` }} />
+                      <span>{etapa.rotulo}</span>
+                      <strong>{number(etapa.valor)}</strong>
+                    </div>
+                    {etapa.conversao != null && (
+                      <em className={etapa.conversao >= 100 ? 'alta' : ''}>
+                        {pct(etapa.conversao)} do passo anterior
+                      </em>
+                    )}
+                  </div>
+                ))}
+              </div>
+              <div className="ev-card-footer">
+                <span>
+                  Lead → venda: <b>{etapasFunil[0].valor ? pct((etapasFunil[4].valor / etapasFunil[0].valor) * 100) : '—'}</b>
+                </span>
+                <span>Proposta pertence ao gerente; venda casa pelo nome no contrato.</span>
+              </div>
+            </>
+          )}
+        </article>
+
+        <article className="ev-card ev-indicadores">
+          <CardTitle
+            eyebrow="Indicadores"
+            title="Esforço por resultado"
+            description={`Quantos de cada etapa foram precisos para chegar na seguinte${linhaFunil?.nome ? ` · ${linhaFunil.nome}` : ''}`}
+          />
+          <div className="ev-indicadores-grid">
+            {INDICADORES.map(([rotulo, valor, base]) => (
+              <div key={rotulo}>
+                <span>{rotulo}</span>
+                <strong>{valor == null ? '—' : valor.toFixed(1).replace('.', ',')}</strong>
+                <small>{base}</small>
+              </div>
+            ))}
+          </div>
+          <p className="ev-data-note">
+            Acompanha o recorte escolhido no funil (61, gerente ou corretor). Quanto <b>menor</b>, melhor:
+            são quantos passos foram precisos para produzir um do passo seguinte. Sem base o indicador fica
+            em “—” — zero proposta não é eficiência zero, é conta impossível.
+          </p>
+        </article>
+
       </section>
 
       <section className="ev-card ev-sales">
@@ -352,16 +603,36 @@ function VisaoDiretor() {
       </section>
 
       <section className="ev-audit">
-        <div className="ev-audit-head"><div><span className="ev-alert-icon"><Icon name="alert" /></span><div><small>04 · GOVERNANÇA</small><h2>Imóveis parados na jornada</h2><p>Tempo na etapa atual. Captação, encerradas e captadas ficam de fora.</p></div></div></div>
+        <div className="ev-audit-head">
+          <div><span className="ev-alert-icon"><Icon name="alert" /></span><div><small>04 · GOVERNANÇA</small><h2>Imóveis parados na jornada</h2><p>Tempo na etapa atual. Captação, encerradas e captadas ficam de fora.</p></div></div>
+          <div className="ev-funil-filtros ev-filtros-escuro">
+            <div className="ev-chips">
+              {RECORTES_FUNIL.map(([valor, rotulo]) => (
+                <button key={valor} type="button"
+                  className={recorteParados === valor ? 'is-ativo' : ''}
+                  onClick={() => { setRecorteParados(valor); setAlvoParados(''); setPaginaParados(1); }}>
+                  {rotulo}
+                </button>
+              ))}
+            </div>
+            {recorteParados !== 'empresa' && (
+              <select value={alvoParadosAtivo?.id || ''} onChange={(e) => { setAlvoParados(e.target.value); setPaginaParados(1); }}>
+                {opcoesParados.map((o) => (
+                  <option key={o.id} value={o.id}>{o.nome}{o.equipe ? ` · ${o.equipe}` : ''} ({o.total})</option>
+                ))}
+              </select>
+            )}
+          </div>
+        </div>
 
         <div className="ev-contratos-atraso">
           {/* Cards de faixa são o filtro: clicar seleciona, clicar de novo limpa. */}
           <div className="ev-parados-resumo">
             {[
-              ['7_14', 'faixa-leve', 'Parados 7 a 14 dias', parados.faixa_7_14, 'Atenção inicial'],
-              ['14_30', 'faixa-media', 'Parados 14 a 30 dias', parados.faixa_14_30, 'Precisam de ação'],
-              ['30_mais', 'faixa-alta', 'Parados 30+ dias', parados.faixa_30_mais, 'Travados'],
-              ['', '', 'Total parados', parados.total, 'Jornada de captação'],
+              ['7_14', 'faixa-leve', 'Parados 7 a 14 dias', faixasParados['7_14'], 'Atenção inicial'],
+              ['14_30', 'faixa-media', 'Parados 14 a 30 dias', faixasParados['14_30'], 'Precisam de ação'],
+              ['30_mais', 'faixa-alta', 'Parados 30+ dias', faixasParados['30_mais'], 'Travados'],
+              ['', '', 'Total parados', faixasParados.total, 'Jornada de captação'],
             ].map(([chave, classe, rotulo, valor, nota]) => (
               <button type="button" key={rotulo}
                 className={`${classe} ${faixaParados === chave ? 'is-ativa' : ''}`}
@@ -371,16 +642,37 @@ function VisaoDiretor() {
             ))}
           </div>
 
+          {/* Onde trava e ha quanto tempo. O total por faixa ja existia; faltava saber
+              em QUAL etapa cada atraso se acumula. */}
+          {matrizParados.length > 0 && (
+            <div className="ev-parados-matriz">
+              <div className="ev-parados-matriz-head">
+                <span>Etapa</span><em className="faixa-leve">7–14</em><em className="faixa-media">14–30</em><em className="faixa-alta">30+</em><strong>Total</strong>
+              </div>
+              {matrizParados.map((linha) => (
+                <button type="button" key={linha.etapa}
+                  className={etapaParados === linha.etapa ? 'is-ativa' : ''}
+                  onClick={() => { setEtapaParados(etapaParados === linha.etapa ? '' : linha.etapa); setPaginaParados(1); }}>
+                  <span>{linha.etapa}</span>
+                  <em className="faixa-leve">{number(linha['7_14'])}</em>
+                  <em className="faixa-media">{number(linha['14_30'])}</em>
+                  <em className="faixa-alta">{number(linha['30_mais'])}</em>
+                  <strong>{number(linha.total)}</strong>
+                </button>
+              ))}
+            </div>
+          )}
+
           <div className="ev-parados-filtros">
             <label>
               Etapa
               <select value={etapaParados} onChange={(e) => setEtapaParados(e.target.value)}>
                 <option value="">Todas as etapas</option>
-                {Object.entries(parados.por_etapa || {}).map(([etapa, qtd]) => <option key={etapa} value={etapa}>{etapa} ({qtd})</option>)}
+                {matrizParados.map((linha) => <option key={linha.etapa} value={linha.etapa}>{linha.etapa} ({linha.total})</option>)}
               </select>
             </label>
             <input placeholder="Buscar endereço, bairro ou responsável" value={buscaParados} onChange={(e) => setBuscaParados(e.target.value)} />
-            <span>{number(paradosVisiveis.length)} de {number((parados.itens || []).length)} imóveis</span>
+            <span>{number(paradosVisiveis.length)} de {number(paradosBase.length)} imóveis</span>
           </div>
 
           <div className="ev-contratos-lista">

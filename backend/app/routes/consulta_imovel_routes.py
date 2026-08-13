@@ -57,7 +57,10 @@ class ConsultaDetalhe(Resource):
         except Exception as e:
             return _erro(e, "Erro no detalhe do imóvel")
 
-    @consulta_imovel_ns.doc(description="Edita os dados internos. Hoje: `foco` (nao_foco|pp|ac|pp_ac).")
+    @consulta_imovel_ns.doc(description=(
+        "Edita os dados internos, um ou vários por chamada: `foco` "
+        "(nao_foco|pp|ac|pp_ac), `matricula` e `inscricao_iptu`."
+    ))
     def put(self, codigo):
         dados = request.get_json(silent=True) or {}
         try:

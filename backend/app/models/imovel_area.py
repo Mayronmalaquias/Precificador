@@ -29,5 +29,18 @@ class ImovelArea(Base):
     valor = Column(Numeric(14, 2), nullable=True)
     # Vago/Disponivel | Vendido | Desativado | Em moderacao | Em reforma
     situacao = Column(String(40), nullable=True, index=True)
+    # Documentacao: o Imoview tem `matriculacartorio`/`indiceiptu`, mas a operacao nao
+    # preenche (3% e 0% da amostra) — o dado ia so p/ o Sheets e o Trello no lancamento.
+    # Aqui ele fica consultavel e editavel pela Consulta de Imoveis.
+    matricula = Column(String(120), nullable=True)
+    inscricao_iptu = Column(String(120), nullable=True)
+    # `datahoracadastro` do Imoview: e por ele que a Consulta ordena (lancamento recente
+    # primeiro). Codigo cresce junto, mas a data e o criterio explicito.
+    cadastrado_em = Column(DateTime, nullable=True, index=True)
+    # Venda | Aluguel. O estoque comercial e so venda — locacao e outra operacao.
+    finalidade = Column(String(30), nullable=True, index=True)
+    # `datahoraultimasituacao`: quando a situacao mudou pela ultima vez. E o que define
+    # SAIDA de estoque (mudou p/ algo que nao e disponivel nem moderacao, no periodo).
+    situacao_em = Column(DateTime, nullable=True, index=True)
     origem = Column(String(30), nullable=True, default="imoview")
     atualizado_em = Column(DateTime, server_default=func.now(), onupdate=func.now(), nullable=True)

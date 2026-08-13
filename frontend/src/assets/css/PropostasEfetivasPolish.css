@@ -64,6 +64,7 @@
 .pe-distribuicao-barra i.s-em_analise { background: #6d7ce0; }
 .pe-distribuicao-barra i.s-contraproposta { background: var(--atencao); }
 .pe-distribuicao-barra i.s-aceita { background: var(--ok); }
+.pe-distribuicao-barra i.s-vendido { background: #0f6247; }
 .pe-distribuicao-barra i.s-recusada { background: var(--critico); }
 .pe-distribuicao-barra i.s-cancelada { background: #aeb4c2; }
 .pe-distribuicao-legenda { display: flex; flex-wrap: wrap; gap: 14px; margin-top: 11px; }
@@ -72,6 +73,7 @@
 .pe-distribuicao-legenda i.s-em_analise { background: #6d7ce0; }
 .pe-distribuicao-legenda i.s-contraproposta { background: var(--atencao); }
 .pe-distribuicao-legenda i.s-aceita { background: var(--ok); }
+.pe-distribuicao-legenda i.s-vendido { background: #0f6247; }
 .pe-distribuicao-legenda i.s-recusada { background: var(--critico); }
 .pe-distribuicao-legenda i.s-cancelada { background: #aeb4c2; }
 .pe-distribuicao-legenda b { font-size: 11px; color: var(--ink); }

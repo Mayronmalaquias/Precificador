@@ -33,6 +33,9 @@ class Propostas(Resource):
                 "forma_pagamento": request.args.get("forma_pagamento"),
                 "busca": request.args.get("busca"),
                 "somente_abertas": request.args.get("somente_abertas"),
+                # Recorte de periodo pela data de lancamento (usado no Relatorio do Gerente).
+                "inicio": request.args.get("inicio"),
+                "fim": request.args.get("fim"),
             }), 200
         except Exception as e:
             return _erro(e, "Erro ao listar propostas efetivas")

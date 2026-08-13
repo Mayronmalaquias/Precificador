@@ -4,6 +4,8 @@ import "../assets/css/RelatorioGerente.css";
 import { useToast } from '../context/ToastContext';
 import { fetchEquipes } from '../services/equipes';
 import VisitasEvolucao from "./VisitasEvolucao";
+import RelatorioPropostas from "./RelatorioPropostas";
+import RelatorioLeads from "./RelatorioLeads";
 
 const CRITERIOS_AV = [
   { key: "localizacao", label: "Localização" },
@@ -150,12 +152,18 @@ function RelatorioGerente() {
     { id: "visitas", label: "Visitas", labelMobile: "Visitas" },
     { id: "imoveis", label: "Imóveis", labelMobile: "Imóveis" },
     { id: "clientes", label: "Clientes", labelMobile: "Clientes" },
+    { id: "propostas", label: "Propostas", labelMobile: "Propostas" },
+    { id: "leads", label: "Leads", labelMobile: "Leads" },
     { id: "pdfs", label: "Relatórios PDF", labelMobile: "PDFs" },
   ];
 
   // Gerentes do dropdown — dinâmico da tabela `equipes` (só ativas), não mais fixo.
   // Cada equipe (id_equipe = IdGerente = usuarios.team) tem um gerente.
   const [gerentes, setGerentes] = useState([]);
+
+  // Propostas e leads da Visao Geral. Vem dos mesmos endpoints das abas — nao do
+  // dashboard —, entao respeitam o escopo do solicitante e o gerente do dropdown.
+  const [totaisExtras, setTotaisExtras] = useState({ propostas: null, leads: null });
 
   useEffect(() => {
     fetchEquipes()
@@ -1488,10 +1496,10 @@ function RelatorioGerente() {
     );
   };
 
-  const cardNumero = (titulo, valor) => (
+  const cardNumero = (titulo, valor, vazio = 0) => (
     <div className="card-numero">
       <div className="card-numero-titulo">{titulo}</div>
-      <div className="card-numero-valor">{valor ?? 0}</div>
+      <div className="card-numero-valor">{valor ?? vazio}</div>
     </div>
   );
 
@@ -1923,6 +1931,43 @@ function RelatorioGerente() {
     </div>
   );
 
+
+  // Totais de proposta e lead do periodo/equipe selecionados. Falha vira "-" no card:
+  // sao numeros de apoio, nao podem derrubar a Visao Geral.
+  useEffect(() => {
+    if (!idGerenteLogado) return;
+    let ativo = true;
+    const carregar = async () => {
+      const base = new URLSearchParams({ solicitante_id: idGerenteLogado });
+      if (filtros.id_gerente) base.set("team", filtros.id_gerente);
+      if (periodoEfetivo.start) base.set("inicio", periodoEfetivo.start);
+      if (periodoEfetivo.end) base.set("fim", periodoEfetivo.end);
+
+      const leadsParams = new URLSearchParams({ solicitante_id: idGerenteLogado, per_page: "1" });
+      if (filtros.id_gerente) leadsParams.set("id_gerente", filtros.id_gerente);
+      if (periodoEfetivo.start) leadsParams.set("inicio", periodoEfetivo.start);
+      if (periodoEfetivo.end) leadsParams.set("fim", periodoEfetivo.end);
+
+      try {
+        const [rp, rl] = await Promise.all([
+          fetch(`${BASE}/propostas?${base.toString()}`),
+          fetch(`${BASE}/leads/gestao?${leadsParams.toString()}`),
+        ]);
+        const dp = await rp.json().catch(() => ({}));
+        const dl = await rl.json().catch(() => ({}));
+        if (!ativo) return;
+        setTotaisExtras({
+          propostas: dp?.resumo?.total ?? null,
+          leads: typeof dl?.total === "number" ? dl.total : null,
+        });
+      } catch {
+        if (ativo) setTotaisExtras({ propostas: null, leads: null });
+      }
+    };
+    carregar();
+    return () => { ativo = false; };
+  }, [idGerenteLogado, filtros.id_gerente, periodoEfetivo.start, periodoEfetivo.end]);
+
   const renderVisaoGeral = () => {
     const fonte = visaoGeralFiltrada || dashboard;
     const resumo = fonte?.resumo || {};
@@ -1940,6 +1985,8 @@ function RelatorioGerente() {
           {cardNumero("Total de visitas", resumo.total_visitas)}
           {cardNumero("Total de imóveis", imoveis.length)}
           {cardNumero("Total de clientes", resumo.total_clientes)}
+          {cardNumero("Total de propostas", totaisExtras.propostas, "—")}
+          {cardNumero("Total de leads", totaisExtras.leads, "—")}
         </div>
 
         <div className="grid-graficos">
@@ -2391,6 +2438,14 @@ function RelatorioGerente() {
 
       case "clientes":
         return renderTabelaClientes();
+
+      // Abas novas: o escopo (quais propostas/leads aparecem) e decidido pelo
+      // servidor a partir do cadastro, entao basta passar quem esta pedindo.
+      case "propostas":
+        return <RelatorioPropostas idSolicitante={idGerenteLogado} equipe={filtros.id_gerente} />;
+
+      case "leads":
+        return <RelatorioLeads idSolicitante={idGerenteLogado} equipe={filtros.id_gerente} />;
 
       case "pdfs":
         return renderPdfs();

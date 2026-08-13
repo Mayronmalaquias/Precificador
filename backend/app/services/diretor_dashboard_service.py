@@ -5,7 +5,7 @@ from pathlib import Path
 import re
 
 import pandas as pd
-from sqlalchemy import and_, func, or_
+from sqlalchemy import and_, func, or_, true as sa_true
 
 from app.database import SessionLocal
 from app.extensions import cache
@@ -16,10 +16,9 @@ from app.models.contrato import Contrato
 from app.models.dfimoveis_acesso import DfImoveisAcesso
 from app.models.equipe import Equipe
 from app.models.estoque_legado import LeadLegado
-from app.models.fato_bases import FatoCaptacao, FatoEstoque, FatoSaida
+from app.models.fato_bases import FatoCaptacao
 from app.models.gerente_visita_visualizada import GerenteVisitaVisualizada
 from app.models.imovel_area import ImovelArea
-from app.models.imovel_situacao_evento import ImovelSituacaoEvento
 from app.models.legado_diversos import CampanhaLegado
 from app.models.proposta_efetiva import PropostaEfetiva
 from app.models.usuarios import Usuarios
@@ -303,15 +302,28 @@ def _equipe_por_corretor(session, teams):
 
 
 def _sales_totals(session, query, recent_query, selected, teams):
-    """Devolve (VGV, VGC, quantidade, ultimos contratos).
+    """Devolve o financeiro do periodo + os ultimos contratos.
 
     No nivel de equipe/empresa o VGV e a soma simples de `valor_negocio` — o rateio
-    per-lado-cheio do ranking (que pode somar ate 2x) so vale por corretor. VGC = a
-    comissao que fica com a 61 (`valor_total_61`).
+    per-lado-cheio do ranking (que pode somar ate 2x) so vale por corretor.
+
+    Os cinco valores sao colunas distintas do contrato, cada uma um degrau a menos:
+    `valor_negocio` (VGV) -> `valor_comissao` (comissao total do negocio, inclui a parte
+    de parceiros) -> `valor_total_61` (VGC, o que fica com a 61) -> `nf_61_imoveis` (o
+    que foi faturado) -> `liquido_61` (o que sobra depois dos impostos).
     """
     rows = recent_query.order_by(Contrato.data_contrato.desc(), Contrato.created_at.desc()).limit(8).all()
-    total = float(query.with_entities(func.coalesce(func.sum(Contrato.valor_negocio), 0)).scalar() or 0)
-    comissao = float(query.with_entities(func.coalesce(func.sum(Contrato.valor_total_61), 0)).scalar() or 0)
+
+    def _soma(coluna):
+        return float(query.with_entities(func.coalesce(func.sum(coluna), 0)).scalar() or 0)
+
+    total = _soma(Contrato.valor_negocio)
+    comissao = _soma(Contrato.valor_total_61)
+    financeiro = {
+        "comissao_negocio": _soma(Contrato.valor_comissao),
+        "nf_61": _soma(Contrato.nf_61_imoveis),
+        "liquido_61": _soma(Contrato.liquido_61),
+    }
     # nome do gerente (cadastro OU alias) -> nome da equipe
     rotulo_equipe = {item["id"]: item["nome"] for item in teams}
     manager_team = {
@@ -355,7 +367,7 @@ def _sales_totals(session, query, recent_query, selected, teams):
             "valor_m2": round(valor / area, 2) if area else None,
             "data": row.data_contrato.isoformat() if row.data_contrato else None,
         })
-    return total, comissao, query.count(), items
+    return total, comissao, query.count(), items, financeiro
 
 
 # "Disponível" chega do Imoview como "Vago/Disponível". O prefixo é ASCII, então o
@@ -364,6 +376,23 @@ DISPONIVEL_LIKE = "vago%"
 # Moderação é a exceção pedida na regra: o imóvel sai da vitrine mas continua sendo
 # nosso, o corretor está só ajustando o anúncio. Contar como saída inflaria o número.
 MODERACAO_LIKE = "%modera%"
+# Locação é outra operação — não entra no estoque comercial.
+ALUGUEL_LIKE = "%alug%"
+
+
+def _so_venda(query):
+    """Tira locação da conta. `finalidade` nula fica (catálogo antigo, antes da coluna)."""
+    return query.filter(or_(
+        ImovelArea.finalidade.is_(None),
+        ~ImovelArea.finalidade.ilike(ALUGUEL_LIKE),
+    ))
+
+
+def _dono_do_imovel(session):
+    """Subquery código -> captador. Única ponte entre imóvel e equipe/corretor."""
+    return session.query(
+        FatoCaptacao.codigo_imovel.label("codigo"), FatoCaptacao.captador1.label("captador")
+    ).filter(FatoCaptacao.codigo_imovel.isnot(None)).distinct().subquery()
 
 
 def _escopo_por_captacao(session, query, coluna_codigo, selected_team, selected_broker):
@@ -375,9 +404,7 @@ def _escopo_por_captacao(session, query, coluna_codigo, selected_team, selected_
     """
     if not (selected_team or selected_broker):
         return query
-    dono = session.query(
-        FatoCaptacao.codigo_imovel.label("codigo"), FatoCaptacao.captador1.label("captador")
-    ).filter(FatoCaptacao.codigo_imovel.isnot(None)).distinct().subquery()
+    dono = _dono_do_imovel(session)
     query = query.join(dono, dono.c.codigo == coluna_codigo)
     if selected_broker:
         return query.filter(dono.c.captador == selected_broker)
@@ -386,98 +413,303 @@ def _escopo_por_captacao(session, query, coluna_codigo, selected_team, selected_
     )
 
 
-def _estoque_semanal(session, start, end, selected_team, selected_broker=None):
-    """Captações, saídas e estoque — as três leituras do movimento de imóveis.
+def _numeros_de_estoque(session, start, end, selected_team=None, selected_broker=None):
+    """Captações, saídas e estoque de um recorte. Só imóvel de VENDA.
 
-    Definições (fechadas com a diretoria em 12/08/2026):
+    - **Estoque** = situação *Vago/Disponível* agora (saldo, sem recorte de período);
+    - **Captações** = registradas no período (`fato_captacao.data_entrada`);
+    - **Saída** = `situacao_em` (o `datahoraultimasituacao` do Imoview) caiu dentro do
+      período **e** a situação atual não é disponível nem moderação.
 
-    - **Estoque** = imóveis com situação *Vago/Disponível* AGORA, do catálogo
-      `imovel_area`. É um saldo, não um acumulado: não tem recorte de período.
-    - **Captações** = imóveis registrados no sistema dentro do período
-      (`fato_captacao.data_entrada`).
-    - **Saídas** = imóveis que *deixaram* de estar disponíveis no período — vendido,
-      desativado, em reforma. **Em moderação não conta**, o imóvel continua sendo nosso.
-
-    Saída é uma transição, e a API do Imoview não tem endpoint de movimentação: quem
-    detecta é o `sync_areas_imoview.py`, comparando varreduras e gravando em
-    `imovel_situacao_evento`. Antes da primeira varredura não há log — para períodos
-    anteriores a ele, cai na planilha semanal (`fato_saida`), sinalizado em
-    `saidas_fonte`.
+    A saída vem do catálogo, não do log de transições: `datahoraultimasituacao` existe
+    em 100% dos imóveis e vale para trás, então o número funciona para períodos
+    anteriores à instalação do log — que era o motivo de vir vazio.
     """
-    def _escopo(query, tabela, usa_join=True):
-        if selected_broker:
-            return query.filter(or_(
-                tabela.captador1 == selected_broker,
-                tabela.captador2 == selected_broker,
-                tabela.captador3 == selected_broker,
-            ))
-        if selected_team and usa_join:
-            return query.join(Usuarios, Usuarios.id_usuarios == tabela.captador1).filter(
-                Usuarios.team == selected_team
-            )
-        return query
+    inicio = datetime.combine(start, datetime.min.time())
+    fim = datetime.combine(end, datetime.max.time())
 
-    entradas = _escopo(
-        session.query(func.count(FatoCaptacao.id)).filter(
-            FatoCaptacao.data_entrada >= start, FatoCaptacao.data_entrada <= end
-        ), FatoCaptacao
+    entradas_query = session.query(func.count(func.distinct(FatoCaptacao.codigo_imovel))).filter(
+        FatoCaptacao.data_entrada >= start, FatoCaptacao.data_entrada <= end,
+        FatoCaptacao.codigo_imovel.isnot(None),
+        # Locação fora: a captação não sabe a finalidade, quem sabe é o catálogo.
+        ~FatoCaptacao.codigo_imovel.in_(
+            session.query(ImovelArea.codigo).filter(ImovelArea.finalidade.ilike(ALUGUEL_LIKE))
+        ),
+    )
+    if selected_broker:
+        entradas_query = entradas_query.filter(or_(
+            FatoCaptacao.captador1 == selected_broker,
+            FatoCaptacao.captador2 == selected_broker,
+            FatoCaptacao.captador3 == selected_broker,
+        ))
+    elif selected_team:
+        entradas_query = entradas_query.join(
+            Usuarios, Usuarios.id_usuarios == FatoCaptacao.captador1
+        ).filter(Usuarios.team == selected_team)
+    entradas = entradas_query.scalar() or 0
+
+    saidas_query = _so_venda(
+        session.query(func.count(func.distinct(ImovelArea.codigo))).filter(
+            ImovelArea.situacao_em >= inicio, ImovelArea.situacao_em <= fim,
+            ImovelArea.situacao.isnot(None),
+            ~ImovelArea.situacao.ilike(DISPONIVEL_LIKE),
+            ~ImovelArea.situacao.ilike(MODERACAO_LIKE),
+        )
+    )
+    saidas = _escopo_por_captacao(
+        session, saidas_query, ImovelArea.codigo, selected_team, selected_broker
     ).scalar() or 0
 
-    # ── Saídas: log de transição de situação, com a planilha cobrindo o passado ──
-    # As duas fontes são separadas por DATA, nunca sobrepostas: até a véspera do
-    # primeiro evento vale a planilha semanal; dali em diante, o log. Um período que
-    # cruza a virada soma os dois pedaços — senão o mês da virada apareceria vazio.
-    primeiro_evento = session.query(func.min(ImovelSituacaoEvento.detectado_em)).scalar()
-    corte = primeiro_evento if primeiro_evento else None
-    saidas = 0
-    fontes = []
-
-    if corte is None or start < corte:
-        fim_planilha = min(end, corte - timedelta(days=1)) if corte else end
-        if fim_planilha >= start:
-            planilha_query = session.query(func.count(func.distinct(FatoSaida.id))).filter(
-                FatoSaida.data_saida >= start, FatoSaida.data_saida <= fim_planilha
-            )
-            parcial = _escopo_por_captacao(
-                session, planilha_query, FatoSaida.codigo_imovel, selected_team, selected_broker
-            ).scalar() or 0
-            saidas += int(parcial)
-            if parcial or corte is None:
-                fontes.append("planilha")
-
-    if corte and end >= corte:
-        log_query = session.query(func.count(func.distinct(ImovelSituacaoEvento.codigo))).filter(
-            ImovelSituacaoEvento.detectado_em >= max(start, corte),
-            ImovelSituacaoEvento.detectado_em <= end,
-            ImovelSituacaoEvento.situacao_anterior.ilike(DISPONIVEL_LIKE),
-            ~ImovelSituacaoEvento.situacao_nova.ilike(DISPONIVEL_LIKE),
-            ~ImovelSituacaoEvento.situacao_nova.ilike(MODERACAO_LIKE),
+    estoque_query = _so_venda(
+        session.query(func.count(func.distinct(ImovelArea.codigo))).filter(
+            ImovelArea.situacao.ilike(DISPONIVEL_LIKE)
         )
-        parcial = _escopo_por_captacao(
-            session, log_query, ImovelSituacaoEvento.codigo, selected_team, selected_broker
-        ).scalar() or 0
-        saidas += int(parcial)
-        fontes.append("situacao")
-
-    saidas_fonte = "+".join(fontes) if fontes else "planilha"
-
-    # ── Estoque: quantos estão disponíveis agora ────────────────────────────────
-    estoque_query = session.query(func.count(func.distinct(ImovelArea.codigo))).filter(
-        ImovelArea.situacao.ilike(DISPONIVEL_LIKE)
     )
     estoque = _escopo_por_captacao(
         session, estoque_query, ImovelArea.codigo, selected_team, selected_broker
     ).scalar() or 0
-    data_catalogo = session.query(func.max(ImovelArea.atualizado_em)).scalar()
 
     return {
-        "entradas": int(entradas),
-        "saidas": int(saidas),
-        "estoque": int(estoque),
-        "estoque_fonte": "catalogo",
-        "saidas_fonte": saidas_fonte,
-        "data_estoque": data_catalogo.date().isoformat() if data_catalogo else None,
+        "entradas": int(entradas), "saidas": int(saidas), "estoque": int(estoque),
         "saldo": int(entradas) - int(saidas),
+    }
+
+
+def _estoque_semanal(session, start, end, selected_team, selected_broker=None, teams=None):
+    """Números do recorte ativo + a quebra por gerente e por corretor.
+
+    Os recortes vêm no mesmo payload (como no funil) para o seletor do card trocar de
+    visão sem ir ao servidor.
+    """
+    atual = _numeros_de_estoque(session, start, end, selected_team, selected_broker)
+    data_catalogo = session.query(func.max(ImovelArea.atualizado_em)).scalar()
+
+    por_gerente, por_corretor = [], []
+    for item in (teams or []):
+        numeros = _numeros_de_estoque(session, start, end, item["id"], None)
+        if any(numeros[c] for c in ("entradas", "saidas", "estoque")):
+            por_gerente.append({"id": item["id"], "nome": item["nome"],
+                                "gerente": item.get("gerente"), **numeros})
+
+    # Só quem aparece como captador — corretor sem captação não move estoque.
+    # E só das equipes do escopo: `teams` chega filtrado para o gerente (mesma correção
+    # do funil; sem ela o seletor mostrava corretor de outra equipe).
+    ids_equipes = [item["id"] for item in (teams or [])]
+    captadores = session.query(
+        Usuarios.id_usuarios, Usuarios.nome, Usuarios.username, Usuarios.team
+    ).filter(
+        Usuarios.ativo.is_(True),
+        Usuarios.team.in_(ids_equipes) if ids_equipes else sa_true(),
+        Usuarios.id_usuarios.in_(session.query(FatoCaptacao.captador1).filter(
+            FatoCaptacao.captador1.isnot(None)
+        )),
+    ).all()
+    rotulo = {item["id"]: item["nome"] for item in (teams or [])}
+    for pessoa in captadores:
+        numeros = _numeros_de_estoque(session, start, end, None, pessoa.id_usuarios)
+        if any(numeros[c] for c in ("entradas", "saidas", "estoque")):
+            por_corretor.append({
+                "id": pessoa.id_usuarios,
+                "nome": pessoa.nome or pessoa.username or pessoa.id_usuarios,
+                "equipe": rotulo.get(pessoa.team, pessoa.team), **numeros,
+            })
+    por_gerente.sort(key=lambda l: -l["estoque"])
+    por_corretor.sort(key=lambda l: -l["estoque"])
+
+    return {
+        **atual,
+        "estoque_fonte": "catalogo",
+        "saidas_fonte": "situacao",
+        "data_estoque": data_catalogo.date().isoformat() if data_catalogo else None,
+        "recortes": {"gerentes": por_gerente, "corretores": por_corretor},
+    }
+
+
+# Etapas do funil, na ordem. A conversao mostrada e sempre entre etapas VIZINHAS.
+ETAPAS_FUNIL = ("leads", "clientes", "visitas", "propostas", "vendas")
+
+
+def _funil(session, start, end, teams, empresa):
+    """Funil leads -> clientes -> visitas -> propostas -> vendas, nos 3 recortes.
+
+    Devolve os tres de uma vez (`61`, por gerente e por corretor) porque o seletor da
+    tela troca de recorte sem ir ao servidor — sao poucos numeros e a alternativa seria
+    um round-trip a cada clique.
+
+    Ressalvas herdadas das fontes, que valem para a leitura do funil:
+    - **lead por corretor** sai de `leads_legado.atendimento`, que guarda ora o id ora o
+      nome; lead sem atendimento definido nao entra em nenhum corretor (mas conta no 61);
+    - **proposta pertence ao gerente** (ver `_propostas_efetivas`), entao a linha do
+      corretor so tem proposta quando ele proprio e o gerente;
+    - **venda** e casada pelo NOME no contrato — corretor renomeado sem alias fica de fora.
+    Por isso a soma das linhas nao fecha exatamente com o 61.
+    """
+    inicio = datetime.combine(start, datetime.min.time())
+    fim = datetime.combine(end, datetime.max.time())
+
+    # ── por equipe ────────────────────────────────────────────────────────────────
+    ids_equipes = [item["id"] for item in teams]
+    visitas_equipe = dict(
+        session.query(Usuarios.team, func.count(Visita.id_visita)).select_from(Visita).join(
+            Usuarios, Usuarios.id_usuarios == Visita.id_corretor
+        ).filter(
+            Visita.data_visita >= start, Visita.data_visita <= end,
+            Usuarios.team.in_(ids_equipes),
+        ).group_by(Usuarios.team).all()
+    )
+    clientes_equipe = _clientes_por_equipe(session, start, end, ids_equipes) if ids_equipes else {}
+    leads_equipe = _leads_por_equipe(session, start, end, teams) if ids_equipes else {}
+    propostas_equipe = dict(
+        session.query(PropostaEfetiva.team, func.count(PropostaEfetiva.id)).filter(
+            PropostaEfetiva.ativo.is_(True),
+            PropostaEfetiva.created_at >= inicio, PropostaEfetiva.created_at <= fim,
+        ).group_by(PropostaEfetiva.team).all()
+    )
+
+    # ── por corretor: so quem existe no cadastro ativo ────────────────────────────
+    # Restrito as equipes do escopo: `teams` ja chega filtrado quando o solicitante e
+    # gerente. Sem este filtro o seletor listava a empresa inteira — o gerente da SENNA
+    # via 39 corretores de 7 equipes, com os numeros deles.
+    pessoas = session.query(
+        Usuarios.id_usuarios, Usuarios.nome, Usuarios.username, Usuarios.team
+    ).filter(
+        Usuarios.ativo.is_(True), Usuarios.team.isnot(None),
+        Usuarios.team.in_(ids_equipes),
+    ).all()
+    corretores = [
+        {"id": p.id_usuarios, "nome": p.nome or p.username or p.id_usuarios, "team": p.team}
+        for p in pessoas if p.id_usuarios
+    ]
+    ids_corretores = [c["id"] for c in corretores]
+    visitas_corretor = dict(
+        session.query(Visita.id_corretor, func.count(Visita.id_visita)).filter(
+            Visita.data_visita >= start, Visita.data_visita <= end,
+            Visita.id_corretor.in_(ids_corretores),
+        ).group_by(Visita.id_corretor).all()
+    ) if ids_corretores else {}
+    clientes_corretor = _clientes_por_corretor(session, start, end, ids_corretores) if ids_corretores else {}
+    leads_corretor = _leads_por_corretor(session, start, end, corretores) if corretores else {}
+    propostas_corretor = dict(
+        session.query(PropostaEfetiva.id_corretor, func.count(PropostaEfetiva.id)).filter(
+            PropostaEfetiva.ativo.is_(True), PropostaEfetiva.id_corretor.isnot(None),
+            PropostaEfetiva.created_at >= inicio, PropostaEfetiva.created_at <= fim,
+        ).group_by(PropostaEfetiva.id_corretor).all()
+    )
+
+    # ── vendas: o contrato guarda NOME, entao o rateio e feito em memoria ─────────
+    # O periodo tem dezenas de contratos, nao milhares — cabe percorrer.
+    vendas_equipe, vendas_corretor = {}, {}
+    por_nome = {}
+    for c in corretores:
+        por_nome.setdefault(str(c["nome"]).strip().casefold(), c)
+    gerente_da_equipe = {
+        str(nome).strip().casefold(): team_id
+        for team_id, nomes in _nomes_de_gerente_por_equipe(session, teams).items()
+        for nome in nomes
+    }
+    contratos = session.query(
+        Contrato.corretor_venda_1_nome, Contrato.corretor_captador_1_nome,
+        Contrato.gerente_venda_nome, Contrato.gerente_captacao_nome,
+    ).filter(Contrato.data_contrato >= start, Contrato.data_contrato <= end).all()
+    for venda_nome, captador_nome, ger_venda, ger_captacao in contratos:
+        alvo = por_nome.get(str(venda_nome or "").strip().casefold())             or por_nome.get(str(captador_nome or "").strip().casefold())
+        if alvo:
+            vendas_corretor[alvo["id"]] = vendas_corretor.get(alvo["id"], 0) + 1
+            vendas_equipe[alvo["team"]] = vendas_equipe.get(alvo["team"], 0) + 1
+            continue
+        # Sem corretor identificado, a venda ainda pode ser atribuida pela gerencia.
+        equipe = gerente_da_equipe.get(str(ger_venda or "").strip().casefold())             or gerente_da_equipe.get(str(ger_captacao or "").strip().casefold())
+        if equipe:
+            vendas_equipe[equipe] = vendas_equipe.get(equipe, 0) + 1
+
+    def _linha(nome, extra, leads, clientes, visitas, propostas, vendas):
+        return {"nome": nome, **extra, "leads": int(leads or 0), "clientes": int(clientes or 0),
+                "visitas": int(visitas or 0), "propostas": int(propostas or 0), "vendas": int(vendas or 0)}
+
+    rotulo = {item["id"]: item["nome"] for item in teams}
+    linhas_equipe = [
+        _linha(item["nome"], {"id": item["id"], "gerente": item.get("gerente")},
+               leads_equipe.get(item["id"]), clientes_equipe.get(item["id"]),
+               visitas_equipe.get(item["id"]), propostas_equipe.get(item["id"]),
+               vendas_equipe.get(item["id"]))
+        for item in teams
+    ]
+    linhas_corretor = [
+        _linha(c["nome"], {"id": c["id"], "equipe": rotulo.get(c["team"], c["team"])},
+               leads_corretor.get(c["id"]), clientes_corretor.get(c["id"]),
+               visitas_corretor.get(c["id"]), propostas_corretor.get(c["id"]),
+               vendas_corretor.get(c["id"]))
+        for c in corretores
+    ]
+    # Quem nao teve nada no periodo so polui o seletor.
+    linhas_corretor = [l for l in linhas_corretor if any(l[e] for e in ETAPAS_FUNIL)]
+    linhas_corretor.sort(key=lambda l: (-l["visitas"], l["nome"]))
+    linhas_equipe.sort(key=lambda l: (-l["visitas"], l["nome"]))
+
+    return {"empresa": empresa, "gerentes": linhas_equipe, "corretores": linhas_corretor}
+
+
+# Faixas de recorrencia do cliente. Disjuntas: "10+" e ESTRITAMENTE acima de 10, senao
+# um cliente com 10 visitas cairia em duas faixas e o percentual passaria de 100%.
+FAIXAS_FREQUENCIA = (
+    ("1", 1, 1),
+    ("2", 2, 2),
+    ("3-5", 3, 5),
+    ("6-7", 6, 7),
+    ("8-10", 8, 10),
+    ("10+", 11, None),
+)
+
+
+def _clientes_por_frequencia(session, start, end, selected_team, selected_broker=None):
+    """Clientes que visitaram no periodo, agrupados por quantas visitas ja fizeram.
+
+    Duas contagens diferentes de proposito:
+    - **quem entra** na conta = cliente com visita DENTRO do periodo (e dentro do
+      filtro de equipe/corretor, como o resto do painel);
+    - **quantas visitas ele tem** = o historico INTEIRO dele, sem recorte de periodo
+      nem de equipe. E o que responde "esse cliente e recorrente?" — cortar pelo
+      periodo transformaria todo mundo em cliente de 1 visita.
+    """
+    no_periodo = session.query(VisitaCliente.id_cliente).join(
+        Visita, Visita.id_visita == VisitaCliente.id_visita
+    ).filter(Visita.data_visita >= start, Visita.data_visita <= end)
+    if selected_broker:
+        no_periodo = no_periodo.filter(Visita.id_corretor == selected_broker)
+    elif selected_team:
+        no_periodo = no_periodo.join(
+            Usuarios, Usuarios.id_usuarios == Visita.id_corretor
+        ).filter(Usuarios.team == selected_team)
+
+    ids = [linha[0] for linha in no_periodo.distinct().all() if linha[0]]
+    if not ids:
+        return {"total": 0, "total_visitas": 0, "faixas": [
+            {"label": rotulo, "clientes": 0, "percentual": 0.0} for rotulo, _, _ in FAIXAS_FREQUENCIA
+        ]}
+
+    historico = session.query(
+        VisitaCliente.id_cliente, func.count(func.distinct(VisitaCliente.id_visita))
+    ).filter(VisitaCliente.id_cliente.in_(ids)).group_by(VisitaCliente.id_cliente).all()
+
+    contagem = {rotulo: 0 for rotulo, _, _ in FAIXAS_FREQUENCIA}
+    total_visitas = 0
+    for _, visitas in historico:
+        visitas = int(visitas or 0)
+        total_visitas += visitas
+        for rotulo, minimo, maximo in FAIXAS_FREQUENCIA:
+            if visitas >= minimo and (maximo is None or visitas <= maximo):
+                contagem[rotulo] += 1
+                break
+
+    total = len(ids)
+    return {
+        "total": total,
+        "total_visitas": total_visitas,
+        "faixas": [{
+            "label": rotulo,
+            "clientes": contagem[rotulo],
+            "percentual": round(contagem[rotulo] / total * 100, 1) if total else 0.0,
+        } for rotulo, _, _ in FAIXAS_FREQUENCIA],
     }
 
 
@@ -939,7 +1171,7 @@ def _somente_corretor_ativo(query):
     )
 
 
-def _imoveis_parados(session, today, selected_team, selected_broker=None):
+def _imoveis_parados(session, today, selected_team, selected_broker=None, teams=None):
     """Imóveis da Jornada parados, pelo tempo na ETAPA ATUAL.
 
     O relógio é `data_entrada_etapa` — avançar de etapa zera a contagem, então o número
@@ -949,6 +1181,11 @@ def _imoveis_parados(session, today, selected_team, selected_broker=None):
     jornada — ficar lá não é estar parado).
 
     Faixas: 7–14 (azul), 14–30 (amarelo), 30+ (vermelho).
+
+    Cada item leva equipe e corretor para a tela recortar por gerente/corretor **sem ir
+    ao servidor**: o filtro, os cards de faixa, o cruzamento etapa × faixa e a paginação
+    passam a responder ao mesmo recorte, sem risco de um mostrar um número e o outro
+    mostrar outro.
     """
     query = _somente_corretor_ativo(session.query(Captacao)).filter(
         Captacao.status.notin_(["fechado", "captado"]),
@@ -959,6 +1196,7 @@ def _imoveis_parados(session, today, selected_team, selected_broker=None):
     elif selected_team:
         query = query.filter(Captacao.team == selected_team)
 
+    rotulo_equipe = {item["id"]: item["nome"] for item in (teams or [])}
     faixas = {"7_14": 0, "14_30": 0, "30_mais": 0}
     itens = []
     for row in query.all():
@@ -982,6 +1220,9 @@ def _imoveis_parados(session, today, selected_team, selected_broker=None):
             "etapa": row.etapa_atual,
             "etapa_label": ROTULO_ETAPA.get(row.etapa_atual, row.etapa_atual),
             "responsavel": row.nome_corretor or row.team or "Não informado",
+            "id_corretor": row.id_corretor,
+            "team": row.team,
+            "equipe": rotulo_equipe.get(row.team, row.team) or "Sem equipe",
             "dias": dias,
             "faixa": faixa,
             "nivel": nivel,
@@ -993,6 +1234,20 @@ def _imoveis_parados(session, today, selected_team, selected_broker=None):
     por_etapa = {}
     for item in itens:
         por_etapa[item["etapa_label"]] = por_etapa.get(item["etapa_label"], 0) + 1
+
+    # Opções do seletor: só quem tem imóvel parado — listar equipe zerada é ruído.
+    gerentes, corretores = {}, {}
+    for item in itens:
+        if item["team"]:
+            gerentes.setdefault(item["team"], {"id": item["team"], "nome": item["equipe"], "total": 0})
+            gerentes[item["team"]]["total"] += 1
+        if item["id_corretor"]:
+            corretores.setdefault(item["id_corretor"], {
+                "id": item["id_corretor"], "nome": item["responsavel"],
+                "equipe": item["equipe"], "total": 0,
+            })
+            corretores[item["id_corretor"]]["total"] += 1
+
     return {
         "faixa_7_14": faixas["7_14"],
         "faixa_14_30": faixas["14_30"],
@@ -1000,6 +1255,10 @@ def _imoveis_parados(session, today, selected_team, selected_broker=None):
         "total": sum(faixas.values()),
         "por_etapa": por_etapa,
         "itens": itens,
+        "opcoes": {
+            "gerentes": sorted(gerentes.values(), key=lambda g: -g["total"]),
+            "corretores": sorted(corretores.values(), key=lambda c: -c["total"]),
+        },
     }
 
 
@@ -1240,8 +1499,19 @@ def _visit_reviews(session, start, end, selected_team, teams, selected_broker=No
     elif selected_team:
         query = query.filter(Usuarios.team == selected_team)
 
+    # A auditoria e sobre acompanhamento do GERENTE. Visita de corretor fora de equipe
+    # ativa (`administrativo`, sem team, equipe desativada) nao tem gerente para cobrar,
+    # entao fica de fora do bloco inteiro — inclusive dos totais, senao a soma das linhas
+    # nao fecharia com o cabecalho.
+    equipes_validas = {item["id"] for item in teams}
+
     items = []
-    for visit, broker, flags in query.order_by(Visita.data_visita.desc()).limit(500).all():
+    # Teto alto de proposito: a auditoria conta pendencia por equipe, e cortar a lista
+    # faz equipe sumir ou aparecer com menos pendencia do que tem. Julho ja teve 494
+    # visitas — 500 estava a um passo de truncar sem avisar.
+    for visit, broker, flags in query.order_by(Visita.data_visita.desc()).limit(5000).all():
+        if broker.team not in equipes_validas:
+            continue
         viewed = flags is not None
         items.append({
             "id": visit.id_visita,
@@ -1267,23 +1537,26 @@ def _visit_reviews(session, start, end, selected_team, teams, selected_broker=No
         "adicionou_motivo": sum(1 for item in items if item["adicionou_motivo"]),
     }
     team_names = {team["id"]: team for team in teams}
-    grouped = {}
+
+    def _linha_vazia(team_id, info):
+        return {
+            "equipe_id": team_id,
+            "equipe": info.get("nome") or team_id,
+            "gerente": info.get("gerente") or "Sem gerente cadastrado",
+            "total_visitas": 0, "nao_viu_visita": 0,
+            "notas_aplicaveis": 0, "nao_viu_nota": 0,
+            "anexos_aplicaveis": 0, "nao_viu_anexo": 0,
+            "motivos_aplicaveis": 0, "nao_adicionou_motivo": 0,
+        }
+
+    # Comeca com TODAS as equipes do escopo. Antes a linha so nascia quando havia visita
+    # ou proposta no periodo, entao equipe parada sumia da auditoria — que e justamente
+    # quando ela precisa aparecer: zero visita e uma informacao, nao uma ausencia.
+    grouped = {item["id"]: _linha_vazia(item["id"], item) for item in teams}
     for item in items:
         team_id = item["equipe_id"] or "sem-equipe"
         team_info = team_names.get(team_id, {})
-        row = grouped.setdefault(team_id, {
-            "equipe_id": team_id,
-            "equipe": team_info.get("nome") or team_id,
-            "gerente": team_info.get("gerente") or "Sem gerente cadastrado",
-            "total_visitas": 0,
-            "nao_viu_visita": 0,
-            "notas_aplicaveis": 0,
-            "nao_viu_nota": 0,
-            "anexos_aplicaveis": 0,
-            "nao_viu_anexo": 0,
-            "motivos_aplicaveis": 0,
-            "nao_adicionou_motivo": 0,
-        })
+        row = grouped.setdefault(team_id, _linha_vazia(team_id, team_info))
         row["total_visitas"] += 1
         if not item["viu_visita"]:
             row["nao_viu_visita"] += 1
@@ -1305,19 +1578,12 @@ def _visit_reviews(session, start, end, selected_team, teams, selected_broker=No
     propostas = _propostas_por_equipe(session, selected_team, selected_broker)
     team_names = {team["id"]: team for team in teams}
     for team_id, contagem in propostas.items():
+        if team_id not in equipes_validas:
+            continue
         row = grouped.get(team_id)
         if row is None:
             # Equipe sem visita no período mas com proposta parada continua aparecendo.
-            info = team_names.get(team_id, {})
-            row = grouped.setdefault(team_id, {
-                "equipe_id": team_id,
-                "equipe": info.get("nome") or team_id,
-                "gerente": info.get("gerente") or "Sem gerente cadastrado",
-                "total_visitas": 0, "nao_viu_visita": 0,
-                "notas_aplicaveis": 0, "nao_viu_nota": 0,
-                "anexos_aplicaveis": 0, "nao_viu_anexo": 0,
-                "motivos_aplicaveis": 0, "nao_adicionou_motivo": 0,
-            })
+            row = grouped.setdefault(team_id, _linha_vazia(team_id, team_names.get(team_id, {})))
         row["propostas_abertas"] = contagem["abertas"]
         row["propostas_sem_acao"] = contagem["sem_acao"]
     for row in grouped.values():
@@ -1371,8 +1637,10 @@ def executive_view(start_value=None, end_value=None, team=None, broker=None, som
         else:
             team_rows, proposals = _visit_metrics(session, teams, start, end, team)
             previous_rows, previous_proposals = _visit_metrics(session, teams, previous_start, previous_end, team)
-        vgv, vgc, sales_count, recent_sales = _sales(session, start, end, team, teams, broker_name)
-        vgv_anterior, vgc_anterior, sales_count_anterior, _ = _sales(session, previous_start, previous_end, team, teams, broker_name)
+        vgv, vgc, sales_count, recent_sales, financeiro = _sales(
+            session, start, end, team, teams, broker_name)
+        vgv_anterior, vgc_anterior, sales_count_anterior, _, financeiro_anterior = _sales(
+            session, previous_start, previous_end, team, teams, broker_name)
         leads = _leads(session, start, end, team, teams, broker, broker_name)
         previous_leads = _leads(session, previous_start, previous_end, team, teams, broker, broker_name)
         clientes = _clientes(session, start, end, team, broker)
@@ -1406,15 +1674,33 @@ def executive_view(start_value=None, end_value=None, team=None, broker=None, som
                 "vgv": {"valor": vgv, "variacao_pct": _pct(vgv, vgv_anterior)},
                 "vgc": {"valor": vgc, "variacao_pct": _pct(vgc, vgc_anterior)},
                 "vgc_sobre_vgv": {"valor": pct_vgc_vgv, "variacao_pct": _pct(pct_vgc_vgv or 0, pct_anterior or 0)},
+                # Degraus da comissão, todos do contrato (ver `_sales_totals`).
+                "comissao_negocio": {
+                    "valor": financeiro["comissao_negocio"],
+                    "variacao_pct": _pct(financeiro["comissao_negocio"], financeiro_anterior["comissao_negocio"]),
+                },
+                "nf_61": {
+                    "valor": financeiro["nf_61"],
+                    "variacao_pct": _pct(financeiro["nf_61"], financeiro_anterior["nf_61"]),
+                },
+                "liquido_61": {
+                    "valor": financeiro["liquido_61"],
+                    "variacao_pct": _pct(financeiro["liquido_61"], financeiro_anterior["liquido_61"]),
+                },
                 # Mantidos p/ o restante da tela (funil de visitas e rodapé do gráfico).
                 "vendas": {"valor": vgv, "quantidade": sales_count, "variacao_pct": _pct(vgv, vgv_anterior)},
                 "propostas_visita_sim": {"valor": proposal_total, "variacao_pct": _pct(proposal_total, previous_proposal_total)},
             },
             "equipes": team_rows, "propostas": proposals,
+            "clientes_frequencia": _clientes_por_frequencia(session, start, end, team, broker),
             "captacao": _captation(session, start, end, team, broker),
-            "estoque_semanal": _estoque_semanal(session, start, end, team, broker),
+            "estoque_semanal": _estoque_semanal(session, start, end, team, broker, teams),
+            "funil": _funil(session, start, end, teams, {
+                "nome": "61 Imóveis", "leads": leads, "clientes": clientes, "visitas": visits,
+                "propostas": propostas_efetivas, "vendas": sales_count,
+            }),
             "vendas_recentes": recent_sales, "midia": _media(session, start, end),
-            "imoveis_parados": _imoveis_parados(session, today, team, broker),
+            "imoveis_parados": _imoveis_parados(session, today, team, broker, teams),
             "revisao_visitas": _visit_reviews(session, start, end, team, teams, broker),
         }
     finally:

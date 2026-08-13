@@ -278,3 +278,133 @@
 .ev-profile-list em { font-style: normal; font-size: 11px; font-weight: 800; text-align: right;
   color: #6f7689; background: #f3f4f7; border-radius: 20px; padding: 4px 8px; }
 .ev-profile-list em.up { background: #e9f8f2; color: #18885f; }
+
+/* ── Barras de execução comercial: teto fixo ─────────────────────────────────
+   Quem passa de 150 enche a barra; a listra marca que o número foi truncado —
+   sem isso, três equipes acima do teto pareceriam empatadas. */
+.ev-bar-track b.estourou {
+  background-image: repeating-linear-gradient(115deg, transparent 0 6px, rgba(255, 255, 255, .45) 6px 10px);
+  border-radius: 10px 3px 3px 10px;
+}
+
+/* ── Funil de conversão ──────────────────────────────────────────────────── */
+.ev-funil { grid-column: 1 / -1; }
+.ev-funil-filtros { display: flex; align-items: center; gap: 9px; flex-wrap: wrap; }
+.ev-funil-filtros select {
+  border: 1px solid var(--line); background: #fff; color: var(--ink);
+  border-radius: 8px; padding: 7px 9px; font: 600 11px var(--ds-font); max-width: 230px;
+}
+.ev-chips { display: flex; gap: 3px; background: #f3f4f7; border-radius: 9px; padding: 3px; }
+.ev-chips button {
+  border: 0; background: transparent; color: #737b91; border-radius: 7px;
+  padding: 7px 13px; font: 700 11px var(--ds-font); cursor: pointer;
+  transition: background .16s ease, color .16s ease;
+}
+.ev-chips button:hover { color: #252b3d; }
+.ev-chips button.is-ativo { background: #fff; color: #5948d6; box-shadow: 0 1px 3px rgba(38, 44, 73, .12); }
+
+.ev-funil-alvo { font-size: 12px; font-weight: 800; color: var(--ink); margin-bottom: 13px; }
+.ev-funil-alvo span { font-weight: 600; color: var(--muted); }
+
+.ev-funil-etapas { display: grid; gap: 4px; }
+.ev-funil-etapa { display: grid; gap: 4px; }
+/* A barra afunila: largura relativa ao topo. O rótulo e o número ficam POR CIMA,
+   para o texto não sumir quando a etapa final é 1% do topo. */
+.ev-funil-barra { position: relative; height: 40px; display: flex; align-items: center; gap: 10px; padding: 0 13px; }
+.ev-funil-barra i {
+  position: absolute; left: 0; top: 0; bottom: 0; border-radius: 9px;
+  background: linear-gradient(90deg, #8879ed, #6d5ce7); opacity: .16;
+}
+.ev-funil-barra i.f-clientes { background: linear-gradient(90deg, #7f8ff0, #4a63d8); }
+.ev-funil-barra i.f-visitas { background: linear-gradient(90deg, #46bf95, #1c9b6c); }
+.ev-funil-barra i.f-propostas { background: linear-gradient(90deg, #eab55c, #e49b38); }
+.ev-funil-barra i.f-vendas { background: linear-gradient(90deg, #ef4f83, #df1764); }
+.ev-funil-barra span { position: relative; font-size: 11px; font-weight: 700; color: #5a6176; }
+.ev-funil-barra strong { position: relative; margin-left: auto; font-size: 16px; letter-spacing: -.3px; }
+/* Seta de conversão entre etapas vizinhas. */
+.ev-funil-etapa em {
+  font-style: normal; font-size: 10px; font-weight: 700; color: var(--muted);
+  padding-left: 13px;
+}
+.ev-funil-etapa em::before { content: '↓ '; color: #b6bbc9; }
+.ev-funil-etapa em.alta { color: #18885f; }
+
+/* ── Qualidade atendimento: números por parte na barra empilhada ─────────────── */
+.ev-stacked-partes { display: flex; align-items: center; gap: 6px; font-weight: 700; }
+.ev-stacked-partes em {
+  font-style: normal; font-size: 9px; font-weight: 800; border-radius: 5px; padding: 2px 5px;
+}
+.ev-stacked-partes em.sim { background: #e9f8f2; color: #18885f; }
+.ev-stacked-partes em.talvez { background: #fff5e8; color: #b97824; }
+.ev-stacked-partes em.nao { background: #f1f2f6; color: #737b91; }
+.ev-stacked-partes > span { font-size: 11px; color: var(--ink); margin-left: 2px; }
+/* A coluna do total cresceu: sem isto os três selos quebram linha. */
+.ev-stacked-qtd > div { grid-template-columns: 46px 1fr auto; }
+
+/* ── Clientes por recorrência ────────────────────────────────────────────────── */
+.ev-freq { border-top: 1px solid var(--line); margin-top: 17px; padding-top: 14px; }
+.ev-freq-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin-bottom: 11px; }
+.ev-freq-head strong { font-size: 12px; }
+.ev-freq-head span { font-size: 10px; color: var(--muted); }
+.ev-freq-list { display: grid; gap: 7px; }
+.ev-freq-list > div { display: grid; grid-template-columns: 66px 1fr 32px 44px; align-items: center; gap: 8px; }
+.ev-freq-list > div > span { font-size: 10px; color: #6f7689; }
+.ev-freq-list .ev-bar-track b { background: linear-gradient(90deg, #8879ed, #6d5ce7); }
+.ev-freq-list > div > strong { font-size: 11px; text-align: right; }
+.ev-freq-list > div > em { font-style: normal; font-size: 10px; font-weight: 700; color: var(--muted); text-align: right; }
+.ev-freq-nota { margin: 11px 0 0; font-size: 9px; line-height: 1.5; color: #9298aa; }
+
+/* ── Governança: filtros no cabeçalho escuro do bloco ────────────────────────── */
+.ev-filtros-escuro .ev-chips { background: #ffffff14; }
+.ev-filtros-escuro .ev-chips button { color: #b3b8c5; }
+.ev-filtros-escuro .ev-chips button:hover { color: #fff; }
+.ev-filtros-escuro .ev-chips button.is-ativo { background: #3a4052; color: #fff; box-shadow: none; }
+.ev-filtros-escuro select {
+  background: #2b3144; border-color: #3a4052; color: #e7e9ef;
+}
+
+/* ── Governança: cruzamento etapa × faixa ────────────────────────────────────── */
+.ev-parados-matriz { display: grid; gap: 4px; margin: 14px 0 4px; }
+.ev-parados-matriz-head,
+.ev-parados-matriz button {
+  display: grid; grid-template-columns: 1fr 52px 52px 52px 58px; align-items: center; gap: 8px;
+  padding: 9px 12px; text-align: left;
+}
+.ev-parados-matriz-head { padding-bottom: 4px; }
+.ev-parados-matriz-head span,
+.ev-parados-matriz-head em,
+.ev-parados-matriz-head strong {
+  font-size: 8px; font-weight: 800; text-transform: uppercase; letter-spacing: .6px;
+  color: #8f96a7; font-style: normal; text-align: right;
+}
+.ev-parados-matriz-head span { text-align: left; }
+.ev-parados-matriz button {
+  border: 1px solid #3a4052; background: #2b3144; color: #fff; border-radius: 9px; cursor: pointer;
+  transition: border-color .16s ease, background .16s ease;
+}
+.ev-parados-matriz button:hover { border-color: #4d556c; background: #313850; }
+.ev-parados-matriz button.is-ativa { border-color: #f36c7e; background: #343b52; }
+.ev-parados-matriz button > span { font-size: 10px; font-weight: 700; }
+.ev-parados-matriz button > em {
+  font-style: normal; font-size: 11px; font-weight: 800; text-align: right; color: #9ca2b1;
+}
+.ev-parados-matriz button > em.faixa-leve { color: #7fb7f0; }
+.ev-parados-matriz button > em.faixa-media { color: #f1b14b; }
+.ev-parados-matriz button > em.faixa-alta { color: #f36c7e; }
+.ev-parados-matriz button > strong { font-size: 12px; text-align: right; }
+
+/* ── Indicadores de esforço ──────────────────────────────────────────────────── */
+.ev-indicadores { grid-column: 1 / -1; }
+.ev-indicadores-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+.ev-indicadores-grid > div {
+  border: 1px solid var(--line); border-radius: 11px; padding: 15px 16px; background: #fafbfd;
+}
+.ev-indicadores-grid span,
+.ev-indicadores-grid strong,
+.ev-indicadores-grid small { display: block; }
+.ev-indicadores-grid span {
+  font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: .5px; color: #868d9f;
+}
+.ev-indicadores-grid strong { font-size: 30px; letter-spacing: -1px; margin: 9px 0 5px; }
+.ev-indicadores-grid small { font-size: 10px; color: #9298aa; }
+@media (max-width: 700px) { .ev-indicadores-grid { grid-template-columns: 1fr; } }

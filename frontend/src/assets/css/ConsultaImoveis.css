@@ -154,6 +154,16 @@
   font: 500 13px var(--ds-font); color: var(--ink); background: #fff; }
 .ci-tag { font-size: 10px; color: var(--muted); }
 
+/* Matrícula e inscrição: mesma faixa verde do foco, para ler como "isto é nosso". */
+.ci-doc-editor { display: flex; gap: 10px; align-items: flex-end; flex-wrap: wrap; margin-bottom: 13px;
+  background: #f7fbf9; border: 1px solid #cdeade; border-radius: 10px; padding: 11px 13px; }
+.ci-doc-editor label { display: grid; gap: 5px; flex: 1; min-width: 190px; }
+.ci-doc-editor label span { font-size: 11px; font-weight: 700; color: #4b5563; }
+.ci-doc-editor input { border: 1px solid var(--line); border-radius: 8px; padding: 9px 11px;
+  font: 500 13px var(--ds-font); color: var(--ink); background: #fff; width: 100%; }
+.ci-doc-editor input:focus { outline: 3px solid rgba(28, 155, 108, .14); border-color: #9fd9bf; }
+.ci-doc-editor input:disabled { background: #f3f4f7; color: #9aa0ae; cursor: not-allowed; }
+
 .ci-tabela { width: 100%; border-collapse: collapse; margin-top: 12px; }
 .ci-tabela th { text-align: left; font-size: 9px; text-transform: uppercase; letter-spacing: .6px;
   color: #9ba0b0; padding: 8px 10px; border-bottom: 1px solid var(--line); }

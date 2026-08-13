@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import json as _json
 import os
-from datetime import date
+from datetime import date, datetime
 from typing import Any, Dict, List, Optional
 
 from app.services import imoview_service, trello_service
@@ -163,6 +163,11 @@ def _persistir_cache_imovel(dados: Dict[str, Any], codigo: Any) -> Dict[str, Any
         registro.quartos = _int(dados.get("numeroquartos"))
         registro.vagas = _int(dados.get("numerovagas"))
         registro.valor = _num(dados.get("valor"))
+        # Matricula e inscricao so existiam no Sheets e no Trello; guardadas aqui, ficam
+        # consultaveis e editaveis na Consulta de Imoveis.
+        registro.matricula = (dados.get("matricula") or "").strip() or None
+        registro.inscricao_iptu = (dados.get("inscricao_iptu") or "").strip() or None
+        registro.cadastrado_em = registro.cadastrado_em or datetime.now()
         registro.origem = "lancamento"
         session.commit()
         return {"ok": True}

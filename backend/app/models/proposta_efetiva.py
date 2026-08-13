@@ -10,7 +10,9 @@ from sqlalchemy.orm import relationship
 from app.models.base import Base
 
 # Situacoes que encerram a proposta — param o contador de "periodo em aberto".
-SITUACOES_FECHADAS = ("aceita", "recusada", "cancelada")
+# `vendido` e o degrau depois de `aceita`: proposta aceita ainda pode cair, vendida
+# virou contrato. Encerra o acompanhamento e para os contadores de tempo.
+SITUACOES_FECHADAS = ("aceita", "vendido", "recusada", "cancelada")
 SITUACOES = ("em_analise", "contraproposta") + SITUACOES_FECHADAS
 
 FORMAS_PAGAMENTO = ("permuta", "consorcio", "financiamento", "recurso_proprio", "outros")

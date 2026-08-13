@@ -34,6 +34,7 @@ ROTULO_SITUACAO = {
     "em_analise": "Em análise",
     "contraproposta": "Contraproposta",
     "aceita": "Aceita",
+    "vendido": "Vendido",
     "recusada": "Recusada",
     "cancelada": "Cancelada",
 }
@@ -288,6 +289,17 @@ def _aplicar_escopo(query, escopo):
     return query.filter(PropostaEfetiva.team == escopo["team"])
 
 
+def _data(valor):
+    """'2026-08-01' -> date. Aceita date/datetime prontos."""
+    from datetime import date as _date
+
+    if isinstance(valor, datetime):
+        return valor.date()
+    if isinstance(valor, _date):
+        return valor
+    return datetime.strptime(str(valor)[:10], "%Y-%m-%d").date()
+
+
 def listar(solicitante_id, filtros=None):
     escopo = escopo_do_solicitante(solicitante_id)
     filtros = filtros or {}
@@ -313,6 +325,14 @@ def listar(solicitante_id, filtros=None):
             ))
         if str(filtros.get("somente_abertas") or "").lower() == "true":
             query = query.filter(PropostaEfetiva.situacao.notin_(SITUACOES_FECHADAS))
+        # Periodo pela data de LANCAMENTO (`created_at`), o mesmo criterio do painel do
+        # diretor: `data_proposta` e digitada e vem retroativa/futura com frequencia.
+        if filtros.get("inicio"):
+            query = query.filter(PropostaEfetiva.created_at >= datetime.combine(
+                _data(filtros["inicio"]), datetime.min.time()))
+        if filtros.get("fim"):
+            query = query.filter(PropostaEfetiva.created_at <= datetime.combine(
+                _data(filtros["fim"]), datetime.max.time()))
 
         agora = datetime.now()
         itens = [_serializar(p, agora) for p in query.order_by(PropostaEfetiva.created_at.desc()).all()]

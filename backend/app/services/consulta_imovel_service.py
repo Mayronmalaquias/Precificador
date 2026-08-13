@@ -11,9 +11,9 @@ Divisão que a tela precisa respeitar:
 A busca usa o cache `imovel_area` (alimentado por `sync_areas_imoview.py`) porque a API
 do Imoview **não filtra por código** — só por endereço, e paginado de 20 em 20.
 """
-from datetime import datetime
+from datetime import date, datetime, timedelta
 
-from sqlalchemy import or_, text
+from sqlalchemy import BigInteger, func, or_, text
 
 from app.database import SessionLocal
 from app.extensions import cache
@@ -27,6 +27,10 @@ from app.models.usuarios import Usuarios
 from app.models.visita import Visita
 
 PERFIS_COM_ACESSO = {"assistente", "gerente", "administrador", "diretor", "administrativo"}
+
+# Quanto tempo uma captação sem imóvel no catálogo ainda conta como "recém-lançada".
+# A varredura roda 1x/dia; 7 dias cobre feriado e cron que falhou sem trazer lixo antigo.
+DIAS_LANCAMENTO_RECENTE = 7
 
 
 class ConsultaErro(Exception):
@@ -117,15 +121,24 @@ def buscar(solicitante_id, termo="", page=1, per_page=24, situacao="disponivel")
             query = query.filter(or_(*[ImovelArea.situacao.ilike(r) for r in rotulos]))
 
         total = query.count()
-        linhas = query.order_by(ImovelArea.codigo).offset((page - 1) * per_page).limit(per_page).all()
+        # Lancamento mais recente primeiro. `cadastrado_em` vem do `datahoracadastro` do
+        # Imoview; quem ainda nao tem (catalogo antigo) cai no codigo, que cresce junto —
+        # cast numerico porque a coluna e texto e "999" > "12400" em ordem alfabetica.
+        linhas = query.order_by(
+            ImovelArea.cadastrado_em.desc().nullslast(),
+            func.nullif(func.regexp_replace(ImovelArea.codigo, r"[^0-9]", "", "g"), "").cast(BigInteger).desc().nullslast(),
+        ).offset((page - 1) * per_page).limit(per_page).all()
 
         # Imóvel lançado depois da última varredura do catálogo ainda não está no cache.
         # Ele existe em `fato_captacao` desde o lançamento, então entra por aqui — senão
         # "acabei de lançar e não acho" (caso do 12400, lançado 12/08 com cache de 11/08).
-        faltantes = _do_lancamento_fora_do_cache(session, termo, {l.codigo for l in linhas})
-        if faltantes:
-            linhas = faltantes + list(linhas)
-            total += len(faltantes)
+        # Só na 1ª página e só o que é de fato recente: são os mais novos de todos, então
+        # é o topo da ordenação por lançamento.
+        if page == 1:
+            faltantes = _do_lancamento_fora_do_cache(session, termo, {l.codigo for l in linhas})
+            if faltantes:
+                linhas = faltantes + list(linhas)
+                total += len(faltantes)
 
         # Marca quais já têm captação registrada — é o que diferencia "imóvel do CRM" de
         # "imóvel que a inteligência acompanha".
@@ -157,6 +170,8 @@ def buscar(solicitante_id, termo="", page=1, per_page=24, situacao="disponivel")
                 "area": _float(linha.area),
                 "valor": _float(linha.valor),
                 "situacao": getattr(linha, "situacao", None),
+                "cadastrado_em": (linha.cadastrado_em.isoformat()
+                                  if getattr(linha, "cadastrado_em", None) else None),
                 "foco_label": _foco_label(pp, ac),
                 "tem_captacao": linha.codigo in com_captacao,
                 "atualizado_em": linha.atualizado_em.isoformat() if linha.atualizado_em else None,
@@ -204,8 +219,14 @@ def _do_lancamento_fora_do_cache(session, termo, ja_listados):
             FatoCaptacao.bairro_nome.ilike(alvo),
             FatoCaptacao.tipo_nome.ilike(alvo),
         ))
-    # Só as recentes: captação antiga sem imóvel no catálogo é imóvel que já saiu.
-    linhas = query.order_by(FatoCaptacao.data_entrada.desc()).limit(30).all()
+    # Janela curta de propósito. Sem ela entravam 30 captações quaisquer no topo da
+    # lista — códigos velhos, sem imóvel no catálogo (imóvel que já saiu do ar), furando
+    # a ordenação por lançamento. Aqui só cabe o que a varredura ainda não teve chance
+    # de ver.
+    corte = date.today() - timedelta(days=DIAS_LANCAMENTO_RECENTE)
+    linhas = query.filter(FatoCaptacao.data_entrada >= corte).order_by(
+        FatoCaptacao.data_entrada.desc()
+    ).limit(30).all()
     return [_LinhaCaptacao(r) for r in linhas if r.codigo_imovel not in ja_listados]
 
 
@@ -462,6 +483,13 @@ def detalhe(solicitante_id, codigo):
                     "origem": captacao.get("origem"),
                     "bairro": captacao.get("bairro_nome"),
                 } if captacao else None,
+                # Matrícula e inscrição não vêm do CRM (o Imoview tem os campos, mas a
+                # operação não preenche) — são digitadas no lançamento ou aqui.
+                "documentacao": {
+                    "matricula": getattr(cache_local, "matricula", None),
+                    "inscricao_iptu": getattr(cache_local, "inscricao_iptu", None),
+                    "editavel": bool(cache_local),
+                },
                 "estoque": estoque,
                 "saida": saida,
                 "midia": {
@@ -508,11 +536,12 @@ def _nomes_de_usuarios(session, ids):
 
 
 def atualizar_interno(solicitante_id, codigo, dados):
-    """Edita o que é nosso. Hoje: foco.
+    """Edita o que é nosso: foco e documentação (matrícula / inscrição IPTU).
 
-    Grava nos DOIS lugares que o resto do sistema lê — `imoveis_legado` (ranking e XLSX
-    de VGC) e `fato_captacao` (snapshot da captação) — e marca `foco_origem='manual'`
-    para a auditoria saber que a mudança foi humana.
+    Os dois campos são independentes — a tela pode mandar só um. Foco grava nos DOIS
+    lugares que o resto do sistema lê (`imoveis_legado`, base do ranking e do XLSX de
+    VGC, e `fato_captacao`, com `foco_origem='manual'` p/ a auditoria saber que a
+    mudança foi humana). Documentação mora no catálogo `imovel_area`.
     """
     perfil = checar_acesso(solicitante_id)
     codigo = _codigo_limpo(codigo) or _texto(codigo)
@@ -521,34 +550,54 @@ def atualizar_interno(solicitante_id, codigo, dados):
 
     from app.services.lancamento_service import FOCO_OPCOES
 
-    escolha = _texto(dados.get("foco")).lower()
-    if escolha not in FOCO_OPCOES:
-        raise ConsultaErro(f"Foco inválido. Use um destes: {', '.join(FOCO_OPCOES)}")
-    foco_pp, foco_ac = FOCO_OPCOES[escolha]
+    mexe_no_foco = "foco" in dados
+    campos_doc = {c: _texto(dados.get(c)) or None for c in ("matricula", "inscricao_iptu") if c in dados}
+    if not mexe_no_foco and not campos_doc:
+        raise ConsultaErro("Nada para atualizar: envie `foco`, `matricula` ou `inscricao_iptu`")
+
+    foco_pp = foco_ac = None
+    if mexe_no_foco:
+        escolha = _texto(dados.get("foco")).lower()
+        if escolha not in FOCO_OPCOES:
+            raise ConsultaErro(f"Foco inválido. Use um destes: {', '.join(FOCO_OPCOES)}")
+        foco_pp, foco_ac = FOCO_OPCOES[escolha]
 
     session = SessionLocal()
     try:
-        linhas = session.query(ImovelLegado).filter(ImovelLegado.codigo == codigo).all()
-        if not linhas:
-            raise ConsultaErro("Imóvel sem registro na base de imóveis — lance pelo CRM primeiro", 404)
-        for linha in linhas:
-            linha.foco_pp = foco_pp
-            linha.foco_ac = foco_ac
+        resposta = {"ok": True, "codigo": codigo}
 
-        captacao = session.query(FatoCaptacao).filter(FatoCaptacao.codigo_imovel == codigo).first()
-        if captacao:
-            captacao.foco_pp = foco_pp
-            captacao.foco_ac = foco_ac
-            captacao.foco_origem = "manual"
-            captacao.criado_por = perfil["id_usuarios"] or captacao.criado_por
+        if mexe_no_foco:
+            linhas = session.query(ImovelLegado).filter(ImovelLegado.codigo == codigo).all()
+            if not linhas:
+                raise ConsultaErro("Imóvel sem registro na base de imóveis — lance pelo CRM primeiro", 404)
+            for linha in linhas:
+                linha.foco_pp = foco_pp
+                linha.foco_ac = foco_ac
+
+            captacao = session.query(FatoCaptacao).filter(FatoCaptacao.codigo_imovel == codigo).first()
+            if captacao:
+                captacao.foco_pp = foco_pp
+                captacao.foco_ac = foco_ac
+                captacao.foco_origem = "manual"
+                captacao.criado_por = perfil["id_usuarios"] or captacao.criado_por
+            resposta["foco"] = {
+                "foco_pp": foco_pp, "foco_ac": foco_ac, "label": _foco_label(foco_pp, foco_ac),
+            }
+
+        if campos_doc:
+            registro = session.query(ImovelArea).filter(ImovelArea.codigo == codigo).first()
+            if registro is None:
+                # Sem linha no catálogo não há onde gravar — acontece com imóvel que só
+                # existe em base legada, nunca varrido pelo sync.
+                raise ConsultaErro("Imóvel fora do catálogo — não dá para gravar documentação", 404)
+            for campo, valor in campos_doc.items():
+                setattr(registro, campo, valor)
+            resposta["documentacao"] = campos_doc
 
         session.commit()
-        return {
-            "ok": True, "codigo": codigo,
-            "foco": {"foco_pp": foco_pp, "foco_ac": foco_ac, "label": _foco_label(foco_pp, foco_ac)},
-            "alterado_por": perfil["nome"],
-            "alterado_em": datetime.now().isoformat(timespec="seconds"),
-        }
+        resposta["alterado_por"] = perfil["nome"]
+        resposta["alterado_em"] = datetime.now().isoformat(timespec="seconds")
+        return resposta
     except Exception:
         session.rollback()
         raise

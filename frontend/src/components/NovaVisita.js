@@ -155,6 +155,28 @@ export default function VisitaForm() {
   }, [form.clienteNome, form.clienteTelefone, clientesDoCorretor, leadsDoCorretor]);
 
   // ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ Debounce busca de imÃƒÆ’Ã‚Â³veis ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬
+  // Busca de leads NO SERVIDOR conforme digita. A carga inicial traz so os mais
+  // recentes; sem isto, corretor com centenas de leads nunca achava um antigo, por mais
+  // que digitasse o nome certo. Tambem aceita telefone, que antes nao filtrava lead.
+  useEffect(() => {
+    const idCorretor = corretorInfo.id;
+    const nome = (form.clienteNome || "").trim();
+    const telefone = onlyDigits(form.clienteTelefone);
+    const alvo = nome.length >= 2 ? nome : (telefone.length >= 4 ? telefone : "");
+    if (!idCorretor || !alvo) return;
+    const t = setTimeout(async () => {
+      try {
+        const r = await fetch(
+          `${BASE}/leads_busca?id_corretor=${encodeURIComponent(idCorretor)}`
+          + `&q=${encodeURIComponent(alvo)}&limit=8`
+        );
+        const d = await r.json().catch(() => ({}));
+        if (r.ok && d.ok && Array.isArray(d.lista)) setLeadsSugestoes(d.lista);
+      } catch { /* offline: fica o filtro local, que ja cobre os recentes */ }
+    }, 350);
+    return () => clearTimeout(t);
+  }, [form.clienteNome, form.clienteTelefone, corretorInfo.id]);
+
   useEffect(() => {
     if (isImovelNaoCaptado || !showSugestoes) return;
     const t = setTimeout(() => buscarImoveisPorEndereco(enderecoQuery), 350);
@@ -217,7 +239,7 @@ export default function VisitaForm() {
   async function carregarLeadsDoCorretor(idCorretor) {
     setLoadingLeads(true);
     try {
-      const r = await fetch(`${BASE}/leads_busca?id_corretor=${encodeURIComponent(idCorretor)}&q=&limit=80`);
+      const r = await fetch(`${BASE}/leads_busca?id_corretor=${encodeURIComponent(idCorretor)}&q=&limit=200`);
       const d = await r.json().catch(() => ({}));
       if (r.ok && d.ok) setLeadsDoCorretor(Array.isArray(d.lista) ? d.lista : []);
     } catch (e) { console.error(e); }
@@ -629,7 +651,7 @@ export default function VisitaForm() {
             )}
             {showClientesSugestoes && leadsSugestoes.length > 0 && (
               <div className="vf-sugestoes vf-sugestoes-leads">
-                <div className="vf-sugestoes-label">Leads do seu atendimento</div>
+                <div className="vf-sugestoes-label">Leads do Contact2Sale no seu atendimento</div>
                 {leadsSugestoes.map(lead => (
                   <button type="button" key={`lead-${lead.id}`} className="vf-sugestao-item vf-sugestao-lead" onClick={() => selecionarLead(lead)}>
                     <div className="vf-sugestao-title">{lead.cliente || "Lead sem nome"}</div>

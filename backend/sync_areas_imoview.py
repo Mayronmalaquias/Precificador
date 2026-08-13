@@ -12,7 +12,7 @@ Uso (cwd = backend/):
 """
 import sys
 import unicodedata
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 
 import requests
 
@@ -59,6 +59,17 @@ def _num(valor):
 def _inteiro(valor):
     numero = _num(valor)
     return int(numero) if numero is not None else None
+
+
+def _data_hora(valor):
+    """'13/08/2026 10:32:51' -> datetime. Formato BR, as vezes so a data."""
+    texto = str(valor or "").strip()
+    for formato in ("%d/%m/%Y %H:%M:%S", "%d/%m/%Y %H:%M", "%d/%m/%Y"):
+        try:
+            return datetime.strptime(texto, formato)
+        except ValueError:
+            continue
+    return None
 
 
 def coletar():
@@ -110,7 +121,17 @@ def _coletar_situacao(situacao):
                 "bairro": item.get("bairro"),
                 "tipo": item.get("tipo") or item.get("descricaotipo"),
                 "situacao": item.get("situacao") or SITUACOES[situacao],
+                "cadastrado_em": _data_hora(item.get("datahoracadastro")),
+                "finalidade": (item.get("finalidade") or "").strip() or None,
+                "situacao_em": _data_hora(item.get("datahoraultimasituacao")),
             }
+            # Matricula quase nunca vem preenchida do CRM (2 em 60 na amostra), mas
+            # quando vem serve de ponto de partida. Fica fora do dict acima de proposito:
+            # o upsert sobrescreve tudo que esta la, e matricula digitada por nos nao
+            # pode ser apagada por um campo vazio do Imoview.
+            matricula_crm = str(item.get("matriculacartorio") or "").strip()
+            if matricula_crm:
+                catalogo[codigo]["_matricula_crm"] = matricula_crm
         if len(lista) < POR_PAGINA:
             break
         pagina += 1
@@ -142,8 +163,13 @@ def gravar(catalogo):
          6, 9.312 imoveis: caro demais p/ baixar todo dia so p/ confirmar o obvio).
 
     Primeira execucao e BASELINE: a tabela de eventos vazia significa que as diferencas
-    acumuladas nao sao do dia (hoje sao ~198 imoveis marcados disponiveis que ja sairam
-    ha meses). Reconcilia calado e comeca a contar dali.
+    acumuladas nao sao do dia (imovel marcado disponivel que ja saiu ha meses). Reconcilia
+    calado e grava uma linha-marco (`codigo='__baseline__'`) datada de AMANHA.
+
+    A marca e necessaria: sem ela, "tabela vazia" continuaria verdadeiro apos o baseline
+    (que nao escreve nada) e TODA execucao seria baseline — nenhum evento sairia nunca.
+    Datada de amanha porque as transicoes de hoje nao foram capturadas; o painel usa
+    `min(detectado_em)` como inicio da cobertura do log e cai na planilha antes disso.
     """
     session = SessionLocal()
     hoje = date.today()
@@ -163,14 +189,20 @@ def gravar(catalogo):
                 ))
 
         for codigo, dados in catalogo.items():
+            matricula_crm = dados.pop("_matricula_crm", None)
             registro = existentes.get(codigo)
             if registro is None:
-                session.add(ImovelArea(codigo=codigo, origem="imoview", **dados))
+                session.add(ImovelArea(
+                    codigo=codigo, origem="imoview", matricula=matricula_crm, **dados
+                ))
                 novos += 1
                 continue
             anterior = registro.situacao
             for campo, valor in dados.items():
                 setattr(registro, campo, valor)
+            # So preenche buraco: matricula digitada na Consulta manda no dado do CRM.
+            if matricula_crm and not (registro.matricula or "").strip():
+                registro.matricula = matricula_crm
             atualizados += 1
             _anotar(codigo, anterior, dados.get("situacao"))
 
@@ -180,6 +212,15 @@ def gravar(catalogo):
                 continue
             _anotar(codigo, registro.situacao, DESATIVADO)
             registro.situacao = DESATIVADO
+            # Desativado e deduzido por AUSENCIA (situacao 6 nao e varrida), entao nao ha
+            # `datahoraultimasituacao` p/ copiar — a data da deteccao e o melhor que existe.
+            registro.situacao_em = datetime.now()
+
+        if baseline:
+            session.add(ImovelSituacaoEvento(
+                codigo="__baseline__", situacao_anterior="baseline", situacao_nova="baseline",
+                detectado_em=hoje + timedelta(days=1),
+            ))
 
         session.commit()
         return novos, atualizados, eventos, baseline

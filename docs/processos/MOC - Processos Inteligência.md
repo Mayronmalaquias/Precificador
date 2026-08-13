@@ -69,6 +69,15 @@ Runbook/DR · Onboarding técnico. (todos 🙋, a validar existência)
 
 ---
 
+## Registros de sessão
+
+Índice do que mudou em cada rodada de trabalho, com checklist de deploy e achados abertos.
+Complementam as notas de processo — não as substituem.
+
+| Data | Cobre |
+|---|---|
+| [[_Registro - 2026-08-13]] | Visão do Diretor (funil, indicadores, estoque, governança), abas de Propostas/Leads no Relatório do Gerente, página do Corretor, lead do C2S no Criar Visita, 2 migrations |
+
 ## Referências (legado — Google Apps Script)
 Documentação dos **acionadores/triggers das planilhas legadas** (camada de automação que **ainda
 roda** em paralelo ao sistema novo). Não são processos do catálogo, mas o **as-is real** de várias

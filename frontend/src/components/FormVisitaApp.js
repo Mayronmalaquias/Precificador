@@ -1,7 +1,14 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import "../assets/css/AppVisita.css";
+import "../assets/css/AppVisitaPolish.css";
+import { useToast } from "../context/ToastContext";
 
 import { BASE } from "../services/api";
+
+// Normalizacao de texto para a busca das abas.
+const semAcento = (v) => String(v || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+// `imovelId` guarda o codigo do Imoview, mas em algumas linhas antigas veio endereco.
+const codigoImovel = (valor) => (/^\d+$/.test(String(valor || "").trim()) ? String(valor).trim() : "");
 
 const CRITERIOS_AVALIACAO = [
   { key: "localizacao", label: "Localização" },
@@ -81,6 +88,11 @@ export default function ApiForms() {
   const [savingEdit, setSavingEdit] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState(null);
   const [deletingVisita, setDeletingVisita] = useState(false);
+  const [baixando, setBaixando] = useState("");
+  // Codigos que o corretor CAPTOU, vindos da API do Imoview (`codigocaptador`).
+  // `visitas.tipo_captacao` nao serve: acertou so 53% na medicao de 13/08/2026.
+  const [codigosCaptados, setCodigosCaptados] = useState([]);
+  const toast = useToast();
 
   useEffect(() => {
     const userDataString = localStorage.getItem("userData");
@@ -112,6 +124,37 @@ export default function ApiForms() {
     }
   }, []);
 
+
+  /** Baixa um PDF do backend.
+   *
+   * O endpoint responde `application/pdf` no sucesso e **JSON** no erro (ex.: 403 de
+   * imóvel que não é captação própria). Por isso o content-type decide o caminho — sem
+   * isso o navegador salvaria um arquivo .pdf contendo a mensagem de erro.
+   */
+  const baixarPdf = useCallback(async (chave, url, nomeArquivo) => {
+    setBaixando(chave);
+    try {
+      const resposta = await fetch(url);
+      const tipo = resposta.headers.get("content-type") || "";
+      if (!resposta.ok || !tipo.includes("pdf")) {
+        const corpo = await resposta.json().catch(() => ({}));
+        throw new Error(corpo.error || "Não foi possível gerar o PDF.");
+      }
+      const blob = await resposta.blob();
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(blob);
+      link.download = nomeArquivo;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(link.href);
+    } catch (err) {
+      toast(err.message || "Erro ao gerar o PDF.", "error");
+    } finally {
+      setBaixando("");
+    }
+  }, [toast]);
+
   const carregarTudo = useCallback(async () => {
     if (!corretorId) return;
 
@@ -120,10 +163,11 @@ export default function ApiForms() {
 
     try {
       const query = `id_corretor=${encodeURIComponent(corretorId)}&q=&limit=100000`;
-      const [respVisitas, respImoveis, respClientes] = await Promise.all([
+      const [respVisitas, respImoveis, respClientes, respCaptados] = await Promise.all([
         fetch(`${BASE}/visitas_busca?${query}`, { method: "GET" }),
         fetch(`${BASE}/imoveis_busca_corretor?${query}`, { method: "GET" }),
         fetch(`${BASE}/clientes_busca?${query}`, { method: "GET" }),
+        fetch(`${BASE}/imoveis/captados?id_corretor=${encodeURIComponent(corretorId)}`, { method: "GET" }),
       ]);
 
       const dataVisitas = await respVisitas.json().catch(() => ({}));
@@ -145,6 +189,12 @@ export default function ApiForms() {
       setVisitas(Array.isArray(dataVisitas.lista) ? dataVisitas.lista : []);
       setImoveis(Array.isArray(dataImoveis.lista) ? dataImoveis.lista : []);
       setClientes(Array.isArray(dataClientes.lista) ? dataClientes.lista : []);
+
+
+      // Falha aqui nao derruba a pagina: sem a lista nenhum botao de relatorio de imovel
+      // aparece — e o servidor barraria de qualquer forma.
+      const dataCaptados = await respCaptados.json().catch(() => ({}));
+      setCodigosCaptados(Array.isArray(dataCaptados.lista) ? dataCaptados.lista : []);
     } catch (err) {
       console.error(err);
       setError(err.message || "Erro ao carregar os dados da página.");
@@ -201,6 +251,75 @@ export default function ApiForms() {
       ultimaVisita,
     };
   }, [visitas, imoveis, clientes]);
+
+  // ── Abas ────────────────────────────────────────────────────────────────────
+  // A pagina mostrava so visitas; imoveis e clientes eram carregados apenas para o
+  // contador. Agora cada um tem sua aba, com o PDF correspondente.
+  const [aba, setAba] = useState("visitas");
+  const [busca, setBusca] = useState("");
+  const [clienteSelId, setClienteSelId] = useState("");
+  const [imovelSelId, setImovelSelId] = useState("");
+
+  // Trocar de aba com um filtro digitado deixava a proxima lista vazia sem explicacao.
+  useEffect(() => { setBusca(""); }, [aba]);
+
+  const contem = useCallback((valor) => {
+    const alvo = semAcento(busca).trim();
+    return !alvo || semAcento(valor).includes(alvo);
+  }, [busca]);
+
+  // Quem captou o imovel vem da API do Imoview (rota /imoveis/captados), NAO de
+  // `visitas.tipo_captacao`: aquele campo e um rotulo digitado por visita e erra. Das 274
+  // visitas marcadas "Captacao Propria", so 146 tinham o corretor como captador de fato,
+  // e outras 768 visitas eram de imovel captado por ele SEM estar marcadas assim.
+  const captadosSet = useMemo(
+    () => new Set(codigosCaptados.map((c) => codigoImovel(c) || String(c))),
+    [codigosCaptados],
+  );
+  const euCaptei = useCallback(
+    (idImovel) => captadosSet.has(codigoImovel(idImovel) || String(idImovel || "")),
+    [captadosSet],
+  );
+
+  // Rotulo declarado na visita: serve de informacao na tela, nunca de permissao.
+  const tiposPorImovel = useMemo(() => {
+    const mapa = {};
+    visitas.forEach((v) => {
+      const cod = String(v.imovelId || "").trim();
+      if (!cod) return;
+      if (!mapa[cod]) mapa[cod] = [];
+      if (v.tipoCaptacao && !mapa[cod].includes(v.tipoCaptacao)) mapa[cod].push(v.tipoCaptacao);
+    });
+    return mapa;
+  }, [visitas]);
+
+  const visitasFiltradas = useMemo(
+    () => visitas.filter((v) => contem(`${v.cliente || ""} ${v.imovelId || ""} ${v.enderecoExterno || ""} ${v.dataVisita || ""}`)),
+    [visitas, contem],
+  );
+  const clientesFiltrados = useMemo(
+    () => clientes.filter((c) => contem(`${c.nome || ""} ${c.telefone || ""} ${c.email || ""}`)),
+    [clientes, contem],
+  );
+  const imoveisFiltrados = useMemo(
+    () => imoveis.filter((i) => contem(`${i.id_imovel || ""} ${i.endereco_externo || ""}`)),
+    [imoveis, contem],
+  );
+
+  const clienteSelecionado = useMemo(
+    () => clientesFiltrados.find((c) => c.id_cliente === clienteSelId) || clientesFiltrados[0] || null,
+    [clientesFiltrados, clienteSelId],
+  );
+  const imovelSelecionado = useMemo(
+    () => imoveisFiltrados.find((i) => i.id_imovel === imovelSelId) || imoveisFiltrados[0] || null,
+    [imoveisFiltrados, imovelSelId],
+  );
+
+  const ABAS = [
+    ["visitas", "Visitas", visitas.length],
+    ["clientes", "Clientes", clientes.length],
+    ["imoveis", "Imóveis", imoveis.length],
+  ];
 
   const visitaSelecionada = useMemo(() => {
     if (!visitas.length) return null;
@@ -352,44 +471,89 @@ export default function ApiForms() {
 
       {error && <div className="relatorios-error">{error}</div>}
 
+      <div className="rel-abas">
+        {ABAS.map(([chave, rotulo, total]) => (
+          <button
+            key={chave}
+            type="button"
+            className={aba === chave ? "is-ativa" : ""}
+            onClick={() => setAba(chave)}
+          >
+            {rotulo} <em>{total}</em>
+          </button>
+        ))}
+        <input
+          className="rel-busca"
+          placeholder={aba === "visitas" ? "Buscar por cliente, imóvel ou endereço"
+            : aba === "clientes" ? "Buscar por nome, telefone ou e-mail"
+              : "Buscar por código ou endereço"}
+          value={busca}
+          onChange={(e) => setBusca(e.target.value)}
+        />
+      </div>
+
       <div className="relatorios-grid">
         <section className="relatorios-list-card">
           <div className="relatorios-card-header">
-            <h2>Visitas individuais</h2>
-            <span>{visitas.length} registro(s)</span>
+            <h2>{aba === "visitas" ? "Visitas individuais" : aba === "clientes" ? "Meus clientes" : "Imóveis visitados"}</h2>
+            <span>{(aba === "visitas" ? visitasFiltradas : aba === "clientes" ? clientesFiltrados : imoveisFiltrados).length} registro(s)</span>
           </div>
 
           <div className="relatorios-list">
-            {!visitas.length ? (
+            {aba === "visitas" && (!visitasFiltradas.length ? (
               <div className="relatorios-empty">Nenhuma visita encontrada.</div>
-            ) : (
-              visitas.map((visita) => (
-                <button
-                  key={visita.id_visita}
-                  type="button"
-                  className={`relatorios-item ${
-                    visitaSelecionada?.id_visita === visita.id_visita
-                      ? "is-active"
-                      : ""
-                  }`}
-                  onClick={() => setVisitaSelecionadaId(visita.id_visita)}
-                >
-                  <div className="relatorios-item-title">
-                    {texto(visita.cliente || visita.id_visita)}
-                  </div>
-                  <div className="relatorios-item-sub">
-                    {texto(visita.dataVisita)} | Imovel {texto(visita.imovelId)}
-                  </div>
-                  <div className="relatorios-item-sub">
-                    {texto(visita.proposta || visita.tipoCaptacao)}
-                  </div>
-                </button>
-              ))
-            )}
+            ) : visitasFiltradas.map((visita) => (
+              <button
+                key={visita.id_visita}
+                type="button"
+                className={`relatorios-item ${visitaSelecionada?.id_visita === visita.id_visita ? "is-active" : ""}`}
+                onClick={() => setVisitaSelecionadaId(visita.id_visita)}
+              >
+                <div className="relatorios-item-title">{texto(visita.cliente || visita.id_visita)}</div>
+                <div className="relatorios-item-sub">{texto(visita.dataVisita)} · Imóvel {texto(visita.imovelId)}</div>
+                <div className="relatorios-item-sub">{texto(visita.proposta || visita.tipoCaptacao)}</div>
+              </button>
+            )))}
+
+            {aba === "clientes" && (!clientesFiltrados.length ? (
+              <div className="relatorios-empty">Nenhum cliente encontrado.</div>
+            ) : clientesFiltrados.map((cliente) => (
+              <button
+                key={cliente.id_cliente}
+                type="button"
+                className={`relatorios-item ${clienteSelecionado?.id_cliente === cliente.id_cliente ? "is-active" : ""}`}
+                onClick={() => setClienteSelId(cliente.id_cliente)}
+              >
+                <div className="relatorios-item-title">{texto(cliente.nome)}</div>
+                <div className="relatorios-item-sub">{texto(cliente.telefone) || "Sem telefone"}</div>
+                <div className="relatorios-item-sub">{cliente.qtd_visitas || 0} visita(s) · última {texto(cliente.ultima_data)}</div>
+              </button>
+            )))}
+
+            {aba === "imoveis" && (!imoveisFiltrados.length ? (
+              <div className="relatorios-empty">Nenhum imóvel encontrado.</div>
+            ) : imoveisFiltrados.map((imovel) => (
+              <button
+                key={imovel.id_imovel}
+                type="button"
+                className={`relatorios-item ${imovelSelecionado?.id_imovel === imovel.id_imovel ? "is-active" : ""}`}
+                onClick={() => setImovelSelId(imovel.id_imovel)}
+              >
+                <div className="relatorios-item-title">
+                  {texto(imovel.id_imovel)}
+                  {euCaptei(imovel.id_imovel) && (
+                    <em className="rel-tag-propria">captei este imóvel</em>
+                  )}
+                </div>
+                <div className="relatorios-item-sub">{texto(imovel.endereco_externo)}</div>
+                <div className="relatorios-item-sub">{imovel.qtd_visitas || 0} visita(s) · última {texto(imovel.ultima_data)}</div>
+              </button>
+            )))}
           </div>
         </section>
 
         <section className="relatorios-detail-card">
+          {aba === "visitas" && (<>
           <div className="relatorios-card-header">
             <h2>Detalhes da visita</h2>
             <span>{texto(visitaSelecionada?.id_visita)}</span>
@@ -461,6 +625,62 @@ export default function ApiForms() {
                 )}
               </div>
 
+              {/* Documentos: o corretor baixa a papelada da visita sem pedir a ninguem.
+                  A ficha do imovel so aparece em CAPTACAO PROPRIA — imovel da 61 ou de
+                  parceiro nao e dele para distribuir. */}
+              <div className="relatorios-section rel-docs">
+                <div className="relatorios-detail-label">Documentos</div>
+                <div className="rel-docs-lista">
+                  <button
+                    type="button"
+                    className="rel-doc-btn"
+                    disabled={baixando === "visita"}
+                    onClick={() => baixarPdf(
+                      "visita",
+                      `${BASE}/visitas/pdf/download?visita_id=${encodeURIComponent(visitaSelecionada.id_visita)}`,
+                      `Relatorio_Visita_${visitaSelecionada.id_visita}.pdf`,
+                    )}
+                  >
+                    <b>Relatório da visita</b>
+                    <span>{baixando === "visita" ? "Gerando…" : "PDF com avaliações e assinatura"}</span>
+                  </button>
+
+                  {(visitaSelecionada.clientes || []).filter((c) => c.id_cliente).map((c) => (
+                    <button
+                      key={c.id_cliente}
+                      type="button"
+                      className="rel-doc-btn"
+                      disabled={baixando === `cliente-${c.id_cliente}`}
+                      onClick={() => baixarPdf(
+                        `cliente-${c.id_cliente}`,
+                        `${BASE}/clientes/pdf/download?id_cliente=${encodeURIComponent(c.id_cliente)}`,
+                        `Relatorio_Cliente_${c.id_cliente}.pdf`,
+                      )}
+                    >
+                      <b>Ficha do cliente</b>
+                      <span>{baixando === `cliente-${c.id_cliente}` ? "Gerando…" : c.nome || c.id_cliente}</span>
+                    </button>
+                  ))}
+
+                  {euCaptei(visitaSelecionada.imovelId) && (
+                    <button
+                      type="button"
+                      className="rel-doc-btn rel-doc-btn--imovel"
+                      disabled={baixando === "imovel"}
+                      onClick={() => baixarPdf(
+                        "imovel",
+                        `${BASE}/imoveis/pdf/download?imovel_id=${encodeURIComponent(visitaSelecionada.imovelId)}`
+                        + `&id_corretor=${encodeURIComponent(corretorId)}`,
+                        `Relatorio_Imovel_${visitaSelecionada.imovelId}.pdf`,
+                      )}
+                    >
+                      <b>Relatório do imóvel</b>
+                      <span>{baixando === "imovel" ? "Gerando…" : "Visitas, clientes e avaliações"}</span>
+                    </button>
+                  )}
+                </div>
+              </div>
+
               <div className="relatorios-actions">
                 {visitaSelecionada.linkImagem && (
                   <a
@@ -499,6 +719,137 @@ export default function ApiForms() {
               </div>
             </>
           )}
+          </>)}
+
+          {aba === "clientes" && (<>
+            <div className="relatorios-card-header">
+              <h2>Detalhes do cliente</h2>
+              <span>{texto(clienteSelecionado?.id_cliente)}</span>
+            </div>
+            {!clienteSelecionado ? (
+              <div className="relatorios-empty">Selecione um cliente.</div>
+            ) : (
+              <>
+                <div className="relatorios-detail-grid">
+                  <div className="relatorios-detail-box relatorios-detail-box--full">
+                    <span className="relatorios-detail-label">Nome</span>
+                    <strong>{texto(clienteSelecionado.nome)}</strong>
+                  </div>
+                  <div className="relatorios-detail-box">
+                    <span className="relatorios-detail-label">Telefone</span>
+                    <strong>{texto(clienteSelecionado.telefone)}</strong>
+                  </div>
+                  <div className="relatorios-detail-box">
+                    <span className="relatorios-detail-label">E-mail</span>
+                    <strong>{texto(clienteSelecionado.email)}</strong>
+                  </div>
+                  <div className="relatorios-detail-box">
+                    <span className="relatorios-detail-label">Visitas</span>
+                    <strong>{clienteSelecionado.qtd_visitas || 0}</strong>
+                  </div>
+                  <div className="relatorios-detail-box">
+                    <span className="relatorios-detail-label">Última visita</span>
+                    <strong>{texto(clienteSelecionado.ultima_data)}</strong>
+                  </div>
+                  <div className="relatorios-detail-box relatorios-detail-box--full">
+                    <span className="relatorios-detail-label">Imóveis visitados</span>
+                    <strong>{textoLista(clienteSelecionado.imoveis)}</strong>
+                  </div>
+                </div>
+
+                <div className="relatorios-section rel-docs">
+                  <div className="relatorios-detail-label">Documentos</div>
+                  <div className="rel-docs-lista">
+                    <button
+                      type="button"
+                      className="rel-doc-btn"
+                      disabled={baixando === `cliente-${clienteSelecionado.id_cliente}`}
+                      onClick={() => baixarPdf(
+                        `cliente-${clienteSelecionado.id_cliente}`,
+                        `${BASE}/clientes/pdf/download?id_cliente=${encodeURIComponent(clienteSelecionado.id_cliente)}`,
+                        `Relatorio_Cliente_${clienteSelecionado.id_cliente}.pdf`,
+                      )}
+                    >
+                      <b>Relatório do cliente</b>
+                      <span>{baixando === `cliente-${clienteSelecionado.id_cliente}` ? "Gerando…" : "Histórico de visitas e avaliações"}</span>
+                    </button>
+                    {clienteSelecionado.telefone && (
+                      <a
+                        className="rel-doc-btn rel-doc-btn--zap"
+                        target="_blank"
+                        rel="noreferrer"
+                        href={`https://wa.me/${String(clienteSelecionado.telefone).replace(/\D/g, "")}`}
+                      >
+                        <b>Chamar no WhatsApp</b>
+                        <span>{texto(clienteSelecionado.telefone)}</span>
+                      </a>
+                    )}
+                  </div>
+                </div>
+              </>
+            )}
+          </>)}
+
+          {aba === "imoveis" && (<>
+            <div className="relatorios-card-header">
+              <h2>Detalhes do imóvel</h2>
+              <span>{texto(imovelSelecionado?.id_imovel)}</span>
+            </div>
+            {!imovelSelecionado ? (
+              <div className="relatorios-empty">Selecione um imóvel.</div>
+            ) : (
+              <>
+                <div className="relatorios-detail-grid">
+                  <div className="relatorios-detail-box">
+                    <span className="relatorios-detail-label">Código</span>
+                    <strong>{texto(imovelSelecionado.id_imovel)}</strong>
+                  </div>
+                  <div className="relatorios-detail-box">
+                    <span className="relatorios-detail-label">Visitas</span>
+                    <strong>{imovelSelecionado.qtd_visitas || 0}</strong>
+                  </div>
+                  <div className="relatorios-detail-box">
+                    <span className="relatorios-detail-label">Última visita</span>
+                    <strong>{texto(imovelSelecionado.ultima_data)}</strong>
+                  </div>
+                  <div className="relatorios-detail-box">
+                    <span className="relatorios-detail-label">Captação</span>
+                    <strong>{(tiposPorImovel[String(imovelSelecionado.id_imovel)] || []).join(", ") || "-"}</strong>
+                  </div>
+                  <div className="relatorios-detail-box relatorios-detail-box--full">
+                    <span className="relatorios-detail-label">Endereço</span>
+                    <strong>{texto(imovelSelecionado.endereco_externo)}</strong>
+                  </div>
+                  <div className="relatorios-detail-box relatorios-detail-box--full">
+                    <span className="relatorios-detail-label">Clientes que visitaram</span>
+                    <strong>{textoLista(imovelSelecionado.clientes)}</strong>
+                  </div>
+                </div>
+
+                <div className="relatorios-section rel-docs">
+                  <div className="relatorios-detail-label">Documentos</div>
+                  <div className="rel-docs-lista">
+                    {euCaptei(imovelSelecionado.id_imovel) && (
+                      <button
+                        type="button"
+                        className="rel-doc-btn rel-doc-btn--imovel"
+                        disabled={baixando === "imovel"}
+                        onClick={() => baixarPdf(
+                          "imovel",
+                          `${BASE}/imoveis/pdf/download?imovel_id=${encodeURIComponent(imovelSelecionado.id_imovel)}`
+                          + `&id_corretor=${encodeURIComponent(corretorId)}`,
+                          `Relatorio_Imovel_${imovelSelecionado.id_imovel}.pdf`,
+                        )}
+                      >
+                        <b>Relatório do imóvel</b>
+                        <span>{baixando === "imovel" ? "Gerando…" : "Visitas, clientes e avaliações"}</span>
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </>
+            )}
+          </>)}
         </section>
       </div>
     </div>

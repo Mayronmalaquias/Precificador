@@ -90,6 +90,48 @@ class ImoveisEstoqueCorretorResource(Resource):
             }, 500
 
 
+
+@imovel_catalogo_ns.route("/imoveis/captados")
+class ImoveisCaptadosResource(Resource):
+    @imovel_catalogo_ns.doc(
+        description=(
+            "Códigos de imóveis captados pelo corretor (`fato_captacao.captador1/2/3`). "
+            "A tela usa para marcar quais rendem relatório — o mesmo critério que a rota "
+            "de download aplica."
+        ),
+        params={"id_corretor": "Id do corretor."},
+    )
+    def get(self):
+        from app.services.imovel_pdf_service import listar_codigos_captados
+
+        id_corretor = (request.args.get("id_corretor") or "").strip()
+        if not id_corretor:
+            return {"ok": False, "error": "Parâmetro id_corretor é obrigatório."}, 400
+        codigos = listar_codigos_captados(id_corretor)
+        return {"ok": True, "lista": codigos, "total": len(codigos)}, 200
+
+
+
+def _checar_captacao_propria(imovel_id):
+    """Corretor identificado só baixa relatório de imóvel que ele captou.
+
+    Só vale quando `id_corretor` vem na chamada: gerente e diretoria continuam baixando
+    sem restrição, como sempre — o parâmetro é a tela do corretor se identificando.
+    """
+    from flask import request
+
+    from app.services.imovel_pdf_service import ImovelPdfErro, checar_direito
+
+    id_corretor = (request.args.get("id_corretor") or "").strip()
+    if not id_corretor:
+        return None
+    try:
+        checar_direito(imovel_id, id_corretor)
+        return None
+    except ImovelPdfErro as e:
+        return {"ok": False, "error": e.mensagem}, e.status
+
+
 @imovel_catalogo_ns.route("/imoveis/pdf")
 class GerarPdfImovelResource(Resource):
     def get(self):
@@ -97,6 +139,10 @@ class GerarPdfImovelResource(Resource):
             imovel_id = (request.args.get("imovel_id") or "").strip()
             if not imovel_id:
                 return {"ok": False, "error": "Parâmetro imovel_id é obrigatório."}, 400
+
+            negado = _checar_captacao_propria(imovel_id)
+            if negado:
+                return negado
 
             start = (request.args.get("start") or "").strip() or None
             end = (request.args.get("end") or "").strip() or None
@@ -123,9 +169,18 @@ class BaixarPdfImovelResource(Resource):
             if not imovel_id:
                 return {"ok": False, "error": "Parâmetro imovel_id é obrigatório."}, 400
 
+            negado = _checar_captacao_propria(imovel_id)
+            if negado:
+                return negado
+
             start = (request.args.get("start") or "").strip() or None
             end = (request.args.get("end") or "").strip() or None
-            buffer_pdf, filename = gerar_pdf_imovel_download(imovel_id, start, end)
+            try:
+                buffer_pdf, filename = gerar_pdf_imovel_download(imovel_id, start, end)
+            except Exception as e:
+                if "Nenhuma visita encontrada" in str(e):
+                    return {"ok": False, "error": "Esse imóvel ainda não tem visita registrada — o relatório é montado a partir delas."}, 404
+                raise
             buffer_pdf.seek(0)
 
             return send_file(

@@ -437,3 +437,24 @@
     padding: 20px 12px 40px;
   }
 }
+
+/* ── Botão sem classe: aparência de base ──────────────────────────────────────
+   Existia por acidente: `RecuperarSenha.css`/`TrocarSenha.css` traziam um `button {}`
+   solto que vazava no bundle e pintava de rosa todo botão do sistema. Ao escopar
+   aquelas regras (ver 2.16 §10.1), os botões sem estilo próprio — "Trocar senha" no
+   header, entre outros — voltaram ao visual cru do navegador.
+
+   Esta regra é a base neutra que faltava. Especificidade (0,0,1): qualquer seletor de
+   classe continua vencendo, então nada que já tem estilo é afetado. */
+button {
+  font: 600 13px var(--ds-font, inherit);
+  color: #18213b;
+  background: #f3f4f7;
+  border: 1px solid #e2e5ee;
+  border-radius: 9px;
+  padding: 9px 14px;
+  cursor: pointer;
+  transition: background .16s ease, border-color .16s ease;
+}
+button:hover:not(:disabled) { background: #e9ebf2; border-color: #d3d8e4; }
+button:disabled { opacity: .55; cursor: default; }

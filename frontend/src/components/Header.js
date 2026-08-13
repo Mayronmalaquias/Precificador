@@ -82,7 +82,7 @@ function Header() {
     { to: '/', label: 'Início', end: true, show: true },
     { to: '/NovaVisita', label: 'Criar Visita', show: isLogado },
     { to: '/JornadaCaptacao?novo=1', label: 'Novo Imóvel', subtitle: 'captação', show: isLogado },
-    { to: '/AppVisita', label: 'Relatório de Visita', show: isLogado },
+    { to: '/AppVisita', label: 'Corretor', show: isLogado },
     { to: '/GestaoClientes', label: 'Gestao de Clientes', show: isLogado },
     { to: '/RelatorioGerente', label: 'Relatório Gerente', show: isLogado && isAdmin },
     { to: '/VisaoDiretor', label: 'Visão do Diretor', show: isLogado && (isDiretor || permissao === 'gerente') },
