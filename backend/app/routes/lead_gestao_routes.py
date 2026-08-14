@@ -36,6 +36,7 @@ class LeadsGestao(Resource):
         "page": "Página (padrão 1).",
         "per_page": "Itens por página (padrão 30, máx 100).",
         "id_gerente": "Recorta por equipe. Só tem efeito para quem enxerga tudo.",
+        "nao_vistos": "1 para trazer só os leads sem acompanhamento registrado.",
     })
     def get(self):
         try:
@@ -47,6 +48,7 @@ class LeadsGestao(Resource):
                 inicio=request.args.get("inicio") or None,
                 fim=request.args.get("fim") or None,
                 equipe=request.args.get("id_gerente") or None,
+                apenas_nao_vistos=str(request.args.get("nao_vistos", "")).lower() in {"1", "true", "sim"},
             ), 200
         except Exception as e:
             return _erro(e, "Erro ao listar leads")
@@ -65,9 +67,24 @@ class LeadsGestao(Resource):
 
 @lead_gestao_ns.route("/leads/gestao/<int:lead_id>")
 class LeadGestaoDetalhe(Resource):
-    @lead_gestao_ns.doc(description="Detalhe do lead. 403 se for de outra equipe.")
+    @lead_gestao_ns.doc(description=(
+        "Detalhe do lead + dados do imóvel citado (endereço, valor, metragem, data da "
+        "captação) + acompanhamento. 403 se for de outra equipe."
+    ))
     def get(self, lead_id):
         try:
             return servico.detalhe(_solicitante(), lead_id), 200
         except Exception as e:
             return _erro(e, "Erro ao abrir lead")
+
+    @lead_gestao_ns.doc(description=(
+        "Grava o acompanhamento: `contato_status` (sem_contato|whatsapp|telefone|email), "
+        "`visita_agendada` (bool) e, quando ela for **false**, `motivo_sem_visita` "
+        "(obrigatório) e `proxima_acao`."
+    ))
+    def put(self, lead_id):
+        dados = request.get_json(silent=True) or {}
+        try:
+            return servico.atualizar_acompanhamento(_solicitante(), lead_id, dados), 200
+        except Exception as e:
+            return _erro(e, "Erro ao gravar acompanhamento do lead")

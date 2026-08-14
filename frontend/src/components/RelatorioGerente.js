@@ -163,7 +163,9 @@ function RelatorioGerente() {
 
   // Propostas e leads da Visao Geral. Vem dos mesmos endpoints das abas — nao do
   // dashboard —, entao respeitam o escopo do solicitante e o gerente do dropdown.
-  const [totaisExtras, setTotaisExtras] = useState({ propostas: null, leads: null });
+  const [totaisExtras, setTotaisExtras] = useState({
+    propostas: null, leads: null, propostasNaoVistas: 0, leadsNaoVistos: 0,
+  });
 
   useEffect(() => {
     fetchEquipes()
@@ -1959,9 +1961,13 @@ function RelatorioGerente() {
         setTotaisExtras({
           propostas: dp?.resumo?.total ?? null,
           leads: typeof dl?.total === "number" ? dl.total : null,
+          // "Não visto" = proposta sem nenhuma ação e lead sem acompanhamento. Mesmo
+          // sentido do aviso de visita: chegou e ninguém encostou.
+          propostasNaoVistas: dp?.resumo?.nao_vistas || 0,
+          leadsNaoVistos: dl?.nao_vistos || 0,
         });
       } catch {
-        if (ativo) setTotaisExtras({ propostas: null, leads: null });
+        if (ativo) setTotaisExtras({ propostas: null, leads: null, propostasNaoVistas: 0, leadsNaoVistos: 0 });
       }
     };
     carregar();
@@ -2442,10 +2448,24 @@ function RelatorioGerente() {
       // Abas novas: o escopo (quais propostas/leads aparecem) e decidido pelo
       // servidor a partir do cadastro, entao basta passar quem esta pedindo.
       case "propostas":
-        return <RelatorioPropostas idSolicitante={idGerenteLogado} equipe={filtros.id_gerente} />;
+        return (
+          <RelatorioPropostas
+            idSolicitante={idGerenteLogado}
+            equipe={filtros.id_gerente}
+            inicio={periodoEfetivo.start}
+            fim={periodoEfetivo.end}
+          />
+        );
 
       case "leads":
-        return <RelatorioLeads idSolicitante={idGerenteLogado} equipe={filtros.id_gerente} />;
+        return (
+          <RelatorioLeads
+            idSolicitante={idGerenteLogado}
+            equipe={filtros.id_gerente}
+            inicio={periodoEfetivo.start}
+            fim={periodoEfetivo.end}
+          />
+        );
 
       case "pdfs":
         return renderPdfs();
@@ -2591,6 +2611,24 @@ function RelatorioGerente() {
         </div>
       )}
 
+      {totaisExtras.leadsNaoVistos > 0 && (
+        <div className="alerta-visitas-nao-vistas" onClick={() => setOpcaoAtiva("leads")}>
+          <span>
+            Você tem {totaisExtras.leadsNaoVistos} lead{totaisExtras.leadsNaoVistos !== 1 ? "s" : ""} sem acompanhamento no período.
+          </span>
+          <span className="alerta-link">Ver leads →</span>
+        </div>
+      )}
+
+      {totaisExtras.propostasNaoVistas > 0 && (
+        <div className="alerta-visitas-nao-vistas" onClick={() => setOpcaoAtiva("propostas")}>
+          <span>
+            Você tem {totaisExtras.propostasNaoVistas} proposta{totaisExtras.propostasNaoVistas !== 1 ? "s" : ""} sem nenhuma ação registrada.
+          </span>
+          <span className="alerta-link">Ver propostas →</span>
+        </div>
+      )}
+
       {abaAtiva === "relatoriogerente" && (
         <div className="relatorio-container">
           <div className="menu-lateral">
@@ -2604,6 +2642,12 @@ function RelatorioGerente() {
                 <span className="label-mobile">{opcao.labelMobile}</span>
                 {opcao.id === "visitas" && visitasNaoVisualizadas.length > 0 && (
                   <span className="badge-contador">{visitasNaoVisualizadas.length}</span>
+                )}
+                {opcao.id === "leads" && totaisExtras.leadsNaoVistos > 0 && (
+                  <span className="badge-contador">{totaisExtras.leadsNaoVistos}</span>
+                )}
+                {opcao.id === "propostas" && totaisExtras.propostasNaoVistas > 0 && (
+                  <span className="badge-contador">{totaisExtras.propostasNaoVistas}</span>
                 )}
               </div>
             ))}

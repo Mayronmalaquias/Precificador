@@ -13,11 +13,23 @@ from typing import Any, Dict, List, Optional
 
 import requests
 
+from datetime import datetime
+
 from app.database import SessionLocal
 from app.models.estoque_legado import LeadLegado
+from app.models.fato_bases import FatoCaptacao
+from app.models.imovel_area import ImovelArea
 from app.models.usuarios import Usuarios
 
 C2S_LEADS_URL = "https://api.contact2sale.com/integration/leads"
+
+# Acompanhamento do lead — valores fechados p/ a tela e p/ relatorio depois.
+CONTATOS = {
+    "sem_contato": "Sem contato",
+    "whatsapp": "Contato WhatsApp",
+    "telefone": "Contato telefone",
+    "email": "Contato e-mail",
+}
 
 # Quem enxerga a base inteira.
 PERFIS_GLOBAIS = {"administrador", "diretor", "administrativo"}
@@ -83,9 +95,64 @@ def _filtro_de_escopo(session, perfil: Dict[str, Any], equipe_pedida: Optional[s
     return _chaves_do_usuario(proprio) if proprio else [perfil["id"]]
 
 
+def _codigo_limpo(valor) -> str:
+    """"10.258" -> "10258". O codigo do lead vem do C2S como texto livre."""
+    texto = _texto(valor)
+    return "".join(ch for ch in texto.split(",")[0] if ch.isdigit()) if texto else ""
+
+
+def _imovel_do_lead(session, codigo: str) -> Optional[Dict[str, Any]]:
+    """Endereco, valor, metragem e data da captacao do imovel citado no lead.
+
+    Duas fontes porque nenhuma tem tudo: o catalogo (`imovel_area`) traz endereco, valor e
+    area; a data de captacao so existe em `fato_captacao`. Lead sem codigo, ou com codigo
+    que nao esta em lugar nenhum, devolve None — a tela simplesmente nao mostra o bloco.
+    """
+    codigo = _codigo_limpo(codigo)
+    if not codigo:
+        return None
+
+    area = session.query(ImovelArea).filter(ImovelArea.codigo == codigo).first()
+    captacao = session.query(FatoCaptacao).filter(
+        FatoCaptacao.codigo_imovel == codigo
+    ).order_by(FatoCaptacao.data_entrada.desc()).first()
+    if not area and not captacao:
+        return None
+
+    return {
+        "codigo": codigo,
+        "endereco": (area.endereco if area else None),
+        "bairro": (area.bairro if area else None) or (captacao.bairro_nome if captacao else None),
+        "tipo": (area.tipo if area else None) or (captacao.tipo_nome if captacao else None),
+        "valor": float(area.valor) if area and area.valor is not None
+                 else (float(captacao.valor) if captacao and captacao.valor is not None else None),
+        "area": float(area.area) if area and area.area is not None else None,
+        "quartos": area.quartos if area else None,
+        "vagas": area.vagas if area else None,
+        "situacao": area.situacao if area else None,
+        "data_captacao": captacao.data_entrada.isoformat() if captacao and captacao.data_entrada else None,
+    }
+
+
+def _acompanhamento(lead) -> Dict[str, Any]:
+    return {
+        "contato_status": lead.contato_status,
+        "contato_label": CONTATOS.get(_texto(lead.contato_status)),
+        "visita_agendada": lead.visita_agendada,
+        "motivo_sem_visita": lead.motivo_sem_visita,
+        "proxima_acao": lead.proxima_acao,
+        "por": lead.acompanhamento_por,
+        "em": lead.acompanhamento_em.isoformat() if lead.acompanhamento_em else None,
+    }
+
+
 def listar(solicitante_id, busca="", page=1, per_page=30, inicio=None, fim=None,
-           equipe=None) -> Dict[str, Any]:
-    """Leads do escopo do solicitante, paginados e filtráveis por texto e data."""
+           equipe=None, apenas_nao_vistos=False) -> Dict[str, Any]:
+    """Leads do escopo do solicitante, paginados e filtráveis por texto e data.
+
+    "Não visualizado" = sem acompanhamento registrado (`acompanhamento_em` nulo). É o
+    equivalente do aviso de visita não visualizada: lead que chegou e ninguém respondeu.
+    """
     page = max(int(page or 1), 1)
     per_page = min(max(int(per_page or 30), 1), 100)
 
@@ -117,7 +184,14 @@ def listar(solicitante_id, busca="", page=1, per_page=30, inicio=None, fim=None,
         if fim:
             query = query.filter(LeadLegado.data <= fim)
 
+        # Conta ANTES da paginação e do filtro de não-vistos, senão o aviso mostraria
+        # só o que coube na página.
         total = query.count()
+        nao_vistos = query.filter(LeadLegado.acompanhamento_em.is_(None)).count()
+        if apenas_nao_vistos:
+            query = query.filter(LeadLegado.acompanhamento_em.is_(None))
+            total = nao_vistos
+
         linhas = query.order_by(
             LeadLegado.data.desc().nullslast(), LeadLegado.id.desc()
         ).offset((page - 1) * per_page).limit(per_page).all()
@@ -135,6 +209,7 @@ def listar(solicitante_id, busca="", page=1, per_page=30, inicio=None, fim=None,
             "ok": True, "total": total, "page": page, "per_page": per_page,
             "paginas": max(-(-total // per_page), 1),
             "escopo": "global" if chaves is None else perfil["permissao"],
+            "nao_vistos": nao_vistos,
             "equipe_filtrada": _texto(equipe) or None,
             "pode_lancar": perfil["permissao"] in PERFIS_GESTAO,
             "itens": [{
@@ -150,7 +225,11 @@ def listar(solicitante_id, busca="", page=1, per_page=30, inicio=None, fim=None,
                 "atendimento_nome": nomes.get(_texto(l.atendimento)) or l.atendimento,
                 "equipe": l.equipe,
                 "observacao": l.observacao,
+                "contato_status": l.contato_status,
+                "contato_label": CONTATOS.get(_texto(l.contato_status)),
+                "visita_agendada": l.visita_agendada,
             } for l in linhas],
+            "opcoes": {"contatos": [{"value": k, "label": v} for k, v in CONTATOS.items()]},
         }
     finally:
         session.close()
@@ -187,7 +266,11 @@ def detalhe(solicitante_id, lead_id) -> Dict[str, Any]:
                 "equipe": lead.equipe,
                 "observacao": lead.observacao,
                 "san_observacao": lead.san_observacao,
+                "acompanhamento": _acompanhamento(lead),
             },
+            "imovel": _imovel_do_lead(session, lead.codigo_imovel),
+            "pode_editar": perfil["permissao"] in PERFIS_GESTAO,
+            "opcoes": {"contatos": [{"value": k, "label": v} for k, v in CONTATOS.items()]},
         }
     finally:
         session.close()
@@ -275,3 +358,63 @@ def criar_lead(solicitante_id, dados: Dict[str, Any]) -> Dict[str, Any]:
         "aviso": "O lead entra na base interna na próxima importação do C2S (cron diário).",
         "resposta": corpo,
     }
+
+
+def atualizar_acompanhamento(solicitante_id, lead_id, dados: Dict[str, Any]) -> Dict[str, Any]:
+    """Grava o acompanhamento do lead: contato, visita agendada, motivo e próxima ação.
+
+    Regra de consistência: **visita agendada = não** exige motivo. Sem isso o campo vira
+    uma caixa de "não" sem explicação, que é o que o bloco existe para evitar. Com "sim",
+    motivo e próxima ação são limpos — deixá-los para trás mostraria um motivo de recusa
+    ao lado de uma visita marcada.
+    """
+    session = SessionLocal()
+    try:
+        perfil = _perfil(session, solicitante_id)
+        if perfil["permissao"] not in PERFIS_GESTAO:
+            raise LeadErro("Sem permissão para editar o acompanhamento", 403)
+
+        lead = session.query(LeadLegado).filter(LeadLegado.id == lead_id).first()
+        if not lead:
+            raise LeadErro("Lead não encontrado", 404)
+
+        chaves = _filtro_de_escopo(session, perfil)
+        if chaves is not None and _texto(lead.atendimento) not in chaves and _texto(lead.equipe) not in chaves:
+            raise LeadErro("Esse lead é de outra equipe", 403)
+
+        if "contato_status" in dados:
+            escolha = _texto(dados.get("contato_status"))
+            if escolha and escolha not in CONTATOS:
+                raise LeadErro(f"Contato inválido. Use um destes: {', '.join(CONTATOS)}")
+            lead.contato_status = escolha or None
+
+        if "visita_agendada" in dados:
+            bruto = dados.get("visita_agendada")
+            agendada = None if bruto in (None, "") else str(bruto).lower() in {"true", "1", "sim"}
+            lead.visita_agendada = agendada
+
+            if agendada is False:
+                motivo = _texto(dados.get("motivo_sem_visita"))
+                if not motivo:
+                    raise LeadErro("Sem visita agendada: informe o motivo")
+                lead.motivo_sem_visita = motivo
+                lead.proxima_acao = _texto(dados.get("proxima_acao")) or None
+            else:
+                lead.motivo_sem_visita = None
+                lead.proxima_acao = None
+        else:
+            # Edição parcial (só o motivo, por exemplo) não pode contornar a regra acima.
+            if "motivo_sem_visita" in dados and lead.visita_agendada is False:
+                lead.motivo_sem_visita = _texto(dados.get("motivo_sem_visita")) or lead.motivo_sem_visita
+            if "proxima_acao" in dados and lead.visita_agendada is False:
+                lead.proxima_acao = _texto(dados.get("proxima_acao")) or None
+
+        lead.acompanhamento_por = perfil["id"]
+        lead.acompanhamento_em = datetime.now()
+        session.commit()
+        return {"ok": True, "id": lead.id, "acompanhamento": _acompanhamento(lead)}
+    except Exception:
+        session.rollback()
+        raise
+    finally:
+        session.close()

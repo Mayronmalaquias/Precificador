@@ -34,6 +34,7 @@ class ConsultaLista(Resource):
         "page": "Página (padrão 1).",
         "per_page": "Itens por página (padrão 24, máx 100).",
         "situacao": "disponivel (padrão) | vendido | todos.",
+        "meus": "1 para ver só os imóveis cuja captação o solicitante lançou.",
     })
     def get(self):
         try:
@@ -43,6 +44,7 @@ class ConsultaLista(Resource):
                 page=request.args.get("page", 1),
                 per_page=request.args.get("per_page", 24),
                 situacao=request.args.get("situacao", "disponivel"),
+                apenas_meus=str(request.args.get("meus", "")).lower() in {"1", "true", "sim"},
             ), 200
         except Exception as e:
             return _erro(e, "Erro na busca de imóveis")

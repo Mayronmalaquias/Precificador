@@ -94,13 +94,18 @@ FILTROS_SITUACAO = {
 }
 
 
-def buscar(solicitante_id, termo="", page=1, per_page=24, situacao="disponivel"):
+def buscar(solicitante_id, termo="", page=1, per_page=24, situacao="disponivel",
+           apenas_meus=False):
     """Lista os imóveis do catálogo, filtrando por código, endereço, bairro ou situação.
 
     O padrão é `disponivel` porque é o dia a dia de quem consulta; `vendido` e `todos`
     existem p/ conferência de histórico (o cache guarda as duas situações).
+
+    `apenas_meus` filtra pelos imóveis cuja CAPTAÇÃO foi lançada pelo solicitante — é o
+    "o que eu lancei" do estagiário. A marca fica em `fato_captacao.criado_por`, gravada
+    no lançamento; a carga legada tem `criado_por='import'` e nunca casa com ninguém.
     """
-    checar_acesso(solicitante_id)
+    perfil = checar_acesso(solicitante_id)
     termo = _texto(termo)
     page = max(int(page or 1), 1)
     per_page = min(max(int(per_page or 24), 1), 100)
@@ -108,6 +113,15 @@ def buscar(solicitante_id, termo="", page=1, per_page=24, situacao="disponivel")
     session = SessionLocal()
     try:
         query = session.query(ImovelArea)
+
+        codigos_meus = None
+        if apenas_meus:
+            codigos_meus = _codigos_lancados_por(session, perfil)
+            if not codigos_meus:
+                return {"ok": True, "itens": [], "total": 0, "page": page,
+                        "per_page": per_page, "paginas": 1, "apenas_meus": True}
+            query = query.filter(ImovelArea.codigo.in_(codigos_meus))
+
         if termo:
             alvo = f"%{termo}%"
             query = query.filter(or_(
@@ -135,7 +149,8 @@ def buscar(solicitante_id, termo="", page=1, per_page=24, situacao="disponivel")
         # Só na 1ª página e só o que é de fato recente: são os mais novos de todos, então
         # é o topo da ordenação por lançamento.
         if page == 1:
-            faltantes = _do_lancamento_fora_do_cache(session, termo, {l.codigo for l in linhas})
+            faltantes = _do_lancamento_fora_do_cache(
+                session, termo, {l.codigo for l in linhas}, codigos_meus)
             if faltantes:
                 linhas = faltantes + list(linhas)
                 total += len(faltantes)
@@ -179,6 +194,7 @@ def buscar(solicitante_id, termo="", page=1, per_page=24, situacao="disponivel")
         return {
             "ok": True, "itens": itens, "total": total, "page": page, "per_page": per_page,
             "paginas": max(-(-total // per_page), 1),
+            "apenas_meus": bool(apenas_meus),
         }
     finally:
         session.close()
@@ -204,7 +220,24 @@ class _LinhaCaptacao:
         self.atualizado_em = registro.created_at
 
 
-def _do_lancamento_fora_do_cache(session, termo, ja_listados):
+def _codigos_lancados_por(session, perfil):
+    """Códigos cuja captação foi lançada por esta pessoa.
+
+    `criado_por` recebe `assistente_id` **ou** `assistente_nome` (o lançamento aceita os
+    dois), então a comparação cobre id, nome e username — mesma lógica do casamento de
+    leads.
+    """
+    chaves = [v for v in (perfil.get("id_usuarios"), perfil.get("nome")) if _texto(v)]
+    if not chaves:
+        return []
+    linhas = session.query(FatoCaptacao.codigo_imovel).filter(
+        FatoCaptacao.codigo_imovel.isnot(None),
+        FatoCaptacao.criado_por.in_(chaves),
+    ).distinct().all()
+    return [l[0] for l in linhas if l[0]]
+
+
+def _do_lancamento_fora_do_cache(session, termo, ja_listados, codigos_meus=None):
     """Captações recentes que o `sync_areas_imoview` ainda não trouxe pro cache."""
     query = session.query(FatoCaptacao).filter(
         ~FatoCaptacao.codigo_imovel.in_(
@@ -223,6 +256,8 @@ def _do_lancamento_fora_do_cache(session, termo, ja_listados):
     # lista — códigos velhos, sem imóvel no catálogo (imóvel que já saiu do ar), furando
     # a ordenação por lançamento. Aqui só cabe o que a varredura ainda não teve chance
     # de ver.
+    if codigos_meus is not None:
+        query = query.filter(FatoCaptacao.codigo_imovel.in_(codigos_meus))
     corte = date.today() - timedelta(days=DIAS_LANCAMENTO_RECENTE)
     linhas = query.filter(FatoCaptacao.data_entrada >= corte).order_by(
         FatoCaptacao.data_entrada.desc()

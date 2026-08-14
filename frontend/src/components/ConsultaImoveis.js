@@ -60,8 +60,11 @@ export default function ConsultaImoveis() {
   const [salvandoFoco, setSalvandoFoco] = useState(false);
   const [doc, setDoc] = useState({ matricula: '', inscricao_iptu: '' });
   const [salvandoDoc, setSalvandoDoc] = useState(false);
+  // "Lancei eu": filtra pelos imoveis cuja CAPTACAO o proprio usuario lancou
+  // (`fato_captacao.criado_por`). E a pergunta do estagiario: o que eu ja subi?
+  const [apenasMeus, setApenasMeus] = useState(false);
 
-  const carregar = useCallback(async (termo, page = 1, filtroSituacao = situacao) => {
+  const carregar = useCallback(async (termo, page = 1, filtroSituacao = situacao, meus = apenasMeus) => {
     setCarregando(true);
     setErro('');
     try {
@@ -69,6 +72,7 @@ export default function ConsultaImoveis() {
         solicitante_id: idCorretor || '', page: String(page), situacao: filtroSituacao,
       });
       if (termo) qs.set('busca', termo);
+      if (meus) qs.set('meus', '1');
       const r = await fetch(`${BASE}/imoveis/consulta?${qs.toString()}`);
       const d = await r.json();
       if (!r.ok || d.ok === false) throw new Error(d.error || 'Erro ao buscar imóveis');
@@ -79,7 +83,7 @@ export default function ConsultaImoveis() {
     } finally {
       setCarregando(false);
     }
-  }, [idCorretor, situacao]);
+  }, [idCorretor, situacao, apenasMeus]);
 
   useEffect(() => { carregar('', 1); }, [carregar]);
 
@@ -188,22 +192,39 @@ export default function ConsultaImoveis() {
               key={s.value}
               type="button"
               className={situacao === s.value ? 'is-ativo' : ''}
-              onClick={() => { setSituacao(s.value); carregar(termoAtivo, 1, s.value); }}
+              onClick={() => { setSituacao(s.value); carregar(termoAtivo, 1, s.value, apenasMeus); }}
             >
               {s.label}
             </button>
           ))}
         </div>
+
+        {/* Alternador separado dos chips de situacao de proposito: as duas coisas se
+            combinam ("meus lancamentos, entre os vendidos"), nao se excluem. */}
+        <button
+          type="button"
+          className={`ci-meus ${apenasMeus ? 'is-ativo' : ''}`}
+          aria-pressed={apenasMeus}
+          title="Imóveis cuja captação foi lançada por você"
+          onClick={() => { const v = !apenasMeus; setApenasMeus(v); carregar(termoAtivo, 1, situacao, v); }}
+        >
+          Lancei eu
+        </button>
         <span className="ci-contador">
           {carregando ? 'Buscando…' : `${numero(lista.total)} imóve${lista.total === 1 ? 'l' : 'is'}`}
           {termoAtivo ? ` para “${termoAtivo}”` : ''}
+          {apenasMeus ? ' que você lançou' : ''}
         </span>
       </form>
 
       {erro && <p className="ci-estado ci-estado--erro">{erro}</p>}
       {!erro && carregando && <p className="ci-estado">Carregando imóveis…</p>}
       {!erro && !carregando && !lista.itens.length && (
-        <p className="ci-estado">Nenhum imóvel encontrado{termoAtivo ? ` para “${termoAtivo}”` : ''}. Tente outro código ou parte do endereço.</p>
+        <p className="ci-estado">
+          {apenasMeus
+            ? 'Você ainda não lançou nenhuma captação com esse filtro. O “Lancei eu” usa quem registrou a captação no Lançar Imóvel.'
+            : `Nenhum imóvel encontrado${termoAtivo ? ` para “${termoAtivo}”` : ''}. Tente outro código ou parte do endereço.`}
+        </p>
       )}
 
       <section className="ci-grid">

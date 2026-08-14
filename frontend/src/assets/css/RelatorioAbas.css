@@ -153,3 +153,12 @@
   .raba-barra input { min-width: 100%; }
   .raba-contador { margin-left: 0; }
 }
+
+/* Alternador "sem acompanhamento" — mesmo papel do "Lancei eu" na Consulta. */
+.raba-filtro {
+  border: 1px solid var(--raba-line); background: #fff; color: #737b91;
+  border-radius: 9px; padding: 10px 14px; font: 700 12px var(--ds-font); cursor: pointer;
+  white-space: nowrap; transition: background .16s ease, color .16s ease, border-color .16s ease;
+}
+.raba-filtro:hover { color: #252b3d; border-color: #cfd4e0; }
+.raba-filtro.is-ativo { background: #fff3e3; border-color: #f0d3a8; color: #a56a15; }

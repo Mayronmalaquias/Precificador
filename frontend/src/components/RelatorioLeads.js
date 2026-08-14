@@ -4,6 +4,9 @@ import { useToast } from "../context/ToastContext";
 import "../assets/css/RelatorioAbas.css";
 
 const dataBR = (v) => (v ? new Date(`${String(v).slice(0, 10)}T00:00:00`).toLocaleDateString("pt-BR") : "—");
+const moeda = (v) => (v == null ? "—"
+  : Number(v).toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 }));
+const area = (v) => (v == null ? "—" : `${Number(v).toLocaleString("pt-BR")} m²`);
 
 // Canais aceitos pela API do C2S (`channel_abbrev`).
 const CANAIS = [
@@ -25,16 +28,23 @@ const FORM_VAZIO = {
  * O escopo vem do servidor — gerente vê a equipe, corretor vê só os dele, diretoria vê
  * tudo. `pode_lancar` também: quem não é gestão não recebe o botão.
  */
-export default function RelatorioLeads({ idSolicitante, equipe }) {
+export default function RelatorioLeads({ idSolicitante, equipe, inicio, fim }) {
   const toast = useToast();
   const [dados, setDados] = useState({ itens: [], total: 0, page: 1, paginas: 1 });
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState("");
   const [busca, setBusca] = useState("");
+  // Leads sem acompanhamento: o mesmo recorte do aviso do topo.
+  const [soNaoVistos, setSoNaoVistos] = useState(false);
   const [detalhe, setDetalhe] = useState(null);
   const [criando, setCriando] = useState(false);
   const [salvando, setSalvando] = useState(false);
   const [form, setForm] = useState(FORM_VAZIO);
+  // Acompanhamento do lead aberto: o que o gerente registra depois de olhar.
+  const [acomp, setAcomp] = useState({
+    contato_status: "", visita_agendada: "", motivo_sem_visita: "", proxima_acao: "",
+  });
+  const [salvandoAcomp, setSalvandoAcomp] = useState(false);
 
   const carregar = useCallback(async (pagina = 1, termo = busca) => {
     if (!idSolicitante) return;
@@ -46,6 +56,10 @@ export default function RelatorioLeads({ idSolicitante, equipe }) {
       });
       // Idem propostas: recorte do dropdown, ignorado pelo servidor p/ quem nao e global.
       if (equipe) params.set("id_gerente", equipe);
+      // O periodo e o mesmo do filtro do relatorio: sem ele a aba trazia a base inteira.
+      if (inicio) params.set("inicio", inicio);
+      if (fim) params.set("fim", fim);
+      if (soNaoVistos) params.set("nao_vistos", "1");
       if (termo.trim()) params.set("busca", termo.trim());
       const r = await fetch(`${BASE}/leads/gestao?${params.toString()}`);
       const d = await r.json();
@@ -56,9 +70,9 @@ export default function RelatorioLeads({ idSolicitante, equipe }) {
     } finally {
       setCarregando(false);
     }
-  }, [idSolicitante, busca, equipe]);
+  }, [idSolicitante, busca, equipe, inicio, fim, soNaoVistos]);
 
-  useEffect(() => { carregar(1, ""); }, [idSolicitante, equipe]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { carregar(1, ""); }, [idSolicitante, equipe, inicio, fim, soNaoVistos]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const abrir = async (id) => {
     setDetalhe({ id });
@@ -66,7 +80,15 @@ export default function RelatorioLeads({ idSolicitante, equipe }) {
       const r = await fetch(`${BASE}/leads/gestao/${id}?solicitante_id=${encodeURIComponent(idSolicitante)}`);
       const d = await r.json();
       if (!r.ok || d.ok === false) throw new Error(d.error || "Erro ao abrir lead");
-      setDetalhe(d.lead);
+      setDetalhe({ ...d.lead, _imovel: d.imovel, _pode_editar: d.pode_editar, _opcoes: d.opcoes });
+      const a = d.lead?.acompanhamento || {};
+      setAcomp({
+        contato_status: a.contato_status || "",
+        // Tri-estado: "" (ninguém respondeu), "sim", "nao".
+        visita_agendada: a.visita_agendada == null ? "" : (a.visita_agendada ? "sim" : "nao"),
+        motivo_sem_visita: a.motivo_sem_visita || "",
+        proxima_acao: a.proxima_acao || "",
+      });
     } catch (e) {
       toast(e.message, "error");
       setDetalhe(null);
@@ -104,6 +126,39 @@ export default function RelatorioLeads({ idSolicitante, equipe }) {
     }
   };
 
+
+  const salvarAcomp = async () => {
+    if (!detalhe) return;
+    // Mesma regra do servidor, checada aqui só para não gastar a viagem.
+    if (acomp.visita_agendada === "nao" && !acomp.motivo_sem_visita.trim()) {
+      toast("Sem visita agendada: informe o motivo.", "error");
+      return;
+    }
+    setSalvandoAcomp(true);
+    try {
+      const corpo = {
+        contato_status: acomp.contato_status,
+        visita_agendada: acomp.visita_agendada === "" ? "" : acomp.visita_agendada === "sim",
+        motivo_sem_visita: acomp.motivo_sem_visita,
+        proxima_acao: acomp.proxima_acao,
+      };
+      const r = await fetch(`${BASE}/leads/gestao/${detalhe.id}?solicitante_id=${encodeURIComponent(idSolicitante)}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(corpo),
+      });
+      const d = await r.json();
+      if (!r.ok || d.ok === false) throw new Error(d.error || "Erro ao salvar");
+      toast("Acompanhamento salvo.", "success");
+      setDetalhe((p) => ({ ...p, acompanhamento: d.acompanhamento }));
+      carregar(dados.page);
+    } catch (e) {
+      toast(e.message, "error");
+    } finally {
+      setSalvandoAcomp(false);
+    }
+  };
+
   return (
     <div className="raba">
       <div className="raba-barra">
@@ -114,6 +169,14 @@ export default function RelatorioLeads({ idSolicitante, equipe }) {
           onKeyDown={(e) => e.key === "Enter" && carregar(1)}
         />
         <button type="button" className="raba-cta" onClick={() => carregar(1)}>Buscar</button>
+        <button
+          type="button"
+          className={`raba-filtro ${soNaoVistos ? "is-ativo" : ""}`}
+          aria-pressed={soNaoVistos}
+          onClick={() => setSoNaoVistos((v) => !v)}
+        >
+          Sem acompanhamento{dados.nao_vistos ? ` (${dados.nao_vistos})` : ""}
+        </button>
         {dados.pode_lancar && (
           <button type="button" className="raba-cta raba-cta--novo" onClick={() => setCriando(true)}>
             + Lançar lead
@@ -133,7 +196,7 @@ export default function RelatorioLeads({ idSolicitante, equipe }) {
           <div className="raba-tabela-wrap">
             <table className="raba-tabela">
               <thead>
-                <tr><th>Data</th><th>Cliente</th><th>Telefone</th><th>Imóvel</th><th>Fonte</th><th>Atendimento</th><th /></tr>
+                <tr><th>Data</th><th>Cliente</th><th>Telefone</th><th>Imóvel</th><th>Fonte</th><th>Atendimento</th><th>Acompanhamento</th><th /></tr>
               </thead>
               <tbody>
                 {dados.itens.map((l) => (
@@ -144,6 +207,12 @@ export default function RelatorioLeads({ idSolicitante, equipe }) {
                     <td>{l.codigo_imovel || "—"}</td>
                     <td>{l.fonte || "—"}</td>
                     <td>{l.atendimento_nome || "—"}</td>
+                    <td>
+                      {l.contato_label && <span className="raba-selo">{l.contato_label}</span>}
+                      {l.visita_agendada === true && <span className="raba-selo s-aceita">Visita sim</span>}
+                      {l.visita_agendada === false && <span className="raba-selo s-recusada">Visita não</span>}
+                      {!l.contato_label && l.visita_agendada == null && "—"}
+                    </td>
                     <td><button type="button" className="raba-link" onClick={() => abrir(l.id)}>Abrir</button></td>
                   </tr>
                 ))}
@@ -186,6 +255,96 @@ export default function RelatorioLeads({ idSolicitante, equipe }) {
               ))}
             </div>
             {detalhe.observacao && <p className="raba-obs">{detalhe.observacao}</p>}
+
+            {/* Imóvel citado no lead. Endereço/valor/metragem vêm do catálogo; a data da
+                captação só existe em `fato_captacao` — por isso as duas fontes. */}
+            {detalhe._imovel && (
+              <>
+                <h4 className="raba-subtitulo">Imóvel do lead · {detalhe._imovel.codigo}</h4>
+                <div className="raba-dados">
+                  {[
+                    ["Endereço", detalhe._imovel.endereco],
+                    ["Bairro", detalhe._imovel.bairro],
+                    ["Tipo", detalhe._imovel.tipo],
+                    ["Valor", detalhe._imovel.valor != null ? moeda(detalhe._imovel.valor) : null],
+                    ["Metragem", detalhe._imovel.area != null ? area(detalhe._imovel.area) : null],
+                    ["Quartos", detalhe._imovel.quartos],
+                    ["Vagas", detalhe._imovel.vagas],
+                    ["Situação", detalhe._imovel.situacao],
+                    ["Data da captação", detalhe._imovel.data_captacao ? dataBR(detalhe._imovel.data_captacao) : null],
+                  ].filter(([, v]) => v != null && v !== "").map(([rotulo, valor]) => (
+                    <div key={rotulo}><span>{rotulo}</span><strong>{valor}</strong></div>
+                  ))}
+                </div>
+              </>
+            )}
+            {detalhe.codigo_imovel && !detalhe._imovel && (
+              <p className="raba-nota">
+                O imóvel <b>{detalhe.codigo_imovel}</b> não está no catálogo nem na base de
+                captação — sem dados para mostrar.
+              </p>
+            )}
+
+            {detalhe._pode_editar && (
+              <>
+                <h4 className="raba-subtitulo">Acompanhamento</h4>
+                <div className="raba-form">
+                  <label>Contato
+                    <select
+                      value={acomp.contato_status}
+                      onChange={(e) => setAcomp((a) => ({ ...a, contato_status: e.target.value }))}
+                    >
+                      <option value="">Não informado</option>
+                      {((detalhe._opcoes || {}).contatos || []).map((c) => (
+                        <option key={c.value} value={c.value}>{c.label}</option>
+                      ))}
+                    </select>
+                  </label>
+                  <label>Visita agendada
+                    <select
+                      value={acomp.visita_agendada}
+                      onChange={(e) => setAcomp((a) => ({ ...a, visita_agendada: e.target.value }))}
+                    >
+                      <option value="">Não informado</option>
+                      <option value="sim">Sim</option>
+                      <option value="nao">Não</option>
+                    </select>
+                  </label>
+
+                  {/* Motivo e próxima ação só existem quando NÃO houve agendamento. */}
+                  {acomp.visita_agendada === "nao" && (
+                    <>
+                      <label className="raba-form-largo">Motivo
+                        <input
+                          value={acomp.motivo_sem_visita}
+                          onChange={(e) => setAcomp((a) => ({ ...a, motivo_sem_visita: e.target.value }))}
+                          placeholder="Por que não agendou"
+                        />
+                      </label>
+                      <label className="raba-form-largo">Próxima ação
+                        <input
+                          value={acomp.proxima_acao}
+                          onChange={(e) => setAcomp((a) => ({ ...a, proxima_acao: e.target.value }))}
+                          placeholder="O que fazer e quando"
+                        />
+                      </label>
+                    </>
+                  )}
+                </div>
+                <div className="raba-modal-rodape">
+                  {detalhe.acompanhamento?.em && (
+                    <span className="raba-contador">
+                      Atualizado em {dataBR(detalhe.acompanhamento.em)}
+                      {detalhe.acompanhamento.por ? ` por ${detalhe.acompanhamento.por}` : ""}
+                    </span>
+                  )}
+                  <button type="button" className="raba-cta" disabled={salvandoAcomp} onClick={salvarAcomp}>
+                    {salvandoAcomp ? "Salvando…" : "Salvar acompanhamento"}
+                  </button>
+                </div>
+              </>
+            )}
+
             {detalhe.telefone && (
               <div className="raba-modal-rodape">
                 <a className="raba-cta" target="_blank" rel="noreferrer"

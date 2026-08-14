@@ -349,6 +349,9 @@ def listar(solicitante_id, filtros=None):
                 "abertas": len(abertas),
                 "sem_acao_7": sum(1 for i in abertas if (i["dias_sem_acao"] or 0) >= DIAS_ATENCAO),
                 "sem_acao_14": sum(1 for i in abertas if (i["dias_sem_acao"] or 0) >= DIAS_CRITICO),
+                # Proposta que nunca recebeu ação é o equivalente da visita não
+                # visualizada: foi lançada e ninguém encostou nela.
+                "nao_vistas": sum(1 for i in itens if not i.get("total_acoes")),
                 "valor_aberto": sum(i["valor"] or 0 for i in abertas),
             },
             "opcoes": {

@@ -201,3 +201,14 @@
 .ci-links a:hover { background: #eaf3f9; border-color: #b9d3e8; }
 .ci-descricao { margin: 13px 0 0; padding: 11px 13px; background: #fafbfc; border: 1px solid var(--line);
   border-radius: 9px; font-size: 12px; line-height: 1.55; color: #4b5563; white-space: pre-wrap; }
+
+/* "Lancei eu": filtro por quem registrou a captação. Fora do grupo de chips de
+   situação porque combina com eles, não substitui. */
+.ci-meus {
+  border: 1px solid var(--line); background: #fff; color: #737b91;
+  border-radius: 9px; padding: 9px 14px; font: 700 12px var(--ds-font); cursor: pointer;
+  transition: background .16s ease, color .16s ease, border-color .16s ease;
+  white-space: nowrap;
+}
+.ci-meus:hover { color: #252b3d; border-color: #cfd4e0; }
+.ci-meus.is-ativo { background: #e9f8f2; border-color: #a8ddc5; color: #14785a; }
