@@ -147,7 +147,7 @@ def _acompanhamento(lead) -> Dict[str, Any]:
 
 
 def listar(solicitante_id, busca="", page=1, per_page=30, inicio=None, fim=None,
-           equipe=None, apenas_nao_vistos=False) -> Dict[str, Any]:
+           equipe=None, apenas_nao_vistos=False, corretor=None) -> Dict[str, Any]:
     """Leads do escopo do solicitante, paginados e filtráveis por texto e data.
 
     "Não visualizado" = sem acompanhamento registrado (`acompanhamento_em` nulo). É o
@@ -169,6 +169,21 @@ def listar(solicitante_id, busca="", page=1, per_page=30, inicio=None, fim=None,
             query = query.filter(
                 LeadLegado.atendimento.in_(chaves) | LeadLegado.equipe.in_(chaves)
             )
+
+        # Filtro de corretor do topo do relatorio: texto livre com o NOME. Como
+        # `atendimento` guarda ora o id, ora o nome, resolve o texto -> ids antes de
+        # comparar; sem isso, digitar "Alan" nao acharia os leads gravados como "C61132".
+        corretor = _texto(corretor)
+        if corretor:
+            alvo = f"%{corretor}%"
+            chaves_corretor = [c for u in session.query(Usuarios).filter(
+                Usuarios.nome.ilike(alvo) | Usuarios.username.ilike(alvo)
+                | (Usuarios.id_usuarios == corretor)
+            ).all() for c in _chaves_do_usuario(u)]
+            condicao = LeadLegado.atendimento.ilike(alvo)
+            if chaves_corretor:
+                condicao = condicao | LeadLegado.atendimento.in_(chaves_corretor)
+            query = query.filter(condicao)
 
         busca = _texto(busca)
         if busca:

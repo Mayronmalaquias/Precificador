@@ -158,6 +158,16 @@ def visitas_relacionadas(solicitante_id, filtros=None):
             query = query.filter(Visita.id_corretor == filtros["corretor"])
         if filtros.get("codigo"):
             query = query.filter(Visita.id_imovel.ilike(f"%{filtros['codigo'].strip()}%"))
+        # Corretor do filtro do topo do relatorio. Separado da `busca` de proposito: a
+        # busca varre imovel/bairro/cliente tambem, e misturar faria "Ana" trazer proposta
+        # do bairro "Ana Lucia".
+        if filtros.get("corretor"):
+            alvo_corretor = f"%{str(filtros['corretor']).strip()}%"
+            query = query.filter(or_(
+                PropostaEfetiva.corretor_nome.ilike(alvo_corretor),
+                PropostaEfetiva.gerente_nome.ilike(alvo_corretor),
+                PropostaEfetiva.id_corretor == str(filtros["corretor"]).strip(),
+            ))
         if filtros.get("busca"):
             alvo = f"%{filtros['busca'].strip()}%"
             query = query.filter(or_(
@@ -314,6 +324,16 @@ def listar(solicitante_id, filtros=None):
             query = query.filter(PropostaEfetiva.team == filtros["team"])
         if filtros.get("forma_pagamento"):
             query = query.filter(PropostaEfetiva.forma_pagamento == filtros["forma_pagamento"])
+        # Corretor do filtro do topo do relatorio. Separado da `busca` de proposito: a
+        # busca varre imovel/bairro/cliente tambem, e misturar faria "Ana" trazer proposta
+        # do bairro "Ana Lucia".
+        if filtros.get("corretor"):
+            alvo_corretor = f"%{str(filtros['corretor']).strip()}%"
+            query = query.filter(or_(
+                PropostaEfetiva.corretor_nome.ilike(alvo_corretor),
+                PropostaEfetiva.gerente_nome.ilike(alvo_corretor),
+                PropostaEfetiva.id_corretor == str(filtros["corretor"]).strip(),
+            ))
         if filtros.get("busca"):
             alvo = f"%{filtros['busca'].strip()}%"
             query = query.filter(or_(

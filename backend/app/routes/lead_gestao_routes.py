@@ -37,6 +37,7 @@ class LeadsGestao(Resource):
         "per_page": "Itens por página (padrão 30, máx 100).",
         "id_gerente": "Recorta por equipe. Só tem efeito para quem enxerga tudo.",
         "nao_vistos": "1 para trazer só os leads sem acompanhamento registrado.",
+        "corretor": "Nome (ou id) de quem atende — casa id, nome e username.",
     })
     def get(self):
         try:
@@ -49,6 +50,7 @@ class LeadsGestao(Resource):
                 fim=request.args.get("fim") or None,
                 equipe=request.args.get("id_gerente") or None,
                 apenas_nao_vistos=str(request.args.get("nao_vistos", "")).lower() in {"1", "true", "sim"},
+                corretor=request.args.get("corretor") or None,
             ), 200
         except Exception as e:
             return _erro(e, "Erro ao listar leads")

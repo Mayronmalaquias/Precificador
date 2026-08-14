@@ -28,7 +28,7 @@ const FORM_VAZIO = {
  * O escopo vem do servidor — gerente vê a equipe, corretor vê só os dele, diretoria vê
  * tudo. `pode_lancar` também: quem não é gestão não recebe o botão.
  */
-export default function RelatorioLeads({ idSolicitante, equipe, inicio, fim }) {
+export default function RelatorioLeads({ idSolicitante, equipe, inicio, fim, corretor }) {
   const toast = useToast();
   const [dados, setDados] = useState({ itens: [], total: 0, page: 1, paginas: 1 });
   const [carregando, setCarregando] = useState(true);
@@ -60,6 +60,8 @@ export default function RelatorioLeads({ idSolicitante, equipe, inicio, fim }) {
       if (inicio) params.set("inicio", inicio);
       if (fim) params.set("fim", fim);
       if (soNaoVistos) params.set("nao_vistos", "1");
+      // Filtro de corretor do topo do relatorio.
+      if (corretor) params.set("corretor", corretor);
       if (termo.trim()) params.set("busca", termo.trim());
       const r = await fetch(`${BASE}/leads/gestao?${params.toString()}`);
       const d = await r.json();
@@ -70,9 +72,9 @@ export default function RelatorioLeads({ idSolicitante, equipe, inicio, fim }) {
     } finally {
       setCarregando(false);
     }
-  }, [idSolicitante, busca, equipe, inicio, fim, soNaoVistos]);
+  }, [idSolicitante, busca, equipe, inicio, fim, soNaoVistos, corretor]);
 
-  useEffect(() => { carregar(1, ""); }, [idSolicitante, equipe, inicio, fim, soNaoVistos]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { carregar(1, ""); }, [idSolicitante, equipe, inicio, fim, soNaoVistos, corretor]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const abrir = async (id) => {
     setDetalhe({ id });

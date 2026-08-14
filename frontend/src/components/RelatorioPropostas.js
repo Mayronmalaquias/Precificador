@@ -14,7 +14,7 @@ const dataBR = (v) => (v ? new Date(`${String(v).slice(0, 10)}T00:00:00`).toLoca
  *
  * O escopo (quais propostas ele vê) é decidido pelo servidor a partir do cadastro.
  */
-export default function RelatorioPropostas({ idSolicitante, equipe, inicio, fim }) {
+export default function RelatorioPropostas({ idSolicitante, equipe, inicio, fim, corretor }) {
   const [dados, setDados] = useState({ itens: [], resumo: {} });
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState("");
@@ -35,6 +35,7 @@ export default function RelatorioPropostas({ idSolicitante, equipe, inicio, fim 
       // Mesmo periodo do relatorio, pela data de lancamento da proposta.
       if (inicio) params.set("inicio", inicio);
       if (fim) params.set("fim", fim);
+      if (corretor) params.set("corretor", corretor);
       if (busca.trim()) params.set("busca", busca.trim());
       if (situacao) params.set("situacao", situacao);
       const r = await fetch(`${BASE}/propostas?${params.toString()}`);
@@ -46,9 +47,9 @@ export default function RelatorioPropostas({ idSolicitante, equipe, inicio, fim 
     } finally {
       setCarregando(false);
     }
-  }, [idSolicitante, busca, situacao, equipe, inicio, fim]);
+  }, [idSolicitante, busca, situacao, equipe, inicio, fim, corretor]);
 
-  useEffect(() => { carregar(); }, [idSolicitante, situacao, equipe, inicio, fim]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { carregar(); }, [idSolicitante, situacao, equipe, inicio, fim, corretor]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const abrir = async (id) => {
     setCarregandoDetalhe(true);

@@ -1327,11 +1327,17 @@ function RelatorioGerente() {
                 {detalheVisita.link_imagem && (
                   <div className="detalhe-box detalhe-box-full">
                     <span className="detalhe-label">Link da imagem</span>
+                    {/* A auditoria conta `link_imagem` como anexo (ver `_visit_reviews`),
+                        entao abrir a imagem TEM que marcar "viu anexo" — antes o link era
+                        um <a> puro e a pendencia ficava para sempre. */}
                     <a
                       href={detalheVisita.link_imagem}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="link-ficha-btn"
+                      onClick={() => marcarComoVisualizada(
+                        String(obterIdVisita(item)), item?.id_gerente_corretor, { viu_anexo: true },
+                      )}
                     >
                       Ver imagem →
                     </a>
@@ -1340,11 +1346,16 @@ function RelatorioGerente() {
 {detalheVisita.link_audio && (
                   <div className="detalhe-box detalhe-box-full">
                     <span className="detalhe-label">Áudio descrição</span>
+                    {/* Mesma coisa do lado das notas: a auditoria conta `link_audio` em
+                        `tem_nota`, entao ouvir o audio marca "viu notas". */}
                     <a
                       href={detalheVisita.link_audio}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="link-ficha-btn"
+                      onClick={() => marcarComoVisualizada(
+                        String(obterIdVisita(item)), item?.id_gerente_corretor, { viu_notas: true },
+                      )}
                     >
                       Ouvir áudio →
                     </a>
@@ -1942,11 +1953,13 @@ function RelatorioGerente() {
     const carregar = async () => {
       const base = new URLSearchParams({ solicitante_id: idGerenteLogado });
       if (filtros.id_gerente) base.set("team", filtros.id_gerente);
+      if (filtros.corretor_geral) base.set("corretor", filtros.corretor_geral);
       if (periodoEfetivo.start) base.set("inicio", periodoEfetivo.start);
       if (periodoEfetivo.end) base.set("fim", periodoEfetivo.end);
 
       const leadsParams = new URLSearchParams({ solicitante_id: idGerenteLogado, per_page: "1" });
       if (filtros.id_gerente) leadsParams.set("id_gerente", filtros.id_gerente);
+      if (filtros.corretor_geral) leadsParams.set("corretor", filtros.corretor_geral);
       if (periodoEfetivo.start) leadsParams.set("inicio", periodoEfetivo.start);
       if (periodoEfetivo.end) leadsParams.set("fim", periodoEfetivo.end);
 
@@ -1972,7 +1985,7 @@ function RelatorioGerente() {
     };
     carregar();
     return () => { ativo = false; };
-  }, [idGerenteLogado, filtros.id_gerente, periodoEfetivo.start, periodoEfetivo.end]);
+  }, [idGerenteLogado, filtros.id_gerente, filtros.corretor_geral, periodoEfetivo.start, periodoEfetivo.end]);
 
   const renderVisaoGeral = () => {
     const fonte = visaoGeralFiltrada || dashboard;
@@ -2454,6 +2467,7 @@ function RelatorioGerente() {
             equipe={filtros.id_gerente}
             inicio={periodoEfetivo.start}
             fim={periodoEfetivo.end}
+            corretor={filtros.corretor_geral}
           />
         );
 
@@ -2464,6 +2478,7 @@ function RelatorioGerente() {
             equipe={filtros.id_gerente}
             inicio={periodoEfetivo.start}
             fim={periodoEfetivo.end}
+            corretor={filtros.corretor_geral}
           />
         );
 
