@@ -270,7 +270,13 @@ function RelatorioGerente() {
       return (
         <button
           className={className}
-          onClick={() => baixarPdfRecurso(recurso, id, false, mensagemErro)}
+          onClick={() => {
+            // PDF de visita contem as notas; baixar marca a pendencia como lida.
+            if (recurso === "visitas" && id) {
+              marcarComoVisualizada(String(id), null, { viu_notas: true });
+            }
+            baixarPdfRecurso(recurso, id, false, mensagemErro);
+          }}
         >
           Download
         </button>
@@ -296,6 +302,28 @@ function RelatorioGerente() {
       </>
     );
   };
+
+  // Motivo so e exigido quando a proposta foi SIM ou TALVEZ — visita com "Nao" nao tem
+  // motivo a preencher, e mostrar a flag vermelha ali era pendencia inventada.
+  // O campo cobrado depende da resposta: SIM -> `motivo_sim`, TALVEZ -> `motivo_talvez`.
+  const propostaNormalizada = (item) => {
+    const v = String(item?.proposta || "")
+      .normalize("NFD").replace(/[̀-ͯ]/g, "").trim().toLowerCase();
+    if (v.startsWith("sim")) return "sim";
+    if (v.startsWith("talvez")) return "talvez";
+    if (v.startsWith("nao")) return "nao";
+    return "";
+  };
+
+  const motivoDaVisita = (item) => {
+    const resposta = propostaNormalizada(item);
+    if (resposta === "sim") return item?.motivoSim || item?.motivo_sim || "";
+    if (resposta === "talvez") return item?.motivoTalvez || item?.motivo_talvez || "";
+    return "";
+  };
+
+  // null = a visita nao exige motivo (proposta "Nao" ou em branco).
+  const motivoAplicavel = (item) => ["sim", "talvez"].includes(propostaNormalizada(item));
 
   const obterIdVisita = (item) =>
     primeiroValor(item?.id_visita, item?.Id_Visita, item?.visita_id);
@@ -726,8 +754,13 @@ function RelatorioGerente() {
       });
       const data = await resp.json();
       if (!resp.ok || !data.ok) throw new Error(data.error || "Erro ao salvar.");
-      // gerente preencheu um motivo (talvez/sim) -> marca a flag p/ o diretor
-      const temMotivo = !!(editVisitaForm.motivoTalvez || editVisitaForm.motivoSim || "").trim();
+      // Marca a flag p/ o diretor so quando o motivo preenchido e o QUE A PROPOSTA PEDE:
+      // visita com "Sim" nao se resolve preenchendo o motivo do "Talvez".
+      const respostaEditada = propostaNormalizada({ proposta: editVisitaForm.proposta });
+      const motivoEsperado = respostaEditada === "sim" ? editVisitaForm.motivoSim
+        : respostaEditada === "talvez" ? editVisitaForm.motivoTalvez
+          : "";
+      const temMotivo = !!String(motivoEsperado || "").trim();
       if (temMotivo) marcarComoVisualizada(String(id), editVisitaModal?.id_gerente_corretor, { add_motivo: true });
       setEditVisitaModal(null);
       await carregarListas();
@@ -866,7 +899,8 @@ function RelatorioGerente() {
       { label: "Motivo do sim", valor: (i) => i.motivoSim || i.motivo_sim },
       { label: "Viu anexo", valor: (i) => ((flagsVisitas[String(obterIdVisita(i))] || {}).viu_anexo ? "Sim" : "Não") },
       { label: "Viu notas", valor: (i) => ((flagsVisitas[String(obterIdVisita(i))] || {}).viu_notas ? "Sim" : "Não") },
-      { label: "Adicionou motivo", valor: (i) => ((flagsVisitas[String(obterIdVisita(i))] || {}).add_motivo ? "Sim" : "Não") },
+      { label: "Adicionou motivo", valor: (i) => (!motivoAplicavel(i) ? "N/A"
+        : (motivoDaVisita(i) || (flagsVisitas[String(obterIdVisita(i))] || {}).add_motivo) ? "Sim" : "Não") },
       { label: "Registrado em", valor: (i) => i.created_at },
     ];
     baixarExcel(`visitas_${_sufixoArquivo()}.xls`, colunas, visitasFiltradas);
@@ -1046,7 +1080,8 @@ function RelatorioGerente() {
   }, [idGerenteLogado]);
 
   // Badges de revisão do gerente (importante p/ o diretor): A=anexo, N=notas, M=motivo.
-  const FlagsRevisao = ({ id }) => {
+  const FlagsRevisao = ({ item }) => {
+    const id = obterIdVisita(item);
     const f = flagsVisitas[String(id)] || {};
     const badge = (ok, label, short) => (
       <span
@@ -1060,11 +1095,16 @@ function RelatorioGerente() {
         {short}{ok ? "✓" : "!"}
       </span>
     );
+    // O motivo pode ter vindo preenchido do lancamento — nesse caso ja esta resolvido,
+    // mesmo sem o gerente ter editado nada (a flag manual `add_motivo` sozinha deixava a
+    // pendencia vermelha para sempre).
+    const exigeMotivo = motivoAplicavel(item);
+    const motivoOk = !!motivoDaVisita(item) || !!f.add_motivo;
     return (
       <span style={{ whiteSpace: "nowrap" }}>
         {badge(f.viu_anexo, "Viu anexo", "A")}
         {badge(f.viu_notas, "Viu notas", "N")}
-        {badge(f.add_motivo, "Adicionou motivo", "M")}
+        {exigeMotivo && badge(motivoOk, `Motivo do ${propostaNormalizada(item)}`, "M")}
       </span>
     );
   };
@@ -1076,7 +1116,10 @@ function RelatorioGerente() {
     if (tipo === "visita") {
       const id = obterIdVisita(item);
       if (id) {
-        marcarComoVisualizada(String(id), item?.id_gerente_corretor);
+        // Abrir a visita ja conta como ver as notas: o modal mostra a ficha inteira
+        // (notas, audio e avaliacoes). Antes so marcava "visualizada" e a pendencia de
+        // notas ficava aberta mesmo depois do gerente ler tudo.
+        marcarComoVisualizada(String(id), item?.id_gerente_corretor, { viu_notas: true });
         setLoadingDetalhe(true);
         try {
           const resp = await fetch(`${API_BASE}/visita/detalhe?visita_id=${encodeURIComponent(id)}`);
@@ -1672,7 +1715,7 @@ function RelatorioGerente() {
                   <td>{item.proposta || "-"}</td>
                   <td>{item.motivoTalvez || item.motivo_talvez || "-"}</td>
                   <td>{item.motivoSim || item.motivo_sim || "-"}</td>
-                  <td><FlagsRevisao id={obterIdVisita(item)} /></td>
+                  <td><FlagsRevisao item={item} /></td>
 
                   <td>
                     <div className="acoes-tabela">
@@ -1702,7 +1745,8 @@ function RelatorioGerente() {
                         className="botao-secundario"
                         onClick={() => {
                           const id = obterIdVisita(item);
-                          if (id) marcarComoVisualizada(String(id), item?.id_gerente_corretor);
+                          // O PDF da visita traz as notas — baixar conta como ler.
+                          if (id) marcarComoVisualizada(String(id), item?.id_gerente_corretor, { viu_notas: true });
                           baixarPdfRecurso(
                             "visitas",
                             id,

@@ -1484,6 +1484,20 @@ def _propostas_por_equipe(session, selected_team, selected_broker=None):
     return contagem
 
 
+def _motivo_da_visita(visit):
+    """Motivo que a resposta da visita exige, ja preenchido.
+
+    SIM cobra `motivo_sim`; TALVEZ cobra `motivo_talvez`. Visita com "Nao" nao exige
+    motivo — e por isso nem entra em `motivos_aplicaveis`.
+    """
+    resposta = _norm_proposta(visit.proposta)
+    if resposta == "sim":
+        return (visit.motivo_sim or "").strip()
+    if resposta == "talvez":
+        return (visit.motivo_talvez or "").strip()
+    return ""
+
+
 def _visit_reviews(session, start, end, selected_team, teams, selected_broker=None):
     query = session.query(Visita, Usuarios, GerenteVisitaVisualizada).join(
         Usuarios, Usuarios.id_usuarios == Visita.id_corretor
@@ -1525,7 +1539,13 @@ def _visit_reviews(session, start, end, selected_team, teams, selected_broker=No
             "viu_visita": viewed,
             "viu_nota": bool(flags.viu_notas) if flags else False,
             "viu_anexo": bool(flags.viu_anexo) if flags else False,
-            "adicionou_motivo": bool(flags.add_motivo) if flags else False,
+            # Motivo resolvido = flag do gerente OU o campo ja preenchido na visita. Sem a
+            # segunda metade, visita que nasceu com motivo ficava pendente para sempre.
+            # O campo cobrado depende da resposta: SIM -> motivo_sim, TALVEZ -> motivo_talvez.
+            "adicionou_motivo": bool(
+                (flags.add_motivo if flags else False)
+                or _motivo_da_visita(visit)
+            ),
             "visualizado_em": flags.visualizado_em.isoformat() if flags and flags.visualizado_em else None,
         })
 
