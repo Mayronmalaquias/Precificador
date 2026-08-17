@@ -158,3 +158,36 @@ e [[2.2 - Rankings]]. **São dados sujos e riscos operacionais, não código a e
 
 ## Links
 [[MOC - Processos Inteligência]]
+
+## 6c. Achados de 17/08/2026 (ver [[_Registro - 2026-08-17]])
+
+### Integridade de usuário
+- [ ] 🔴 **Sem UNIQUE em `usuarios.username` e em `id_imoview`.** A base foi limpa
+  ([[_Operação - Deduplicação de Usuários 2026-08]]) e a validação em `cadastrar_usuario` cobre
+  a aplicação — mas só o índice protege de corrida e de escrita direta. Os dois índices agora
+  passam; SQL pronto no registro §7.1.
+- [ ] 🟠 **Edição de usuário pode não validar username.** A checagem foi posta só no cadastro;
+  `/corretor/editar-usuario` não foi verificado.
+- [ ] 🟠 **Raquel Silva pode precisar redefinir senha** — tinha duas contas ativas e ficou a de
+  `C61082`.
+
+### `estudo_metricas`
+- [ ] 🟠 **Tabela heterogênea:** só o LAGO NORTE foi regravado. Convivem dois esquemas de
+  `metragem_fx` (`>1000` × as 4 faixas novas) e, nos meses antigos do LN, a nomenclatura
+  anterior (`SUPER LUXO`, `01 - Original`). Some quando rodar o lote completo — que também
+  aplica o corte por série a todos (**+46%** de volume na Asa Sul).
+- [ ] 🟠 **Instabilidade de cluster isolada, não resolvida.** k=3 + `valor_m2` ficou só no LN;
+  a **Asa Sul segue com 6,4%** de imóveis trocando de rótulo a cada rodada.
+- [ ] 🟠 **`SHIS QL 12` fora de todas as faixas** do Lago Sul (`QL Meio` = `{8,10,14,16}` pula o
+  12) → ~149 anúncios saem do `QUADRA_VAGA`. Decisão do especialista do bairro.
+- [ ] 🟡 Congelar os clusters como **faixas fixas de R$/m²**? Com uma feature só, os rótulos já
+  são faixas contíguas e auditáveis — validando com o especialista, dá para aposentar o KMeans.
+
+### Integração Imoview
+- [ ] 🟠 **Não há sincronização de corretores.** `/Usuario/RetornarTipo3` traz **clientes**
+  (60.972), não usuários, e o `codigo` dele **não é** o `id_imoview` — sincronizar por ali
+  atribuiria imóvel ao corretor errado. O caminho é `/Usuario/App_RetornarUsuarios`, que exige
+  `codigoacesso` de `App_ValidarAcesso` (e-mail + senha MD5). `.env` já tem
+  `IMOVIEW_CODIGOACESSO` comentado. Swagger: `https://api.imoview.com.br/Scripts/swagger.json`.
+- [ ] 🟡 `id_imoview` vem hoje da aba "Corretores" de uma planilha, casado **por nome**
+  (`seed_id_imoview.py`) — é a origem provável dos 5 códigos duplicados.

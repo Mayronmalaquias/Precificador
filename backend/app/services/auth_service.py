@@ -1,4 +1,5 @@
 from werkzeug.security import generate_password_hash, check_password_hash
+from sqlalchemy import func
 from sqlalchemy.exc import IntegrityError
 from app import SessionLocal
 from app.models.usuarios import Usuarios
@@ -6,6 +7,7 @@ from app.services.usuarios_service import (
     DATE_FIELDS, BOOL_FIELDS, _parse_bool, _parse_date, _usuario_to_dict,
     normalizar_permissao,
 )
+from app.utils.helpers import normalizar_user
 
 
 def _gerar_proximo_id_usuario(session):
@@ -31,6 +33,24 @@ def cadastrar_usuario(username, password, team,
     session = SessionLocal()
     try:
         permissao = normalizar_permissao(permissao)
+
+        # Username unico: e a chave do login. Sem UNIQUE no banco (e ja existem
+        # duplicados historicos), entao a checagem tem que ser aqui.
+        # `normalizar_user` de novo porque o service tambem e chamavel direto;
+        # a funcao e idempotente (strip, espaco->_, lower, unidecode).
+        username = normalizar_user(username) or ""
+        if not username:
+            raise ValueError("Username é obrigatório.")
+
+        em_uso = session.query(Usuarios.nome, Usuarios.id_usuarios).filter(
+            func.lower(func.trim(Usuarios.username)) == username
+        ).first()
+        if em_uso:
+            dono = em_uso[0] or em_uso[1] or "outro usuário"
+            raise ValueError(
+                f"O username '{username}' já está em uso por {dono}. Escolha outro."
+            )
+
         hashed_pw = generate_password_hash(password, method="pbkdf2:sha256")
         id_usuarios = (id_usuarios or "").strip() or _gerar_proximo_id_usuario(session)
 

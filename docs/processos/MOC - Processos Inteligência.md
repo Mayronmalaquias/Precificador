@@ -77,6 +77,12 @@ Complementam as notas de processo — não as substituem.
 | Data | Cobre |
 |---|---|
 | [[_Registro - 2026-08-13]] | Visão do Diretor (funil, indicadores, estoque, governança), abas de Propostas/Leads no Relatório do Gerente, página do Corretor, lead do C2S no Criar Visita, 2 migrations |
+| [[_Registro - 2026-08-17]] | Pipeline de `estudo_metricas` (cluster por bairro, corte por série, faixas de metragem), leitura de `.xlsx` no estoque, divergência 490×598 de visitas, encerradas no gráfico da jornada, validação e **deduplicação de usuários** |
+
+### Operações de dados (migrações pontuais)
+| Operação | Cobre |
+|---|---|
+| [[_Operação - Deduplicação de Usuários 2026-08]] | 7 usernames + 5 `id_imoview` duplicados; 7 contas apagadas, 18.574 referências remapeadas, backups e verificação de acesso |
 
 ## Referências (legado — Google Apps Script)
 Documentação dos **acionadores/triggers das planilhas legadas** (camada de automação que **ainda
