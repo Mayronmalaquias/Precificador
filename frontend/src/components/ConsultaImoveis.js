@@ -143,7 +143,17 @@ export default function ConsultaImoveis() {
       });
       const d = await r.json();
       if (!r.ok || d.ok === false) throw new Error(d.error || 'Erro ao salvar');
-      toast('Matrícula e inscrição atualizadas.', 'success');
+      // O Trello e best-effort: a gravacao na base ja aconteceu. Avisa quando o cartao
+      // nao pode ser atualizado em vez de deixar o usuario achar que sincronizou.
+      if (d.trello?.ok && d.trello?.matricula_preservada) {
+        toast('Salvo. No Trello, a matrícula foi mantida como "Cessão de Direitos".', 'success');
+      } else if (d.trello?.ok) {
+        toast('Matrícula e inscrição atualizadas — cartão do Trello também.', 'success');
+      } else if (d.trello) {
+        toast(`Salvo na base. Trello não atualizado: ${d.trello.motivo || 'erro'}.`, 'error');
+      } else {
+        toast('Matrícula e inscrição atualizadas.', 'success');
+      }
       setDetalhe((prev) => ({
         ...prev,
         interno: { ...prev.interno, documentacao: { ...prev.interno.documentacao, ...doc } },
@@ -403,6 +413,14 @@ export default function ConsultaImoveis() {
                       {salvandoDoc ? 'Salvando…' : 'Salvar'}
                     </button>
                   </div>
+                  {interno?.documentacao?.trello_url && (
+                    <p className="ci-nota ci-nota--fraca">
+                      Cartão no Trello:{' '}
+                      <a href={interno.documentacao.trello_url} target="_blank" rel="noreferrer">
+                        {interno.documentacao.trello_url}
+                      </a>
+                    </p>
+                  )}
                   {interno?.documentacao?.editavel === false && (
                     <p className="ci-nota">Imóvel fora do catálogo — matrícula e inscrição só podem ser gravadas depois que a varredura do Imoview trouxer o imóvel.</p>
                   )}

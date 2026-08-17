@@ -523,6 +523,7 @@ def detalhe(solicitante_id, codigo):
                 "documentacao": {
                     "matricula": getattr(cache_local, "matricula", None),
                     "inscricao_iptu": getattr(cache_local, "inscricao_iptu", None),
+                    "trello_url": getattr(cache_local, "trello_card_url", None),
                     "editavel": bool(cache_local),
                 },
                 "estoque": estoque,
@@ -568,6 +569,41 @@ def _nomes_de_usuarios(session, ids):
     ).all()
     mapa = {i: n for i, n in rows}
     return [{"id": i, "nome": mapa.get(i, i)} for i in alvo]
+
+
+
+def _sincronizar_trello(registro, matricula, inscricao):
+    """Replica matrícula/inscrição no cartão do Trello do imóvel.
+
+    Devolve um dicionário de status — nunca levanta. A gravação na nossa base já foi
+    feita quando isto roda; deixar uma falha do Trello desfazer a correção seria pior
+    que o cartão ficar desatualizado (que é o estado de antes).
+
+    Imóvel lançado antes de guardarmos o id do cartão cai na busca por código, que varre
+    o board. Achando, o id é persistido — a varredura acontece uma vez por imóvel.
+    """
+    from app.services import trello_service
+
+    try:
+        card_id = _texto(getattr(registro, "trello_card_id", None))
+        if not card_id:
+            achado = trello_service.buscar_cartao_por_codigo(registro.codigo)
+            if not achado:
+                return {"ok": False, "motivo": "cartão não encontrado no board"}
+            card_id = achado["id"]
+            registro.trello_card_id = card_id
+            registro.trello_card_url = achado.get("url")
+
+        resultado = trello_service.atualizar_campos(card_id, matricula=matricula, iptu=inscricao) or {}
+        return {
+            "ok": True,
+            "card_url": getattr(registro, "trello_card_url", None),
+            # Cartao de cessao de direitos guarda o texto no campo matricula; a tela
+            # precisa dizer que aquele campo especifico nao foi tocado.
+            "matricula_preservada": bool(resultado.get("matricula_preservada")),
+        }
+    except Exception as e:
+        return {"ok": False, "motivo": str(e)[:200]}
 
 
 def atualizar_interno(solicitante_id, codigo, dados):
@@ -628,6 +664,14 @@ def atualizar_interno(solicitante_id, codigo, dados):
             for campo, valor in campos_doc.items():
                 setattr(registro, campo, valor)
             resposta["documentacao"] = campos_doc
+
+            # Fecha o ciclo com o Trello: o cartão nasce no lançamento com matrícula e
+            # inscrição, e a correção feita aqui precisa chegar lá também.
+            resposta["trello"] = _sincronizar_trello(
+                registro,
+                campos_doc.get("matricula", registro.matricula),
+                campos_doc.get("inscricao_iptu", registro.inscricao_iptu),
+            )
 
         session.commit()
         resposta["alterado_por"] = perfil["nome"]

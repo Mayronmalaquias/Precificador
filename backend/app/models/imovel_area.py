@@ -42,5 +42,9 @@ class ImovelArea(Base):
     # `datahoraultimasituacao`: quando a situacao mudou pela ultima vez. E o que define
     # SAIDA de estoque (mudou p/ algo que nao e disponivel nem moderacao, no periodo).
     situacao_em = Column(DateTime, nullable=True, index=True)
+    # Cartao do Trello criado no lancamento. Guardado p/ conseguir ATUALIZAR o cartao
+    # quando a matricula/inscricao for corrigida na Consulta de Imoveis.
+    trello_card_id = Column(String(40), nullable=True)
+    trello_card_url = Column(Text, nullable=True)
     origem = Column(String(30), nullable=True, default="imoview")
     atualizado_em = Column(DateTime, server_default=func.now(), onupdate=func.now(), nullable=True)

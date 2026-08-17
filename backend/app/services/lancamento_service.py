@@ -178,6 +178,30 @@ def _persistir_cache_imovel(dados: Dict[str, Any], codigo: Any) -> Dict[str, Any
         session.close()
 
 
+
+def _guardar_cartao_trello(codigo: Any, card_id: Any, card_url: Any) -> None:
+    """Grava id/url do cartao em `imovel_area`. Falha aqui nao desfaz o lancamento."""
+    cod = str(codigo or "").strip()
+    if not cod or not card_id:
+        return
+    from app.database import SessionLocal
+    from app.models.imovel_area import ImovelArea
+
+    session = SessionLocal()
+    try:
+        registro = session.query(ImovelArea).filter(ImovelArea.codigo == cod).first()
+        if registro is None:
+            registro = ImovelArea(codigo=cod, origem="lancamento")
+            session.add(registro)
+        registro.trello_card_id = str(card_id)
+        registro.trello_card_url = str(card_url or "") or None
+        session.commit()
+    except Exception:
+        session.rollback()
+    finally:
+        session.close()
+
+
 def _usuario_por_imoview(session, cod_usuario: Any) -> Optional[Any]:
     """Usuário dono do código Imoview. É como o lançamento descobre o `id_usuarios`
     (C61xxx) do captador — o formulário só conhece o código do CRM."""
@@ -527,6 +551,9 @@ def lancar_imovel(
                 urlvideo=dados.get("urlvideo"),
             )
             trello = {"ok": True, **card}
+            # Guarda o cartao p/ a Consulta de Imoveis conseguir ATUALIZAR matricula e
+            # inscricao depois. Sem o id, a correcao ficaria so na nossa base.
+            _guardar_cartao_trello(codigo, card.get("id"), card.get("url"))
         except Exception as e:  # Trello não deve derrubar o lançamento (imóvel já entrou)
             trello = {"ok": False, "error": str(e)}
 
