@@ -1,5 +1,6 @@
 import os
 import re
+import time
 from datetime import date, datetime, timedelta
 from typing import Any, Dict, Iterable, List, Optional, Tuple
 
@@ -420,6 +421,11 @@ def importar_contact2sale(data_de: Any = None, data_ate: Any = None, per_page: i
                 },
                 timeout=45,
             )
+            if response.status_code == 429:
+                # Teto documentado: 10 req/min. Backfill de varios meses estoura isso
+                # em poucas paginas — espera a janela resetar e repete a mesma pagina.
+                time.sleep(65)
+                continue
             if response.status_code >= 400:
                 raise RuntimeError(f"Contact2Sale HTTP {response.status_code}: {response.text[:800]}")
 
