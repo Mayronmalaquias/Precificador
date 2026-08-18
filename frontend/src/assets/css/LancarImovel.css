@@ -309,3 +309,13 @@
   font-style: italic;
   cursor: not-allowed;
 }
+
+/* O marcador fica `disabled`: alguns navegadores clareiam demais o texto de campo
+   desabilitado, então a cor é reafirmada para continuar legível. */
+.li-doc-placeholder:disabled {
+  background: #f3f4f7;
+  color: #7b8296;
+  -webkit-text-fill-color: #7b8296;
+  opacity: 1;
+  cursor: not-allowed;
+}

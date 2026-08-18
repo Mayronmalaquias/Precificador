@@ -504,6 +504,46 @@ def montar_parametros_imoview(dados: Dict[str, Any]) -> Dict[str, Any]:
     return parametros
 
 
+
+def _incluir_com_fallback_sem_documento(parametros: Dict[str, Any], fotos) -> Dict[str, Any]:
+    """Inclui no Imoview; se ele recusar o CPF marcador, tenta sem o campo.
+
+    Proprietario sem CPF vai com `CPF_PLACEHOLDER` (00000000000), que o Imoview pode
+    recusar por nao passar no digito verificador. Como a inclusao so levanta em HTTP>=400,
+    a primeira tentativa nao criou nada — repetir e seguro.
+
+    Na segunda tentativa o campo `cpfoucnpj` sai do payload SO dos proprietarios que
+    estavam com o marcador; quem tem documento de verdade continua enviando o dele.
+    """
+    try:
+        return imoview_service.incluir_imovel(parametros, fotos=fotos)
+    except RuntimeError as erro:
+        proprietarios = parametros.get("proprietarios") or []
+        tem_marcador = any(
+            str(p.get("cpfoucnpj") or "") == CPF_PLACEHOLDER
+            for p in proprietarios if isinstance(p, dict)
+        )
+        texto = str(erro).lower()
+        parece_documento = any(x in texto for x in ("cpf", "cnpj", "documento"))
+        if not (tem_marcador and parece_documento):
+            raise
+
+        segunda = dict(parametros)
+        segunda["proprietarios"] = [
+            {k: v for k, v in p.items() if not (k == "cpfoucnpj" and v == CPF_PLACEHOLDER)}
+            if isinstance(p, dict) else p
+            for p in proprietarios
+        ]
+        try:
+            return imoview_service.incluir_imovel(segunda, fotos=fotos)
+        except RuntimeError as erro2:
+            # Mantem as DUAS mensagens: sem isso o motivo real (o que o Imoview exige de
+            # documento) some e o proximo a investigar recomeca do zero.
+            raise RuntimeError(
+                f"Imoview recusou com o CPF marcador ({erro}) e tambem sem o campo ({erro2})"
+            ) from erro2
+
+
 def lancar_imovel(
     dados: Dict[str, Any],
     fotos: Optional[List[Any]] = None,
@@ -511,7 +551,7 @@ def lancar_imovel(
 ) -> Dict[str, Any]:
     """Inclui no Imoview e cria o cartão no Trello. Retorna código + status do Trello."""
     parametros = montar_parametros_imoview(dados)
-    resultado_imoview = imoview_service.incluir_imovel(parametros, fotos=fotos)
+    resultado_imoview = _incluir_com_fallback_sem_documento(parametros, fotos)
     codigo = resultado_imoview.get("codigo")
 
     # Classifica e persiste o foco em imovel_legado (é o que a classificação de foco lê;

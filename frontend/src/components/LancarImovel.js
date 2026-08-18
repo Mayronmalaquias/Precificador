@@ -474,7 +474,18 @@ export default function LancarImovel() {
                 </Field>
                 {p.tem_documento
                   ? <TextField label="CPF / CNPJ" value={p.cpfoucnpj} onChange={setProp(i, "cpfoucnpj")} req placeholder="Só números ou com pontuação" />
-                  : <Field label="CPF / CNPJ"><input value="00000000000" readOnly className="li-doc-placeholder" title="Marcador de proprietário sem documento" /></Field>}
+                  : (
+                    <Field label="CPF / CNPJ">
+                      {/* `disabled`, nao `readOnly`: readOnly ainda recebe foco e da a
+                          impressao de que da p/ digitar. Aqui o campo e so o marcador. */}
+                      <input
+                        value="00000000000"
+                        disabled
+                        className="li-doc-placeholder"
+                        title="Proprietário sem documento — o marcador é enviado automaticamente"
+                      />
+                    </Field>
+                  )}
                 <TextField label="Telefone" value={p.telefone} onChange={setProp(i, "telefone")} req />
                 <TextField label="E-mail" value={p.email} onChange={setProp(i, "email")} />
                 <TextField label="% participação" value={p.percentual} onChange={setProp(i, "percentual")} suffix="%" />
