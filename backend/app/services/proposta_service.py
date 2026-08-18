@@ -69,8 +69,13 @@ def _num(valor):
 
 
 def _data(valor):
+    """'2026-08-01' -> date. Aceita date/datetime prontos. Vazio/invalido -> None."""
     if not valor:
         return None
+    if isinstance(valor, datetime):
+        return valor.date()
+    if isinstance(valor, date):
+        return valor
     try:
         return datetime.strptime(str(valor)[:10], "%Y-%m-%d").date()
     except (TypeError, ValueError):
@@ -297,17 +302,6 @@ def _aplicar_escopo(query, escopo):
     if escopo["ve_tudo"]:
         return query
     return query.filter(PropostaEfetiva.team == escopo["team"])
-
-
-def _data(valor):
-    """'2026-08-01' -> date. Aceita date/datetime prontos."""
-    from datetime import date as _date
-
-    if isinstance(valor, datetime):
-        return valor.date()
-    if isinstance(valor, _date):
-        return valor
-    return datetime.strptime(str(valor)[:10], "%Y-%m-%d").date()
 
 
 def listar(solicitante_id, filtros=None):
