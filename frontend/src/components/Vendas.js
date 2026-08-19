@@ -335,7 +335,9 @@ function DetalheModal({ id, onClose }) {
               <div className="vd-campos">
                 {g.campos.map((c) => (
                   <div className="vd-campo" key={c.campo}>
-                    <span className="vd-campo-lbl">{titulo(c.campo)}</span>
+                    {/* O back manda `rotulo` onde o nome da coluna não serve de rótulo
+                        (ex.: "2º comprador" em vez de "Nome Comprador2"). */}
+                    <span className="vd-campo-lbl">{c.rotulo || titulo(c.campo)}</span>
                     <CampoValor campo={c.campo} valor={c.valor} />
                   </div>
                 ))}

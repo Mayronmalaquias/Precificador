@@ -180,6 +180,44 @@ GRUPOS_DETALHE = [
     ("Comissao - Parcelas", ["parcelas_comissao", "data_parcela1_comissao", "valor_parcela_comissao_1", "data_parcela2_comissao", "valor_parcela_comissao_2", "data_parcela3_comissao", "valor_parcela_comissao_3"]),
 ]
 
+# O contrato guarda ate 15 compradores e 15 vendedores, em colunas numeradas
+# (`nome_comprador1..15` + `email_telefone_cpf_comprador1..15`). Antes so o
+# comprador1/vendedor1 tinha lugar proprio e o resto caia no balde "Outros" com o nome
+# cru da coluna — 303 contratos tem 2+ compradores e 103 tem 2+ vendedores, entao a
+# maioria das partes ficava escondida.
+MAX_PARTES_CONTRATO = 15
+_ORDINAL = {1: "1º", 2: "2º", 3: "3º", 4: "4º", 5: "5º", 6: "6º", 7: "7º", 8: "8º",
+            9: "9º", 10: "10º", 11: "11º", 12: "12º", 13: "13º", 14: "14º", 15: "15º"}
+
+
+def _colunas_das_partes(papel):
+    """Todas as colunas de um papel, na ordem — inclusive as que o contrato nao usa."""
+    for n in range(1, MAX_PARTES_CONTRATO + 1):
+        yield n, f"nome_{papel}{n}", f"email_telefone_cpf_{papel}{n}"
+
+
+def _grupo_de_partes(full, papel, titulo):
+    """Monta o grupo de compradores/vendedores com as partes efetivamente preenchidas.
+
+    A numeracao da planilha de origem tem buracos (ha contrato que usa o comprador 6 sem
+    ter o 3), entao o numero original e mantido no rotulo em vez de reindexar — assim o
+    que a tela mostra bate com a coluna de onde veio.
+    """
+    campos = []
+    for n, col_nome, col_contato in _colunas_das_partes(papel):
+        nome = full.get(col_nome)
+        contato = full.get(col_contato)
+        if nome in (None, "") and contato in (None, ""):
+            continue
+        ordinal = _ORDINAL.get(n, f"{n}º")
+        if nome not in (None, ""):
+            campos.append({"campo": col_nome, "rotulo": f"{ordinal} {papel}", "valor": nome})
+        if contato not in (None, ""):
+            campos.append({"campo": col_contato,
+                           "rotulo": f"{ordinal} {papel} — e-mail / telefone / CPF",
+                           "valor": contato})
+    return {"titulo": titulo, "campos": campos} if campos else None
+
 
 def detalhe(id_contrato: str) -> dict:
     session = SessionLocal()
@@ -199,7 +237,19 @@ def detalhe(id_contrato: str) -> dict:
         usados = {k for _, ks in GRUPOS_DETALHE for k in ks}
         grupos = [{"titulo": t, "campos": [{"campo": k, "valor": full.get(k)} for k in ks if k in full]}
                   for t, ks in GRUPOS_DETALHE]
-        # tudo que sobrou (compradores/vendedores/anexos/protocolos...) num grupo "Outros"
+
+        # Partes do negocio em grupo proprio, logo apos os dados do contrato.
+        for papel, titulo_grupo in (("comprador", "Compradores"), ("vendedor", "Vendedores")):
+            grupo = _grupo_de_partes(full, papel, titulo_grupo)
+            if grupo:
+                grupos.append(grupo)
+            # Marca as colunas do papel como usadas mesmo quando vazias, senao as
+            # preenchidas apareceriam duplicadas no "Outros".
+            for _, col_nome, col_contato in _colunas_das_partes(papel):
+                usados.add(col_nome)
+                usados.add(col_contato)
+
+        # tudo que sobrou (anexos/protocolos...) num grupo "Outros"
         outros = [{"campo": k, "valor": v} for k, v in full.items()
                   if k not in usados and k not in ("created_at", "updated_at") and v not in (None, "")]
         if outros:
