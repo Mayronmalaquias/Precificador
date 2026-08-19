@@ -1,7 +1,8 @@
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal, InvalidOperation
 from functools import lru_cache
 from pathlib import Path
+from zoneinfo import ZoneInfo
 import re
 
 import pandas as pd
@@ -28,6 +29,31 @@ from app.models.visita import Visita, VisitaCliente
 # Linha-balde do painel de equipes: agrupa as visitas do periodo que nao tem
 # equipe ativa. Nao entra no dropdown de filtro (`equipes_opcoes`), so na tabela.
 SEM_EQUIPE_ID = "__sem_equipe__"
+
+# Fuso da operacao. O banco roda em UTC e `created_at` usa `func.now()`, mas o gestor
+# filtra por dia do calendario brasileiro: proposta lancada 21h30 de Brasilia grava
+# `created_at` no dia seguinte em UTC e sumia do filtro daquele dia.
+FUSO_OPERACAO = ZoneInfo("America/Sao_Paulo")
+
+# Dono da proposta para efeito de atribuicao a uma pessoa: o corretor em nome de quem
+# foi lancada e, na falta dele, o gerente que lancou. Card e funil compartilham esta
+# expressao de proposito — quando cada um usava a sua, o mesmo corretor aparecia com
+# numeros diferentes na mesma tela (card contava `corretor OU gerente`, funil so
+# `corretor`). Com um dono unico por proposta a soma das linhas fecha com o total.
+_DONO_DA_PROPOSTA = func.coalesce(PropostaEfetiva.id_corretor, PropostaEfetiva.id_gerente)
+
+
+def _intervalo_utc(start, end):
+    """(inicio, fim) do periodo em UTC ingenuo, a partir de datas do calendario local.
+
+    `created_at` e gravado pelo banco em UTC sem tzinfo. Comparar direto com
+    `datetime.combine(start, min_time)` trata a data local como se fosse UTC e desloca
+    a fronteira do dia em 3 horas.
+    """
+    inicio = datetime.combine(start, datetime.min.time(), tzinfo=FUSO_OPERACAO)
+    fim = datetime.combine(end, datetime.max.time(), tzinfo=FUSO_OPERACAO)
+    return (inicio.astimezone(timezone.utc).replace(tzinfo=None),
+            fim.astimezone(timezone.utc).replace(tzinfo=None))
 
 
 def _date(value, default):
@@ -539,13 +565,12 @@ def _funil(session, start, end, teams, empresa):
     Ressalvas herdadas das fontes, que valem para a leitura do funil:
     - **lead por corretor** sai de `leads_legado.atendimento`, que guarda ora o id ora o
       nome; lead sem atendimento definido nao entra em nenhum corretor (mas conta no 61);
-    - **proposta pertence ao gerente** (ver `_propostas_efetivas`), entao a linha do
-      corretor so tem proposta quando ele proprio e o gerente;
+    - **proposta** e atribuida por `_DONO_DA_PROPOSTA` (corretor, ou o gerente que lancou
+      quando nao ha corretor) — a mesma regra do card, para os dois baterem;
     - **venda** e casada pelo NOME no contrato — corretor renomeado sem alias fica de fora.
     Por isso a soma das linhas nao fecha exatamente com o 61.
     """
-    inicio = datetime.combine(start, datetime.min.time())
-    fim = datetime.combine(end, datetime.max.time())
+    inicio, fim = _intervalo_utc(start, end)
 
     # ── por equipe ────────────────────────────────────────────────────────────────
     ids_equipes = [item["id"] for item in teams]
@@ -559,11 +584,18 @@ def _funil(session, start, end, teams, empresa):
     )
     clientes_equipe = _clientes_por_equipe(session, start, end, ids_equipes) if ids_equipes else {}
     leads_equipe = _leads_por_equipe(session, start, end, teams) if ids_equipes else {}
-    propostas_equipe = dict(
+    # Agrupa por equipe. Proposta com `team` nulo — ou apontando para equipe que nao
+    # esta em `teams` — nao pertence a nenhuma linha, mas continua somando no total da
+    # empresa: sem o balde abaixo, a soma das linhas nao fecha com o rodape.
+    propostas_por_team = dict(
         session.query(PropostaEfetiva.team, func.count(PropostaEfetiva.id)).filter(
             PropostaEfetiva.ativo.is_(True),
             PropostaEfetiva.created_at >= inicio, PropostaEfetiva.created_at <= fim,
         ).group_by(PropostaEfetiva.team).all()
+    )
+    propostas_equipe = {t: n for t, n in propostas_por_team.items() if t in ids_equipes}
+    propostas_sem_equipe = sum(
+        n for t, n in propostas_por_team.items() if t not in ids_equipes
     )
 
     # ── por corretor: so quem existe no cadastro ativo ────────────────────────────
@@ -590,10 +622,10 @@ def _funil(session, start, end, teams, empresa):
     clientes_corretor = _clientes_por_corretor(session, start, end, ids_corretores) if ids_corretores else {}
     leads_corretor = _leads_por_corretor(session, start, end, corretores) if corretores else {}
     propostas_corretor = dict(
-        session.query(PropostaEfetiva.id_corretor, func.count(PropostaEfetiva.id)).filter(
-            PropostaEfetiva.ativo.is_(True), PropostaEfetiva.id_corretor.isnot(None),
+        session.query(_DONO_DA_PROPOSTA, func.count(PropostaEfetiva.id)).filter(
+            PropostaEfetiva.ativo.is_(True), _DONO_DA_PROPOSTA.isnot(None),
             PropostaEfetiva.created_at >= inicio, PropostaEfetiva.created_at <= fim,
-        ).group_by(PropostaEfetiva.id_corretor).all()
+        ).group_by(_DONO_DA_PROPOSTA).all()
     )
 
     # ── vendas: o contrato guarda NOME, entao o rateio e feito em memoria ─────────
@@ -634,6 +666,13 @@ def _funil(session, start, end, teams, empresa):
                vendas_equipe.get(item["id"]))
         for item in teams
     ]
+    # Balde das propostas fora das equipes do escopo, no mesmo espirito da linha
+    # "Sem equipe" de `_visit_metrics`. So aparece quando ha o que mostrar.
+    if propostas_sem_equipe:
+        linhas_equipe.append(_linha(
+            "Sem equipe", {"id": SEM_EQUIPE_ID, "gerente": "Propostas sem equipe"},
+            0, 0, 0, propostas_sem_equipe, 0,
+        ))
     linhas_corretor = [
         _linha(c["nome"], {"id": c["id"], "equipe": rotulo.get(c["team"], c["team"])},
                leads_corretor.get(c["id"]), clientes_corretor.get(c["id"]),
@@ -913,8 +952,8 @@ def _clientes(session, start, end, selected_team, selected_broker=None):
 def _propostas_efetivas(session, start, end, selected_team, selected_broker=None):
     """Propostas efetivas lancadas no periodo (a tela Propostas Efetivas).
 
-    Nao tem relacao com `Visita.proposta` (SIM/NAO/TALVEZ). A proposta pertence ao
-    gerente, entao filtrar por corretor so acha algo se o corretor for o gerente.
+    Nao tem relacao com `Visita.proposta` (SIM/NAO/TALVEZ). A atribuicao a uma pessoa
+    usa `_DONO_DA_PROPOSTA` — a mesma expressao do funil, para os dois numeros baterem.
     """
     # TODAS as situações entram (em análise, contraproposta, aceita, recusada,
     # cancelada) — o card é volume de proposta, não de fechamento.
@@ -923,18 +962,14 @@ def _propostas_efetivas(session, start, end, selected_team, selected_broker=None
     # última é digitada e vem retroativa ou futura com frequência (em 10/08/2026, 5 das
     # 6 propostas lançadas no mês tinham data de julho ou 13/08), o que fazia o card
     # mostrar 1 onde havia 6.
-    inicio = datetime.combine(start, datetime.min.time())
-    fim = datetime.combine(end, datetime.max.time())
+    inicio, fim = _intervalo_utc(start, end)
     query = session.query(func.count(PropostaEfetiva.id)).filter(
         PropostaEfetiva.ativo.is_(True),
         PropostaEfetiva.created_at >= inicio,
         PropostaEfetiva.created_at <= fim,
     )
     if selected_broker:
-        query = query.filter(or_(
-            PropostaEfetiva.id_corretor == selected_broker,
-            PropostaEfetiva.id_gerente == selected_broker,
-        ))
+        query = query.filter(_DONO_DA_PROPOSTA == selected_broker)
     elif selected_team:
         query = query.filter(PropostaEfetiva.team == selected_team)
     return int(query.scalar() or 0)

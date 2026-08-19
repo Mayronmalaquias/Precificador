@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { BASE } from "../services/api";
+import { soDigitos, moedaInput, moedaNumero } from "../services/moeda";
 import { useAuth } from "../context/AuthContext";
 import { useToast } from "../context/ToastContext";
 import "../assets/css/LancarImovel.css";
@@ -15,21 +16,11 @@ function opt(item) {
 const asOpts = (lista) => (Array.isArray(lista) ? lista.map(opt).filter(Boolean) : []);
 const CAMPOS_MOEDA = new Set(["valor", "valorcondominio", "valoriptu"]);
 
-const somenteDigitos = (valor) => String(valor ?? "").replace(/\D/g, "");
-
-// Mesmo comportamento do Criar Visita: os dígitos representam centavos.
-function formatarMoedaInput(valor) {
-  const digitos = somenteDigitos(valor);
-  if (!digitos) return "";
-  return (Number(digitos) / 100).toLocaleString("pt-BR", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  });
-}
-
-const moedaParaNumero = (valor) => somenteDigitos(valor)
-  ? String(Number(somenteDigitos(valor)) / 100)
-  : "";
+// Máscara em services/moeda.js — os dígitos representam centavos, e a conversão é feita
+// por string: `Number(digitos) / 100` perdia precisão acima de 2^53 e inventava centavos.
+const somenteDigitos = soDigitos;
+const formatarMoedaInput = moedaInput;
+const moedaParaNumero = moedaNumero;
 
 // Rótulo de um código dentro de uma lista já carregada do Imoview.
 const rotulo = (opts, value) =>

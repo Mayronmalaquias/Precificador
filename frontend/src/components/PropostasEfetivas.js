@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { BASE } from '../services/api';
+import { moedaInput, moedaNumero, moedaDeNumero } from '../services/moeda';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import '../assets/css/PropostasEfetivas.css';
@@ -29,16 +30,15 @@ const VAZIO = {
 };
 
 const moeda = (v) => (v == null ? '—' : Number(v).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }));
-const dataBR = (v) => (v ? new Date(`${v}T00:00:00`).toLocaleDateString('pt-BR') : '—');
+// Aceita data pura ("2026-08-10", que vira meia-noite local para não recuar um dia) e
+// datetime ISO com fuso ("...Z", de `created_at`), que o navegador converte sozinho.
+const dataBR = (v) => {
+  if (!v) return '—';
+  const d = String(v).length > 10 ? new Date(v) : new Date(`${v}T00:00:00`);
+  return Number.isNaN(d.getTime()) ? '—' : d.toLocaleDateString('pt-BR');
+};
 
-// Mesmo padrão de moeda do Lançar Imóvel: os dígitos digitados são centavos.
-const soDigitos = (v) => String(v ?? '').replace(/\D/g, '');
-function moedaInput(valor) {
-  const d = soDigitos(valor);
-  if (!d) return '';
-  return (Number(d) / 100).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-}
-const moedaNumero = (v) => (soDigitos(v) ? String(Number(soDigitos(v)) / 100) : '');
+// Máscara de moeda em services/moeda.js — compartilhada com o Lançar Imóvel.
 
 export default function PropostasEfetivas() {
   const toast = useToast();
@@ -154,9 +154,9 @@ export default function PropostasEfetivas() {
       bairro: item.bairro || '', tipo: item.tipo || '', numero: item.numero || '',
       bloco: item.bloco || '', complemento: item.complemento || '',
       quartos: item.quartos || '', vagas: item.vagas || '', area: item.area || '',
-      valor: item.valor ? moedaInput(String(Math.round(item.valor * 100))) : '',
+      valor: moedaDeNumero(item.valor),
       forma_pagamento: item.forma_pagamento || '',
-      valor_permuta: item.valor_permuta ? moedaInput(String(Math.round(item.valor_permuta * 100))) : '',
+      valor_permuta: moedaDeNumero(item.valor_permuta),
       descricao_permuta: item.descricao_permuta || '', situacao: item.situacao || 'em_analise',
       cliente: item.cliente || '', observacao: item.observacao || '',
       data_proposta: item.data_proposta || '',
@@ -454,7 +454,8 @@ export default function PropostasEfetivas() {
               <label>Quartos<input value={form.quartos} onChange={set('quartos')} inputMode="numeric" /></label>
               <label>Vagas<input value={form.vagas} onChange={set('vagas')} inputMode="numeric" /></label>
               <label>Área (m²)<input value={form.area} onChange={set('area')} /></label>
-              <label>Valor da proposta *<input value={form.valor} onChange={set('valor')} inputMode="numeric" placeholder="0,00" required /></label>
+              {/* maxLength = 14 dígitos já formatados ("999.999.999.999,99"), o teto de Numeric(14,2). */}
+              <label>Valor da proposta *<input value={form.valor} onChange={set('valor')} inputMode="numeric" placeholder="0,00" maxLength={18} required /></label>
               <label>Forma de pagamento
                 <select value={form.forma_pagamento} onChange={set('forma_pagamento')}>
                   <option value="">Selecione…</option>
@@ -466,7 +467,7 @@ export default function PropostasEfetivas() {
                   {opcoes.situacoes.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
                 </select>
               </label>
-              {ehPermuta && <label>Valor da permuta (2ª proposta) *<input value={form.valor_permuta} onChange={set('valor_permuta')} inputMode="numeric" placeholder="0,00" required /></label>}
+              {ehPermuta && <label>Valor da permuta (2ª proposta) *<input value={form.valor_permuta} onChange={set('valor_permuta')} inputMode="numeric" placeholder="0,00" maxLength={18} required /></label>}
               {ehPermuta && <label className="span2">O que entra na permuta<input value={form.descricao_permuta} onChange={set('descricao_permuta')} placeholder="Ex.: apartamento menor na Asa Sul" /></label>}
               <label>Cliente<input value={form.cliente} onChange={set('cliente')} /></label>
               <label>Data da proposta<input type="date" value={form.data_proposta} onChange={set('data_proposta')} /></label>
@@ -524,6 +525,10 @@ export default function PropostasEfetivas() {
 
             <div className="pe-detalhe-grid">
               <div><span>Proposta em</span><strong>{dataBR(detalhe.data_proposta)}</strong></div>
+              {/* A data digitada quase sempre difere da de lançamento (vem retroativa), e é
+                  pela de lançamento que o painel do diretor recorta o período. Mostrar as duas
+                  evita o gestor comparar números que saem de datas diferentes. */}
+              <div><span>Lançada em</span><strong>{dataBR(detalhe.created_at)}</strong></div>
               <div><span>Fechamento</span><strong>{dataBR(detalhe.data_fechamento)}</strong></div>
               <div><span>Corretor</span><strong>{detalhe.corretor_nome || '—'}</strong></div>
               <div><span>Gerente</span><strong>{detalhe.gerente_nome || '—'}</strong></div>

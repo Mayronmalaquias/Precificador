@@ -83,6 +83,7 @@ Complementam as notas de processo — não as substituem.
 | Operação | Cobre |
 |---|---|
 | [[_Operação - Deduplicação de Usuários 2026-08]] | 7 usernames + 5 `id_imoview` duplicados; 7 contas apagadas, 18.574 referências remapeadas, backups e verificação de acesso |
+| [[_Operação - Deduplicação de Usuários LIDER 2026-08-19]] | 3 pessoas com 2 cadastros cada no LIDER; 1.985 refs remapeadas, 3 contas apagadas. Script agora **versionado** (`backend/merge_usuarios_dup.py`) |
 
 ## Referências (legado — Google Apps Script)
 Documentação dos **acionadores/triggers das planilhas legadas** (camada de automação que **ainda

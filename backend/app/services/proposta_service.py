@@ -9,8 +9,9 @@ Regras de acesso (o solicitante vem do banco, nunca do que a tela mandou):
                     so leitura);
 - assistente ...... ve todas, nao edita (perfil usado p/ o estagiario acompanhar).
 """
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 from decimal import Decimal, InvalidOperation
+from zoneinfo import ZoneInfo
 
 from sqlalchemy import or_
 
@@ -29,6 +30,21 @@ from app.models.visita import ClienteVisita, Visita
 # a Visao do Diretor (2026-08-10): 1 dia parado ja pede follow-up, 2+ e critico.
 DIAS_ATENCAO = 1
 DIAS_CRITICO = 2
+
+# Fuso da operacao. `created_at` e gravado pelo banco em UTC (`func.now()`), mas o filtro
+# de periodo vem em datas do calendario brasileiro. Sem a conversao, proposta lancada
+# depois das 21h cai no dia UTC seguinte e some do filtro do dia em que foi lancada.
+FUSO_OPERACAO = ZoneInfo("America/Sao_Paulo")
+
+
+def _inicio_utc(dia):
+    return datetime.combine(dia, datetime.min.time(), tzinfo=FUSO_OPERACAO).astimezone(
+        timezone.utc).replace(tzinfo=None)
+
+
+def _fim_utc(dia):
+    return datetime.combine(dia, datetime.max.time(), tzinfo=FUSO_OPERACAO).astimezone(
+        timezone.utc).replace(tzinfo=None)
 
 ROTULO_SITUACAO = {
     "em_analise": "Em análise",
@@ -244,10 +260,26 @@ def _dias_sem_acao(proposta, hoje=None):
     return max((hoje - referencia).days, 0)
 
 
+def _fim_da_contagem(proposta, hoje_data):
+    """Ate quando contar "dias em aberto".
+
+    Proposta fechada para de contar no fechamento. Quando a situacao e fechada mas
+    ninguem preencheu `data_fechamento`, cair no `hoje` fazia o contador crescer todo
+    dia depois de a proposta ja ter acabado — entao usa-se a ultima mexida registrada
+    como melhor aproximacao do momento em que parou.
+    """
+    if proposta.situacao not in SITUACOES_FECHADAS:
+        return hoje_data
+    if proposta.data_fechamento:
+        return proposta.data_fechamento
+    referencia = proposta.ultima_acao_em or proposta.updated_at or proposta.created_at
+    return referencia.date() if referencia else hoje_data
+
+
 def _serializar(proposta, hoje=None, com_acoes=False):
     hoje_data = (hoje or datetime.now()).date()
     fechada = proposta.situacao in SITUACOES_FECHADAS
-    fim = proposta.data_fechamento if fechada and proposta.data_fechamento else hoje_data
+    fim = _fim_da_contagem(proposta, hoje_data)
     dias_aberto = (fim - proposta.data_proposta).days if proposta.data_proposta else None
     sem_acao = None if fechada else _dias_sem_acao(proposta, hoje)
     dados = {
@@ -280,6 +312,13 @@ def _serializar(proposta, hoje=None, com_acoes=False):
         "observacao": proposta.observacao,
         "data_proposta": proposta.data_proposta.isoformat() if proposta.data_proposta else None,
         "data_fechamento": proposta.data_fechamento.isoformat() if proposta.data_fechamento else None,
+        # Data de LANCAMENTO. E por ela que o painel do diretor e o filtro de periodo
+        # recortam — `data_proposta` e digitada e vem retroativa. A tela mostra as duas
+        # para o gestor nao comparar numeros que saem de datas diferentes.
+        #
+        # O banco grava em UTC sem tzinfo; o sufixo "Z" e obrigatorio, senao o
+        # `new Date()` do navegador le como hora local e erra o dia por 3 horas.
+        "created_at": f"{proposta.created_at.isoformat()}Z" if proposta.created_at else None,
         "dias_em_aberto": max(dias_aberto, 0) if dias_aberto is not None else None,
         "dias_sem_acao": sem_acao,
         "alerta": "critico" if (sem_acao or 0) >= DIAS_CRITICO else "atencao" if (sem_acao or 0) >= DIAS_ATENCAO else None,
@@ -341,12 +380,12 @@ def listar(solicitante_id, filtros=None):
             query = query.filter(PropostaEfetiva.situacao.notin_(SITUACOES_FECHADAS))
         # Periodo pela data de LANCAMENTO (`created_at`), o mesmo criterio do painel do
         # diretor: `data_proposta` e digitada e vem retroativa/futura com frequencia.
+        # As fronteiras vao pra UTC porque e assim que `created_at` e gravado — ver
+        # `_intervalo_utc`.
         if filtros.get("inicio"):
-            query = query.filter(PropostaEfetiva.created_at >= datetime.combine(
-                _data(filtros["inicio"]), datetime.min.time()))
+            query = query.filter(PropostaEfetiva.created_at >= _inicio_utc(_data(filtros["inicio"])))
         if filtros.get("fim"):
-            query = query.filter(PropostaEfetiva.created_at <= datetime.combine(
-                _data(filtros["fim"]), datetime.max.time()))
+            query = query.filter(PropostaEfetiva.created_at <= _fim_utc(_data(filtros["fim"])))
 
         agora = datetime.now()
         itens = [_serializar(p, agora) for p in query.order_by(PropostaEfetiva.created_at.desc()).all()]

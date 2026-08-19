@@ -1,0 +1,11 @@
+# Dependências só de desenvolvimento/CI. Não instalar na VM de produção.
+#
+#   pip install -r requirements.txt -r requirements-dev.txt
+#   python -m pytest tests/ -v
+#
+# Os testes em tests/ são puros (não abrem sessão de banco). Ao escrever um que precise
+# de sessão, aponte DB_NAME para um Postgres descartável ANTES de importar a app — o
+# .env do repo aponta para produção e SessionLocal() grava nela.
+-r requirements.txt
+
+pytest==9.1.1

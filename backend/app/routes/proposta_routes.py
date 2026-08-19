@@ -3,7 +3,7 @@
 O `solicitante_id` define escopo e permissão de escrita — a validação toda mora no
 service (`escopo_do_solicitante`), então nenhuma rota aqui confia no que a tela mandou.
 """
-from flask import current_app, request
+from flask import current_app, g, request
 from flask_restx import Namespace, Resource
 
 from app.services import proposta_service
@@ -13,14 +13,29 @@ proposta_ns = Namespace("propostas", description="Propostas efetivas lançadas p
 
 
 def _solicitante():
+    """Quem esta pedindo. O JWT manda; o parametro so vale sem token.
+
+    O `sub` do JWT e o `id_usuarios` (ver `gerar_jwt` no login). Enquanto a identidade
+    vinha so da query string, trocar `?solicitante_id=` por um id de diretor concedia
+    escopo de diretor a qualquer chamada que tivesse a X-API-KEY.
+
+    O fallback continua porque a X-API-KEY sozinha e credencial valida no middleware
+    (app mobile e integracoes que ainda nao emitem JWT). Some quando todos os clientes
+    passarem a mandar o Bearer.
+    """
+    payload = getattr(g, "jwt_payload", None) or {}
+    if payload.get("sub"):
+        return payload["sub"]
     return request.args.get("solicitante_id") or (request.get_json(silent=True) or {}).get("solicitante_id")
 
 
 def _erro(exc, contexto):
     if isinstance(exc, PropostaErro):
         return {"ok": False, "error": exc.mensagem}, exc.status
+    # `str(exc)` aqui vazava mensagem do driver e trecho de SQL para o cliente.
+    # O detalhe fica no log; quem chamou recebe texto generico.
     current_app.logger.exception(contexto)
-    return {"ok": False, "error": str(exc)}, 500
+    return {"ok": False, "error": "Erro interno ao processar a proposta."}, 500
 
 
 @proposta_ns.route("/propostas")
