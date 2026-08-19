@@ -2,14 +2,14 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useToast } from '../context/ToastContext';
 import { api } from '../services/api';
-import { RH_FIELDS, emptyRhForm, PERMISSOES } from './rhFields';
+import { PERMISSOES } from './rhFields';
 import { useEquipes } from '../context/EquipesContext';
 import { useAuth } from '../context/AuthContext';
 import PasswordInput from './PasswordInput';
 
 const FORM_VAZIO = {
   username: '',
-  password: '',
+  password: '61Imoveis',
   team: '',
   permissao: '',
   nome: '',
@@ -26,10 +26,7 @@ function Cadastro() {
   const permissoesDisponiveis = isAdministrador
     ? PERMISSOES
     : PERMISSOES.filter((p) => !isAssistente || p.podeCriarComoAssistente);
-  const [formData, setFormData] = useState({
-    ...FORM_VAZIO,
-    ...emptyRhForm(),
-  });
+  const [formData, setFormData] = useState({ ...FORM_VAZIO });
   const [aceiteLgpd, setAceiteLgpd] = useState(false);
   const [loading, setLoading] = useState(false);
 
@@ -64,7 +61,7 @@ function Cadastro() {
     try {
       await api.post('/auth/cadastro', payload);
       toast('Usuário cadastrado e já liberado para login!', 'success');
-      setFormData({ ...FORM_VAZIO, ...emptyRhForm() });
+      setFormData({ ...FORM_VAZIO });
       setAceiteLgpd(false);
       window.scrollTo({ top: 0, behavior: 'smooth' });
     } catch (error) {
@@ -174,73 +171,12 @@ function Cadastro() {
             <PasswordInput id="reg-pass" name="password"
               placeholder="Mínimo 8 caracteres" value={formData.password}
               onChange={handleChange} required disabled={loading} autoComplete="new-password" />
+            <small className="ds-hint">
+              Pré-preenchida com a senha padrão. Troque se quiser definir outra.
+            </small>
           </div>
 
           <div className="ds-divider" />
-
-          <div>
-            <h3 className="ds-page-title" style={{ fontSize: '1.05rem', marginBottom: 4 }}>Dados de RH</h3>
-            <p className="ds-page-subtitle" style={{ marginBottom: 14 }}>Dados de RH são opcionais no cadastro — podem ser preenchidos depois.</p>
-          </div>
-
-          <div className="ds-form-row">
-            {RH_FIELDS.filter((field) => field.name !== 'nome' && field.name !== 'lgpd_assinada').map((field) => {
-              const required = false; // RH opcional no registro (por enquanto)
-              const id = `reg-rh-${field.name}`;
-              const label = field.label;
-
-              if (field.type === 'textarea') {
-                return (
-                  <div key={field.name} className="ds-form-group" style={{ gridColumn: '1 / -1' }}>
-                    <label className="ds-label" htmlFor={id}>{label}</label>
-                    <textarea id={id} className="ds-input ds-textarea" name={field.name}
-                      value={formData[field.name] || ''} onChange={handleChange}
-                      required={required} rows={2} disabled={loading} />
-                  </div>
-                );
-              }
-
-              if (field.type === 'boolean') {
-                return (
-                  <div key={field.name} className="ds-form-group">
-                    <label className="ds-label" htmlFor={id}>{label}</label>
-                    <select id={id} className="ds-input ds-select" name={field.name}
-                      value={formData[field.name] ?? ''} onChange={handleChange}
-                      required={required} disabled={loading}>
-                      <option value="">Selecione...</option>
-                      <option value="true">Sim</option>
-                      <option value="false">Não</option>
-                    </select>
-                  </div>
-                );
-              }
-
-              if (field.type === 'select') {
-                return (
-                  <div key={field.name} className="ds-form-group">
-                    <label className="ds-label" htmlFor={id}>{label}</label>
-                    <select id={id} className="ds-input ds-select" name={field.name}
-                      value={formData[field.name] || ''} onChange={handleChange}
-                      required={required} disabled={loading}>
-                      <option value="">Selecione...</option>
-                      {(field.options || []).map((option) => (
-                        <option key={option} value={option}>{option}</option>
-                      ))}
-                    </select>
-                  </div>
-                );
-              }
-
-              return (
-                <div key={field.name} className="ds-form-group">
-                  <label className="ds-label" htmlFor={id}>{label}</label>
-                  <input id={id} className="ds-input" name={field.name}
-                    type={field.type || 'text'} value={formData[field.name] || ''}
-                    onChange={handleChange} required={required} disabled={loading} />
-                </div>
-              );
-            })}
-          </div>
 
           <div className="ds-alert ds-alert-info">
             <div>
