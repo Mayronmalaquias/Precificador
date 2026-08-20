@@ -30,9 +30,23 @@ MAX_PAGINAS = 200
 # 4=Em reforma (4) e 5=Em moderacao (81) sao baratas e precisam ser distinguidas — sem
 # elas, um imovel em moderacao pareceria "desativado" e entraria como saida de estoque,
 # que e justamente o que a regra manda excluir.
-# Fora daqui so 6=Desativado (9.312): baixar isso todo dia custaria ~466 paginas, e o
-# imovel desativado e deduzido por ausencia (ver `gravar`).
 SITUACOES = {1: "Vago/Disponivel", 3: "Vendido", 4: "Em reforma", 5: "Em moderacao"}
+
+# 6=Desativado (9.326) e varrido de forma INCREMENTAL, nao inteiro.
+#
+# Ele ficava de fora porque baixar tudo custa ~466 paginas por dia. O efeito colateral
+# era grave: o painel do diretor contava 6 saidas em agosto quando o Imoview tinha 59
+# (50 desativados + 9 vendidos) — quem sai do estoque por desativacao e a maioria, e
+# nunca aparecia com a data real.
+#
+# A saida barata: `ordenacao=dataatualizacaodesc` traz o mexido recentemente primeiro,
+# entao basta descer ate passar da janela. Medido em 20/08/2026: 3 paginas cobriram o
+# mes inteiro. (`datahoraultimasituacaodesc` NAO funciona — a API aceita o parametro e
+# devolve fora de ordem.)
+SITUACAO_DESATIVADO = 6
+NOME_SITUACAO = {**SITUACOES, 6: "Desativado"}
+DIAS_DESATIVADO = 45      # margem sobre o intervalo do cron; nao e o custo, e a folga
+MAX_PAGINAS_DESATIVADO = 40
 
 
 def _num(valor):
@@ -81,20 +95,37 @@ def coletar():
     catalogo = {}
     for situacao in SITUACOES:
         catalogo.update(_coletar_situacao(situacao))
+    catalogo.update(_coletar_desativados_recentes())
     return catalogo
 
 
-def _coletar_situacao(situacao):
+def _coletar_desativados_recentes():
+    """Desativados mexidos nos ultimos `DIAS_DESATIVADO` dias.
+
+    Nao varre os 9.326: desce por data de atualizacao e para quando a pagina ja e mais
+    velha que o corte. O que ficou desativado ha meses nao muda mais, e ja esta gravado.
+    """
+    corte = datetime.now() - timedelta(days=DIAS_DESATIVADO)
+    return _coletar_situacao(
+        SITUACAO_DESATIVADO,
+        ordenacao="dataatualizacaodesc",
+        parar_antes_de=corte,
+        max_paginas=MAX_PAGINAS_DESATIVADO,
+    )
+
+
+def _coletar_situacao(situacao, ordenacao=None, parar_antes_de=None, max_paginas=None):
     catalogo = {}
     pagina = 1
-    while pagina <= MAX_PAGINAS:
-        resposta = requests.post(
-            ENDPOINT, headers=_headers(),
-            json={
-                "numeropagina": pagina, "numeroregistros": POR_PAGINA,
-                "naoconsiderarmeusite": True, "situacao": situacao,
-            }, timeout=45,
-        )
+    teto = max_paginas or MAX_PAGINAS
+    while pagina <= teto:
+        corpo = {
+            "numeropagina": pagina, "numeroregistros": POR_PAGINA,
+            "naoconsiderarmeusite": True, "situacao": situacao,
+        }
+        if ordenacao:
+            corpo["ordenacao"] = ordenacao
+        resposta = requests.post(ENDPOINT, headers=_headers(), json=corpo, timeout=45)
         if resposta.status_code >= 400:
             raise RuntimeError(f"Imoview HTTP {resposta.status_code}: {resposta.text[:300]}")
         lista = (resposta.json() or {}).get("lista") or []
@@ -120,7 +151,8 @@ def _coletar_situacao(situacao):
                 "endereco": item.get("endereco"),
                 "bairro": item.get("bairro"),
                 "tipo": item.get("tipo") or item.get("descricaotipo"),
-                "situacao": item.get("situacao") or SITUACOES[situacao],
+                # `SITUACOES` nao tem a 6 (ela e varrida a parte); o fallback cobre.
+                "situacao": item.get("situacao") or NOME_SITUACAO.get(situacao, ""),
                 "cadastrado_em": _data_hora(item.get("datahoracadastro")),
                 "finalidade": (item.get("finalidade") or "").strip() or None,
                 "situacao_em": _data_hora(item.get("datahoraultimasituacao")),
@@ -134,6 +166,14 @@ def _coletar_situacao(situacao):
                 catalogo[codigo]["_matricula_crm"] = matricula_crm
         if len(lista) < POR_PAGINA:
             break
+        # Varredura incremental: a lista vem da mais recente para a mais antiga, entao
+        # quando a ULTIMA da pagina ja e anterior ao corte, o resto so tem coisa velha.
+        if parar_antes_de:
+            ultima = _data_hora(
+                lista[-1].get("dataatualizacao") or lista[-1].get("datahoraultimasituacao")
+            )
+            if ultima and ultima < parar_antes_de:
+                break
         pagina += 1
     return catalogo
 

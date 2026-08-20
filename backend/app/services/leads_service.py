@@ -14,6 +14,10 @@ from app.models.equipe import Equipe
 
 
 CONTACT2SALE_URL = "https://api.contact2sale.com/integration/leads"
+# A API leva 5-10 s por pagina; 45 s estourava no cron. Com a espera do 429 ja
+# existente, uma pagina lenta nao derruba mais a rodada.
+TIMEOUT_C2S = 120
+MAX_TENTATIVAS_PAGINA = 3
 RECEPCAO_CREATED_BY_ID = "d6cd52d3d32cefcc24245ce5aa46e48a"
 RECEPCAO_CREATED_BY_NAME = "Atendimento/Recepcao"
 
@@ -408,19 +412,33 @@ def importar_contact2sale(data_de: Any = None, data_ate: Any = None, per_page: i
         inseridos = 0
         duplicados = 0
         seen = set()
+        tentativas_pagina = {}
 
         while True:
-            response = requests.get(
-                CONTACT2SALE_URL,
-                headers={"Authorization": token, "Content-Type": "application/json"},
-                params={
-                    "page": page,
-                    "perpage": per_page,
-                    "created_lt": _iso_end(fim),
-                    "created_gte": _iso_start(inicio),
-                },
-                timeout=45,
-            )
+            try:
+                response = requests.get(
+                    CONTACT2SALE_URL,
+                    headers={"Authorization": token, "Content-Type": "application/json"},
+                    params={
+                        "page": page,
+                        "perpage": per_page,
+                        "created_lt": _iso_end(fim),
+                        "created_gte": _iso_start(inicio),
+                    },
+                    timeout=TIMEOUT_C2S,
+                )
+            except requests.Timeout:
+                # A API do C2S responde entre 5 e 10 s por pagina e piora nas paginas
+                # profundas. Com `timeout=45` o cron das 3h10 caiu em 19 e 20/08 e, como
+                # o commit era so no fim, perdeu tudo que ja tinha lido.
+                tentativas_pagina[page] = tentativas_pagina.get(page, 0) + 1
+                if tentativas_pagina[page] > MAX_TENTATIVAS_PAGINA:
+                    raise RuntimeError(
+                        f"Contact2Sale nao respondeu na pagina {page} apos "
+                        f"{MAX_TENTATIVAS_PAGINA} tentativas."
+                    )
+                time.sleep(10)
+                continue
             if response.status_code == 429:
                 # Teto documentado: 10 req/min. Backfill de varios meses estoura isso
                 # em poucas paginas — espera a janela resetar e repete a mesma pagina.
@@ -447,6 +465,11 @@ def importar_contact2sale(data_de: Any = None, data_ate: Any = None, per_page: i
                 session.add(LeadLegado(**row))
                 inseridos += 1
                 processados += 1
+
+            # Commit por pagina. Antes havia um unico commit no fim, entao qualquer
+            # falha no meio (timeout, 500 da API) descartava a importacao inteira. Como
+            # o dedupe compara contra o que ja esta gravado, reprocessar e inofensivo.
+            session.commit()
 
             if len(leads) < per_page:
                 break
