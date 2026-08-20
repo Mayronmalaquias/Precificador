@@ -1712,6 +1712,16 @@ def executive_view(start_value=None, end_value=None, team=None, broker=None, som
         # dinheiro — arredondar p/ 1 casa escondia a variacao.
         pct_vgc_vgv = round(vgc / vgv * 100, 2) if vgv else None
         pct_anterior = round(vgc_anterior / vgv_anterior * 100, 2) if vgv_anterior else None
+        # Comissao CHEIA do negocio sobre o VGV — o percentual combinado com o cliente,
+        # antes de dividir com parceiro. Nao confundir com `vgc_sobre_vgv`, que e o que
+        # sobra para a 61: em negocio com parceria os dois se afastam, e e essa distancia
+        # que mostra quanto da comissao esta saindo para fora.
+        comissao_negocio = financeiro["comissao_negocio"] or 0
+        comissao_negocio_anterior = financeiro_anterior["comissao_negocio"] or 0
+        pct_comissao_vgv = round(comissao_negocio / vgv * 100, 2) if vgv else None
+        pct_comissao_anterior = (
+            round(comissao_negocio_anterior / vgv_anterior * 100, 2) if vgv_anterior else None
+        )
         return {
             "ok": True, "atualizado_em": datetime.now().isoformat(),
             "periodo": {"inicio": start.isoformat(), "fim": end.isoformat()},
@@ -1729,6 +1739,10 @@ def executive_view(start_value=None, end_value=None, team=None, broker=None, som
                 "vgv": {"valor": vgv, "variacao_pct": _pct(vgv, vgv_anterior)},
                 "vgc": {"valor": vgc, "variacao_pct": _pct(vgc, vgc_anterior)},
                 "vgc_sobre_vgv": {"valor": pct_vgc_vgv, "variacao_pct": _pct(pct_vgc_vgv or 0, pct_anterior or 0)},
+                "comissao_sobre_vgv": {
+                    "valor": pct_comissao_vgv,
+                    "variacao_pct": _pct(pct_comissao_vgv or 0, pct_comissao_anterior or 0),
+                },
                 # Degraus da comissão, todos do contrato (ver `_sales_totals`).
                 "comissao_negocio": {
                     "valor": financeiro["comissao_negocio"],

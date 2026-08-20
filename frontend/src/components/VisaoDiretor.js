@@ -200,6 +200,9 @@ function VisaoDiretor() {
     { label: '% VGC / VGV', value: pct(kpi('vgc_sobre_vgv').valor), delta: delta(kpi('vgc_sobre_vgv').variacao_pct), positive: (kpi('vgc_sobre_vgv').variacao_pct || 0) >= 0, icon: 'revenue', caption: 'Quanto da venda virou comissão' },
     // Degraus da comissão: total do negócio → o que fica com a 61 (VGC) → faturado → líquido.
     { label: 'Valor comissão', value: currency(kpi('comissao_negocio').valor || 0), delta: delta(kpi('comissao_negocio').variacao_pct), positive: (kpi('comissao_negocio').variacao_pct || 0) >= 0, icon: 'revenue', caption: 'Comissão total do negócio, incluindo parceiros' },
+    // Percentual da comissão CHEIA sobre a venda. Fica ao lado do "% VGC / VGV" de
+    // propósito: a diferença entre os dois é o que saiu para parceiros.
+    { label: '% Comissão / VGV', value: pct(kpi('comissao_sobre_vgv').valor), delta: delta(kpi('comissao_sobre_vgv').variacao_pct), positive: (kpi('comissao_sobre_vgv').variacao_pct || 0) >= 0, icon: 'revenue', caption: 'Comissão do negócio sobre o valor vendido' },
     { label: 'NF 61', value: currency(kpi('nf_61').valor || 0), delta: delta(kpi('nf_61').variacao_pct), positive: (kpi('nf_61').variacao_pct || 0) >= 0, icon: 'revenue', caption: 'Comissão faturada pela 61' },
     { label: 'Líquido 61', value: currency(kpi('liquido_61').valor || 0), delta: delta(kpi('liquido_61').variacao_pct), positive: (kpi('liquido_61').variacao_pct || 0) >= 0, icon: 'revenue', caption: 'O que sobra depois dos impostos' },
   ];

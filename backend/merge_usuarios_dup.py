@@ -20,14 +20,13 @@ from app.database import SessionLocal
 
 # (id que FICA, id DESCARTADO, motivo)
 MERGES = [
-    ("C61251", "C61201", "Jessica Gomes / Jessica Karine Gomes dos Santos (LIDER)"),
-    ("C61254", "C61199", "Karla Madrilis / Karla Amaral Madrilis (LIDER)"),
-    # Aqui as DUAS contas estavam ativas. Decisao do usuario: fica a que tem o historico
-    # (C61219), que herda o id_imoview 259 da descartada — sem ele some do Lancar Imovel.
-    ("C61219", "C61259", "Samya Amorim / Samia Amorim Ribeiro (LIDER)"),
+    # Conta antiga da Paolla, inativa, mas com `team=G61010` (LOTUS) — e ela e gerente da
+    # LIDER. Como o escopo do gerente e "todo usuario com este team", a conta velha fazia
+    # os 270 leads dela aparecerem no relatorio da equipe da Thais.
+    ("G61016", "C61170", "Paolla Gardenia / PAOLLA GARDENIA GOMES (conta antiga em LOTUS)"),
 ]
 
-SUFIXO = "2026_08_19"
+SUFIXO = "2026_08_20"
 TB_BACKUP = f"usuarios_merge_backup_{SUFIXO}"
 TB_REFS = f"usuarios_merge_refs_backup_{SUFIXO}"
 

@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { BASE } from "../services/api";
 import { soDigitos, moedaInput, moedaNumero } from "../services/moeda";
+import { porRotulo } from "../services/ordenar";
 import { useAuth } from "../context/AuthContext";
 import { useToast } from "../context/ToastContext";
 import "../assets/css/LancarImovel.css";
@@ -13,7 +14,9 @@ function opt(item) {
   const label = item.descricao ?? item.nome ?? item.titulo ?? item.label ?? String(value);
   return value == null ? null : { value, label };
 }
-const asOpts = (lista) => (Array.isArray(lista) ? lista.map(opt).filter(Boolean) : []);
+// As listas do Imoview (unidade, tipo, destinacao, local da chave, bairro) chegam na
+// ordem de cadastro deles — alfabetica aqui para dar p/ achar item na lista longa.
+const asOpts = (lista) => porRotulo(Array.isArray(lista) ? lista.map(opt).filter(Boolean) : []);
 const CAMPOS_MOEDA = new Set(["valor", "valorcondominio", "valoriptu"]);
 
 // Máscara em services/moeda.js — os dígitos representam centavos, e a conversão é feita
@@ -26,9 +29,22 @@ const moedaParaNumero = moedaNumero;
 const rotulo = (opts, value) =>
   String(opts?.find((o) => String(o.value) === String(value))?.label ?? "");
 
-// Formata "880000" / "880.000,00" → "R$ 880.000,00"
+// Formata "880000", "880000.00" ou "880.000,00" → "R$ 880.000,00".
+//
+// O ponto e ambiguo: em "880.000,00" (digitado) ele separa milhar, em "880000.00" (o que
+// `moedaNumero` produz) ele separa os centavos. Tratar tudo como milhar multiplicava o
+// valor por 100 no texto do grupo — "R$ 88.000.000,00" para um imovel de 880 mil.
+function paraNumeroBR(v) {
+  const texto = String(v ?? "").trim();
+  if (!texto) return NaN;
+  // Decimal canonico: so digitos e, no maximo, um ponto seguido dos centavos.
+  if (/^-?\d+(\.\d+)?$/.test(texto)) return Number(texto);
+  // Formato brasileiro: ponto e milhar, virgula e decimal.
+  return Number(texto.replace(/\./g, "").replace(",", "."));
+}
+
 function fmtValorBR(v) {
-  const n = Number(String(v ?? "").replace(/\./g, "").replace(",", "."));
+  const n = paraNumeroBR(v);
   return isFinite(n) && n ? n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" }) : String(v ?? "");
 }
 
@@ -44,9 +60,14 @@ function textoAviso(a, foco) {
   ].filter((x) => String(x).trim() !== "").join("\n");
 }
 
-// `tem_documento` só existe no formulário: o back recebe o CPF vazio e grava o
-// marcador 00000000000 (o Imoview não aceita proprietário sem documento).
-const propVazio = () => ({ nome: "", cpfoucnpj: "", telefone: "", email: "", percentual: "100", tem_documento: true });
+// `tem_documento` e `tem_telefone` só existem no formulário — o back não os recebe.
+// Documento vazio vira o marcador 00000000000 (o Imoview não aceita proprietário sem
+// documento). Telefone vazio simplesmente não é enviado: número falso no CRM é pior que
+// campo em branco, porque alguém liga para ele.
+const propVazio = () => ({
+  nome: "", cpfoucnpj: "", telefone: "", email: "", percentual: "100",
+  tem_documento: true, tem_telefone: true,
+});
 
 const VAZIO = {
   // Principal = o que vai pro Imoview (codigousuario) e pra planilha. O 2º corretor só
@@ -243,11 +264,17 @@ export default function LancarImovel() {
       .filter((p) => String(p.nome).trim())
       // Quem marcou "sem documento" vai com o campo vazio: o back aplica o
       // 00000000000, que é o marcador único de proprietário sem CPF/CNPJ.
-      .map(({ tem_documento, ...p }) => ({ ...p, cpfoucnpj: tem_documento ? p.cpfoucnpj : "" }));
+      .map(({ tem_documento, tem_telefone, ...p }) => ({
+        ...p,
+        cpfoucnpj: tem_documento ? p.cpfoucnpj : "",
+        telefone: tem_telefone ? p.telefone : "",
+      }));
     if (!props.length) { toast("Informe ao menos um proprietário.", "error"); return; }
-    const semTelefone = props.find((p) => !String(p.telefone).trim());
+    // Marcou que tem telefone? Entao tem que preencher. Quem desmarcou vai sem o campo.
+    const semTelefone = form.proprietarios.find(
+      (p) => String(p.nome).trim() && p.tem_telefone && !String(p.telefone).trim());
     if (semTelefone) {
-      toast(`Proprietário "${semTelefone.nome}": preencha o telefone.`, "error"); return;
+      toast(`Proprietário "${semTelefone.nome}": informe o telefone ou desmarque "Tem telefone".`, "error"); return;
     }
     // Marcou que tem documento? Então tem que preencher.
     const semDoc = form.proprietarios.find((p) => String(p.nome).trim() && p.tem_documento && !String(p.cpfoucnpj).trim());
@@ -477,7 +504,36 @@ export default function LancarImovel() {
                       />
                     </Field>
                   )}
-                <TextField label="Telefone" value={p.telefone} onChange={setProp(i, "telefone")} req />
+                <Field label="Telefone do proprietário">
+                  <Toggle
+                    label={p.tem_telefone ? "Tem telefone" : "Não informou telefone"}
+                    checked={p.tem_telefone}
+                    onChange={(e) => {
+                      const marcado = e.target.checked;
+                      setForm((f) => ({
+                        ...f,
+                        proprietarios: f.proprietarios.map((item, idx) => idx === i
+                          ? { ...item, tem_telefone: marcado, telefone: marcado ? item.telefone : "" }
+                          : item),
+                      }));
+                    }}
+                  />
+                </Field>
+                {p.tem_telefone
+                  ? <TextField label="Telefone" value={p.telefone} onChange={setProp(i, "telefone")} req />
+                  : (
+                    <Field label="Telefone">
+                      {/* Diferente do CPF, aqui NAO vai marcador: telefone falso no CRM e
+                          pior que campo vazio, porque alguem liga. O campo simplesmente
+                          nao e enviado — ver `normalizar_proprietarios`. */}
+                      <input
+                        value="Não informado"
+                        disabled
+                        className="li-doc-placeholder"
+                        title="Proprietário sem telefone — o campo não é enviado ao Imoview"
+                      />
+                    </Field>
+                  )}
                 <TextField label="E-mail" value={p.email} onChange={setProp(i, "email")} />
                 <TextField label="% participação" value={p.percentual} onChange={setProp(i, "percentual")} suffix="%" />
               </div>

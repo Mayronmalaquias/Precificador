@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { BASE } from "../services/api";
+import { porRotulo } from "../services/ordenar";
 import { useToast } from "../context/ToastContext";
 import "../assets/css/captacaoEvolucao.css";
 
@@ -190,7 +191,15 @@ export default function CaptacaoEvolucao({ nomeEquipe, isDiretor = true, team = 
       try {
         const r = await fetch(`${BASE}/captacoes/evolucao/opcoes${solicitante ? "?" + solicitante.slice(1) : ""}`);
         const d = await r.json();
-        if (r.ok && d.ok) setOpcoes({ equipes: d.equipes || [], corretores: d.corretores || [], bairros: d.bairros || [] });
+        // Listas longas de nome (corretor e bairro passam de 100 itens): alfabetica
+        // para dar p/ achar sem varrer o dropdown inteiro.
+        if (r.ok && d.ok) {
+          setOpcoes({
+            equipes: porRotulo(d.equipes || []),
+            corretores: porRotulo(d.corretores || []),
+            bairros: porRotulo(d.bairros || []),
+          });
+        }
       } catch { /* silencioso */ }
     })();
   }, [solicitante]);

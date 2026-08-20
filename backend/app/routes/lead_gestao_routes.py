@@ -6,7 +6,9 @@ mandou. Ver `lead_gestao_service`.
 from flask import current_app, request
 from flask_restx import Namespace, Resource
 
+from app.services import lead_c2s_service as servico_c2s
 from app.services import lead_gestao_service as servico
+from app.services.lead_c2s_service import LeadC2SErro
 from app.services.lead_gestao_service import LeadErro
 
 lead_gestao_ns = Namespace(
@@ -20,7 +22,7 @@ def _solicitante():
 
 
 def _erro(exc, contexto):
-    if isinstance(exc, LeadErro):
+    if isinstance(exc, (LeadErro, LeadC2SErro)):
         return {"ok": False, "error": exc.mensagem}, exc.status
     current_app.logger.exception(contexto)
     return {"ok": False, "error": str(exc)}, 500
@@ -90,3 +92,53 @@ class LeadGestaoDetalhe(Resource):
             return servico.atualizar_acompanhamento(_solicitante(), lead_id, dados), 200
         except Exception as e:
             return _erro(e, "Erro ao gravar acompanhamento do lead")
+
+
+@lead_gestao_ns.route("/leads/c2s")
+class LeadsAoVivo(Resource):
+    @lead_gestao_ns.doc(
+        description=(
+            "Leads lidos **ao vivo do Contact2Sale**, com a situação atual e o motivo do "
+            "arquivamento — a base interna guarda o retrato do dia da importação. "
+            "A API do C2S só honra janela de data e paginação; os demais filtros são "
+            "aplicados no servidor, e nesse caso a resposta traz `varredura_completa=false` "
+            "quando o período excedeu o teto de varredura."
+        ),
+        params={
+            "solicitante_id": "Id do usuário (obrigatório).",
+            "inicio": "Data inicial (YYYY-MM-DD, obrigatória).",
+            "fim": "Data final (YYYY-MM-DD, obrigatória).",
+            "por": "Campo de data da janela: 'criacao' (padrão) ou 'atualizacao'.",
+            "page": "Página (padrão 1).",
+            "per_page": "Itens por página (padrão 30, máx 100).",
+            "situacao": "Situação do lead no C2S (ex.: Em negociação).",
+            "fonte": "Portal de origem (ex.: Grupo Zap).",
+            "canal": "Canal de contato (ex.: WhatsApp).",
+            "equipe": "Nome da equipe. Só tem efeito para quem enxerga tudo.",
+            "funil": "Etapa do funil no C2S.",
+            "corretor": "Nome de quem atende (busca parcial).",
+            "motivo": "Motivo do arquivamento (busca parcial).",
+            "arquivado": "sim | nao",
+            "fechado": "sim | nao (negócio fechado).",
+            "com_motivo": "1 para trazer só quem tem motivo de arquivamento preenchido.",
+            "busca": "Cliente, telefone, e-mail, código, imóvel, corretor ou motivo.",
+        },
+    )
+    def get(self):
+        try:
+            por = request.args.get("por") or "criacao"
+            return servico_c2s.listar(
+                _solicitante(),
+                inicio=request.args.get("inicio"),
+                fim=request.args.get("fim"),
+                page=request.args.get("page", 1),
+                per_page=request.args.get("per_page", 30),
+                campo_data="updated" if por == "atualizacao" else "created",
+                filtros={
+                    k: request.args.get(k, "")
+                    for k in ("situacao", "fonte", "canal", "equipe", "funil", "corretor",
+                              "motivo", "arquivado", "fechado", "com_motivo", "sem_acompanhamento", "busca")
+                },
+            ), 200
+        except Exception as e:
+            return _erro(e, "Erro ao consultar leads no Contact2Sale")

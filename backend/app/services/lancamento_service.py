@@ -492,7 +492,9 @@ def montar_parametros_imoview(dados: Dict[str, Any]) -> Dict[str, Any]:
     if carac_ext:
         parametros["caracteristicasexterna"] = carac_ext
 
-    # Proprietários (Imoview exige nome/cpf/telefone/percentual em cada um).
+    # Proprietários. O Imoview exige nome e percentual; documento sem valor vai com o
+    # marcador (e tem fallback se ele recusar). Telefone é opcional no formulário desde
+    # 20/08/2026 — quando vazio, `_limpo` tira a chave do payload.
     proprietarios = normalizar_proprietarios(dados)
     if proprietarios:
         parametros["proprietarios"] = proprietarios

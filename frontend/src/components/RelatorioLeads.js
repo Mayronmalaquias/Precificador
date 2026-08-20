@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { BASE } from "../services/api";
 import { useToast } from "../context/ToastContext";
 import "../assets/css/RelatorioAbas.css";
@@ -36,6 +36,13 @@ export default function RelatorioLeads({ idSolicitante, equipe, inicio, fim, cor
   const [busca, setBusca] = useState("");
   // Leads sem acompanhamento: o mesmo recorte do aviso do topo.
   const [soNaoVistos, setSoNaoVistos] = useState(false);
+  // Filtros sobre os campos que vem do C2S. A API deles so honra janela de data e
+  // paginacao, entao o servidor aplica estes por cima do que a API devolveu.
+  const [filtros, setFiltros] = useState({
+    situacao: "", fonte: "", canal: "", funil: "", motivo: "",
+    arquivado: "", fechado: "", por: "criacao",
+  });
+  const [maisFiltros, setMaisFiltros] = useState(false);
   const [detalhe, setDetalhe] = useState(null);
   const [criando, setCriando] = useState(false);
   const [salvando, setSalvando] = useState(false);
@@ -45,36 +52,62 @@ export default function RelatorioLeads({ idSolicitante, equipe, inicio, fim, cor
     contato_status: "", visita_agendada: "", motivo_sem_visita: "", proxima_acao: "",
   });
   const [salvandoAcomp, setSalvandoAcomp] = useState(false);
+  // Qual seta esta buscando: so ela mostra "Carregando", as duas ficam travadas.
+  const [paginando, setPaginando] = useState(null);
+
+  // A API do C2S responde em ~5s. Duas consequencias tratadas aqui:
+  //  - a resposta de um filtro antigo chegava DEPOIS da nova e sobrescrevia a tabela
+  //    (parecia que o filtro nao pegava). `pedidoRef` descarta resposta fora de ordem e
+  //    o AbortController corta a requisicao que nao interessa mais;
+  //  - mexer em varios filtros disparava uma requisicao lenta por clique. O efeito
+  //    abaixo espera o usuario parar antes de ir ao servidor.
+  const abortRef = useRef(null);
+  const pedidoRef = useRef(0);
 
   const carregar = useCallback(async (pagina = 1, termo = busca) => {
     if (!idSolicitante) return;
+    const meu = ++pedidoRef.current;
+    if (abortRef.current) abortRef.current.abort();
+    const controle = new AbortController();
+    abortRef.current = controle;
+
     setCarregando(true);
     setErro("");
     try {
       const params = new URLSearchParams({
-        solicitante_id: idSolicitante, page: pagina, per_page: 30,
+        solicitante_id: idSolicitante, page: pagina, per_page: 50,
       });
       // Idem propostas: recorte do dropdown, ignorado pelo servidor p/ quem nao e global.
-      if (equipe) params.set("id_gerente", equipe);
+      if (equipe) params.set("equipe", equipe);
       // O periodo e o mesmo do filtro do relatorio: sem ele a aba trazia a base inteira.
       if (inicio) params.set("inicio", inicio);
       if (fim) params.set("fim", fim);
-      if (soNaoVistos) params.set("nao_vistos", "1");
+      if (soNaoVistos) params.set("sem_acompanhamento", "1");
       // Filtro de corretor do topo do relatorio.
       if (corretor) params.set("corretor", corretor);
-      if (termo.trim()) params.set("busca", termo.trim());
-      const r = await fetch(`${BASE}/leads/gestao?${params.toString()}`);
+      if ((termo || "").trim()) params.set("busca", termo.trim());
+      Object.entries(filtros).forEach(([k, v]) => { if (v) params.set(k, v); });
+      const r = await fetch(`${BASE}/leads/c2s?${params.toString()}`, { signal: controle.signal });
       const d = await r.json();
+      if (meu !== pedidoRef.current) return;   // chegou tarde: ja ha pedido mais novo
       if (!r.ok || d.ok === false) throw new Error(d.error || "Erro ao carregar leads");
       setDados(d);
     } catch (e) {
-      setErro(e.message || "Erro ao carregar leads");
+      if (e.name === "AbortError") return;
+      if (meu === pedidoRef.current) setErro(e.message || "Erro ao carregar leads");
     } finally {
-      setCarregando(false);
+      if (meu === pedidoRef.current) setCarregando(false);
     }
-  }, [idSolicitante, busca, equipe, inicio, fim, soNaoVistos, corretor]);
+  }, [idSolicitante, busca, equipe, inicio, fim, soNaoVistos, corretor, filtros]);
 
-  useEffect(() => { carregar(1, ""); }, [idSolicitante, equipe, inicio, fim, soNaoVistos, corretor]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Chave estavel: `filtros` e objeto novo a cada clique, e comparar por referencia
+  // fazia o efeito disparar mesmo quando nada tinha mudado de fato.
+  const chaveFiltros = JSON.stringify(filtros);
+
+  useEffect(() => {
+    const t = setTimeout(() => carregar(1), 500);
+    return () => clearTimeout(t);
+  }, [idSolicitante, equipe, inicio, fim, soNaoVistos, corretor, chaveFiltros]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const abrir = async (id) => {
     setDetalhe({ id });
@@ -161,6 +194,32 @@ export default function RelatorioLeads({ idSolicitante, equipe, inicio, fim, cor
     }
   };
 
+  const irPara = async (pagina, direcao) => {
+    // A API leva alguns segundos; sem sinal na propria seta o clique parece nao ter
+    // funcionado e o gerente clica de novo, empilhando requisicao.
+    setPaginando(direcao);
+    try {
+      await carregar(pagina);
+    } finally {
+      setPaginando(null);
+    }
+  };
+
+  const setFiltro = (campo) => (e) =>
+    setFiltros((f) => ({ ...f, [campo]: e.target.value }));
+  // "por" tem valor padrao, entao nao conta como filtro ativo.
+  const ativos = Object.entries(filtros)
+    .filter(([k, v]) => v && !(k === "por" && v === "criacao")).length;
+  const limparFiltros = () => setFiltros({
+    situacao: "", fonte: "", canal: "", funil: "", motivo: "",
+    arquivado: "", fechado: "", por: "criacao",
+  });
+  // Com filtro local o total pode ser desconhecido, entao a navegacao usa `tem_mais`
+  // em vez de um numero de paginas que seria chute.
+  const paginas = dados.total == null
+    ? null
+    : Math.max(Math.ceil(dados.total / (dados.per_page || 50)), 1);
+
   return (
     <div className="raba">
       <div className="raba-barra">
@@ -177,17 +236,98 @@ export default function RelatorioLeads({ idSolicitante, equipe, inicio, fim, cor
           aria-pressed={soNaoVistos}
           onClick={() => setSoNaoVistos((v) => !v)}
         >
-          Sem acompanhamento{dados.nao_vistos ? ` (${dados.nao_vistos})` : ""}
+          Sem acompanhamento
         </button>
         {dados.pode_lancar && (
           <button type="button" className="raba-cta raba-cta--novo" onClick={() => setCriando(true)}>
             + Lançar lead
           </button>
         )}
+        <button
+          type="button"
+          className={`raba-filtro ${maisFiltros ? "is-ativo" : ""}`}
+          aria-pressed={maisFiltros}
+          onClick={() => setMaisFiltros((v) => !v)}
+        >
+          Filtros{ativos ? ` (${ativos})` : ""}
+        </button>
         <span className="raba-contador">
-          {dados.total?.toLocaleString("pt-BR") || 0} lead{dados.total === 1 ? "" : "s"}
+          {dados.total == null
+            ? `${dados.itens?.length || 0}+ leads`
+            : `${dados.total.toLocaleString("pt-BR")} lead${dados.total === 1 ? "" : "s"}`}
         </span>
       </div>
+
+      {maisFiltros && (
+        <div className="raba-filtros">
+          {/* As opcoes sao os valores que existem no periodo — a API do C2S nao expoe
+              catalogo, entao o servidor monta a lista a partir do que voltou. */}
+          <label>Situacao
+            <select value={filtros.situacao} onChange={setFiltro("situacao")}>
+              <option value="">Todas</option>
+              {(dados.opcoes?.situacoes || []).map((v) => <option key={v} value={v}>{v}</option>)}
+            </select>
+          </label>
+          <label>Etapa do funil
+            <select value={filtros.funil} onChange={setFiltro("funil")}>
+              <option value="">Todas</option>
+              {(dados.opcoes?.funis || []).map((v) => <option key={v} value={v}>{v}</option>)}
+            </select>
+          </label>
+          <label>Portal
+            <select value={filtros.fonte} onChange={setFiltro("fonte")}>
+              <option value="">Todos</option>
+              {(dados.opcoes?.fontes || []).map((v) => <option key={v} value={v}>{v}</option>)}
+            </select>
+          </label>
+          <label>Canal
+            <select value={filtros.canal} onChange={setFiltro("canal")}>
+              <option value="">Todos</option>
+              {(dados.opcoes?.canais || []).map((v) => <option key={v} value={v}>{v}</option>)}
+            </select>
+          </label>
+          <label>Arquivado
+            <select value={filtros.arquivado} onChange={setFiltro("arquivado")}>
+              <option value="">Tanto faz</option>
+              <option value="sim">So arquivados</option>
+              <option value="nao">So ativos</option>
+            </select>
+          </label>
+          <label>Motivo do arquivamento
+            <select value={filtros.motivo} onChange={setFiltro("motivo")}>
+              <option value="">Todos</option>
+              {(dados.opcoes?.motivos || []).map((v) => <option key={v} value={v}>{v}</option>)}
+            </select>
+          </label>
+          <label>Negocio fechado
+            <select value={filtros.fechado} onChange={setFiltro("fechado")}>
+              <option value="">Tanto faz</option>
+              <option value="sim">So fechados</option>
+              <option value="nao">So em aberto</option>
+            </select>
+          </label>
+          <label>Periodo por
+            {/* O C2S so filtra por data de criacao ou de atualizacao. "Atualizacao"
+                acha o lead que mudou de situacao no periodo, mesmo sendo antigo. */}
+            <select value={filtros.por} onChange={setFiltro("por")}>
+              <option value="criacao">Data de criacao</option>
+              <option value="atualizacao">Data de atualizacao</option>
+            </select>
+          </label>
+          {!!ativos && (
+            <button type="button" className="raba-link" onClick={limparFiltros}>Limpar filtros</button>
+          )}
+        </div>
+      )}
+
+      {dados.total_exato === false && (
+        <p className="raba-nota">
+          Este filtro não existe na API do Contact2Sale, então é aplicado aqui e as páginas
+          são lidas conforme você avança — por isso o total aparece como
+          “{dados.itens?.length || 0}+”. O período tem{" "}
+          {dados.total_c2s?.toLocaleString("pt-BR")} leads no total.
+        </p>
+      )}
 
       {erro && <p className="raba-estado raba-estado--erro">{erro}</p>}
       {carregando && <p className="raba-estado">Carregando leads…</p>}
@@ -198,35 +338,58 @@ export default function RelatorioLeads({ idSolicitante, equipe, inicio, fim, cor
           <div className="raba-tabela-wrap">
             <table className="raba-tabela">
               <thead>
-                <tr><th>Data</th><th>Cliente</th><th>Telefone</th><th>Imóvel</th><th>Fonte</th><th>Atendimento</th><th>Acompanhamento</th><th /></tr>
+                <tr><th>Data</th><th>Cliente</th><th>Telefone</th><th>Imóvel</th><th>Portal</th><th>Atendimento</th><th>Situação</th><th>Motivo</th><th /></tr>
               </thead>
               <tbody>
                 {dados.itens.map((l) => (
-                  <tr key={l.id}>
-                    <td>{dataBR(l.data)}</td>
-                    <td><strong>{l.cliente || "Sem nome"}</strong></td>
+                  <tr key={l.id_c2s}>
+                    <td>{dataBR(l.criado_em)}</td>
+                    <td>
+                      <strong>{l.cliente || "Sem nome"}</strong>
+                      <span>{l.equipe || ""}</span>
+                    </td>
                     <td>{l.telefone || "—"}</td>
                     <td>{l.codigo_imovel || "—"}</td>
                     <td>{l.fonte || "—"}</td>
-                    <td>{l.atendimento_nome || "—"}</td>
+                    <td>{l.corretor || "—"}</td>
                     <td>
-                      {l.contato_label && <span className="raba-selo">{l.contato_label}</span>}
-                      {l.visita_agendada === true && <span className="raba-selo s-aceita">Visita sim</span>}
-                      {l.visita_agendada === false && <span className="raba-selo s-recusada">Visita não</span>}
-                      {!l.contato_label && l.visita_agendada == null && "—"}
+                      {/* Situação vem do C2S na hora — é o motivo desta aba ter deixado
+                          de ler a base interna, que guarda o status do dia da importação. */}
+                      {l.situacao
+                        ? <span className={`raba-selo ${l.arquivado ? "s-recusada" : ""}`}>{l.situacao}</span>
+                        : "—"}
+                      {l.negocio_fechado && <span className="raba-selo s-aceita">Fechado</span>}
+                      {!l.acompanhamento_em && <span className="raba-selo">Sem acomp.</span>}
                     </td>
-                    <td><button type="button" className="raba-link" onClick={() => abrir(l.id)}>Abrir</button></td>
+                    <td>{l.motivo_arquivamento || "—"}</td>
+                    <td>
+                      {l.id_interno
+                        ? <button type="button" className="raba-link" onClick={() => abrir(l.id_interno)}>Abrir</button>
+                        : <span className="raba-vazio" title="Lead ainda não importado para a base interna">—</span>}
+                    </td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
 
-          {dados.paginas > 1 && (
+          {(dados.tem_mais || dados.page > 1) && (
             <div className="raba-paginacao">
-              <button type="button" disabled={dados.page <= 1} onClick={() => carregar(dados.page - 1)}>← Anterior</button>
-              <span>Página <b>{dados.page}</b> de {dados.paginas}</span>
-              <button type="button" disabled={dados.page >= dados.paginas} onClick={() => carregar(dados.page + 1)}>Próxima →</button>
+              <button
+                type="button"
+                disabled={dados.page <= 1 || !!paginando}
+                onClick={() => irPara(dados.page - 1, "anterior")}
+              >
+                {paginando === "anterior" ? <><span className="ds-spinner" /> Carregando…</> : "← Anterior"}
+              </button>
+              <span>Página <b>{dados.page}</b>{paginas ? ` de ${paginas}` : ""}</span>
+              <button
+                type="button"
+                disabled={!dados.tem_mais || !!paginando}
+                onClick={() => irPara(dados.page + 1, "proxima")}
+              >
+                {paginando === "proxima" ? <><span className="ds-spinner" /> Carregando…</> : "Próxima →"}
+              </button>
             </div>
           )}
         </>
@@ -291,7 +454,7 @@ export default function RelatorioLeads({ idSolicitante, equipe, inicio, fim, cor
               <>
                 <h4 className="raba-subtitulo">Acompanhamento</h4>
                 <div className="raba-form">
-                  <label>Contato
+                  <label>Interação
                     <select
                       value={acomp.contato_status}
                       onChange={(e) => setAcomp((a) => ({ ...a, contato_status: e.target.value }))}

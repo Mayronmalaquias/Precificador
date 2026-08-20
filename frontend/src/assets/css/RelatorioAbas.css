@@ -73,7 +73,14 @@
   border: 1px solid var(--raba-line); background: #fff; color: var(--raba-ink);
   border-radius: 9px; padding: 8px 14px; font: 700 12px var(--ds-font); cursor: pointer;
 }
-.raba-paginacao button:disabled { opacity: .45; cursor: default; }
+/* Sem proxima pagina (ou buscando): cinza de verdade, nao so apagado — o usuario
+   precisa ver que a seta acabou, nao achar que a tela ficou fraca. */
+.raba-paginacao button:disabled {
+  background: #f1f3f5; border-color: #e3e7eb; color: #9aa2b1; cursor: not-allowed;
+}
+.raba-paginacao button { display: inline-flex; align-items: center; gap: 7px; }
+/* O spinner do design-system tem 20px — grande demais para um botao de 12px. */
+.raba-paginacao .ds-spinner { width: 12px; height: 12px; border-width: 2px; }
 .raba-paginacao span { font-size: 11px; color: var(--raba-muted); }
 
 /* ── Modal ───────────────────────────────────────────────────────────────── */
@@ -162,3 +169,22 @@
 }
 .raba-filtro:hover { color: #252b3d; border-color: #cfd4e0; }
 .raba-filtro.is-ativo { background: #fff3e3; border-color: #f0d3a8; color: #a56a15; }
+
+/* ── Painel de filtros da aba de leads (dados vivos do C2S) ──────────────── */
+.raba-filtros {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 11px; margin: 0 0 15px; padding: 14px;
+  background: #fafbfc; border: 1px solid var(--raba-line); border-radius: 11px;
+}
+.raba-filtros label {
+  display: grid; gap: 5px; font-size: 11px; font-weight: 700; color: #4b5563;
+}
+.raba-filtros select {
+  border: 1px solid var(--raba-line); border-radius: 8px; padding: 9px 11px;
+  font: 500 13px var(--ds-font); color: var(--raba-ink); background: #fff; width: 100%;
+}
+.raba-filtros select:focus { outline: 3px solid rgba(225, 0, 91, .12); border-color: #f0a9c4; }
+.raba-filtros > button { align-self: end; justify-self: start; }
+
+/* Lead que ainda nao existe na base interna: sem acao possivel. */
+.raba-vazio { color: #9aa2b1; }

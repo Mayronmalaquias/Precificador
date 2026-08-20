@@ -1,6 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { BASE } from '../services/api';
 import { moedaInput, moedaNumero, moedaDeNumero } from '../services/moeda';
+import { porRotulo } from '../services/ordenar';
+import { descricaoImovel, edificioDe } from '../services/imovelLabel';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import '../assets/css/PropostasEfetivas.css';
@@ -87,7 +89,8 @@ export default function PropostasEfetivas() {
       try {
         const r = await fetch(`${BASE}/propostas/corretores?solicitante_id=${idCorretor}`);
         const d = await r.json();
-        if (r.ok && d.ok) setCorretores(d.itens || []);
+        // Ordenado por nome: o gerente procura a pessoa, nao a ordem do cadastro.
+        if (r.ok && d.ok) setCorretores(porRotulo(d.itens || [], 'nome'));
       } catch { /* silencioso: o campo vira opcional */ }
     })();
   }, [podeEditar, idCorretor]);
@@ -131,7 +134,9 @@ export default function PropostasEfetivas() {
     setForm((f) => ({
       ...f,
       codigo_imovel: String(item.codigo || ''),
-      imovel_endereco: item.endereco || item.titulo || '',
+      // A proposta nao tem coluna de edificio; sem juntar aqui, o nome do predio
+      // (unico jeito de identificar imovel em Aguas Claras) se perderia no lancamento.
+      imovel_endereco: [edificioDe(item), item.endereco || item.titulo || ''].filter(Boolean).join(' — '),
       bairro: item.bairro || '',
       // "S/N" e "n/a" são lixo do Imoview em prédio — não vale preencher com isso.
       numero: /^(s\/n|n\/a)$/i.test(String(item.numero || '').trim()) ? '' : (item.numero || ''),
@@ -400,7 +405,7 @@ export default function PropostasEfetivas() {
                     <li key={i.codigo}><button type="button" onClick={() => escolherImovel(i)}>
                       <strong>#{i.codigo} · {i.tipo || 'Imóvel'}</strong>
                       <span className="pe-imovel-end">
-                        {[i.endereco, i.bloco ? `Bloco ${i.bloco}` : '', i.complemento, i.bairro].filter(Boolean).join(' · ')}
+                        {descricaoImovel(i)}
                       </span>
                       <em>
                         {[i.quartos ? `${i.quartos} quartos` : '', i.vagas ? `${i.vagas} vagas` : '', i.area ? `${i.area} m²` : '', i.valor, i.finalidade].filter(Boolean).join(' · ')}

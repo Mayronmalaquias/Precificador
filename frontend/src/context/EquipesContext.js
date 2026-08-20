@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { fetchEquipes, setEquipesCache } from '../services/equipes';
+import { porRotulo } from '../services/ordenar';
 
 const EquipesContext = createContext(null);
 
@@ -40,9 +41,11 @@ export function EquipesProvider({ children }) {
   // Opções para os selects de atribuição: SÓ ativas (não deixa escolher equipe desativada).
   const equipesOpcoes = useMemo(
     () =>
-      equipes
-        .filter((e) => e.ativo)
-        .map((e) => ({ value: String(e.id_equipe), label: e.nome || String(e.id_equipe) })),
+      porRotulo(
+        equipes
+          .filter((e) => e.ativo)
+          .map((e) => ({ value: String(e.id_equipe), label: e.nome || String(e.id_equipe) })),
+      ),
     [equipes],
   );
 

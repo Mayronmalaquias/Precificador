@@ -3,6 +3,7 @@ import React, { useState, useEffect } from "react";
 import "../assets/css/VisitaForm.css";
 
 import { BASE } from '../services/api';
+import { descricaoImovel, edificioDe, enderecoCompleto } from "../services/imovelLabel";
 import { useToast } from '../context/ToastContext';
 
 // ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ ÃƒÆ’Ã‚Âcones simples (evita dependÃƒÆ’Ã‚Âªncia extra) ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬
@@ -190,22 +191,22 @@ export default function VisitaForm() {
   function setRadio(field, value) {
     return () => setForm(p => ({ ...p, [field]: value }));
   }
-  const montarEnderecoImovel = (item) => {
-    return [
-      item?.endereco,
-      item?.numero,
-      item?.bairro,
-      item?.cidade ? `${item.cidade}${item.uf ? `/${item.uf}` : ""}` : "",
-    ]
-      .filter(Boolean)
-      .join(", ");
-  };
+  // Inclui edificio, bloco e complemento: em bairro de torres (Aguas Claras) o
+  // logradouro sozinho nao identifica o imovel — ver `services/imovelLabel`.
+  const montarEnderecoImovel = (item) => enderecoCompleto(item);
 
   const montarTituloImovel = (item) => {
+    // O nome do predio manda no titulo: e o que o corretor reconhece. O `titulo` do
+    // Imoview e uma frase de anuncio ("Imobiliaria X - Apartamento ... a venda"), que
+    // repete em dezenas de imoveis do mesmo predio.
+    const predio = edificioDe(item);
+    if (predio) {
+      const complemento = String(item?.complemento || "").trim();
+      return complemento ? `${predio} — ${complemento}` : predio;
+    }
     const titulo = String(item?.titulo || "").trim();
     if (titulo) return titulo;
-    const endereco = montarEnderecoImovel(item);
-    return endereco || "Imovel encontrado";
+    return montarEnderecoImovel(item) || "Imovel encontrado";
   };
 
   const selecionarImovel = (item) => {
@@ -564,7 +565,9 @@ export default function VisitaForm() {
                         {it.finalidade && <span className="vf-sugestao-finalidade">{it.finalidade}</span>}
                       </div>
                       <div className="vf-sugestao-title">{montarTituloImovel(it)}</div>
-                      <div className="vf-sugestao-sub">{montarEnderecoImovel(it) || "Endereco nao informado"}</div>
+                      {/* Sublinha sem cidade/UF: todo imovel e de Brasilia, entao
+                          repetir isso empurra o que distingue para fora da tela. */}
+                      <div className="vf-sugestao-sub">{descricaoImovel(it) || "Endereco nao informado"}</div>
                     </button>
                   ))}
                 </div>
