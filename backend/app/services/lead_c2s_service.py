@@ -30,10 +30,16 @@ equipe, corretor, etapa do funil, motivo do arquivamento e busca livre.
 A pagina da tela e a pagina da API (as duas com 50), entao sem filtro local a resposta
 sai de UMA requisicao e o total vem de `meta.total`.
 
-Com filtro local, as paginas sao puxadas sob demanda — para so ate juntar a pagina
-pedida, em vez de varrer o periodo inteiro. O total so e afirmado quando a janela acaba;
-enquanto houver mais, a resposta diz `tem_mais` e a tela mostra "50+" em vez de inventar
-um numero.
+Com filtro local nao ha atalho: a API nao filtra por equipe, corretor, portal nem motivo
+(testado — ela ignora esses parametros e devolve a lista inteira), entao a janela e
+varrida do inicio ao fim. Um mes tem ~39 paginas e o teto e de 10 requisicoes por minuto,
+entao a primeira consulta filtrada leva alguns minutos. Tres coisas amortecem isso:
+
+  1. `status` vai para a API quando o filtro permite (arquivado, em negociacao, motivo
+     preenchido) — isso sozinho corta agosto de 39 para ~16 paginas;
+  2. as chamadas sao espacadas para nao bater no 429, que custa 65 s cada vez;
+  3. as paginas cruas ficam 15 min em cache, entao so a PRIMEIRA consulta do periodo
+     paga a varredura — trocar filtro ou pagina depois disso e instantaneo.
 """
 import os
 import time
@@ -53,9 +59,23 @@ C2S_LEADS_URL = "https://api.contact2sale.com/integration/leads"
 PERFIS_GLOBAIS = {"administrador", "administrativo", "diretor", "inteligencia"}
 
 PER_PAGE_API = 50           # teto da API: acima disso responde 403
-MAX_PAGINAS_BUSCA = 12      # so quando ha filtro local; para assim que a pagina enche
-CACHE_SEGUNDOS = 180
-TIMEOUT = 45
+
+# Teto de seguranca, nao de precisao: com filtro local a varredura vai ate o fim da
+# janela. Existia um teto de 12 paginas que cortava a contagem em silencio — LOTUS +
+# motivo "Duplicado" em agosto devolvia 3 de 12 porque so via 600 dos 1.922 leads.
+MAX_PAGINAS_BUSCA = 200
+
+# A janela varrida fica em cache por 15 min. E o que torna a escolha viavel: a primeira
+# consulta do periodo paga a varredura, e trocar de filtro ou de pagina depois disso nao
+# volta na API.
+CACHE_SEGUNDOS = 900
+TIMEOUT = 120               # a API leva 5-10 s por pagina e piora nas profundas
+
+# A API permite 10 requisicoes por minuto. Bater no 429 custa 65 s de espera; espacar
+# 6,2 s entre chamadas evita o teto e corta quase pela metade a varredura de um mes
+# (~240 s espacando, contra ~455 s levando 429 a cada 10 paginas).
+INTERVALO_ENTRE_CHAMADAS = 6.2
+_ultima_chamada = 0.0
 
 # `status` da API <-> `lead_status.name` que vem no lead. Empurrar isto para a API evita
 # varrer a janela: e o filtro mais usado (arquivado/em negociacao).
@@ -132,12 +152,20 @@ def _pagina(campo_data: str, inicio: str, fim: str, page: int,
     if status:
         params["status"] = status
 
+    global _ultima_chamada
     for _ in range(3):
-        r = requests.get(
-            C2S_LEADS_URL,
-            headers={"Authorization": _token(), "Content-Type": "application/json"},
-            params=params, timeout=TIMEOUT,
-        )
+        espera = INTERVALO_ENTRE_CHAMADAS - (time.monotonic() - _ultima_chamada)
+        if espera > 0:
+            time.sleep(espera)
+        _ultima_chamada = time.monotonic()
+        try:
+            r = requests.get(
+                C2S_LEADS_URL,
+                headers={"Authorization": _token(), "Content-Type": "application/json"},
+                params=params, timeout=TIMEOUT,
+            )
+        except requests.Timeout:
+            continue
         if r.status_code == 429:
             # Teto de 10 req/min. Espera a janela virar e repete a mesma pagina.
             time.sleep(65)
@@ -164,6 +192,10 @@ def _status_da_api(filtros: Dict[str, str]) -> str:
     if situacao and situacao in STATUS_API:
         return STATUS_API[situacao]
     if _norm(filtros.get("arquivado")) in {"sim", "1", "true"}:
+        return "arquivado"
+    # Motivo de arquivamento so existe em lead arquivado, entao filtrar por ele ja
+    # restringe o status. Isso corta a varredura de agosto de 39 para ~16 paginas.
+    if _texto(filtros.get("motivo")) or _texto(filtros.get("com_motivo")):
         return "arquivado"
     return ""
 
@@ -424,7 +456,6 @@ def listar(solicitante_id, inicio, fim, page=1, per_page=PER_PAGE_API,
 
         # Com filtro local: puxa pagina a pagina e PARA quando a pagina pedida encheu.
         # Nao varre o periodo inteiro — o custo acompanha o que a tela vai mostrar.
-        precisa = page * per_page
         casados: List[Dict[str, Any]] = []
         vistos: List[Dict[str, Any]] = []
         total_c2s = 0
@@ -441,8 +472,6 @@ def listar(solicitante_id, inicio, fim, page=1, per_page=PER_PAGE_API,
             casados.extend(x for x in lote if _passa(x, filtros, escopo))
             if len(alvo["data"]) < PER_PAGE_API:
                 acabou = True
-                break
-            if len(casados) > precisa:   # ">" e nao ">=": sobra 1 para saber se ha proxima
                 break
 
         corte = (page - 1) * per_page

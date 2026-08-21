@@ -28,7 +28,7 @@ const VAZIO = {
   bloco: '', complemento: '', quartos: '', vagas: '', area: '',
   valor: '', forma_pagamento: '', valor_permuta: '', descricao_permuta: '',
   situacao: 'em_analise', cliente: '', observacao: '', data_proposta: '',
-  id_corretor: '', id_visita: '',
+  id_corretor: '', id_visita: '', id_gerente: '',
 };
 
 const moeda = (v) => (v == null ? '—' : Number(v).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }));
@@ -58,6 +58,8 @@ export default function PropostasEfetivas() {
   const [imoveis, setImoveis] = useState([]);
   const [buscandoImovel, setBuscandoImovel] = useState(false);
   const [corretores, setCorretores] = useState([]);
+  // So chega preenchido p/ perfil global; gerente lanca sempre no proprio nome.
+  const [gerentes, setGerentes] = useState([]);
   const [visitas, setVisitas] = useState([]);
   const [buscandoVisita, setBuscandoVisita] = useState(false);
 
@@ -90,7 +92,10 @@ export default function PropostasEfetivas() {
         const r = await fetch(`${BASE}/propostas/corretores?solicitante_id=${idCorretor}`);
         const d = await r.json();
         // Ordenado por nome: o gerente procura a pessoa, nao a ordem do cadastro.
-        if (r.ok && d.ok) setCorretores(porRotulo(d.itens || [], 'nome'));
+        if (r.ok && d.ok) {
+          setCorretores(porRotulo(d.itens || [], 'nome'));
+          setGerentes(porRotulo(d.gerentes || [], 'nome'));
+        }
       } catch { /* silencioso: o campo vira opcional */ }
     })();
   }, [podeEditar, idCorretor]);
@@ -166,6 +171,7 @@ export default function PropostasEfetivas() {
       cliente: item.cliente || '', observacao: item.observacao || '',
       data_proposta: item.data_proposta || '',
       id_corretor: item.id_corretor || '', id_visita: item.id_visita || '',
+      id_gerente: item.id_gerente || '',
     });
     setEditandoId(item.id);
     setVisitas([]);
@@ -443,6 +449,22 @@ export default function PropostasEfetivas() {
             </div>
 
             <div className="pe-grid">
+              {/* Só aparece para diretor/administrador — o servidor devolve a lista vazia
+                  para gerente, que lança sempre no próprio nome. */}
+              {!!gerentes.length && (
+                <label className="span2">Gerente responsável pela proposta
+                  <select value={form.id_gerente} onChange={set('id_gerente')}>
+                    <option value="">Eu mesmo</option>
+                    {gerentes.map((g) => (
+                      <option key={g.id} value={g.id}>{g.nome}{g.team ? ` · ${g.team}` : ''}</option>
+                    ))}
+                  </select>
+                  <small className="pe-hint">
+                    Define de quem é a proposta nos relatórios. Escolher o corretor abaixo
+                    sobrescreve a equipe pela dele.
+                  </small>
+                </label>
+              )}
               <label className="span2">Lançar no nome de (corretor)
                 <select value={form.id_corretor} onChange={(e) => { setForm((f) => ({ ...f, id_corretor: e.target.value, id_visita: '' })); setVisitas([]); }}>
                   <option value="">Sem corretor definido</option>

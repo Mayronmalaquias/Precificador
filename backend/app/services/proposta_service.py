@@ -3,17 +3,18 @@
 Regras de acesso (o solicitante vem do banco, nunca do que a tela mandou):
 - gerente ......... ve e edita SO as propostas da propria equipe; lanca no nome de
                     corretor da propria equipe;
-- administrativo .. ve e edita todas (permissao 'administrativo' ou team 'administrativo');
-                    lanca no nome de qualquer corretor;
+- administrativo .. ve e edita todas (permissao 'administrativo'/'administrador' ou team
+                    'administrativo'); lanca no nome de qualquer corretor E escolhe o
+                    gerente dono da proposta;
 - diretor ......... mesmo alcance do administrativo (pedido em 07/08/2026 — antes era
-                    so leitura);
+                    so leitura), inclusive escolher o gerente;
 - assistente ...... ve todas, nao edita (perfil usado p/ o estagiario acompanhar).
 """
 from datetime import date, datetime, timezone
 from decimal import Decimal, InvalidOperation
 from zoneinfo import ZoneInfo
 
-from sqlalchemy import or_
+from sqlalchemy import func, or_
 
 from app.database import SessionLocal
 from app.models.proposta_efetiva import (
@@ -117,7 +118,12 @@ def escopo_do_solicitante(solicitante_id):
 
     permissao = _texto(user.permissao).lower()
     team = _texto(user.team)
-    administrativo = permissao == "administrativo" or team.lower() == "administrativo"
+    # `administrador` estava de fora: 4 dos 7 usuarios com esse papel (Douglas, Miguel,
+    # Financeiro, Anna/ADM004) recebiam 403 na tela inteira de propostas — so passavam
+    # os que por acaso tinham `team = administrativo`.
+    administrativo = (
+        permissao in {"administrativo", "administrador"} or team.lower() == "administrativo"
+    )
 
     if administrativo or permissao == "diretor":
         return {"ve_tudo": True, "edita": True, "team": None, "user": user}
@@ -141,14 +147,36 @@ def corretores_disponiveis(solicitante_id):
         if not escopo["ve_tudo"]:
             query = query.filter(Usuarios.team == escopo["team"])
         rows = query.order_by(Usuarios.nome).all()
+        itens = [{
+            "id": u.id_usuarios,
+            "nome": u.nome or u.username or u.id_usuarios,
+            "team": u.team,
+            "permissao": _texto(u.permissao).lower(),
+        } for u in rows if u.id_usuarios]
+        # Gerentes em nome de quem da p/ lancar. So faz sentido para perfil global —
+        # gerente lanca no proprio nome, e a lista vazia esconde o campo na tela.
+        gerentes = []
+        if escopo["ve_tudo"]:
+            gerentes = [
+                {"id": u.id_usuarios,
+                 "nome": u.nome or u.username or u.id_usuarios,
+                 "team": u.team}
+                for u in session.query(Usuarios).filter(
+                    Usuarios.ativo.is_(True),
+                    func.lower(Usuarios.permissao) == "gerente",
+                ).order_by(Usuarios.nome).all()
+                if u.id_usuarios
+            ]
         return {
             "ok": True,
-            "itens": [{
-                "id": u.id_usuarios,
-                "nome": u.nome or u.username or u.id_usuarios,
-                "team": u.team,
-                "permissao": _texto(u.permissao).lower(),
-            } for u in rows if u.id_usuarios],
+            "itens": itens,
+            "gerentes": gerentes,
+            # Quem esta pedindo — a tela usa p/ marcar o gerente atual como padrao.
+            "solicitante": {
+                "id": escopo["user"].id_usuarios,
+                "nome": _texto(escopo["user"].nome or escopo["user"].username),
+                "ve_tudo": escopo["ve_tudo"],
+            },
         }
     finally:
         session.close()
@@ -243,6 +271,31 @@ def _resolver_visita(session, escopo, id_visita, team_proposta):
     if team_proposta and team_visita and team_visita != team_proposta:
         raise PropostaErro("A visita é de outra equipe que não a da proposta")
     return visita.id_visita
+
+
+def _resolver_gerente(session, escopo, id_gerente):
+    """Gerente em nome de quem a proposta e lancada. Devolve (id, nome, team).
+
+    So perfil global (diretor/administrador/administrativo) escolhe outro; gerente lanca
+    sempre no proprio nome. O nome e a equipe saem do CADASTRO — antes `gerente_nome`
+    era gravado exatamente como a tela mandasse, sem conferencia.
+    """
+    user = escopo["user"]
+    pedido = _texto(id_gerente)
+    if not pedido or pedido == _texto(user.id_usuarios):
+        return (_texto(user.id_usuarios),
+                _texto(user.nome or user.username),
+                _texto(user.team))
+    if not escopo["ve_tudo"]:
+        raise PropostaErro("Você só pode lançar proposta no seu próprio nome", 403)
+    gerente = session.query(Usuarios).filter(
+        Usuarios.id_usuarios == pedido, Usuarios.ativo.is_(True)
+    ).first()
+    if not gerente:
+        raise PropostaErro("Gerente não encontrado")
+    return (gerente.id_usuarios,
+            _texto(gerente.nome or gerente.username),
+            _texto(gerente.team))
 
 
 def _pode_mexer(escopo, proposta):
@@ -482,7 +535,12 @@ def criar(solicitante_id, dados):
         # Lançar "no nome de" alguém: a equipe da proposta passa a ser a do corretor
         # escolhido, não a de quem está lançando.
         id_corretor = corretor_nome = None
-        team = _texto(dados.get("team")) or escopo["team"] or _texto(user.team) or None
+        # O gerente escolhido define a equipe quando nao ha corretor: sem isso, a
+        # proposta que o diretor lanca para a SENNA nascia sem equipe (ou na dele).
+        id_gerente, gerente_nome, team_gerente = _resolver_gerente(
+            session, escopo, dados.get("id_gerente"))
+        team = (_texto(dados.get("team")) or team_gerente or escopo["team"]
+                or _texto(user.team) or None)
         if _texto(dados.get("id_corretor")):
             id_corretor, corretor_nome, team_corretor = _resolver_corretor(session, escopo, dados.get("id_corretor"))
             team = team_corretor or team
@@ -505,8 +563,8 @@ def criar(solicitante_id, dados):
             forma_pagamento=forma,
             situacao=situacao or "em_analise",
             team=team,
-            id_gerente=_texto(dados.get("id_gerente")) or _texto(user.id_usuarios),
-            gerente_nome=_texto(dados.get("gerente_nome")) or _texto(user.nome or user.username),
+            id_gerente=id_gerente,
+            gerente_nome=gerente_nome,
             id_corretor=id_corretor,
             corretor_nome=corretor_nome,
             id_visita=id_visita,

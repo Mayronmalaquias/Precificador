@@ -322,15 +322,23 @@ export default function RelatorioLeads({ idSolicitante, equipe, inicio, fim, cor
 
       {dados.total_exato === false && (
         <p className="raba-nota">
-          Este filtro não existe na API do Contact2Sale, então é aplicado aqui e as páginas
-          são lidas conforme você avança — por isso o total aparece como
-          “{dados.itens?.length || 0}+”. O período tem{" "}
-          {dados.total_c2s?.toLocaleString("pt-BR")} leads no total.
+          O período é grande demais para varrer inteiro ({dados.total_c2s?.toLocaleString("pt-BR")}{" "}
+          leads) e a leitura parou no limite de segurança, então o total está incompleto.
+          Estreite o período.
         </p>
       )}
 
       {erro && <p className="raba-estado raba-estado--erro">{erro}</p>}
-      {carregando && <p className="raba-estado">Carregando leads…</p>}
+      {carregando && (
+        <p className="raba-estado">
+          {ativos
+            /* A API do C2S nao filtra por equipe, portal nem motivo: o servidor varre o
+               periodo para contar certo. So a primeira consulta paga isso — o resultado
+               fica 15 min em cache. */
+            ? "Aplicando o filtro no período inteiro… a primeira consulta pode levar alguns minutos; as seguintes são imediatas."
+            : "Carregando leads…"}
+        </p>
+      )}
       {!carregando && !dados.itens.length && !erro && <p className="raba-estado">Nenhum lead encontrado.</p>}
 
       {!!dados.itens.length && (
