@@ -24,6 +24,7 @@ from app.models.proposta_efetiva import (
     PropostaEfetiva,
     PropostaEfetivaAcao,
 )
+from app.models.equipe import Equipe
 from app.models.usuarios import Usuarios
 from app.models.visita import ClienteVisita, Visita
 
@@ -155,15 +156,26 @@ def corretores_disponiveis(solicitante_id):
         } for u in rows if u.id_usuarios]
         # Gerentes em nome de quem da p/ lancar. So faz sentido para perfil global —
         # gerente lanca no proprio nome, e a lista vazia esconde o campo na tela.
+        #
+        # Quem entra: permissao 'gerente' OU quem ENCABECA uma equipe, ou seja, cujo
+        # `id_usuarios` e o proprio `id_equipe`. A segunda metade existe por causa do
+        # Jose Marques: ele e `diretor`, mas G61001 e o id da AGEF, entao a equipe dele
+        # ficava sem gerente selecionavel. So a permissao nao bastava.
         gerentes = []
         if escopo["ve_tudo"]:
+            equipes = session.query(Equipe.id_equipe).filter(
+                Equipe.id_equipe.isnot(None)
+            ).subquery()
             gerentes = [
                 {"id": u.id_usuarios,
                  "nome": u.nome or u.username or u.id_usuarios,
                  "team": u.team}
                 for u in session.query(Usuarios).filter(
                     Usuarios.ativo.is_(True),
-                    func.lower(Usuarios.permissao) == "gerente",
+                    or_(
+                        func.lower(Usuarios.permissao) == "gerente",
+                        Usuarios.id_usuarios.in_(session.query(equipes.c.id_equipe)),
+                    ),
                 ).order_by(Usuarios.nome).all()
                 if u.id_usuarios
             ]
