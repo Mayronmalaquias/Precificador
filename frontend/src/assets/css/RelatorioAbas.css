@@ -188,3 +188,16 @@
 
 /* Lead que ainda nao existe na base interna: sem acao possivel. */
 .raba-vazio { color: #9aa2b1; }
+
+/* Filtro alterado e ainda nao aplicado: o botao chama a acao em vez de esperar que o
+   usuario adivinhe que nada aconteceu ao mexer no select. */
+.raba-cta--pendente {
+  animation: raba-pulsa 1.6s ease-in-out infinite;
+}
+@keyframes raba-pulsa {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(225, 0, 91, .35); }
+  50%      { box-shadow: 0 0 0 5px rgba(225, 0, 91, 0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .raba-cta--pendente { animation: none; outline: 2px solid rgba(225, 0, 91, .45); outline-offset: 2px; }
+}

@@ -17,6 +17,11 @@ const CANAIS = [
 ];
 const NEGOCIACOES = ["Comprar", "Alugar", "Lançamento"];
 
+const FILTROS_VAZIOS = {
+  situacao: "", fonte: "", canal: "", funil: "", motivo: "",
+  arquivado: "", fechado: "", por: "criacao",
+};
+
 const FORM_VAZIO = {
   nome: "", telefone: "", email: "", codigo_imovel: "", descricao: "",
   negociacao: "Comprar", canal: "telefone", cidade: "", bairro: "",
@@ -38,10 +43,12 @@ export default function RelatorioLeads({ idSolicitante, equipe, inicio, fim, cor
   const [soNaoVistos, setSoNaoVistos] = useState(false);
   // Filtros sobre os campos que vem do C2S. A API deles so honra janela de data e
   // paginacao, entao o servidor aplica estes por cima do que a API devolveu.
-  const [filtros, setFiltros] = useState({
-    situacao: "", fonte: "", canal: "", funil: "", motivo: "",
-    arquivado: "", fechado: "", por: "criacao",
-  });
+  // `filtros` e o RASCUNHO (o que esta nos selects); `filtrosAtivos` e o que foi
+  // efetivamente buscado. Sem essa separacao, cada clique num select disparava uma
+  // varredura de minutos no periodo inteiro.
+  const [filtros, setFiltros] = useState(FILTROS_VAZIOS);
+  const [filtrosAtivos, setFiltrosAtivos] = useState(FILTROS_VAZIOS);
+  const [buscaAtiva, setBuscaAtiva] = useState("");
   const [maisFiltros, setMaisFiltros] = useState(false);
   const [detalhe, setDetalhe] = useState(null);
   const [criando, setCriando] = useState(false);
@@ -55,17 +62,52 @@ export default function RelatorioLeads({ idSolicitante, equipe, inicio, fim, cor
   // Qual seta esta buscando: so ela mostra "Carregando", as duas ficam travadas.
   const [paginando, setPaginando] = useState(null);
 
-  // A API do C2S responde em ~5s. Duas consequencias tratadas aqui:
-  //  - a resposta de um filtro antigo chegava DEPOIS da nova e sobrescrevia a tabela
-  //    (parecia que o filtro nao pegava). `pedidoRef` descarta resposta fora de ordem e
-  //    o AbortController corta a requisicao que nao interessa mais;
-  //  - mexer em varios filtros disparava uma requisicao lenta por clique. O efeito
-  //    abaixo espera o usuario parar antes de ir ao servidor.
+  // A API do C2S responde em ~5s e nao filtra por equipe/portal/motivo, entao consulta
+  // filtrada varre o periodo e leva minutos. Tres decisoes decorrem disso:
+  //
+  //  1. filtro e RASCUNHO: mexer nos selects nao dispara nada. So o botao Buscar
+  //     promove o rascunho a `filtrosAtivos`, que e o que a requisicao usa. Antes cada
+  //     clique num select disparava uma varredura;
+  //  2. resultado fica em cache por combinacao exata de parametros — repetir uma busca
+  //     ja feita nao volta ao servidor;
+  //  3. resposta fora de ordem e descartada (`pedidoRef`): com requisicoes de minutos,
+  //     a antiga chegava depois da nova e sobrescrevia a tabela.
   const abortRef = useRef(null);
   const pedidoRef = useRef(0);
+  const cacheRef = useRef(new Map());
 
-  const carregar = useCallback(async (pagina = 1, termo = busca) => {
+  const montarParams = useCallback((pagina, termo, ativos) => {
+    const params = new URLSearchParams({
+      solicitante_id: idSolicitante, page: pagina, per_page: 50,
+    });
+    // Idem propostas: recorte do dropdown, ignorado pelo servidor p/ quem nao e global.
+    if (equipe) params.set("equipe", equipe);
+    // O periodo e o mesmo do filtro do relatorio: sem ele a aba trazia a base inteira.
+    if (inicio) params.set("inicio", inicio);
+    if (fim) params.set("fim", fim);
+    if (soNaoVistos) params.set("sem_acompanhamento", "1");
+    // Filtro de corretor do topo do relatorio.
+    if (corretor) params.set("corretor", corretor);
+    if ((termo || "").trim()) params.set("busca", termo.trim());
+    // Só o que está preenchido vai na URL — filtro vazio não vira parâmetro.
+    Object.entries(ativos).forEach(([k, v]) => { if (v) params.set(k, v); });
+    return params;
+  }, [idSolicitante, equipe, inicio, fim, soNaoVistos, corretor]);
+
+  const carregar = useCallback(async (pagina = 1, termo = buscaAtiva, ativos = filtrosAtivos) => {
     if (!idSolicitante) return;
+    const params = montarParams(pagina, termo, ativos);
+    const chave = params.toString();
+
+    // Cache por combinação exata: voltar a uma busca já feita é instantâneo.
+    const guardado = cacheRef.current.get(chave);
+    if (guardado) {
+      setDados(guardado);
+      setErro("");
+      setCarregando(false);
+      return;
+    }
+
     const meu = ++pedidoRef.current;
     if (abortRef.current) abortRef.current.abort();
     const controle = new AbortController();
@@ -74,23 +116,11 @@ export default function RelatorioLeads({ idSolicitante, equipe, inicio, fim, cor
     setCarregando(true);
     setErro("");
     try {
-      const params = new URLSearchParams({
-        solicitante_id: idSolicitante, page: pagina, per_page: 50,
-      });
-      // Idem propostas: recorte do dropdown, ignorado pelo servidor p/ quem nao e global.
-      if (equipe) params.set("equipe", equipe);
-      // O periodo e o mesmo do filtro do relatorio: sem ele a aba trazia a base inteira.
-      if (inicio) params.set("inicio", inicio);
-      if (fim) params.set("fim", fim);
-      if (soNaoVistos) params.set("sem_acompanhamento", "1");
-      // Filtro de corretor do topo do relatorio.
-      if (corretor) params.set("corretor", corretor);
-      if ((termo || "").trim()) params.set("busca", termo.trim());
-      Object.entries(filtros).forEach(([k, v]) => { if (v) params.set(k, v); });
-      const r = await fetch(`${BASE}/leads/c2s?${params.toString()}`, { signal: controle.signal });
+      const r = await fetch(`${BASE}/leads/c2s?${chave}`, { signal: controle.signal });
       const d = await r.json();
       if (meu !== pedidoRef.current) return;   // chegou tarde: ja ha pedido mais novo
       if (!r.ok || d.ok === false) throw new Error(d.error || "Erro ao carregar leads");
+      cacheRef.current.set(chave, d);
       setDados(d);
     } catch (e) {
       if (e.name === "AbortError") return;
@@ -98,16 +128,24 @@ export default function RelatorioLeads({ idSolicitante, equipe, inicio, fim, cor
     } finally {
       if (meu === pedidoRef.current) setCarregando(false);
     }
-  }, [idSolicitante, busca, equipe, inicio, fim, soNaoVistos, corretor, filtros]);
+  }, [idSolicitante, buscaAtiva, filtrosAtivos, montarParams]);
 
-  // Chave estavel: `filtros` e objeto novo a cada clique, e comparar por referencia
-  // fazia o efeito disparar mesmo quando nada tinha mudado de fato.
-  const chaveFiltros = JSON.stringify(filtros);
+  // Chave estavel do que foi aplicado: `filtrosAtivos` e objeto novo a cada aplicacao e
+  // comparar por referencia dispararia o efeito sem nada ter mudado.
+  const chaveAtivos = JSON.stringify(filtrosAtivos);
 
-  useEffect(() => {
-    const t = setTimeout(() => carregar(1), 500);
-    return () => clearTimeout(t);
-  }, [idSolicitante, equipe, inicio, fim, soNaoVistos, corretor, chaveFiltros]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Recarrega quando muda o CONTEXTO do relatório (período, equipe, corretor) ou quando
+  // o usuário aplica o filtro. Mexer nos selects não entra aqui de propósito.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { carregar(1); }, [
+    idSolicitante, equipe, inicio, fim, soNaoVistos, corretor, chaveAtivos, buscaAtiva,
+  ]);
+
+  // Aplicar = promover o rascunho. O período muda, então o cache antigo não serve.
+  const aplicarFiltros = () => {
+    setFiltrosAtivos(filtros);
+    setBuscaAtiva(busca);
+  };
 
   const abrir = async (id) => {
     setDetalhe({ id });
@@ -210,10 +248,10 @@ export default function RelatorioLeads({ idSolicitante, equipe, inicio, fim, cor
   // "por" tem valor padrao, entao nao conta como filtro ativo.
   const ativos = Object.entries(filtros)
     .filter(([k, v]) => v && !(k === "por" && v === "criacao")).length;
-  const limparFiltros = () => setFiltros({
-    situacao: "", fonte: "", canal: "", funil: "", motivo: "",
-    arquivado: "", fechado: "", por: "criacao",
-  });
+  const limparFiltros = () => setFiltros(FILTROS_VAZIOS);
+  // Rascunho diferente do que esta na tela: o botao avisa que ha o que aplicar.
+  const pendente = JSON.stringify(filtros) !== JSON.stringify(filtrosAtivos)
+    || busca.trim() !== buscaAtiva.trim();
   // Com filtro local o total pode ser desconhecido, entao a navegacao usa `tem_mais`
   // em vez de um numero de paginas que seria chute.
   const paginas = dados.total == null
@@ -227,9 +265,16 @@ export default function RelatorioLeads({ idSolicitante, equipe, inicio, fim, cor
           placeholder="Buscar por cliente, telefone, código do imóvel ou fonte"
           value={busca}
           onChange={(e) => setBusca(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && carregar(1)}
+          onKeyDown={(e) => e.key === "Enter" && aplicarFiltros()}
         />
-        <button type="button" className="raba-cta" onClick={() => carregar(1)}>Buscar</button>
+        <button
+          type="button"
+          className={`raba-cta ${pendente ? "raba-cta--pendente" : ""}`}
+          onClick={aplicarFiltros}
+          disabled={carregando}
+        >
+          {carregando ? "Buscando…" : pendente ? "Buscar (filtros alterados)" : "Buscar"}
+        </button>
         <button
           type="button"
           className={`raba-filtro ${soNaoVistos ? "is-ativo" : ""}`}
