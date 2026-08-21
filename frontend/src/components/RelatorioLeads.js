@@ -36,7 +36,10 @@ const FORM_VAZIO = {
 export default function RelatorioLeads({ idSolicitante, equipe, inicio, fim, corretor }) {
   const toast = useToast();
   const [dados, setDados] = useState({ itens: [], total: 0, page: 1, paginas: 1 });
-  const [carregando, setCarregando] = useState(true);
+  // Comeca em `false`: a aba nao busca ao abrir, entao nascer "carregando" mostrava
+  // "Buscando…" e "Carregando leads…" sem nenhuma requisicao em curso — e escondia
+  // o convite para clicar em Buscar, que so aparece quando nao esta carregando.
+  const [carregando, setCarregando] = useState(false);
   const [erro, setErro] = useState("");
   const [busca, setBusca] = useState("");
   // Leads sem acompanhamento: o mesmo recorte do aviso do topo.
