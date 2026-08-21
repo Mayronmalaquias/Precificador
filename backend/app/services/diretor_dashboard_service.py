@@ -20,7 +20,7 @@ from app.models.estoque_legado import LeadLegado
 from app.models.fato_bases import FatoCaptacao
 from app.models.gerente_visita_visualizada import GerenteVisitaVisualizada
 from app.models.imovel_area import ImovelArea
-from app.models.legado_diversos import CampanhaLegado
+from app.models.legado_diversos import CampanhaLegado, ImovelLegado
 from app.models.proposta_efetiva import PropostaEfetiva
 from app.models.usuarios import Usuarios
 from app.models.visita import Visita, VisitaCliente
@@ -439,7 +439,51 @@ def _escopo_por_captacao(session, query, coluna_codigo, selected_team, selected_
     )
 
 
-def _numeros_de_estoque(session, start, end, selected_team=None, selected_broker=None):
+def _mapa_foco_imoveis(session):
+    """Flags PP/AC por codigo: Dim_Imovel primeiro, snapshot da captacao como fallback."""
+    mapa = {}
+    for codigo, foco_pp, foco_ac in session.query(
+        ImovelLegado.codigo, ImovelLegado.foco_pp, ImovelLegado.foco_ac
+    ).all():
+        codigo = str(codigo or "").strip()
+        if not codigo:
+            continue
+        anterior_pp, anterior_ac = mapa.get(codigo, (False, False))
+        mapa[codigo] = (anterior_pp or bool(foco_pp), anterior_ac or bool(foco_ac))
+    codigos_dimensao = set(mapa)
+    for codigo, foco_pp, foco_ac in session.query(
+        FatoCaptacao.codigo_imovel, FatoCaptacao.foco_pp, FatoCaptacao.foco_ac
+    ).filter(or_(FatoCaptacao.foco_pp.isnot(None), FatoCaptacao.foco_ac.isnot(None))).all():
+        codigo = str(codigo or "").strip()
+        if not codigo or codigo in codigos_dimensao:
+            continue
+        anterior_pp, anterior_ac = mapa.get(codigo, (False, False))
+        mapa[codigo] = (anterior_pp or bool(foco_pp), anterior_ac or bool(foco_ac))
+    return mapa
+
+
+def _contagem_foco(codigos, foco_por_codigo):
+    """Conta codigos distintos nas quatro classes comerciais e os sem informacao."""
+    unicos = {str(codigo or "").strip() for codigo in codigos if str(codigo or "").strip()}
+    classificacoes = [foco_por_codigo.get(codigo) for codigo in unicos]
+    pp = sum(item == (True, False) for item in classificacoes)
+    ac = sum(item == (False, True) for item in classificacoes)
+    pp_ac = sum(item == (True, True) for item in classificacoes)
+    nao_foco = sum(item == (False, False) for item in classificacoes)
+    sem_classificacao = sum(item is None for item in classificacoes)
+    return {
+        "foco": pp + ac + pp_ac,
+        "foco_pp": pp,
+        "foco_ac": ac,
+        "foco_pp_ac": pp_ac,
+        "nao_foco": nao_foco,
+        "sem_classificacao": sem_classificacao,
+    }
+
+
+def _numeros_de_estoque(
+    session, start, end, selected_team=None, selected_broker=None, foco_por_codigo=None
+):
     """Captações, saídas e estoque de um recorte. Só imóvel de VENDA.
 
     - **Estoque** = situação *Vago/Disponível* agora (saldo, sem recorte de período);
@@ -454,7 +498,9 @@ def _numeros_de_estoque(session, start, end, selected_team=None, selected_broker
     inicio = datetime.combine(start, datetime.min.time())
     fim = datetime.combine(end, datetime.max.time())
 
-    entradas_query = session.query(func.count(func.distinct(FatoCaptacao.codigo_imovel))).filter(
+    entradas_query = session.query(
+        FatoCaptacao.codigo_imovel, FatoCaptacao.foco_pp, FatoCaptacao.foco_ac
+    ).filter(
         FatoCaptacao.data_entrada >= start, FatoCaptacao.data_entrada <= end,
         FatoCaptacao.codigo_imovel.isnot(None),
         # Locação fora: a captação não sabe a finalidade, quem sabe é o catálogo.
@@ -472,19 +518,50 @@ def _numeros_de_estoque(session, start, end, selected_team=None, selected_broker
         entradas_query = entradas_query.join(
             Usuarios, Usuarios.id_usuarios == FatoCaptacao.captador1
         ).filter(Usuarios.team == selected_team)
-    entradas = entradas_query.scalar() or 0
+    # O foco vem primeiro da Dim_Imovel (`imoveis_legado`), que e a fonte oficial.
+    # O snapshot da captacao so cobre lancamentos ainda ausentes da dimensao.
+    foco_por_codigo = foco_por_codigo if foco_por_codigo is not None else _mapa_foco_imoveis(session)
+    entradas_por_codigo = {}
+    for codigo, foco_pp, foco_ac in entradas_query.all():
+        codigo = str(codigo or "").strip()
+        if not codigo:
+            continue
+        if codigo in foco_por_codigo:
+            classificacao = foco_por_codigo[codigo]
+        elif foco_pp is not None or foco_ac is not None:
+            classificacao = (bool(foco_pp), bool(foco_ac))
+        else:
+            classificacao = None
+        anterior = entradas_por_codigo.get(codigo)
+        if anterior is not None and classificacao is not None:
+            classificacao = (
+                anterior[0] or classificacao[0], anterior[1] or classificacao[1]
+            )
+        if anterior is None or classificacao is not None:
+            entradas_por_codigo[codigo] = classificacao
+
+    entradas = len(entradas_por_codigo)
+    entradas_foco_pp = sum(item == (True, False) for item in entradas_por_codigo.values())
+    entradas_foco_ac = sum(item == (False, True) for item in entradas_por_codigo.values())
+    entradas_foco_pp_ac = sum(item == (True, True) for item in entradas_por_codigo.values())
+    entradas_foco = entradas_foco_pp + entradas_foco_ac + entradas_foco_pp_ac
+    entradas_nao_foco = sum(item == (False, False) for item in entradas_por_codigo.values())
+    entradas_sem_classificacao = sum(item is None for item in entradas_por_codigo.values())
 
     saidas_query = _so_venda(
-        session.query(func.count(func.distinct(ImovelArea.codigo))).filter(
+        session.query(ImovelArea.codigo).filter(
             ImovelArea.situacao_em >= inicio, ImovelArea.situacao_em <= fim,
             ImovelArea.situacao.isnot(None),
             ~ImovelArea.situacao.ilike(DISPONIVEL_LIKE),
             ~ImovelArea.situacao.ilike(MODERACAO_LIKE),
         )
     )
-    saidas = _escopo_por_captacao(
+    saidas_codigos = _escopo_por_captacao(
         session, saidas_query, ImovelArea.codigo, selected_team, selected_broker
-    ).scalar() or 0
+    ).distinct().all()
+    saidas_codigos = [row[0] for row in saidas_codigos]
+    saidas = len(saidas_codigos)
+    saidas_por_foco = _contagem_foco(saidas_codigos, foco_por_codigo)
 
     estoque_query = _so_venda(
         session.query(func.count(func.distinct(ImovelArea.codigo))).filter(
@@ -497,6 +574,18 @@ def _numeros_de_estoque(session, start, end, selected_team=None, selected_broker
 
     return {
         "entradas": int(entradas), "saidas": int(saidas), "estoque": int(estoque),
+        "entradas_foco": int(entradas_foco),
+        "entradas_foco_pp": int(entradas_foco_pp),
+        "entradas_foco_ac": int(entradas_foco_ac),
+        "entradas_foco_pp_ac": int(entradas_foco_pp_ac),
+        "entradas_nao_foco": int(entradas_nao_foco),
+        "entradas_sem_classificacao": int(entradas_sem_classificacao),
+        "saidas_foco": int(saidas_por_foco["foco"]),
+        "saidas_foco_pp": int(saidas_por_foco["foco_pp"]),
+        "saidas_foco_ac": int(saidas_por_foco["foco_ac"]),
+        "saidas_foco_pp_ac": int(saidas_por_foco["foco_pp_ac"]),
+        "saidas_nao_foco": int(saidas_por_foco["nao_foco"]),
+        "saidas_sem_classificacao": int(saidas_por_foco["sem_classificacao"]),
         "saldo": int(entradas) - int(saidas),
     }
 
@@ -507,12 +596,17 @@ def _estoque_semanal(session, start, end, selected_team, selected_broker=None, t
     Os recortes vêm no mesmo payload (como no funil) para o seletor do card trocar de
     visão sem ir ao servidor.
     """
-    atual = _numeros_de_estoque(session, start, end, selected_team, selected_broker)
+    foco_por_codigo = _mapa_foco_imoveis(session)
+    atual = _numeros_de_estoque(
+        session, start, end, selected_team, selected_broker, foco_por_codigo
+    )
     data_catalogo = session.query(func.max(ImovelArea.atualizado_em)).scalar()
 
     por_gerente, por_corretor = [], []
     for item in (teams or []):
-        numeros = _numeros_de_estoque(session, start, end, item["id"], None)
+        numeros = _numeros_de_estoque(
+            session, start, end, item["id"], None, foco_por_codigo
+        )
         if any(numeros[c] for c in ("entradas", "saidas", "estoque")):
             por_gerente.append({"id": item["id"], "nome": item["nome"],
                                 "gerente": item.get("gerente"), **numeros})
@@ -532,7 +626,9 @@ def _estoque_semanal(session, start, end, selected_team, selected_broker=None, t
     ).all()
     rotulo = {item["id"]: item["nome"] for item in (teams or [])}
     for pessoa in captadores:
-        numeros = _numeros_de_estoque(session, start, end, None, pessoa.id_usuarios)
+        numeros = _numeros_de_estoque(
+            session, start, end, None, pessoa.id_usuarios, foco_por_codigo
+        )
         if any(numeros[c] for c in ("entradas", "saidas", "estoque")):
             por_corretor.append({
                 "id": pessoa.id_usuarios,

@@ -1722,6 +1722,31 @@ export default function JornadaCaptacao() {
       .catch(() => {});
   }, [isAdmin, isDiretor, userInfo.id, userInfo.team]);
 
+  // O cadastro usa uma permissao unica, mas alguns gerentes tambem possuem carteira
+  // propria na Jornada (ex.: Fernando Borges). O endpoint de usuarios alimenta os
+  // corretores ativos; os donos que realmente aparecem nas captacoes completam apenas
+  // o filtro, sem passar a ser opcoes de atribuicao no modal de novo imovel.
+  const opcoesFiltroCorretor = useMemo(() => {
+    const porId = new Map();
+    corretoresAtivos.forEach((c) => {
+      if (c.id_usuarios) porId.set(String(c.id_usuarios), c);
+    });
+    captacoes.forEach((c) => {
+      const id = String(c.id_corretor || "").trim();
+      if (!id || porId.has(id)) return;
+      porId.set(id, {
+        id_usuarios: id,
+        nome: c.nome_corretor || id,
+        team: c.team || "",
+      });
+    });
+    return [...porId.values()].sort((a, b) =>
+      String(a.nome || a.username || "").localeCompare(
+        String(b.nome || b.username || ""), "pt-BR"
+      )
+    );
+  }, [corretoresAtivos, captacoes]);
+
   // Stats
   const stats = useMemo(() => {
     const ativas = captacoes.filter(c => c.status !== "fechado" && c.status !== "exclusividade");
@@ -1945,7 +1970,7 @@ export default function JornadaCaptacao() {
           {isAdmin && (
             <select className="cap-search-input cap-filtro-corretor" value={filtroCorretor} onChange={e => setFiltroCorretor(e.target.value)}>
               <option value="">Todos os corretores</option>
-              {corretoresAtivos
+              {opcoesFiltroCorretor
                 .filter(c => !filtroEquipe || c.team === filtroEquipe)
                 .map(c => (
                   <option key={c.id_usuarios} value={c.id_usuarios}>{c.nome || c.username}</option>

@@ -62,6 +62,7 @@ tipo: MOC (Map of Content)
 | 3.12 | Geração de `analytics.estudo_metricas` | 🟨 🤖 📦 | [[3.12 - Geração de estudo_metricas]] |
 | 3.13 | Estudos individuais por bairro (→ Sheets) | 🟨 🤖 📦 | [[3.13 - Estudos Individuais por Bairro]] |
 | 3.14 | Análises exploratórias e auditoria de coleta | 🟨 🤖 📦 | [[3.14 - Análises Exploratórias e Auditoria de Coleta]] |
+| 3.15 | Mapa das bases atuais e fontes de verdade | ✅ 🆕 | [[3.15 - Mapa das Bases Atuais]] |
 
 ## Nível 4 — Estratégico / a confirmar
 Monitoramento · Data lineage · LGPD/retenção · Modelos preditivos · Atribuição de mídia paga ·
@@ -78,12 +79,14 @@ Complementam as notas de processo — não as substituem.
 |---|---|
 | [[_Registro - 2026-08-13]] | Visão do Diretor (funil, indicadores, estoque, governança), abas de Propostas/Leads no Relatório do Gerente, página do Corretor, lead do C2S no Criar Visita, 2 migrations |
 | [[_Registro - 2026-08-17]] | Pipeline de `estudo_metricas` (cluster por bairro, corte por série, faixas de metragem), leitura de `.xlsx` no estoque, divergência 490×598 de visitas, encerradas no gráfico da jornada, validação e **deduplicação de usuários** |
+| [[_Registro - 2026-08-21]] | **Rodada 18–21/08.** Leads do C2S ao vivo (o que a API aceita de verdade), `_data()` duplicada quebrando toda criação de proposta, plano de QA com 9 achados corrigidos e **primeira suíte de testes**, saídas do estoque 6→51, gerente responsável na proposta, timeouts do nginx e limpeza de disco |
 
 ### Operações de dados (migrações pontuais)
 | Operação | Cobre |
 |---|---|
 | [[_Operação - Deduplicação de Usuários 2026-08]] | 7 usernames + 5 `id_imoview` duplicados; 7 contas apagadas, 18.574 referências remapeadas, backups e verificação de acesso |
 | [[_Operação - Deduplicação de Usuários LIDER 2026-08-19]] | 3 pessoas com 2 cadastros cada no LIDER; 1.985 refs remapeadas, 3 contas apagadas. Script agora **versionado** (`backend/merge_usuarios_dup.py`) |
+| [[_Registro - 2026-08-21]] §7.1 | Paolla Gardenia: conta antiga `C61170` com `team=LOTUS` fazia os leads dela aparecerem no relatório da Thais — 523 refs remapeadas |
 
 ## Referências (legado — Google Apps Script)
 Documentação dos **acionadores/triggers das planilhas legadas** (camada de automação que **ainda

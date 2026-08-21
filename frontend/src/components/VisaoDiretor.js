@@ -408,8 +408,36 @@ function VisaoDiretor() {
           )}
           {linhaEstoque && (
           <div className="ev-prospect-total">
-            <div><span>Captações</span><strong>{number(linhaEstoque.entradas || 0)}</strong><small>Registradas no período</small></div>
-            <div><span>Saídas</span><strong>{number(linhaEstoque.saidas || 0)}</strong><small>Deixaram de estar disponíveis</small></div>
+            <div>
+              <span>Captações</span><strong>{number(linhaEstoque.entradas || 0)}</strong>
+              <small>Registradas no período</small>
+              <div className="ev-captacao-foco">
+                <span><b>{number(linhaEstoque.entradas_foco_pp || 0)}</b> foco PP</span>
+                <span><b>{number(linhaEstoque.entradas_foco_ac || 0)}</b> foco AC</span>
+                {(linhaEstoque.entradas_foco_pp_ac || 0) > 0 && (
+                  <span><b>{number(linhaEstoque.entradas_foco_pp_ac)}</b> foco PP + AC</span>
+                )}
+                <span><b>{number(linhaEstoque.entradas_nao_foco || 0)}</b> não foco</span>
+                {(linhaEstoque.entradas_sem_classificacao || 0) > 0 && (
+                  <span><b>{number(linhaEstoque.entradas_sem_classificacao)}</b> sem classificação</span>
+                )}
+              </div>
+            </div>
+            <div>
+              <span>Saídas</span><strong>{number(linhaEstoque.saidas || 0)}</strong>
+              <small>Deixaram de estar disponíveis</small>
+              <div className="ev-captacao-foco">
+                <span><b>{number(linhaEstoque.saidas_foco_pp || 0)}</b> foco PP</span>
+                <span><b>{number(linhaEstoque.saidas_foco_ac || 0)}</b> foco AC</span>
+                {(linhaEstoque.saidas_foco_pp_ac || 0) > 0 && (
+                  <span><b>{number(linhaEstoque.saidas_foco_pp_ac)}</b> foco PP + AC</span>
+                )}
+                <span><b>{number(linhaEstoque.saidas_nao_foco || 0)}</b> não foco</span>
+                {(linhaEstoque.saidas_sem_classificacao || 0) > 0 && (
+                  <span><b>{number(linhaEstoque.saidas_sem_classificacao)}</b> sem classificação</span>
+                )}
+              </div>
+            </div>
             <div className={`ev-saldo ${(linhaEstoque.saldo || 0) >= 0 ? 'positivo' : 'negativo'}`}>
               <span>Saldo</span><strong>{(linhaEstoque.saldo || 0) > 0 ? '+' : ''}{number(linhaEstoque.saldo || 0)}</strong><small>Captações − saídas</small>
             </div>

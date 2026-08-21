@@ -144,6 +144,9 @@
 .ev-prospect .ev-prospect-total { grid-template-columns: 1fr 1fr; gap: 10px; }
 .ev-prospect .ev-prospect-total strong { font-size: 19px; }
 .ev-prospect .ev-prospect-total small { color: #8b91a2; font-weight: 500; }
+.ev-prospect .ev-captacao-foco { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 9px; }
+.ev-prospect .ev-captacao-foco span { background: #f3f1ff; border-radius: 999px; color: #6555cf; font-size: 8px; font-weight: 700; padding: 4px 7px; }
+.ev-prospect .ev-captacao-foco b { color: var(--ink); font-size: 9px; }
 .ev-prospect-total .ev-saldo.positivo strong { color: var(--green, #1c9b6c); }
 .ev-prospect-total .ev-saldo.negativo strong { color: #d33a4f; }
 
