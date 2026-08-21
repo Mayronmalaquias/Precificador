@@ -495,6 +495,21 @@ ORDEM_SITUACAO = ["Novo", "Em negociação", "Arquivado"]
 ORDEM_FUNIL = ["New lead", "In attendance", "Scheduled visit", "Done visit"]
 
 
+def catalogo_opcoes() -> Dict[str, Any]:
+    """Opcoes fixas dos dropdowns, sem tocar na API do C2S.
+
+    As listas eram montadas a partir do que aparecia na janela consultada. Como a aba
+    deixou de buscar sozinha ao abrir, o dropdown de motivo nascia vazio — nao dava para
+    escolher um filtro antes da primeira busca. Estes valores sao o catalogo da propria
+    C2S, entao valem sempre; o que a janela trouxer de novo e acrescentado por cima.
+    """
+    return {
+        "motivos": sorted(set(MOTIVOS_PT.values()), key=_norm),
+        "situacoes": list(ORDEM_SITUACAO),
+        "funis": list(ORDEM_FUNIL),
+    }
+
+
 def _opcoes(itens: List[Dict[str, Any]]) -> Dict[str, List[str]]:
     """Valores presentes na janela, para os dropdowns só oferecerem o que existe."""
     def distintos(campo):
@@ -513,5 +528,11 @@ def _opcoes(itens: List[Dict[str, Any]]) -> Dict[str, List[str]]:
         "fontes": distintos("fonte"),
         "canais": distintos("canal"),
         "equipes": distintos("equipe"),
-        "motivos": distintos("motivo_arquivamento"),
+        # Catalogo fixo primeiro; motivo com texto livre do corretor ("Corretor parceiro
+        # — Corretora da Paolla") entra depois, sem sumir da lista.
+        "motivos": sorted(
+            set(MOTIVOS_PT.values()) | {i["motivo_arquivamento"] for i in itens
+                                        if i.get("motivo_arquivamento")},
+            key=_norm,
+        ),
     }

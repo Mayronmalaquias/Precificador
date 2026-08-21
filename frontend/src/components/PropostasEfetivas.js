@@ -28,7 +28,7 @@ const VAZIO = {
   bloco: '', complemento: '', quartos: '', vagas: '', area: '',
   valor: '', forma_pagamento: '', valor_permuta: '', descricao_permuta: '',
   situacao: 'em_analise', cliente: '', observacao: '', data_proposta: '',
-  id_corretor: '', id_visita: '', id_gerente: '',
+  id_corretor: '', id_visita: '', id_gerente: '', gerente_nome: '',
 };
 
 const moeda = (v) => (v == null ? '—' : Number(v).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }));
@@ -64,6 +64,18 @@ export default function PropostasEfetivas() {
   const [buscandoVisita, setBuscandoVisita] = useState(false);
 
   const podeEditar = !!dados?.escopo?.edita;
+
+  // O gerente da proposta pode nao estar na lista (deixou de ser gerente, ou a proposta
+  // e de outra equipe). Sem acrescenta-lo, o select abriria em branco e salvar
+  // reatribuiria a proposta para quem esta editando, sem ninguem pedir.
+  const gerentesOpcoes = useMemo(() => {
+    if (!form.id_gerente || gerentes.some((g) => g.id === form.id_gerente)) return gerentes;
+    return [...gerentes, {
+      id: form.id_gerente,
+      nome: form.gerente_nome || form.id_gerente,
+      team: '',
+    }];
+  }, [gerentes, form.id_gerente, form.gerente_nome]);
   const opcoes = dados?.opcoes || { situacoes: [], formas_pagamento: [] };
 
   const carregar = useCallback(async () => {
@@ -172,6 +184,7 @@ export default function PropostasEfetivas() {
       data_proposta: item.data_proposta || '',
       id_corretor: item.id_corretor || '', id_visita: item.id_visita || '',
       id_gerente: item.id_gerente || '',
+      gerente_nome: item.gerente_nome || '',
     });
     setEditandoId(item.id);
     setVisitas([]);
@@ -455,7 +468,7 @@ export default function PropostasEfetivas() {
                 <label className="span2">Gerente responsável pela proposta
                   <select value={form.id_gerente} onChange={set('id_gerente')}>
                     <option value="">Eu mesmo</option>
-                    {gerentes.map((g) => (
+                    {gerentesOpcoes.map((g) => (
                       <option key={g.id} value={g.id}>{g.nome}{g.team ? ` · ${g.team}` : ''}</option>
                     ))}
                   </select>

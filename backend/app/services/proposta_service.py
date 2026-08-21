@@ -629,6 +629,15 @@ def atualizar(solicitante_id, proposta_id, dados):
                 proposta.team = team_corretor or proposta.team
             else:
                 proposta.id_corretor = proposta.corretor_nome = None
+        # Trocar o gerente responsavel. Ficava de fora: a tela mandava `id_gerente` e o
+        # update ignorava, entao a edicao "salvava" sem mudar nada.
+        if "id_gerente" in dados:
+            proposta.id_gerente, proposta.gerente_nome, team_gerente = _resolver_gerente(
+                session, escopo, dados.get("id_gerente"))
+            # A equipe so segue o gerente quando nao ha corretor — o corretor e mais
+            # especifico e ja definiu a equipe no bloco acima.
+            if not proposta.id_corretor and team_gerente:
+                proposta.team = team_gerente
         if "id_visita" in dados:
             proposta.id_visita = _resolver_visita(session, escopo, dados.get("id_visita"), proposta.team)
         if "valor" in dados:

@@ -130,21 +130,50 @@ export default function RelatorioLeads({ idSolicitante, equipe, inicio, fim, cor
     }
   }, [idSolicitante, buscaAtiva, filtrosAtivos, montarParams]);
 
-  // Chave estavel do que foi aplicado: `filtrosAtivos` e objeto novo a cada aplicacao e
-  // comparar por referencia dispararia o efeito sem nada ter mudado.
-  const chaveAtivos = JSON.stringify(filtrosAtivos);
+  // NADA e buscado sozinho — nem ao abrir a aba. Uma consulta filtrada varre o periodo
+  // e leva minutos, entao ela so acontece quando o usuario pede. Trocar de aba ou de
+  // periodo nao pode disparar isso sem querer.
+  const [jaBuscou, setJaBuscou] = useState(false);
 
-  // Recarrega quando muda o CONTEXTO do relatório (período, equipe, corretor) ou quando
-  // o usuário aplica o filtro. Mexer nos selects não entra aqui de propósito.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => { carregar(1); }, [
-    idSolicitante, equipe, inicio, fim, soNaoVistos, corretor, chaveAtivos, buscaAtiva,
-  ]);
+  // Catálogo fixo dos filtros. É uma chamada local (não consulta o Contact2Sale), então
+  // pode rodar ao abrir — é o que permite escolher o motivo antes da primeira busca.
+  const [catalogo, setCatalogo] = useState({ motivos: [], situacoes: [], funis: [] });
+  useEffect(() => {
+    let vivo = true;
+    (async () => {
+      try {
+        const r = await fetch(`${BASE}/leads/c2s/opcoes`);
+        const d = await r.json();
+        if (vivo && r.ok && d.ok) {
+          setCatalogo({ motivos: d.motivos || [], situacoes: d.situacoes || [], funis: d.funis || [] });
+        }
+      } catch { /* dropdown cai no que a busca trouxer */ }
+    })();
+    return () => { vivo = false; };
+  }, []);
 
-  // Aplicar = promover o rascunho. O período muda, então o cache antigo não serve.
+  // Opções = catálogo fixo + o que a janela consultada trouxer de novo (motivo com
+  // texto livre do corretor, portal novo). `dados.opcoes` só existe depois de buscar.
+  const opcoesDe = (campo) => {
+    const daBusca = dados.opcoes?.[campo] || [];
+    const fixas = catalogo[campo] || [];
+    return fixas.length ? [...new Set([...fixas, ...daBusca])] : daBusca;
+  };
+
+  // Chave do que esta na tela agora; comparada com a ultima efetivamente buscada para
+  // saber se ha algo a aplicar (inclui periodo e equipe, nao so os selects).
+  const chaveAtual = montarParams(1, busca, filtros).toString();
+  const [chaveAplicada, setChaveAplicada] = useState("");
+  const pendente = jaBuscou && chaveAtual !== chaveAplicada;
+
+  // Aplicar = promover o rascunho. Os valores vao por parametro porque `setState` e
+  // assincrono: ler `filtrosAtivos` aqui pegaria o valor anterior.
   const aplicarFiltros = () => {
     setFiltrosAtivos(filtros);
     setBuscaAtiva(busca);
+    setChaveAplicada(chaveAtual);
+    setJaBuscou(true);
+    carregar(1, busca, filtros);
   };
 
   const abrir = async (id) => {
@@ -249,9 +278,6 @@ export default function RelatorioLeads({ idSolicitante, equipe, inicio, fim, cor
   const ativos = Object.entries(filtros)
     .filter(([k, v]) => v && !(k === "por" && v === "criacao")).length;
   const limparFiltros = () => setFiltros(FILTROS_VAZIOS);
-  // Rascunho diferente do que esta na tela: o botao avisa que ha o que aplicar.
-  const pendente = JSON.stringify(filtros) !== JSON.stringify(filtrosAtivos)
-    || busca.trim() !== buscaAtiva.trim();
   // Com filtro local o total pode ser desconhecido, entao a navegacao usa `tem_mais`
   // em vez de um numero de paginas que seria chute.
   const paginas = dados.total == null
@@ -305,18 +331,19 @@ export default function RelatorioLeads({ idSolicitante, equipe, inicio, fim, cor
 
       {maisFiltros && (
         <div className="raba-filtros">
-          {/* As opcoes sao os valores que existem no periodo — a API do C2S nao expoe
-              catalogo, entao o servidor monta a lista a partir do que voltou. */}
+          {/* Motivo, situação e funil vêm do catálogo fixo da C2S (carregado ao abrir,
+              sem consultar a API deles). Portal e canal não têm catálogo, então só
+              aparecem depois da primeira busca, com o que existir no período. */}
           <label>Situacao
             <select value={filtros.situacao} onChange={setFiltro("situacao")}>
               <option value="">Todas</option>
-              {(dados.opcoes?.situacoes || []).map((v) => <option key={v} value={v}>{v}</option>)}
+              {opcoesDe("situacoes").map((v) => <option key={v} value={v}>{v}</option>)}
             </select>
           </label>
           <label>Etapa do funil
             <select value={filtros.funil} onChange={setFiltro("funil")}>
               <option value="">Todas</option>
-              {(dados.opcoes?.funis || []).map((v) => <option key={v} value={v}>{v}</option>)}
+              {opcoesDe("funis").map((v) => <option key={v} value={v}>{v}</option>)}
             </select>
           </label>
           <label>Portal
@@ -341,7 +368,7 @@ export default function RelatorioLeads({ idSolicitante, equipe, inicio, fim, cor
           <label>Motivo do arquivamento
             <select value={filtros.motivo} onChange={setFiltro("motivo")}>
               <option value="">Todos</option>
-              {(dados.opcoes?.motivos || []).map((v) => <option key={v} value={v}>{v}</option>)}
+              {opcoesDe("motivos").map((v) => <option key={v} value={v}>{v}</option>)}
             </select>
           </label>
           <label>Negocio fechado
@@ -384,7 +411,15 @@ export default function RelatorioLeads({ idSolicitante, equipe, inicio, fim, cor
             : "Carregando leads…"}
         </p>
       )}
-      {!carregando && !dados.itens.length && !erro && <p className="raba-estado">Nenhum lead encontrado.</p>}
+      {!carregando && !jaBuscou && !erro && (
+        <p className="raba-estado">
+          Escolha o período e os filtros e clique em <b>Buscar</b>. A consulta lê os leads
+          direto do Contact2Sale, por isso não roda sozinha ao abrir a aba.
+        </p>
+      )}
+      {!carregando && jaBuscou && !dados.itens.length && !erro && (
+        <p className="raba-estado">Nenhum lead encontrado com esse filtro.</p>
+      )}
 
       {!!dados.itens.length && (
         <>

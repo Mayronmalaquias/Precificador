@@ -142,3 +142,17 @@ class LeadsAoVivo(Resource):
             ), 200
         except Exception as e:
             return _erro(e, "Erro ao consultar leads no Contact2Sale")
+
+
+@lead_gestao_ns.route("/leads/c2s/opcoes")
+class LeadsC2SOpcoes(Resource):
+    @lead_gestao_ns.doc(description=(
+        "Opções fixas dos filtros (motivo de arquivamento, situação, etapa do funil). "
+        "Não consulta o Contact2Sale — responde na hora, então a tela pode montar os "
+        "dropdowns antes da primeira busca."
+    ))
+    def get(self):
+        try:
+            return {"ok": True, **servico_c2s.catalogo_opcoes()}, 200
+        except Exception as e:
+            return _erro(e, "Erro ao listar opções de filtro de leads")
