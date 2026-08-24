@@ -91,8 +91,19 @@ def test_fechada_com_data_para_na_data():
 
 def test_fechada_sem_data_para_na_ultima_acao():
     """Antes caia no `hoje` e o contador crescia depois de a proposta ja ter acabado."""
-    p = _proposta(situacao="recusada", ultima_acao_em=datetime(2026, 8, 6, 14, 0))
+    p = _proposta(situacao="cancelada", ultima_acao_em=datetime(2026, 8, 6, 14, 0))
     assert ps._fim_da_contagem(p, date(2026, 8, 19)) == date(2026, 8, 6)
+
+
+def test_aceita_continua_aberta():
+    """Decisao de 21/08/2026: proposta aceita ainda pode cair, entao segue em aberto.
+
+    Se um dia `aceita` voltar a encerrar, este teste quebra e a mudanca fica deliberada.
+    """
+    assert "aceita" not in ps.SITUACOES_FECHADAS
+    assert "recusada" not in ps.SITUACOES_FECHADAS
+    p = _proposta(situacao="aceita", ultima_acao_em=datetime(2026, 8, 6, 14, 0))
+    assert ps._fim_da_contagem(p, date(2026, 8, 19)) == date(2026, 8, 19)
 
 
 # ── A-9: o card conta TODAS as situacoes, inclusive cancelada e recusada ──────────
@@ -100,10 +111,13 @@ def test_fechada_sem_data_para_na_ultima_acao():
 def test_situacoes_fechadas_declaradas():
     """Decisao de produto: cancelada e recusada CONTAM no volume do card.
 
+    E `SITUACOES_FECHADAS` tem so `vendido` e `cancelada` — o que encerra a proposta e
+    diferente do que entra no card de volume.
+
     O card e volume de proposta, nao de fechamento. Este teste existe para que a
     mudanca desse comportamento seja deliberada, e nao um efeito colateral.
     """
-    assert ps.SITUACOES_FECHADAS == ("aceita", "vendido", "recusada", "cancelada")
+    assert ps.SITUACOES_FECHADAS == ("vendido", "cancelada")
     assert set(ps.SITUACOES) == {
         "em_analise", "contraproposta", "aceita", "vendido", "recusada", "cancelada",
     }

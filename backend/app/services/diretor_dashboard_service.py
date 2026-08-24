@@ -21,7 +21,7 @@ from app.models.fato_bases import FatoCaptacao
 from app.models.gerente_visita_visualizada import GerenteVisitaVisualizada
 from app.models.imovel_area import ImovelArea
 from app.models.legado_diversos import CampanhaLegado, ImovelLegado
-from app.models.proposta_efetiva import PropostaEfetiva
+from app.models.proposta_efetiva import SITUACOES_FECHADAS, PropostaEfetiva
 from app.models.usuarios import Usuarios
 from app.models.visita import Visita, VisitaCliente
 
@@ -1485,7 +1485,9 @@ def _propostas_sem_acao(session, today, selected_team, selected_broker=None):
     """
     query = session.query(PropostaEfetiva).filter(
         PropostaEfetiva.ativo.is_(True),
-        PropostaEfetiva.situacao.notin_(["aceita", "recusada", "cancelada"]),
+        # Mesma definicao do modelo — antes era uma lista hardcoded aqui, que divergia
+        # (tratava `vendido` como aberta e `aceita` como fechada).
+        PropostaEfetiva.situacao.notin_(SITUACOES_FECHADAS),
     )
     if selected_broker:
         query = query.filter(or_(
@@ -1593,7 +1595,9 @@ def _propostas_por_equipe(session, selected_team, selected_broker=None):
     """
     query = session.query(PropostaEfetiva).filter(
         PropostaEfetiva.ativo.is_(True),
-        PropostaEfetiva.situacao.notin_(["aceita", "recusada", "cancelada"]),
+        # Mesma definicao do modelo — antes era uma lista hardcoded aqui, que divergia
+        # (tratava `vendido` como aberta e `aceita` como fechada).
+        PropostaEfetiva.situacao.notin_(SITUACOES_FECHADAS),
     )
     if selected_broker:
         query = query.filter(or_(

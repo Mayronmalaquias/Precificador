@@ -9,11 +9,17 @@ from sqlalchemy.orm import relationship
 
 from app.models.base import Base
 
-# Situacoes que encerram a proposta — param o contador de "periodo em aberto".
-# `vendido` e o degrau depois de `aceita`: proposta aceita ainda pode cair, vendida
-# virou contrato. Encerra o acompanhamento e para os contadores de tempo.
-SITUACOES_FECHADAS = ("aceita", "vendido", "recusada", "cancelada")
-SITUACOES = ("em_analise", "contraproposta") + SITUACOES_FECHADAS
+# Ordem de fluxo — e a que a tela usa no dropdown, nao alfabetica.
+SITUACOES = ("em_analise", "contraproposta", "aceita", "vendido", "recusada", "cancelada")
+
+# Situacoes que ENCERRAM a proposta: param o contador de "periodo em aberto" e tiram a
+# proposta da fila de acompanhamento.
+#
+# So `vendido` e `cancelada` encerram (decisao de 21/08/2026). `aceita` continua ABERTA
+# porque proposta aceita ainda pode cair — o proprio comentario antigo dizia isso, mas a
+# lista contradizia: ela fechava em `aceita` e o gerente perdia de vista justamente a
+# proposta que precisa acompanhar ate virar contrato.
+SITUACOES_FECHADAS = ("vendido", "cancelada")
 
 FORMAS_PAGAMENTO = ("permuta", "consorcio", "financiamento", "recurso_proprio", "outros")
 

@@ -320,7 +320,8 @@ def _escopo(session, solicitante_id: str, equipe_pedida: Optional[str]) -> Dict[
 
 # ── filtros locais ──────────────────────────────────────────────────────────────
 
-def _passa(item: Dict[str, Any], f: Dict[str, str], escopo: Dict[str, Any]) -> bool:
+def _passa(item: Dict[str, Any], f: Dict[str, str], escopo: Dict[str, Any],
+           com_acomp: Optional[set] = None) -> bool:
     if escopo["equipe"] and _norm_equipe(item["equipe"]) != _norm_equipe(escopo["equipe"]):
         return False
     if escopo["corretor"] and _norm(escopo["corretor"]) not in _norm(item["corretor"]):
@@ -355,10 +356,12 @@ def _passa(item: Dict[str, Any], f: Dict[str, str], escopo: Dict[str, Any]) -> b
 
     if f.get("com_motivo") and not item["motivo_arquivamento"]:
         return False
-    # Acompanhamento e da base interna (chega em `_ids_internos`), nao do C2S — por isso
-    # este filtro so existe no caminho de varredura, onde o casamento ja foi feito.
-    if f.get("sem_acompanhamento") and item.get("acompanhamento_em"):
-        return False
+    # Acompanhamento e coluna NOSSA, nao do C2S. O conjunto de quem JA tem vem pronto de
+    # `_chaves_com_acompanhamento` (13 linhas na base inteira), entao o filtro nao exige
+    # casar lead a lead nem varrer a janela.
+    if f.get("sem_acompanhamento") and com_acomp is not None:
+        if (_norm(item["cliente"]), item["telefone"]) in com_acomp:
+            return False
 
     busca = _norm(f.get("busca"))
     if busca:
@@ -375,8 +378,10 @@ def _tem_filtro_local(f: Dict[str, str], escopo: Dict[str, Any], status_api: str
     """Sobrou algo que a API nao filtra? So entao vale puxar pagina extra."""
     if escopo["equipe"] or escopo["corretor"]:
         return True
+    # `sem_acompanhamento` NAO entra: e resolvido por um conjunto pequeno vindo do banco,
+    # sem precisar varrer a janela (ver `_chaves_com_acompanhamento`).
     locais = ["fonte", "canal", "equipe", "funil", "corretor", "motivo",
-              "com_motivo", "sem_acompanhamento", "busca"]
+              "com_motivo", "busca"]
     # Estes tres viram `status` na API; se nao viraram (combinacao sem equivalente),
     # continuam sendo filtro local.
     if not status_api:
@@ -387,6 +392,21 @@ def _tem_filtro_local(f: Dict[str, str], escopo: Dict[str, Any], status_api: str
 
 
 # ── casamento com a base interna (para manter o acompanhamento) ─────────────────
+
+def _chaves_com_acompanhamento(session, inicio: str, fim: str) -> set:
+    """Chaves (cliente, telefone) dos leads do periodo que JA tem acompanhamento.
+
+    O acompanhamento e coluna NOSSA (`leads_legado.acompanhamento_em`), nao vem do C2S.
+    E o conjunto e minusculo — 13 linhas na base inteira em 21/08/2026 — entao vale
+    inverter: em vez de casar lead a lead durante a varredura, carrega-se esta lista uma
+    vez e o filtro "sem acompanhamento" vira uma exclusao barata.
+    """
+    linhas = session.query(LeadLegado.cliente, LeadLegado.telefone).filter(
+        LeadLegado.acompanhamento_em.isnot(None),
+        LeadLegado.data >= inicio, LeadLegado.data <= fim,
+    ).all()
+    return {(_norm(c), _texto(t)) for c, t in linhas}
+
 
 def _ids_internos(session, itens: List[Dict[str, Any]]) -> None:
     """Anexa `id_interno` e o acompanhamento quando o lead ja existe em `leads_legado`.
@@ -440,13 +460,22 @@ def listar(solicitante_id, inicio, fim, page=1, per_page=PER_PAGE_API,
 
         status_api = _status_da_api(filtros)
         precisa_local = _tem_filtro_local(filtros, escopo, status_api)
+        # Conjunto pequeno (13 linhas na base inteira em 21/08): carregado sempre que o
+        # filtro de acompanhamento esta ligado, tanto no caminho rapido quanto na varredura.
+        com_acomp = (_chaves_com_acompanhamento(session, inicio, fim)
+                     if filtros.get("sem_acompanhamento") else None)
 
         if not precisa_local:
             # Caminho normal: a API pagina, filtra por status e conta.
             alvo = _pagina(campo_data, inicio, fim, page, status_api)
             itens = [x for x in (_traduzir(l) for l in alvo["data"]) if x]
-            _ids_internos(session, itens)
             total = alvo["total"] or 0
+            if com_acomp is not None:
+                # Quem ja tem acompanhamento sai da pagina, e o total desconta os do
+                # periodo — exato porque o conjunto vem do banco, nao de amostragem.
+                itens = [x for x in itens if _passa(x, filtros, escopo, com_acomp)]
+                total = max(total - len(com_acomp), 0)
+            _ids_internos(session, itens)
             return {
                 "ok": True, "itens": itens, "page": page, "per_page": per_page,
                 "total": total, "total_c2s": total, "total_exato": True,
@@ -469,7 +498,7 @@ def listar(solicitante_id, inicio, fim, page=1, per_page=PER_PAGE_API,
             vistos.extend(lote)
             # `sem_acompanhamento` depende da base interna, entao o casamento roda no lote.
             _ids_internos(session, lote)
-            casados.extend(x for x in lote if _passa(x, filtros, escopo))
+            casados.extend(x for x in lote if _passa(x, filtros, escopo, com_acomp))
             if len(alvo["data"]) < PER_PAGE_API:
                 acabou = True
                 break
