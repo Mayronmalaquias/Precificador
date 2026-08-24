@@ -1,4 +1,4 @@
-"""Testes puros das regras de proposta e do recorte de periodo do painel.
+﻿"""Testes puros das regras de proposta e do recorte de periodo do painel.
 
 Nao tocam o banco: exercitam so as funcoes de calculo/validacao. Para os casos que
 precisam de sessao (card x funil), use um Postgres descartavel — apontar a fixture
@@ -8,6 +8,7 @@ para producao GRAVA nela.
 """
 import ast
 import inspect
+import textwrap
 from datetime import date, datetime
 from decimal import Decimal
 from types import SimpleNamespace
@@ -171,3 +172,61 @@ def test_validar_recusa_situacao_e_forma_desconhecidas():
 def test_validar_aceita_o_caso_normal():
     situacao, forma = ps._validar({"situacao": "em_analise", "forma_pagamento": "permuta"})
     assert (situacao, forma) == ("em_analise", "permuta")
+
+
+# ── edicao nao e acompanhamento ──────────────────────────────────────────────────
+
+def _fonte_do_atualizar():
+    """Corpo de `atualizar()` como texto, para inspecionar onde o carimbo acontece."""
+    return inspect.getsource(ps.atualizar)
+
+
+def test_atualizar_so_carimba_ultima_acao_ao_mudar_situacao():
+    """Corrigir um campo nao pode zerar o relogio de "proposta parada".
+
+    `ultima_acao_em` alimenta a Visao do Diretor e o painel de tarefas. Enquanto o
+    carimbo era incondicional, arrumar um erro de digitacao fazia a pendencia sumir sem
+    ninguem ter falado com o cliente.
+
+    O teste le a arvore: o `ultima_acao_em = ...` de `atualizar` tem que estar DENTRO de
+    um `if`, nunca solto no corpo da funcao.
+    """
+    arvore = ast.parse(textwrap.dedent(_fonte_do_atualizar()))
+    funcao = arvore.body[0]
+
+    def carimbos_no_nivel(corpo):
+        achados = []
+        for no in corpo:
+            if isinstance(no, ast.Assign):
+                for alvo in no.targets:
+                    if isinstance(alvo, ast.Attribute) and alvo.attr == "ultima_acao_em":
+                        achados.append(no.lineno)
+        return achados
+
+    # Nenhum carimbo solto no corpo da funcao nem dentro do try de primeiro nivel.
+    soltos = carimbos_no_nivel(funcao.body)
+    for no in funcao.body:
+        if isinstance(no, ast.Try):
+            soltos += carimbos_no_nivel(no.body)
+    assert not soltos, f"ultima_acao_em carimbado fora de condicao (linhas {soltos})"
+
+    # E existe ao menos um carimbo condicionado.
+    dentro_de_if = [
+        n for n in ast.walk(funcao)
+        if isinstance(n, ast.If)
+        for filho in ast.walk(n)
+        if isinstance(filho, ast.Assign)
+        for alvo in filho.targets
+        if isinstance(alvo, ast.Attribute) and alvo.attr == "ultima_acao_em"
+    ]
+    assert dentro_de_if, "atualizar() deixou de carimbar ultima_acao_em na troca de situacao"
+
+
+def test_registrar_acao_continua_carimbando():
+    """A contrapartida: acompanhamento de verdade TEM que carimbar.
+
+    Sem esta metade, a correcao acima viraria "nada mais carimba" e toda proposta
+    apareceria como parada desde a criacao.
+    """
+    fonte = inspect.getsource(ps.registrar_acao)
+    assert "ultima_acao_em" in fonte

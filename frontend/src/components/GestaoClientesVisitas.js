@@ -181,6 +181,44 @@ function ResumoVisitasPeriodo({ serie }) {
   );
 }
 
+/** Barras horizontais para distribuicoes por faixa.
+ *
+ * O denominador e o total de clientes, nao o maior balde: com o maior balde a barra
+ * cheia significaria coisas diferentes em cada grafico e daria a impressao de "todo
+ * mundo esta aqui" mesmo quando a faixa tem 20% da carteira.
+ */
+function BarrasFaixa({ titulo, legenda, dados, total, destaque }) {
+  const base = Math.max(1, Number(total) || 0);
+  return (
+    <section className="gcv-panel gcv-analise-panel">
+      <div className="gcv-panel-head">
+        <h2>{titulo}</h2>
+        {legenda && <span>{legenda}</span>}
+      </div>
+      <div className="gcv-analise-lista" role="list">
+        {dados.map((item) => {
+          const valor = Number(item.total) || 0;
+          const pct = Math.round((valor / base) * 1000) / 10;
+          return (
+            <div className="gcv-analise-linha" key={item.faixa} role="listitem">
+              <span className="gcv-analise-rotulo">{item.faixa}</span>
+              <div className="gcv-bar-track">
+                <span
+                  className={`gcv-bar-fill ${destaque === item.faixa ? "is-alerta" : ""}`}
+                  style={{ width: `${valor ? Math.max(3, pct) : 0}%` }}
+                />
+              </div>
+              <span className="gcv-analise-valor">
+                {valor} <em>{pct}%</em>
+              </span>
+            </div>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
 function CalendarioAcoes({ mes, setMes, dias, onSelecionarCliente, onAtualizarStatus, atualizandoAcaoId }) {
   const semana = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sab"];
   const [diaSelecionado, setDiaSelecionado] = useState(hojeStr);
@@ -343,6 +381,15 @@ function GestaoClientesVisitas() {
   const [motivoSimPorVisita, setMotivoSimPorVisita] = useState({});
   const [editandoMotivoSimId, setEditandoMotivoSimId] = useState("");
   const [salvandoMotivoSimId, setSalvandoMotivoSimId] = useState("");
+  // Ver/editar a visita sem sair da ficha do cliente.
+  const [clienteEdicao, setClienteEdicao] = useState(null);
+  const [formCliente, setFormCliente] = useState({ nome: "", telefone: "", email: "" });
+  const [salvandoCliente, setSalvandoCliente] = useState(false);
+
+  const [visitaEdicao, setVisitaEdicao] = useState(null);
+  const [formVisita, setFormVisita] = useState({});
+  const [salvandoVisita, setSalvandoVisita] = useState(false);
+  const [baixandoPdf, setBaixandoPdf] = useState("");
   // overrides otimistas das flags de revisão (viu_anexo/viu_notas/add_motivo) por visita
   const [flagOverrides, setFlagOverrides] = useState({});
   const [calendarioMes, setCalendarioMes] = useState(mesAtualStr);
@@ -449,6 +496,88 @@ function GestaoClientesVisitas() {
       });
     });
 
+    // Recorrencia — faixas disjuntas: "6 ou mais" comeca acima do teto da faixa
+    // anterior, senao um cliente com 6 visitas conta duas vezes e o total estoura.
+    const faixasRecorrencia = [
+      { faixa: "1 visita", min: 1, max: 1 },
+      { faixa: "2 visitas", min: 2, max: 2 },
+      { faixa: "3 a 5", min: 3, max: 5 },
+      { faixa: "6 ou mais", min: 6, max: null },
+    ].map(({ faixa, min, max }) => ({
+      faixa,
+      total: clientes.filter((c) => {
+        const n = Number(c.qtd_visitas) || 0;
+        return n >= min && (max === null || n <= max);
+      }).length,
+    }));
+
+    // Faixas de nota. Cliente sem avaliacao fica fora em vez de virar zero:
+    // "nao avaliou" nao e a mesma coisa que "avaliou mal".
+    const faixasNota = [
+      { faixa: "Ate 5", min: 0, max: 5 },
+      { faixa: "5 a 7", min: 5, max: 7 },
+      { faixa: "7 a 8,5", min: 7, max: 8.5 },
+      { faixa: "8,5 a 10", min: 8.5, max: 10.01 },
+    ].map(({ faixa, min, max }) => ({
+      faixa,
+      total: clientes.filter((c) => {
+        const n = Number(c.nota_media);
+        return c.nota_media != null && !Number.isNaN(n) && n >= min && n < max;
+      }).length,
+    }));
+    const semNota = clientes.filter(
+      (c) => c.nota_media == null || Number.isNaN(Number(c.nota_media)),
+    ).length;
+
+    // Carteira parada: dias desde a ultima visita. E o numero que vira acao —
+    // os outros sao diagnostico.
+    const hojeRef = inicioDoDia(new Date());
+    const diasDesde = (cliente) => {
+      const d = parseDataBr(cliente.ultima_visita) || parseDataIso(cliente.ultima_visita);
+      if (!d) return null;
+      return Math.floor((hojeRef - inicioDoDia(d)) / 86400000);
+    };
+    const faixasRecencia = [
+      { faixa: "Ate 15 dias", min: 0, max: 15 },
+      { faixa: "16 a 30", min: 16, max: 30 },
+      { faixa: "31 a 60", min: 31, max: 60 },
+      { faixa: "Mais de 60", min: 61, max: null },
+    ].map(({ faixa, min, max }) => ({
+      faixa,
+      total: clientes.filter((c) => {
+        const d = diasDesde(c);
+        return d !== null && d >= min && (max === null || d <= max);
+      }).length,
+    }));
+    const semRetorno30 = clientes.filter((c) => {
+      const d = diasDesde(c);
+      return d !== null && d > 30;
+    }).length;
+
+    // Conversao por corretor: quem transforma visita em interesse (SIM ou TALVEZ).
+    const porCorretor = {};
+    clientes.forEach((cliente) => {
+      const chave = cliente.corretor || "Sem corretor";
+      if (!porCorretor[chave]) {
+        porCorretor[chave] = { corretor: chave, clientes: 0, visitas: 0, comInteresse: 0 };
+      }
+      const alvo = porCorretor[chave];
+      alvo.clientes += 1;
+      alvo.visitas += Number(cliente.qtd_visitas) || 0;
+      if (cliente.houve_proposta) alvo.comInteresse += 1;
+    });
+    const rankingCorretor = Object.values(porCorretor)
+      .map((item) => ({
+        ...item,
+        taxa: item.clientes ? Math.round((item.comInteresse / item.clientes) * 1000) / 10 : 0,
+      }))
+      .sort((a, b) => b.clientes - a.clientes || a.corretor.localeCompare(b.corretor));
+
+    // Qualidade do cadastro: sem telefone nao da para retomar o contato.
+    const semContato = clientes.filter(
+      (c) => !String(c.telefone || "").trim() && !String(c.email || "").trim(),
+    ).length;
+
     return {
       total_clientes: clientes.length,
       total_visitas: totalVisitas,
@@ -457,6 +586,19 @@ function GestaoClientesVisitas() {
         ? (notas.reduce((acc, nota) => acc + nota, 0) / notas.length).toFixed(1)
         : "-",
       propostas,
+      taxa_interesse: clientes.length
+        ? Math.round((clientesComProposta / clientes.length) * 1000) / 10
+        : 0,
+      visitas_por_cliente: clientes.length
+        ? (totalVisitas / clientes.length).toFixed(1)
+        : "-",
+      recorrencia: faixasRecorrencia,
+      notas_faixa: faixasNota,
+      clientes_sem_nota: semNota,
+      recencia: faixasRecencia,
+      sem_retorno_30: semRetorno30,
+      ranking_corretor: rankingCorretor,
+      sem_contato: semContato,
     };
   }, [clientes]);
 
@@ -520,6 +662,125 @@ function GestaoClientesVisitas() {
     });
 
     return { ...dadosAtual, clientes };
+  };
+
+  const abrirEdicaoVisita = (visita) => {
+    setVisitaEdicao(visita);
+    setFormVisita({
+      dataVisita: String(visita.data_visita || "").slice(0, 10),
+      proposta: visita.proposta || "",
+      motivoSim: visita.motivo_sim || "",
+      motivoTalvez: visita.motivo_talvez || "",
+      enderecoExterno: visita.endereco_externo || "",
+      linkImagem: visita.link_imagem || "",
+      linkAudio: visita.link_audio || "",
+    });
+  };
+
+  const fecharEdicaoVisita = () => { setVisitaEdicao(null); setFormVisita({}); };
+
+  const abrirEdicaoCliente = (cliente) => {
+    if (!cliente) return;
+    setErro("");
+    setClienteEdicao(cliente);
+    setFormCliente({
+      nome: cliente.nome || "",
+      telefone: cliente.telefone || "",
+      email: cliente.email || "",
+    });
+  };
+
+  const fecharEdicaoCliente = () => {
+    setClienteEdicao(null);
+    setFormCliente({ nome: "", telefone: "", email: "" });
+  };
+
+  const salvarCliente = async (event) => {
+    event.preventDefault();
+    if (salvandoCliente || !clienteEdicao) return;
+    if (!String(formCliente.nome).trim()) {
+      setErro("Nome do cliente nao pode ficar vazio.");
+      return;
+    }
+    setSalvandoCliente(true);
+    setErro("");
+    try {
+      const r = await fetch(`${BASE}/clientes/${encodeURIComponent(clienteEdicao.id_cliente)}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          nome: String(formCliente.nome).trim(),
+          telefone: String(formCliente.telefone).trim(),
+          email: String(formCliente.email).trim(),
+          solicitante_id: usuarioId,
+        }),
+      });
+      const json = await r.json().catch(() => ({}));
+      if (!r.ok || !json.ok) throw new Error(json.error || "Erro ao salvar cliente.");
+      fecharEdicaoCliente();
+      carregar();
+    } catch (err) {
+      setErro(err.message || "Erro ao salvar cliente.");
+    } finally {
+      setSalvandoCliente(false);
+    }
+  };
+
+  const salvarVisita = async (event) => {
+    event.preventDefault();
+    if (salvandoVisita || !visitaEdicao) return;
+    const resp = String(formVisita.proposta || "").trim().toLowerCase();
+    // Mesma regra do servidor: o campo cobrado depende da resposta.
+    if (resp === "sim" && !String(formVisita.motivoSim).trim()) {
+      setErro("Resposta SIM exige o motivo."); return;
+    }
+    if (resp === "talvez" && !String(formVisita.motivoTalvez).trim()) {
+      setErro("Resposta TALVEZ exige o motivo."); return;
+    }
+    setSalvandoVisita(true);
+    setErro("");
+    try {
+      const r = await fetch(`${BASE}/visitas/${encodeURIComponent(visitaEdicao.id_visita)}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(formVisita),
+      });
+      const json = await r.json().catch(() => ({}));
+      if (!r.ok || !json.ok) throw new Error(json.error || "Erro ao salvar visita.");
+      if (String(formVisita.motivoSim || formVisita.motivoTalvez).trim()) {
+        marcarFlagVisita(visitaEdicao, { add_motivo: true });
+      }
+      fecharEdicaoVisita();
+      carregar();
+    } catch (err) {
+      setErro(err.message || "Erro ao salvar visita.");
+    } finally {
+      setSalvandoVisita(false);
+    }
+  };
+
+  /** PDF por fetch, não por link: a API exige X-API-KEY, injetado no `fetch` global. */
+  const baixarPdfVisita = async (visita) => {
+    if (baixandoPdf) return;
+    setBaixandoPdf(visita.id_visita);
+    setErro("");
+    try {
+      const r = await fetch(`${BASE}/visitas/pdf/download?visita_id=${encodeURIComponent(visita.id_visita)}`);
+      if (!r.ok) throw new Error("Não consegui gerar o PDF.");
+      const blob = await r.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `visita-${visita.id_visita}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      setErro(err.message);
+    } finally {
+      setBaixandoPdf("");
+    }
   };
 
   const salvarMotivoTalvez = async (visita) => {
@@ -803,6 +1064,15 @@ function GestaoClientesVisitas() {
         >
           Calendario
         </button>
+        <button
+          type="button"
+          className={abaAtiva === "analise" ? "is-active" : ""}
+          onClick={() => setAbaAtiva("analise")}
+          role="tab"
+          aria-selected={abaAtiva === "analise"}
+        >
+          Analise
+        </button>
       </div>
 
       {abaAtiva === "calendario" ? (
@@ -831,6 +1101,116 @@ function GestaoClientesVisitas() {
               setAbaAtiva("clientes");
             }}
           />
+        </>
+      ) : abaAtiva === "analise" ? (
+        <>
+          <section className="gcv-metrics">
+            <div><span>Clientes</span><strong>{dashboard.total_clientes || 0}</strong></div>
+            <div><span>Taxa de interesse</span><strong>{dashboard.taxa_interesse}%</strong></div>
+            <div><span>Visitas por cliente</span><strong>{dashboard.visitas_por_cliente}</strong></div>
+            <div><span>Nota media</span><strong>{dashboard.nota_media_geral ?? "-"}</strong></div>
+            <div><span>Sem retorno 30d</span><strong>{dashboard.sem_retorno_30}</strong></div>
+            <div><span>Sem telefone/e-mail</span><strong>{dashboard.sem_contato}</strong></div>
+          </section>
+
+          <p className="gcv-analise-nota">
+            Tudo abaixo responde aos mesmos filtros da aba Clientes, inclusive a busca.
+            &quot;Interesse&quot; e a visita que terminou em SIM ou TALVEZ — nao e proposta
+            lancada.
+          </p>
+
+          <div className="gcv-analise-grid">
+            <BarrasFaixa
+              titulo="Recorrencia"
+              legenda="Visitas por cliente no periodo"
+              dados={dashboard.recorrencia}
+              total={dashboard.total_clientes}
+              destaque="1 visita"
+            />
+            <BarrasFaixa
+              titulo="Ultima visita"
+              legenda="Quanto tempo faz que o cliente nao e visitado"
+              dados={dashboard.recencia}
+              total={dashboard.total_clientes}
+              destaque="Mais de 60"
+            />
+            <BarrasFaixa
+              titulo="Nota do imovel"
+              legenda={`${dashboard.clientes_sem_nota} sem avaliacao (fora do grafico)`}
+              dados={dashboard.notas_faixa}
+              total={dashboard.total_clientes - dashboard.clientes_sem_nota}
+              destaque="Ate 5"
+            />
+            <section className="gcv-panel gcv-analise-panel">
+              <div className="gcv-panel-head">
+                <h2>Resposta da visita</h2>
+                <span>Somando todas as visitas do periodo</span>
+              </div>
+              <div className="gcv-analise-lista" role="list">
+                {["Sim", "Talvez", "Nao"].map((chave) => {
+                  const valor = Number(dashboard.propostas?.[chave]) || 0;
+                  const soma = Object.values(dashboard.propostas || {}).reduce(
+                    (acc, n) => acc + (Number(n) || 0),
+                    0,
+                  );
+                  const pct = soma ? Math.round((valor / soma) * 1000) / 10 : 0;
+                  return (
+                    <div className="gcv-analise-linha" key={chave} role="listitem">
+                      <span className="gcv-analise-rotulo">{chave}</span>
+                      <div className="gcv-bar-track">
+                        <span
+                          className={`gcv-bar-fill ${chave === "Nao" ? "is-alerta" : ""}`}
+                          style={{ width: `${valor ? Math.max(3, pct) : 0}%` }}
+                        />
+                      </div>
+                      <span className="gcv-analise-valor">{valor} <em>{pct}%</em></span>
+                    </div>
+                  );
+                })}
+              </div>
+            </section>
+          </div>
+
+          <section className="gcv-panel gcv-analise-panel">
+            <div className="gcv-panel-head">
+              <h2>Por corretor</h2>
+              <span>Ordenado por carteira no periodo</span>
+            </div>
+            <div className="gcv-tabela-wrap">
+              <table className="gcv-analise-tabela">
+                <thead>
+                  <tr>
+                    <th>Corretor</th>
+                    <th>Clientes</th>
+                    <th>Visitas</th>
+                    <th>Visitas/cliente</th>
+                    <th>Com interesse</th>
+                    <th>Taxa</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {dashboard.ranking_corretor.length === 0 ? (
+                    <tr><td colSpan={6}>Nenhum cliente nos filtros aplicados.</td></tr>
+                  ) : (
+                    dashboard.ranking_corretor.map((item) => (
+                      <tr key={item.corretor}>
+                        <td>{item.corretor}</td>
+                        <td>{item.clientes}</td>
+                        <td>{item.visitas}</td>
+                        <td>{(item.visitas / item.clientes).toFixed(1)}</td>
+                        <td>{item.comInteresse}</td>
+                        <td>
+                          <span className={`gcv-taxa ${item.taxa < 50 ? "is-baixa" : ""}`}>
+                            {item.taxa}%
+                          </span>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </section>
         </>
       ) : (
         <>
@@ -899,7 +1279,18 @@ function GestaoClientesVisitas() {
         <section className="gcv-panel gcv-detail">
           <div className="gcv-panel-head">
             <h2>Detalhe do cliente</h2>
-            <span>{texto(clienteSelecionado?.id_cliente)}</span>
+            <div className="gcv-panel-head-acoes">
+              <span>{texto(clienteSelecionado?.id_cliente)}</span>
+              {clienteSelecionado && (
+                <button
+                  type="button"
+                  className="gcv-motive-save"
+                  onClick={() => abrirEdicaoCliente(clienteSelecionado)}
+                >
+                  Editar cliente
+                </button>
+              )}
+            </div>
           </div>
           {!clienteSelecionado ? (
             <div className="gcv-empty">Selecione um cliente.</div>
@@ -1155,18 +1546,34 @@ function GestaoClientesVisitas() {
                     )}
 
                     <div className="gcv-review" style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center", marginTop: 8 }}>
-                      {visita.anexo_ficha && (
+                      {/* O anexo que abre e `link_imagem`. `anexo_ficha` e caminho
+                          relativo do AppSheet e NUNCA e URL — o botao marcava a flag e
+                          nao abria nada. */}
+                      {(visita.link_imagem || visita.anexo_ficha) && (
                         <button
                           type="button"
                           className="gcv-motive-save"
                           onClick={() => {
                             marcarFlagVisita(visita, { viu_anexo: true });
-                            if (/^https?:/i.test(visita.anexo_ficha)) window.open(visita.anexo_ficha, "_blank", "noopener");
+                            const alvo = visita.link_imagem || visita.anexo_ficha;
+                            if (/^https?:/i.test(alvo)) window.open(alvo, "_blank", "noopener");
+                            else setErro("Esta visita não tem link de anexo utilizável. Edite a visita para adicionar.");
                           }}
                         >
                           Ver anexo
                         </button>
                       )}
+                      <button type="button" className="gcv-motive-save" onClick={() => abrirEdicaoVisita(visita)}>
+                        Ver / editar visita
+                      </button>
+                      <button
+                        type="button"
+                        className="gcv-motive-save"
+                        onClick={() => baixarPdfVisita(visita)}
+                        disabled={baixandoPdf === visita.id_visita}
+                      >
+                        {baixandoPdf === visita.id_visita ? "Gerando…" : "PDF"}
+                      </button>
                       {visita.notas && (
                         <details onToggle={(e) => { if (e.currentTarget.open) marcarFlagVisita(visita, { viu_notas: true }); }}>
                           <summary style={{ cursor: "pointer" }}>Ver notas</summary>
@@ -1215,6 +1622,133 @@ function GestaoClientesVisitas() {
         <ResumoVisitasPeriodo serie={resumoPeriodo} />
       </div>
         </>
+      )}
+
+      {clienteEdicao && (
+        <div className="gcv-modal-bg" onClick={fecharEdicaoCliente}>
+          <form className="gcv-modal" onClick={(e) => e.stopPropagation()} onSubmit={salvarCliente}>
+            <header>
+              <div>
+                <span className="gcv-modal-eyebrow">Cliente {clienteEdicao.id_cliente}</span>
+                <h3>{clienteEdicao.nome || "Editar cliente"}</h3>
+              </div>
+              <button type="button" onClick={fecharEdicaoCliente} aria-label="Fechar">✕</button>
+            </header>
+
+            <p className="gcv-modal-alvo">
+              {clienteEdicao.corretor || "Sem corretor"}
+              <small>{clienteEdicao.qtd_visitas || 0} visita(s) no periodo</small>
+            </p>
+
+            <div className="gcv-modal-grid">
+              <label className="gcv-largo">Nome
+                <input type="text" value={formCliente.nome}
+                  onChange={(e) => setFormCliente((f) => ({ ...f, nome: e.target.value }))} />
+              </label>
+              <label>Telefone
+                <input type="text" value={formCliente.telefone} placeholder="61999999999"
+                  onChange={(e) => setFormCliente((f) => ({ ...f, telefone: e.target.value }))} />
+              </label>
+              <label>E-mail
+                <input type="email" value={formCliente.email} placeholder="cliente@email.com"
+                  onChange={(e) => setFormCliente((f) => ({ ...f, email: e.target.value }))} />
+              </label>
+            </div>
+
+            <p className="gcv-modal-dica">
+              Corrigir aqui vale para todo o historico do cliente — as visitas antigas
+              passam a mostrar o nome novo.
+            </p>
+
+            <footer>
+              <span className="gcv-espaco" />
+              <button type="button" className="gcv-motive-save" onClick={fecharEdicaoCliente}>
+                Cancelar
+              </button>
+              <button type="submit" className="gcv-modal-primario" disabled={salvandoCliente}>
+                {salvandoCliente ? "Salvando..." : "Salvar cliente"}
+              </button>
+            </footer>
+          </form>
+        </div>
+      )}
+
+      {visitaEdicao && (
+        <div className="gcv-modal-bg" onClick={fecharEdicaoVisita}>
+          <form className="gcv-modal" onClick={(e) => e.stopPropagation()} onSubmit={salvarVisita}>
+            <header>
+              <div>
+                <span className="gcv-modal-eyebrow">Visita {visitaEdicao.id_visita}</span>
+                <h3>{visitaEdicao.id_imovel || visitaEdicao.endereco_externo || "Editar visita"}</h3>
+              </div>
+              <button type="button" onClick={fecharEdicaoVisita} aria-label="Fechar">✕</button>
+            </header>
+
+            <p className="gcv-modal-alvo">
+              {(visitaEdicao.clientes || []).join(", ") || "Sem cliente"}
+              <small>{visitaEdicao.corretor || ""}</small>
+            </p>
+
+            <div className="gcv-modal-grid">
+              <label>Data da visita
+                <input type="date" value={formVisita.dataVisita || ""}
+                  onChange={(e) => setFormVisita((f) => ({ ...f, dataVisita: e.target.value }))} />
+              </label>
+              <label>Resposta do cliente
+                <select value={formVisita.proposta || ""}
+                  onChange={(e) => setFormVisita((f) => ({ ...f, proposta: e.target.value }))}>
+                  <option value="">Não respondido</option>
+                  <option value="Sim">SIM</option>
+                  <option value="Talvez">TALVEZ</option>
+                  <option value="Nao">NÃO</option>
+                </select>
+              </label>
+
+              {/* Só o motivo da resposta escolhida — pedir os dois convida a preencher o
+                  errado, e é o campo errado que deixa a pendência de pé. */}
+              {String(formVisita.proposta || "").toLowerCase() === "sim" && (
+                <label className="gcv-largo">Motivo do SIM *
+                  <textarea rows={2} value={formVisita.motivoSim || ""}
+                    onChange={(e) => setFormVisita((f) => ({ ...f, motivoSim: e.target.value }))} />
+                </label>
+              )}
+              {String(formVisita.proposta || "").toLowerCase() === "talvez" && (
+                <label className="gcv-largo">Motivo do TALVEZ *
+                  <textarea rows={2} value={formVisita.motivoTalvez || ""}
+                    onChange={(e) => setFormVisita((f) => ({ ...f, motivoTalvez: e.target.value }))} />
+                </label>
+              )}
+
+              <label className="gcv-largo">Link da imagem (anexo)
+                <input value={formVisita.linkImagem || ""} placeholder="https://drive.google.com/…"
+                  onChange={(e) => setFormVisita((f) => ({ ...f, linkImagem: e.target.value }))} />
+              </label>
+              <label className="gcv-largo">Link do áudio
+                <input value={formVisita.linkAudio || ""} placeholder="https://drive.google.com/…"
+                  onChange={(e) => setFormVisita((f) => ({ ...f, linkAudio: e.target.value }))} />
+              </label>
+              <label className="gcv-largo">Endereço externo
+                <input value={formVisita.enderecoExterno || ""}
+                  placeholder="Só para imóvel fora do CRM"
+                  onChange={(e) => setFormVisita((f) => ({ ...f, enderecoExterno: e.target.value }))} />
+              </label>
+            </div>
+
+            <footer>
+              <button type="button" className="gcv-motive-save"
+                onClick={() => baixarPdfVisita(visitaEdicao)}
+                disabled={baixandoPdf === visitaEdicao.id_visita}>
+                {baixandoPdf === visitaEdicao.id_visita ? "Gerando…" : "Baixar PDF"}
+              </button>
+              <span className="gcv-espaco" />
+              <button type="button" className="gcv-motive-save" onClick={fecharEdicaoVisita}
+                disabled={salvandoVisita}>Cancelar</button>
+              <button type="submit" className="gcv-modal-primario" disabled={salvandoVisita}>
+                {salvandoVisita ? "Salvando…" : "Salvar visita"}
+              </button>
+            </footer>
+          </form>
+        </div>
       )}
     </div>
   );

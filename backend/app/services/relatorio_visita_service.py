@@ -129,7 +129,9 @@ def _fmt_money_brl(v: Any) -> str:
     if v in (None, ""):
         return ""
     try:
-        n = float(str(v).replace(".", "").replace(",", "."))
+        raw = str(v).strip()
+        normalizado = raw.replace(".", "").replace(",", ".") if "," in raw else raw
+        n = float(normalizado)
         return f"R$ {n:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
     except Exception:
         return str(v)

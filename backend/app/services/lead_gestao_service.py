@@ -12,8 +12,9 @@ import re
 from typing import Any, Dict, List, Optional
 
 import requests
+from sqlalchemy import func
 
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from app.database import SessionLocal
 from app.models.estoque_legado import LeadLegado
@@ -428,6 +429,227 @@ def atualizar_acompanhamento(solicitante_id, lead_id, dados: Dict[str, Any]) -> 
         lead.acompanhamento_em = datetime.now()
         session.commit()
         return {"ok": True, "id": lead.id, "acompanhamento": _acompanhamento(lead)}
+    except Exception:
+        session.rollback()
+        raise
+    finally:
+        session.close()
+
+
+# ---------------------------------------------------------------------------
+# Resumo agregado para os graficos da Gestao de Leads
+# ---------------------------------------------------------------------------
+
+# Campos do lead que a tela pode corrigir. `atendimento` e `equipe` ficam de fora desta
+# lista porque nao sao correcao de digitacao — sao repasse de dono, tratado a parte.
+CAMPOS_EDITAVEIS = ("cliente", "telefone", "codigo_imovel", "fonte", "observacao")
+
+# Teto de fatias por grafico. Acima disso a pizza vira um anel de lascas ilegiveis e o
+# que importa (quem sao os maiores) some no ruido. O resto entra como "Outros".
+TOPO_FATIAS = 8
+
+
+def _rotulo(valor, vazio: str = "Nao informado") -> str:
+    return _texto(valor) or vazio
+
+
+def _top_n(contagem: Dict[str, int], limite: int = TOPO_FATIAS) -> List[Dict[str, Any]]:
+    ordenado = sorted(contagem.items(), key=lambda kv: (-kv[1], kv[0]))
+    principais = [{"rotulo": k, "total": v} for k, v in ordenado[:limite]]
+    resto = sum(v for _, v in ordenado[limite:])
+    if resto:
+        principais.append({"rotulo": "Outros", "total": resto})
+    return principais
+
+
+def _query_com_escopo(session, perfil, equipe, inicio, fim, corretor=None):
+    """Mesmo recorte de `listar`, sem paginacao — para contar em vez de exibir."""
+    query = session.query(LeadLegado)
+    chaves = _filtro_de_escopo(session, perfil, equipe)
+    if chaves is not None:
+        query = query.filter(
+            LeadLegado.atendimento.in_(chaves) | LeadLegado.equipe.in_(chaves)
+        )
+    corretor = _texto(corretor)
+    if corretor:
+        alvo = f"%{corretor}%"
+        chaves_corretor = [c for u in session.query(Usuarios).filter(
+            Usuarios.nome.ilike(alvo) | Usuarios.username.ilike(alvo)
+            | (Usuarios.id_usuarios == corretor)
+        ).all() for c in _chaves_do_usuario(u)]
+        condicao = LeadLegado.atendimento.ilike(alvo)
+        if chaves_corretor:
+            condicao = condicao | LeadLegado.atendimento.in_(chaves_corretor)
+        query = query.filter(condicao)
+    if inicio:
+        query = query.filter(LeadLegado.data >= inicio)
+    if fim:
+        query = query.filter(LeadLegado.data <= fim)
+    return query
+
+
+def resumo(solicitante_id, inicio=None, fim=None, equipe=None, corretor=None) -> Dict[str, Any]:
+    """Distribuicoes dos leads do periodo para os graficos.
+
+    Le de `leads_legado` (base interna, indexada), nao do C2S ao vivo: contar precisa
+    responder na hora, e a varredura da API deles leva minutos. O custo e que a situacao
+    aqui e a da importacao, nao a de agora — por isso a tela diz de onde cada numero vem.
+
+    Uma consulta por eixo com `group by`, em vez de puxar as linhas e agrupar em Python:
+    sao 68 mil leads na base e o recorte de um diretor sem filtro pega quase todos.
+    """
+    session = SessionLocal()
+    try:
+        perfil = _perfil(session, solicitante_id)
+        base = _query_com_escopo(session, perfil, equipe, inicio, fim, corretor)
+
+        def agrupar(coluna):
+            linhas = base.with_entities(coluna, func.count(LeadLegado.id)).group_by(coluna).all()
+            contagem: Dict[str, int] = {}
+            for valor, total in linhas:
+                chave = _rotulo(valor)
+                contagem[chave] = contagem.get(chave, 0) + int(total or 0)
+            return contagem
+
+        total = base.with_entities(func.count(LeadLegado.id)).scalar() or 0
+
+        # Serie do grafico de linha, com granularidade automatica. Um diretor sem filtro
+        # de data pega 1591 dias distintos — 1591 circulos no SVG travam a tela e os
+        # rotulos viram uma mancha. Acima do limite a serie e agregada por semana e
+        # depois por mes; os totais continuam exatos, so o balde muda.
+        diario = [
+            (d, int(t or 0))
+            for d, t in base.with_entities(LeadLegado.data, func.count(LeadLegado.id))
+                            .group_by(LeadLegado.data).order_by(LeadLegado.data).all()
+            if d
+        ]
+        if len(diario) <= 62:
+            granularidade = "dia"
+            por_dia = [
+                {"data": d.isoformat(), "label": d.strftime("%d/%m"), "total": t}
+                for d, t in diario
+            ]
+        elif len(diario) <= 400:
+            granularidade = "semana"
+            baldes: Dict[Any, int] = {}
+            for d, t in diario:
+                # Segunda-feira da semana do lead.
+                inicio_semana = d - timedelta(days=d.weekday())
+                baldes[inicio_semana] = baldes.get(inicio_semana, 0) + t
+            por_dia = [
+                {"data": k.isoformat(), "label": k.strftime("%d/%m"), "total": v}
+                for k, v in sorted(baldes.items())
+            ]
+        else:
+            granularidade = "mes"
+            baldes = {}
+            for d, t in diario:
+                baldes[(d.year, d.month)] = baldes.get((d.year, d.month), 0) + t
+            por_dia = [
+                {"data": f"{ano:04d}-{mes:02d}", "label": f"{mes:02d}/{str(ano)[2:]}", "total": v}
+                for (ano, mes), v in sorted(baldes.items())
+            ]
+
+        # Acompanhamento: o unico eixo que e nosso, nao do C2S.
+        com_acomp = base.filter(LeadLegado.acompanhamento_em.isnot(None)).with_entities(
+            func.count(LeadLegado.id)).scalar() or 0
+        agendadas = base.filter(LeadLegado.visita_agendada.is_(True)).with_entities(
+            func.count(LeadLegado.id)).scalar() or 0
+        sem_visita = base.filter(LeadLegado.visita_agendada.is_(False)).with_entities(
+            func.count(LeadLegado.id)).scalar() or 0
+
+        contato = agrupar(LeadLegado.contato_status)
+        # `contato_status` nulo vira "Nao informado" no agrupador; neste eixo o nome certo
+        # e "Sem acompanhamento", que e o que a ausencia significa.
+        if "Nao informado" in contato:
+            contato["Sem acompanhamento"] = contato.pop("Nao informado")
+        contato = {CONTATOS.get(k, k): v for k, v in contato.items()}
+
+        return {
+            "ok": True,
+            "total": int(total),
+            "com_acompanhamento": int(com_acomp),
+            "sem_acompanhamento": int(total) - int(com_acomp),
+            "visita_agendada": int(agendadas),
+            "sem_visita": int(sem_visita),
+            "por_dia": por_dia,
+            "granularidade": granularidade,
+            "dias_com_entrada": len(diario),
+            "por_fonte": _top_n(agrupar(LeadLegado.fonte)),
+            "por_equipe": _top_n(agrupar(LeadLegado.equipe)),
+            "por_corretor": _top_n(agrupar(LeadLegado.atendimento), 10),
+            "por_contato": _top_n(contato),
+            "motivos_sem_visita": _top_n(agrupar(LeadLegado.motivo_sem_visita), 6),
+            "escopo": {
+                "ve_tudo": perfil["permissao"] in PERFIS_GLOBAIS,
+                "pode_lancar": perfil["permissao"] in PERFIS_GESTAO,
+            },
+        }
+    finally:
+        session.close()
+
+
+def editar_lead(solicitante_id, lead_id, dados: Dict[str, Any]) -> Dict[str, Any]:
+    """Corrige os dados do lead na base interna.
+
+    Nao propaga para o Contact2Sale: a integracao e de leitura, e a importacao diaria
+    pula o que ja existe em vez de reescrever — entao a correcao feita aqui sobrevive a
+    proxima carga. O outro lado disso: o C2S continua com o valor antigo, e quem olhar
+    la vai ver a divergencia.
+
+    Repasse de dono (`atendimento`) e tratado a parte de proposito. Nao e correcao de
+    digitacao: muda de quem e o lead, entao gerente so repassa dentro da propria equipe
+    e perfil global repassa para qualquer um.
+    """
+    session = SessionLocal()
+    try:
+        perfil = _perfil(session, solicitante_id)
+        if perfil["permissao"] not in PERFIS_GESTAO:
+            raise LeadErro("Sem permissao para editar lead", 403)
+
+        lead = session.query(LeadLegado).filter(LeadLegado.id == lead_id).first()
+        if not lead:
+            raise LeadErro("Lead nao encontrado", 404)
+
+        chaves = _filtro_de_escopo(session, perfil)
+        if chaves is not None and _texto(lead.atendimento) not in chaves and _texto(lead.equipe) not in chaves:
+            raise LeadErro("Esse lead e de outra equipe", 403)
+
+        alterados: List[str] = []
+        for campo in CAMPOS_EDITAVEIS:
+            if campo not in dados:
+                continue
+            valor = _texto(dados.get(campo))
+            if campo == "cliente" and not valor:
+                raise LeadErro("Nome do cliente nao pode ficar vazio")
+            if campo == "telefone":
+                valor = _digitos(valor) or valor
+            if valor != _texto(getattr(lead, campo)):
+                setattr(lead, campo, valor or None)
+                alterados.append(campo)
+
+        if "atendimento" in dados:
+            novo_dono = _texto(dados.get("atendimento"))
+            if novo_dono:
+                usuario = session.query(Usuarios).filter(
+                    Usuarios.id_usuarios == novo_dono, Usuarios.ativo.is_(True)
+                ).first()
+                if not usuario:
+                    raise LeadErro("Corretor de destino nao encontrado", 404)
+                if chaves is not None and _texto(usuario.team) != _texto(perfil["team"]):
+                    raise LeadErro("So da para repassar dentro da propria equipe", 403)
+                if _texto(lead.atendimento) != novo_dono:
+                    lead.atendimento = novo_dono
+                    lead.equipe = _texto(usuario.team) or lead.equipe
+                    alterados.append("atendimento")
+
+        if alterados:
+            session.commit()
+
+        return {"ok": True, "id": lead.id, "alterados": alterados}
+    except LeadErro:
+        session.rollback()
+        raise
     except Exception:
         session.rollback()
         raise

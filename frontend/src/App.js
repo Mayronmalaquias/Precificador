@@ -43,6 +43,9 @@ import GerenteRHCorretores from './components/GerenteRHCorretores'
 import LancarImovel from './components/LancarImovel'
 import VisaoDiretor from './components/VisaoDiretor'
 import PropostasEfetivas from './components/PropostasEfetivas'
+import GestaoLeads from './components/GestaoLeads'
+import GestaoVisitas from './components/GestaoVisitas'
+import Tarefas from './components/Tarefas'
 import ConsultaImoveis from './components/ConsultaImoveis'
 
 import './assets/css/styles.css';
@@ -116,6 +119,21 @@ function App() {
                 <Route
                   path="/PropostasEfetivas"
                   element={<PropostasRoute><PropostasEfetivas /></PropostasRoute>}
+                />
+                {/* Módulos de gestão. Leads e Visitas usam o mesmo recorte do Relatório
+                    do Gerente (AdminRoute); o hub de Tarefas vale para quem tem equipe
+                    ou enxerga tudo, e o próprio serviço corta o escopo. */}
+                <Route
+                  path="/GestaoLeads"
+                  element={<AdminRoute><GestaoLeads /></AdminRoute>}
+                />
+                <Route
+                  path="/GestaoVisitas"
+                  element={<AdminRoute><GestaoVisitas /></AdminRoute>}
+                />
+                <Route
+                  path="/Tarefas"
+                  element={<PrivateRoute><Tarefas /></PrivateRoute>}
                 />
                 <Route
                   path="/ControleCorretor"

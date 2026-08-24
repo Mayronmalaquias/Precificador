@@ -1,4 +1,4 @@
-from flask import request, current_app, send_file
+﻿from flask import request, current_app, send_file
 from flask_restx import Namespace, Resource
 
 from app.services.visita_service import (
@@ -82,6 +82,25 @@ class VisitasVistas(Resource):
 
 @visita_ns.route("/visitas/<string:id_visita>")
 class VisitaDetalhe(Resource):
+    @visita_ns.doc(
+        description=(
+            "Uma visita com resposta do cliente, pendencia de revisao e os campos "
+            "editaveis. Mesmo escopo da listagem: gerente ve a equipe, corretor ve as "
+            "proprias, diretor/administrador veem tudo."
+        ),
+        params={"solicitante_id": "Id do usuario (obrigatorio)."},
+    )
+    def get(self, id_visita):
+        from app.services import gestao_visitas_service as servico
+        from app.services.gestao_visitas_service import VisitaGestaoErro
+        try:
+            return servico.detalhe(request.args.get("solicitante_id"), id_visita), 200
+        except VisitaGestaoErro as e:
+            return {"ok": False, "error": e.mensagem}, e.status
+        except Exception:
+            current_app.logger.exception("Erro ao abrir visita")
+            return {"ok": False, "error": "Erro interno ao abrir visita."}, 500
+
     def put(self, id_visita):
         payload = request.get_json() or {}
         try:
@@ -295,6 +314,44 @@ class Clientes(Resource):
             return {"ok": False, "error": str(e)}, 500
 
 
+@visita_ns.route("/clientes/<string:id_cliente>")
+class ClienteItem(Resource):
+    @visita_ns.doc(
+        description="Um cliente do cadastro, com o mesmo escopo da edicao.",
+        params={"solicitante_id": "Id do usuario logado (obrigatorio)."},
+    )
+    def get(self, id_cliente):
+        from app.services.visita_service import obter_cliente, ClienteErro
+        try:
+            return obter_cliente(id_cliente, request.args.get("solicitante_id")), 200
+        except ClienteErro as e:
+            return {"ok": False, "error": e.mensagem}, e.status
+        except Exception:
+            current_app.logger.exception("Erro ao abrir cliente")
+            return {"ok": False, "error": "Erro interno ao abrir cliente."}, 500
+
+    @visita_ns.doc(
+        description=(
+            "Edita nome, telefone e e-mail do cliente. O escopo sai do cadastro do "
+            "solicitante: corretor edita o proprio cliente, gerente a equipe, "
+            "diretor/administrador qualquer um. Campo ausente no corpo fica como esta; "
+            "campo enviado vazio apaga o valor."
+        ),
+        params={"solicitante_id": "Id do usuario logado (obrigatorio)."},
+    )
+    def put(self, id_cliente):
+        from app.services.visita_service import editar_cliente, ClienteErro
+        payload = request.get_json(silent=True) or {}
+        solicitante = payload.get("solicitante_id") or request.args.get("solicitante_id")
+        try:
+            return editar_cliente(id_cliente, payload, solicitante), 200
+        except ClienteErro as e:
+            return {"ok": False, "error": e.mensagem}, e.status
+        except Exception:
+            current_app.logger.exception("Erro ao editar cliente")
+            return {"ok": False, "error": "Erro interno ao editar cliente."}, 500
+
+
 @visita_ns.route("/clientes_busca")
 class ClientesBusca(Resource):
     def get(self):
@@ -413,3 +470,35 @@ class VisitasGerente(Resource):
         except Exception as e:
             current_app.logger.exception("Erro ao gerar json do gerente")
             return {"ok": False, "error": str(e)}, 500
+
+
+@visita_ns.route("/gestao/visitas")
+class GestaoVisitas(Resource):
+    @visita_ns.doc(
+        description=(
+            "Visitas do período com resposta do cliente e pendência de revisão do gerente. "
+            "O escopo sai do cadastro: gerente vê a equipe, corretor vê as próprias, "
+            "diretor/administrador veem tudo."
+        ),
+        params={
+            "solicitante_id": "Id do usuário (obrigatório).",
+            "inicio": "Data inicial (YYYY-MM-DD).",
+            "fim": "Data final (YYYY-MM-DD).",
+            "id_gerente": "Recorta por equipe. Só tem efeito para quem enxerga tudo.",
+        },
+    )
+    def get(self):
+        from app.services import gestao_visitas_service as servico
+        from app.services.gestao_visitas_service import VisitaGestaoErro
+        try:
+            return servico.listar(
+                request.args.get("solicitante_id"),
+                inicio=request.args.get("inicio"),
+                fim=request.args.get("fim"),
+                equipe=request.args.get("id_gerente"),
+            ), 200
+        except VisitaGestaoErro as e:
+            return {"ok": False, "error": e.mensagem}, e.status
+        except Exception:
+            current_app.logger.exception("Erro ao listar visitas da gestão")
+            return {"ok": False, "error": "Erro interno ao listar visitas."}, 500

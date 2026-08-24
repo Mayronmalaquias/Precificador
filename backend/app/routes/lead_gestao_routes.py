@@ -69,6 +69,35 @@ class LeadsGestao(Resource):
             return _erro(e, "Erro ao criar lead no Contact2Sale")
 
 
+@lead_gestao_ns.route("/leads/gestao/resumo")
+class LeadsResumo(Resource):
+    @lead_gestao_ns.doc(
+        description=(
+            "Distribuicoes dos leads do periodo para os graficos: serie diaria, fonte, "
+            "equipe, corretor, canal de contato e motivos de nao agendar. Le da base "
+            "interna (instantaneo), nao do Contact2Sale ao vivo."
+        ),
+        params={
+            "solicitante_id": "Id do usuario (obrigatorio).",
+            "inicio": "Data inicial (YYYY-MM-DD).",
+            "fim": "Data final (YYYY-MM-DD).",
+            "id_gerente": "Recorta por equipe. So tem efeito para quem enxerga tudo.",
+            "corretor": "Nome ou id de quem atende.",
+        },
+    )
+    def get(self):
+        try:
+            return servico.resumo(
+                _solicitante(),
+                inicio=request.args.get("inicio") or None,
+                fim=request.args.get("fim") or None,
+                equipe=request.args.get("id_gerente") or None,
+                corretor=request.args.get("corretor") or None,
+            ), 200
+        except Exception as e:
+            return _erro(e, "Erro ao resumir leads")
+
+
 @lead_gestao_ns.route("/leads/gestao/<int:lead_id>")
 class LeadGestaoDetalhe(Resource):
     @lead_gestao_ns.doc(description=(
@@ -92,6 +121,19 @@ class LeadGestaoDetalhe(Resource):
             return servico.atualizar_acompanhamento(_solicitante(), lead_id, dados), 200
         except Exception as e:
             return _erro(e, "Erro ao gravar acompanhamento do lead")
+
+    @lead_gestao_ns.doc(description=(
+        "Corrige os dados do lead na base interna: `cliente`, `telefone`, "
+        "`codigo_imovel`, `fonte`, `observacao` e o repasse de dono (`atendimento`). "
+        "Nao propaga para o Contact2Sale — la o valor antigo permanece. Gerente so "
+        "repassa dentro da propria equipe."
+    ))
+    def patch(self, lead_id):
+        dados = request.get_json(silent=True) or {}
+        try:
+            return servico.editar_lead(_solicitante(), lead_id, dados), 200
+        except Exception as e:
+            return _erro(e, "Erro ao editar lead")
 
 
 @lead_gestao_ns.route("/leads/c2s")

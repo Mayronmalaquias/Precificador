@@ -1,4 +1,4 @@
-"""Propostas efetivas: CRUD, escopo por permissao e acompanhamento de inatividade.
+﻿"""Propostas efetivas: CRUD, escopo por permissao e acompanhamento de inatividade.
 
 Regras de acesso (o solicitante vem do banco, nunca do que a tela mandou):
 - gerente ......... ve e edita SO as propostas da propria equipe; lanca no nome de
@@ -662,8 +662,16 @@ def atualizar(solicitante_id, proposta_id, dados):
             raise PropostaErro("Permuta entra como 2ª proposta: informe o valor do bem permutado")
 
         user = escopo["user"]
-        proposta.ultima_acao_em = datetime.now()
+        # `ultima_acao_em` mede tempo sem ACOMPANHAMENTO, nao tempo sem alguem digitar.
+        # Carimbar aqui em toda edicao fazia corrigir um endereco ou um valor zerar o
+        # relogio de "proposta parada": a pendencia sumia da Visao do Diretor e do painel
+        # de tarefas sem ninguem ter falado com o cliente.
+        #
+        # So mudanca de situacao carimba, e por isso ela e carimbada junto da acao que
+        # registra a mudanca — as duas coisas descrevem o mesmo evento e nao podem
+        # divergir. Acompanhamento de verdade entra por `registrar_acao`.
         if situacao and situacao != situacao_anterior:
+            proposta.ultima_acao_em = datetime.now()
             session.add(PropostaEfetivaAcao(
                 proposta_id=proposta.id,
                 descricao=f"Situação alterada de {ROTULO_SITUACAO.get(situacao_anterior, situacao_anterior)} para {ROTULO_SITUACAO.get(situacao, situacao)}",

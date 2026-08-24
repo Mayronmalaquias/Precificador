@@ -33,7 +33,8 @@ const FORM_VAZIO = {
  * O escopo vem do servidor — gerente vê a equipe, corretor vê só os dele, diretoria vê
  * tudo. `pode_lancar` também: quem não é gestão não recebe o botão.
  */
-export default function RelatorioLeads({ idSolicitante, equipe, inicio, fim, corretor }) {
+export default function RelatorioLeads({ idSolicitante, equipe, inicio, fim, corretor,
+  podeLancar = false }) {
   const toast = useToast();
   const [dados, setDados] = useState({ itens: [], total: 0, page: 1, paginas: 1 });
   // Comeca em `false`: a aba nao busca ao abrir, entao nascer "carregando" mostrava
@@ -62,6 +63,9 @@ export default function RelatorioLeads({ idSolicitante, equipe, inicio, fim, cor
     contato_status: "", visita_agendada: "", motivo_sem_visita: "", proxima_acao: "",
   });
   const [salvandoAcomp, setSalvandoAcomp] = useState(false);
+  // Correcao dos dados do lead. `null` = bloco fechado; abrir copia o que esta na tela.
+  const [edicao, setEdicao] = useState(null);
+  const [salvandoEdicao, setSalvandoEdicao] = useState(false);
   // Qual seta esta buscando: so ela mostra "Carregando", as duas ficam travadas.
   const [paginando, setPaginando] = useState(null);
 
@@ -186,6 +190,7 @@ export default function RelatorioLeads({ idSolicitante, equipe, inicio, fim, cor
       const d = await r.json();
       if (!r.ok || d.ok === false) throw new Error(d.error || "Erro ao abrir lead");
       setDetalhe({ ...d.lead, _imovel: d.imovel, _pode_editar: d.pode_editar, _opcoes: d.opcoes });
+      setEdicao(null);
       const a = d.lead?.acompanhamento || {};
       setAcomp({
         contato_status: a.contato_status || "",
@@ -201,6 +206,43 @@ export default function RelatorioLeads({ idSolicitante, equipe, inicio, fim, cor
   };
 
   const set = (campo) => (e) => setForm((f) => ({ ...f, [campo]: e.target.value }));
+
+  const abrirEdicao = () => setEdicao({
+    cliente: detalhe.cliente || "",
+    telefone: detalhe.telefone || "",
+    codigo_imovel: detalhe.codigo_imovel || "",
+    fonte: detalhe.fonte || "",
+    observacao: detalhe.observacao || "",
+  });
+
+  /** PATCH corrige o dado do lead; o PUT ao lado grava o acompanhamento. Sao coisas
+   *  diferentes — um e o que o lead E, o outro e o que fizemos com ele. */
+  const salvarEdicao = async () => {
+    if (salvandoEdicao || !edicao) return;
+    if (!String(edicao.cliente).trim()) {
+      toast("Nome do cliente nao pode ficar vazio.", "error");
+      return;
+    }
+    setSalvandoEdicao(true);
+    try {
+      const r = await fetch(`${BASE}/leads/gestao/${detalhe.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...edicao, solicitante_id: idSolicitante }),
+      });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok || !d.ok) throw new Error(d.error || "Erro ao salvar o lead.");
+      // Atualiza so o modal. Recarregar a lista custaria uma varredura do C2S de
+      // minutos, e a listagem vem de la — nao da base que acabou de mudar.
+      setDetalhe((p) => ({ ...p, ...edicao }));
+      setEdicao(null);
+      toast(d.alterados?.length ? "Lead atualizado." : "Nada mudou.", "success");
+    } catch (err) {
+      toast(err.message || "Erro ao salvar o lead.", "error");
+    } finally {
+      setSalvandoEdicao(false);
+    }
+  };
 
   const lancar = async (e) => {
     e.preventDefault();
@@ -312,7 +354,7 @@ export default function RelatorioLeads({ idSolicitante, equipe, inicio, fim, cor
         >
           Sem acompanhamento
         </button>
-        {dados.pode_lancar && (
+        {(dados.pode_lancar || podeLancar) && (
           <button type="button" className="raba-cta raba-cta--novo" onClick={() => setCriando(true)}>
             + Lançar lead
           </button>
@@ -543,6 +585,54 @@ export default function RelatorioLeads({ idSolicitante, equipe, inicio, fim, cor
 
             {detalhe._pode_editar && (
               <>
+                <h4 className="raba-subtitulo">
+                  Dados do lead
+                  {!edicao && (
+                    <button type="button" className="raba-link" onClick={abrirEdicao}>
+                      Corrigir
+                    </button>
+                  )}
+                </h4>
+                {edicao ? (
+                  <>
+                    <div className="raba-form">
+                      <label className="raba-form-largo">Cliente
+                        <input value={edicao.cliente}
+                          onChange={(e) => setEdicao((v) => ({ ...v, cliente: e.target.value }))} />
+                      </label>
+                      <label>Telefone
+                        <input value={edicao.telefone} placeholder="61999999999"
+                          onChange={(e) => setEdicao((v) => ({ ...v, telefone: e.target.value }))} />
+                      </label>
+                      <label>Código do imóvel
+                        <input value={edicao.codigo_imovel}
+                          onChange={(e) => setEdicao((v) => ({ ...v, codigo_imovel: e.target.value }))} />
+                      </label>
+                      <label>Fonte
+                        <input value={edicao.fonte}
+                          onChange={(e) => setEdicao((v) => ({ ...v, fonte: e.target.value }))} />
+                      </label>
+                      <label className="raba-form-largo">Observação
+                        <input value={edicao.observacao}
+                          onChange={(e) => setEdicao((v) => ({ ...v, observacao: e.target.value }))} />
+                      </label>
+                    </div>
+                    <p className="raba-nota">
+                      A correção vale na base interna. O Contact2Sale continua com o valor
+                      antigo — a importação diária não reescreve o que já existe aqui.
+                    </p>
+                    <div className="raba-modal-rodape">
+                      <button type="button" className="raba-filtro" onClick={() => setEdicao(null)}>
+                        Cancelar
+                      </button>
+                      <button type="button" className="raba-cta" disabled={salvandoEdicao}
+                        onClick={salvarEdicao}>
+                        {salvandoEdicao ? "Salvando…" : "Salvar dados"}
+                      </button>
+                    </div>
+                  </>
+                ) : null}
+
                 <h4 className="raba-subtitulo">Acompanhamento</h4>
                 <div className="raba-form">
                   <label>Interação

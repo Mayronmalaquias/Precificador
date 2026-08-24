@@ -1,0 +1,201 @@
+/* Painel de Tarefas — hub das pendências dos quatro módulos.
+ *
+ * Cor por MÓDULO (lead/cliente/visita/proposta) e cor por GRAVIDADE são escalas
+ * separadas de propósito: a primeira diz de onde veio, a segunda diz o quanto corre.
+ * Misturar as duas faria "crítica" e "proposta" competirem pela mesma leitura.
+ */
+
+.tf {
+  --tf-ink: #1c1a22;
+  --tf-ink2: #5b5766;
+  --tf-ink3: #857f92;
+  --tf-linha: #e3e0e9;
+  --tf-fundo: #fff;
+  --tf-fundo2: #f6f5f8;
+
+  --tf-critica: #a81e14;
+  --tf-critica-bg: #fbe8e6;
+  --tf-atencao: #8a5300;
+  --tf-atencao-bg: #fbeedb;
+  --tf-normal: #4c5563;
+  --tf-normal-bg: #eef0f3;
+  --tf-ok: #1b6340;
+  --tf-ok-bg: #e3f1e9;
+
+  --tf-proposta: #1a548f;
+  --tf-visita: #8f5100;
+  --tf-lead: #5b3fc4;
+  --tf-cliente: #0c6e68;
+  --tf-rosa: #c4005a;
+
+  max-width: 1080px;
+  margin: 0 auto;
+  padding: 26px 20px 70px;
+  color: var(--tf-ink);
+  font-family: var(--ds-font, inherit);
+}
+
+/* ── topo ── */
+.tf-topo {
+  display: flex; align-items: flex-start; justify-content: space-between;
+  gap: 16px; flex-wrap: wrap; margin-bottom: 20px;
+}
+.tf-topo h1 { font-size: 26px; margin: 0 0 4px; letter-spacing: -.5px; }
+.tf-topo p { margin: 0; font-size: 13px; color: var(--tf-ink3); }
+
+/* ── cards ── */
+.tf-cards {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 11px; margin-bottom: 18px;
+}
+.tf-card {
+  background: var(--tf-fundo); border: 1px solid var(--tf-linha);
+  border-radius: 11px; padding: 13px 15px;
+  display: flex; flex-direction: column; gap: 2px;
+}
+.tf-card span {
+  font-size: 10.5px; font-weight: 700; letter-spacing: .08em;
+  text-transform: uppercase; color: var(--tf-ink3);
+}
+.tf-card strong { font-size: 25px; font-variant-numeric: tabular-nums; letter-spacing: -1px; }
+.tf-card small { font-size: 10.5px; color: var(--tf-ink3); }
+.tf-card.is-critica strong { color: var(--tf-critica); }
+.tf-regua { font-size: 18px !important; }
+
+/* ── filtros ── */
+.tf-filtros { display: flex; flex-direction: column; gap: 10px; margin-bottom: 18px; }
+.tf-chips { display: flex; flex-wrap: wrap; gap: 7px; }
+.tf-chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  border: 1px solid var(--tf-linha); background: var(--tf-fundo);
+  color: var(--tf-ink2); border-radius: 999px; padding: 7px 13px;
+  font: 700 12px var(--ds-font, inherit); cursor: pointer;
+  transition: border-color .15s ease, color .15s ease;
+}
+.tf-chip b {
+  font-size: 11px; background: var(--tf-fundo2); color: var(--tf-ink3);
+  border-radius: 999px; padding: 1px 7px; font-variant-numeric: tabular-nums;
+}
+.tf-chip:hover { border-color: var(--tf-ink3); color: var(--tf-ink); }
+.tf-chip.is-ativo { border-color: currentColor; }
+.tf-chip.is-ativo b { background: currentColor; color: #fff; }
+.tf-chip.t-proposta.is-ativo { color: var(--tf-proposta); }
+.tf-chip.t-visita.is-ativo   { color: var(--tf-visita); }
+.tf-chip.t-lead.is-ativo     { color: var(--tf-lead); }
+.tf-chip.t-cliente.is-ativo  { color: var(--tf-cliente); }
+.tf-chip.is-ativo:not([class*=" t-"]) { color: var(--tf-rosa); }
+
+.tf-filtros-linha { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.tf-filtros-linha select,
+.tf-filtros-linha input {
+  border: 1px solid var(--tf-linha); border-radius: 9px; padding: 8px 11px;
+  font: 500 13px var(--ds-font, inherit); background: var(--tf-fundo); color: var(--tf-ink);
+}
+.tf-filtros-linha input { min-width: 190px; }
+
+/* ── botões ── */
+.tf-btn {
+  border: 1px solid var(--tf-linha); background: var(--tf-fundo); color: var(--tf-ink);
+  border-radius: 9px; padding: 8px 14px; font: 700 12px var(--ds-font, inherit);
+  cursor: pointer;
+}
+.tf-btn:hover { border-color: var(--tf-ink3); }
+.tf-btn--primario { background: var(--tf-rosa); border-color: var(--tf-rosa); color: #fff; }
+.tf-btn--primario:hover { filter: brightness(1.08); }
+.tf-btn:disabled { background: #f1f3f5; border-color: #e3e7eb; color: #9aa2b1; cursor: not-allowed; }
+.tf-link {
+  background: none; border: 0; color: var(--tf-rosa);
+  font: 700 12px var(--ds-font, inherit); cursor: pointer; text-decoration: none;
+}
+.tf-link:hover { text-decoration: underline; }
+
+/* ── estados ── */
+.tf-estado {
+  background: var(--tf-fundo); border: 1px solid var(--tf-linha); border-radius: 11px;
+  padding: 22px; text-align: center; font-size: 13px; color: var(--tf-ink3);
+}
+.tf-estado--erro { background: var(--tf-critica-bg); color: var(--tf-critica); border-color: transparent; }
+.tf-estado--ok { background: var(--tf-ok-bg); color: var(--tf-ok); border-color: transparent; }
+
+/* ── lista ── */
+.tf-lista { display: flex; flex-direction: column; gap: 10px; }
+.tf-item {
+  background: var(--tf-fundo); border: 1px solid var(--tf-linha);
+  border-left: 4px solid var(--tf-normal);
+  border-radius: 11px; padding: 14px 16px;
+  display: flex; flex-direction: column; gap: 5px;
+}
+.tf-item.n-critica { border-left-color: var(--tf-critica); }
+.tf-item.n-atencao { border-left-color: var(--tf-atencao); }
+.tf-item h3 { margin: 2px 0 0; font-size: 15px; letter-spacing: -.2px; }
+.tf-detalhe { margin: 0; font-size: 12.5px; color: var(--tf-ink2); }
+.tf-resp { margin: 0; font-size: 11.5px; color: var(--tf-ink3); }
+
+.tf-item-tags { display: flex; flex-wrap: wrap; align-items: center; gap: 7px; }
+.tf-nivel, .tf-tipo {
+  font-size: 10px; font-weight: 800; letter-spacing: .07em; text-transform: uppercase;
+  padding: 3px 7px; border-radius: 5px;
+}
+.tf-nivel.n-critica { background: var(--tf-critica-bg); color: var(--tf-critica); }
+.tf-nivel.n-atencao { background: var(--tf-atencao-bg); color: var(--tf-atencao); }
+.tf-nivel.n-normal  { background: var(--tf-normal-bg);  color: var(--tf-normal); }
+.tf-tipo { background: var(--tf-fundo2); color: var(--tf-ink2); }
+.tf-tipo.t-proposta { color: var(--tf-proposta); }
+.tf-tipo.t-visita   { color: var(--tf-visita); }
+.tf-tipo.t-lead     { color: var(--tf-lead); }
+.tf-tipo.t-cliente  { color: var(--tf-cliente); }
+.tf-dias { font-size: 11.5px; color: var(--tf-ink3); }
+
+.tf-acoes { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-top: 7px; }
+
+/* ── modal ── */
+.tf-modal-bg {
+  position: fixed; inset: 0; background: #171b2c99; backdrop-filter: blur(4px);
+  z-index: 1000; display: grid; place-items: center; padding: 20px;
+}
+.tf-modal {
+  background: var(--tf-fundo); border-radius: 15px; padding: 20px;
+  width: min(520px, 100%); max-height: 88vh; overflow: auto;
+  display: flex; flex-direction: column; gap: 12px;
+}
+.tf-modal > header { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.tf-modal h3 { margin: 3px 0 0; font-size: 18px; letter-spacing: -.3px; }
+.tf-modal > header button {
+  border: 1px solid var(--tf-linha); background: var(--tf-fundo); color: var(--tf-ink2);
+  border-radius: 8px; width: 30px; height: 30px; cursor: pointer; font-size: 13px;
+}
+.tf-eyebrow {
+  font-size: 10px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase;
+  color: var(--tf-rosa);
+}
+.tf-modal-alvo {
+  margin: 0; background: var(--tf-fundo2); border-radius: 9px; padding: 10px 12px;
+  font-size: 13px; font-weight: 600;
+}
+.tf-modal-alvo small { display: block; margin-top: 3px; font-weight: 500; color: var(--tf-ink3); }
+.tf-modal label { display: grid; gap: 5px; font-size: 11px; font-weight: 700; color: var(--tf-ink2); }
+.tf-modal input, .tf-modal select, .tf-modal textarea {
+  border: 1px solid var(--tf-linha); border-radius: 9px; padding: 9px 11px;
+  font: 500 13px var(--ds-font, inherit); color: var(--tf-ink); background: var(--tf-fundo);
+  width: 100%;
+}
+.tf-modal textarea { resize: vertical; }
+.tf-nota {
+  margin: 0; background: #fff8e8; border-radius: 9px; padding: 11px 13px;
+  font-size: 12.5px; line-height: 1.5; color: #8a6320;
+}
+.tf-modal > footer {
+  display: flex; justify-content: flex-end; align-items: center; gap: 12px;
+  margin-top: 4px; padding-top: 13px; border-top: 1px solid var(--tf-linha);
+}
+
+@media (max-width: 640px) {
+  .tf-topo { flex-direction: column; }
+  .tf-filtros-linha input { min-width: 100%; }
+}
+
+/* ── ficha: ver/editar o registro de origem ── */
+.tf-modal--largo { max-width: 620px; }
+.tf-ficha-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 11px; }
+.tf-ficha-grid .tf-ficha-largo { grid-column: 1 / -1; }
+@media (max-width: 560px) { .tf-ficha-grid { grid-template-columns: 1fr; } }

@@ -146,10 +146,15 @@ def _fmt_money_brl(v: Any) -> str:
     if v in (None, ""):
         return ""
     try:
-        num = Decimal(str(v).replace(".", "").replace(",", "."))
+        raw = str(v).strip()
+        # O banco devolve Decimal como "450000.0" (ponto decimal). Remover todo
+        # ponto multiplicava o valor por 10/100. Só o formato brasileiro usa
+        # ponto como milhar, identificado pela presença da vírgula decimal.
+        normalizado = raw.replace(".", "").replace(",", ".") if "," in raw else raw
+        num = Decimal(normalizado)
         formatted = f"{num:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
         return f"R$ {formatted}"
-    except InvalidOperation:
+    except (InvalidOperation, ValueError):
         return str(v)
 
 
@@ -205,7 +210,8 @@ def _num_or_none(v: Any) -> Optional[float]:
     if not s:
         return None
     try:
-        return float(s.replace(".", "").replace(",", "."))
+        normalizado = s.replace(".", "").replace(",", ".") if "," in s else s
+        return float(normalizado)
     except Exception:
         return None
 
@@ -917,6 +923,151 @@ def criar_cliente_manual(nome: str, telefone: str, email: str, created_by: str, 
         novo_id = ensure_cliente_id(session, nome, telefone, email, created_by, id_corretor)
         session.commit()
         return novo_id
+    except Exception:
+        session.rollback()
+        raise
+    finally:
+        session.close()
+
+
+PERFIS_GLOBAIS_CLIENTE = {"diretor", "administrador", "administrativo", "inteligencia"}
+
+
+class ClienteErro(Exception):
+    def __init__(self, mensagem: str, status: int = 400):
+        super().__init__(mensagem)
+        self.mensagem = mensagem
+        self.status = status
+
+
+def _cliente_no_escopo(session, cliente, user) -> None:
+    """Levanta ClienteErro se `user` nao pode mexer em `cliente`.
+
+    Extraido de `editar_cliente` para o GET usar a MESMA regra: se a leitura fosse mais
+    frouxa que a escrita, a tela abriria uma ficha que o servidor recusa salvar.
+    """
+    from app.models.usuarios import Usuarios
+
+    permissao = _safe_str(user.permissao).casefold()
+    team = _safe_str(user.team)
+    if permissao in PERFIS_GLOBAIS_CLIENTE or team.casefold() == "administrativo":
+        return
+
+    dono = _safe_str(cliente.id_corretor)
+    if permissao == "gerente" and team:
+        equipe_do_dono = session.query(Usuarios.team).filter(
+            Usuarios.id_usuarios == dono
+        ).scalar()
+        if not dono or _safe_str(equipe_do_dono) != team:
+            raise ClienteErro("Cliente fora da sua equipe", 403)
+        return
+    if dono != _safe_str(user.id_usuarios):
+        raise ClienteErro("Cliente fora da sua carteira", 403)
+
+
+def _usuario_ativo(session, solicitante_id: str):
+    from app.models.usuarios import Usuarios
+
+    user = session.query(Usuarios).filter(
+        Usuarios.id_usuarios == _safe_str(solicitante_id), Usuarios.ativo.is_(True)
+    ).first()
+    if not user:
+        raise ClienteErro("Sem permissao para editar clientes", 403)
+    return user
+
+
+def obter_cliente(id_cliente: str, solicitante_id: str) -> Dict[str, Any]:
+    """Um cliente do cadastro, com o mesmo escopo da edicao."""
+    from app.models.visita import ClienteVisita
+
+    id_cliente = _safe_str(id_cliente)
+    if not id_cliente:
+        raise ClienteErro("id_cliente e obrigatorio")
+
+    session = SessionLocal()
+    try:
+        user = _usuario_ativo(session, solicitante_id)
+        cliente = session.query(ClienteVisita).filter(
+            ClienteVisita.id_cliente == id_cliente
+        ).first()
+        if not cliente:
+            raise ClienteErro("Cliente nao encontrado", 404)
+        _cliente_no_escopo(session, cliente, user)
+        return {
+            "ok": True,
+            "cliente": {
+                "id_cliente": cliente.id_cliente,
+                "nome": _safe_str(cliente.nome_cliente),
+                "telefone": _safe_str(cliente.telefone_cliente),
+                "email": _safe_str(cliente.email_cliente),
+                "id_corretor": _safe_str(cliente.id_corretor),
+            },
+        }
+    finally:
+        session.close()
+
+
+def editar_cliente(id_cliente: str, payload: Dict[str, Any], solicitante_id: str) -> Dict[str, Any]:
+    """Edita nome, telefone e e-mail de um cliente da carteira.
+
+    O escopo sai do cadastro do solicitante, nunca do que a tela mandou: corretor mexe
+    no proprio cliente, gerente na equipe, perfil global em qualquer um. Mesma regra de
+    `gestao_visitas_service.listar` — se ela divergir aqui, a tela mostra um cliente que
+    o servidor recusa salvar.
+
+    Ausencia de chave e diferente de string vazia: `"telefone" not in payload` mantem o
+    valor atual, `"telefone": ""` apaga. E o que permite o front enviar so o que mudou.
+    """
+    from app.models.visita import ClienteVisita
+    from app.models.usuarios import Usuarios
+
+    id_cliente = _safe_str(id_cliente)
+    if not id_cliente:
+        raise ClienteErro("id_cliente e obrigatorio")
+
+    session = SessionLocal()
+    try:
+        user = _usuario_ativo(session, solicitante_id)
+
+        cliente = session.query(ClienteVisita).filter(
+            ClienteVisita.id_cliente == id_cliente
+        ).first()
+        if not cliente:
+            raise ClienteErro("Cliente nao encontrado", 404)
+
+        # Cliente sem corretor definido nao pertence a equipe nenhuma; recusar e melhor
+        # que deixar qualquer gerente reescrever registro orfao.
+        _cliente_no_escopo(session, cliente, user)
+
+        alterados: List[str] = []
+        campos = (("nome", "nome_cliente"), ("telefone", "telefone_cliente"), ("email", "email_cliente"))
+        for chave, coluna in campos:
+            if chave not in payload:
+                continue
+            valor = _safe_str(payload.get(chave))
+            if chave == "nome" and not valor:
+                raise ClienteErro("Nome do cliente nao pode ficar vazio")
+            if valor != _safe_str(getattr(cliente, coluna)):
+                setattr(cliente, coluna, valor or None)
+                alterados.append(chave)
+
+        if alterados:
+            session.commit()
+
+        return {
+            "ok": True,
+            "alterados": alterados,
+            "cliente": {
+                "id_cliente": cliente.id_cliente,
+                "nome": _safe_str(cliente.nome_cliente),
+                "telefone": _safe_str(cliente.telefone_cliente),
+                "email": _safe_str(cliente.email_cliente),
+                "id_corretor": _safe_str(cliente.id_corretor),
+            },
+        }
+    except ClienteErro:
+        session.rollback()
+        raise
     except Exception:
         session.rollback()
         raise
@@ -1649,6 +1800,18 @@ def editar_visita(id_visita: str, payload: Dict[str, Any]) -> None:
 
         if "motivoSim" in payload:
             visita.motivo_sim = _safe_str(payload["motivoSim"])
+
+        # Links de midia. Ficavam de fora do editar: quem esquecia de anexar a foto na
+        # hora da visita nao tinha como acrescentar depois, e a pendencia de revisao do
+        # gerente ficava presa para sempre.
+        if "linkImagem" in payload:
+            visita.link_imagem = _safe_str(payload["linkImagem"])
+
+        if "linkAudio" in payload:
+            visita.link_audio = _safe_str(payload["linkAudio"])
+
+        if "anexoFichaVisita" in payload:
+            visita.anexo_ficha_visita = _safe_str(payload["anexoFichaVisita"])
 
         for av in payload.get("avaliacoes", []):
             id_av = _safe_str(av.get("id_avaliacao"))

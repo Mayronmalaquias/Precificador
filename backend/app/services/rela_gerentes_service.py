@@ -508,6 +508,12 @@ def gestao_clientes_visitas(
                 "motivo_talvez": motivo_talvez,
                 "motivo_sim": motivo_sim,
                 "anexo_ficha": anexo_ficha,
+                # `Anexo_Ficha_Visita` NAO e URL: e caminho relativo herdado do AppSheet
+                # ("Fato_Visitas_PDF/C61166_..._anexo.jpg") — 0 de 2.317 linhas comecam
+                # com http. O anexo que abre de verdade e `Link_Imagem` (2.304 URLs do
+                # Drive). Por isso a tela usa este campo para o botao "Ver anexo".
+                "link_imagem": _safe_str(visita.get("Link_Imagem")),
+                "link_audio": _safe_str(visita.get("Link_Audio")),
                 "notas": notas_visita,
                 "nota_media": _media(notas_cliente),
                 "avaliacoes": [a for a in avaliacoes_payload if not a["id_cliente"] or a["id_cliente"] == cid],
@@ -583,6 +589,70 @@ def gestao_clientes_visitas(
     for row in rows:
         row["acoes"] = acoes_por_cliente.get(row["id_cliente"], [])
 
+    # ── analises de carteira ───────────────────────────────────────────────────
+    # Todas derivam de `rows` (ja recortado pelo periodo e pelo escopo), nunca dos
+    # acumuladores brutos — foi assim que `clientes_com_proposta` passou a contar 178
+    # de 92 clientes: ele somava o historico inteiro contra um total ja filtrado.
+    ids_no_resultado = {item["id_cliente"] for item in rows}
+    com_proposta_no_resultado = clientes_com_proposta & ids_no_resultado
+
+    # Recorrencia: faixas disjuntas ("6+" e estritamente acima de 5, senao um cliente
+    # com 6 visitas cairia em duas faixas e o percentual passaria de 100%).
+    faixas_recorrencia = [("1 visita", 1, 1), ("2 visitas", 2, 2),
+                          ("3 a 5", 3, 5), ("6 ou mais", 6, None)]
+    recorrencia = []
+    for rotulo, minimo, maximo in faixas_recorrencia:
+        total = sum(1 for item in rows
+                    if item["qtd_visitas"] >= minimo
+                    and (maximo is None or item["qtd_visitas"] <= maximo))
+        recorrencia.append({"faixa": rotulo, "total": total})
+
+    # Faixas de nota do imovel. Cliente sem avaliacao fica de fora em vez de virar zero:
+    # "nao avaliou" nao e a mesma coisa que "avaliou mal".
+    faixas_nota = [("Ate 5", 0, 5), ("5 a 7", 5, 7), ("7 a 8,5", 7, 8.5), ("8,5 a 10", 8.5, 10.01)]
+    notas = []
+    for rotulo, minimo, maximo in faixas_nota:
+        total = sum(1 for item in rows
+                    if item.get("nota_media") is not None
+                    and minimo <= float(item["nota_media"]) < maximo)
+        notas.append({"faixa": rotulo, "total": total})
+    sem_nota = sum(1 for item in rows if item.get("nota_media") is None)
+
+    # Conversao por corretor: quem transforma visita em interesse (SIM ou TALVEZ).
+    por_corretor: Dict[str, Dict[str, Any]] = {}
+    for item in rows:
+        chave = item.get("corretor") or "Sem corretor"
+        alvo = por_corretor.setdefault(chave, {"corretor": chave, "clientes": 0,
+                                               "visitas": 0, "com_interesse": 0})
+        alvo["clientes"] += 1
+        alvo["visitas"] += item["qtd_visitas"]
+        if item.get("houve_proposta"):
+            alvo["com_interesse"] += 1
+    for alvo in por_corretor.values():
+        alvo["taxa"] = round(alvo["com_interesse"] / alvo["clientes"] * 100, 1) if alvo["clientes"] else 0.0
+    ranking_corretor = sorted(por_corretor.values(),
+                              key=lambda x: (-x["clientes"], x["corretor"]))[:10]
+
+    # Carteira parada: cliente cuja ultima visita ja passou do corte. E o numero que
+    # vira acao — os outros sao diagnostico.
+    hoje_ref = date.today()
+    def _dias_desde(item):
+        d = _parse_date_any(item.get("ultima_visita"))
+        # _parse_date_any devolve datetime; subtrair de um date levanta TypeError.
+        return (hoje_ref - d.date()).days if d else None
+
+    cortes = [("Ate 15 dias", 0, 15), ("16 a 30", 16, 30), ("31 a 60", 31, 60), ("Mais de 60", 61, None)]
+    sem_retorno = []
+    for rotulo, minimo, maximo in cortes:
+        total = 0
+        for item in rows:
+            dias = _dias_desde(item)
+            if dias is None:
+                continue
+            if dias >= minimo and (maximo is None or dias <= maximo):
+                total += 1
+        sem_retorno.append({"faixa": rotulo, "total": total})
+
     return {
         "ok": True,
         "meta": meta,
@@ -591,7 +661,12 @@ def gestao_clientes_visitas(
         "dashboard": {
             "total_clientes": len(rows),
             "total_visitas": sum(item["qtd_visitas"] for item in rows),
-            "clientes_com_proposta": len(clientes_com_proposta),
+            "clientes_com_proposta": len(com_proposta_no_resultado),
+            "recorrencia": recorrencia,
+            "notas_faixa": notas,
+            "clientes_sem_nota": sem_nota,
+            "ranking_corretor": ranking_corretor,
+            "sem_retorno": sem_retorno,
             "nota_media_geral": _media([n for item in clientes.values() for n in item["notas"]]),
             "propostas": dict(propostas_total),
             "clientes_por_dia": [

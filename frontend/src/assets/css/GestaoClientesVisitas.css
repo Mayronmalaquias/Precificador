@@ -1597,3 +1597,111 @@
     flex-wrap: wrap;
   }
 }
+
+/* ── Ver / editar visita a partir da ficha do cliente ──────────────────────
+   Mesmo formulário da Gestão de Visitas, para o gerente não aprender duas
+   telas diferentes para a mesma edição. */
+.gcv-modal-bg {
+  position: fixed; inset: 0; background: #171b2c99; backdrop-filter: blur(4px);
+  z-index: 1000; display: grid; place-items: center; padding: 20px;
+}
+.gcv-modal {
+  background: #fff; border-radius: 15px; padding: 20px;
+  width: min(560px, 100%); max-height: 88vh; overflow: auto;
+  display: flex; flex-direction: column; gap: 13px; color: #1c1a22;
+}
+.gcv-modal > header { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.gcv-modal h3 { margin: 3px 0 0; font-size: 18px; letter-spacing: -.3px; }
+.gcv-modal > header button {
+  border: 1px solid #e3e0e9; background: #fff; color: #5b5766;
+  border-radius: 8px; width: 30px; height: 30px; cursor: pointer; font-size: 13px;
+}
+.gcv-modal-eyebrow {
+  font-size: 10px; font-weight: 800; letter-spacing: .1em;
+  text-transform: uppercase; color: #c4005a;
+}
+.gcv-modal-alvo {
+  margin: 0; background: #f6f5f8; border-radius: 9px; padding: 10px 12px;
+  font-size: 13px; font-weight: 600;
+}
+.gcv-modal-alvo small { display: block; margin-top: 3px; font-weight: 500; color: #857f92; }
+
+.gcv-modal-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 11px; }
+.gcv-modal-grid label {
+  display: grid; gap: 5px; font-size: 10.5px; font-weight: 700;
+  letter-spacing: .05em; text-transform: uppercase; color: #5b5766;
+}
+.gcv-modal-grid .gcv-largo { grid-column: 1 / -1; }
+.gcv-modal-grid input, .gcv-modal-grid select, .gcv-modal-grid textarea {
+  border: 1px solid #e3e0e9; border-radius: 9px; padding: 9px 11px;
+  font: 500 13px inherit; color: #1c1a22; background: #fff; width: 100%;
+}
+.gcv-modal-grid textarea { resize: vertical; }
+.gcv-modal-grid input:focus, .gcv-modal-grid select:focus, .gcv-modal-grid textarea:focus {
+  outline: 3px solid rgba(196, 0, 90, .12); border-color: #f0a9c4;
+}
+
+.gcv-modal > footer {
+  display: flex; align-items: center; gap: 10px;
+  margin-top: 3px; padding-top: 13px; border-top: 1px solid #e3e0e9;
+}
+.gcv-espaco { flex: 1; }
+.gcv-modal-primario {
+  background: #c4005a; border: 1px solid #c4005a; color: #fff;
+  border-radius: 8px; padding: 8px 14px; font: 700 12px inherit; cursor: pointer;
+}
+.gcv-modal-primario:hover { filter: brightness(1.08); }
+.gcv-modal-primario:disabled { background: #f1f3f5; border-color: #e3e7eb; color: #9aa2b1; cursor: not-allowed; }
+
+@media (max-width: 560px) { .gcv-modal-grid { grid-template-columns: 1fr; } }
+
+/* ── Aba Analise ─────────────────────────────────────────────────────────── */
+.gcv-panel-head-acoes { display: flex; align-items: center; gap: 10px; }
+
+.gcv-analise-nota {
+  margin: 0 0 14px; font-size: 12.5px; line-height: 1.5; color: #6f6880;
+}
+
+.gcv-analise-grid {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 14px;
+}
+
+.gcv-analise-panel { margin-bottom: 14px; }
+
+.gcv-analise-lista { display: flex; flex-direction: column; gap: 10px; }
+
+.gcv-analise-linha {
+  display: grid; grid-template-columns: 96px 1fr 76px; align-items: center; gap: 10px;
+}
+
+.gcv-analise-rotulo { font-size: 12.5px; font-weight: 600; color: #4b4459; }
+
+.gcv-analise-valor {
+  font-size: 13px; font-weight: 700; color: #2f2a3a; text-align: right;
+}
+.gcv-analise-valor em {
+  display: block; font-style: normal; font-size: 11px; font-weight: 500; color: #8a8398;
+}
+
+.gcv-bar-fill.is-alerta { background: #e8734a; }
+
+.gcv-tabela-wrap { overflow-x: auto; }
+
+.gcv-analise-tabela { width: 100%; border-collapse: collapse; font-size: 13px; }
+.gcv-analise-tabela th {
+  text-align: left; padding: 8px 10px; font-size: 11px; text-transform: uppercase;
+  letter-spacing: .04em; color: #8a8398; border-bottom: 1px solid #ece9f1;
+}
+.gcv-analise-tabela td { padding: 9px 10px; border-bottom: 1px solid #f4f2f7; }
+.gcv-analise-tabela tbody tr:last-child td { border-bottom: none; }
+
+.gcv-taxa { font-weight: 700; color: #2e7d5b; }
+.gcv-taxa.is-baixa { color: #c1532e; }
+
+.gcv-modal-dica {
+  margin: 12px 0 0; font-size: 12px; line-height: 1.5; color: #6f6880;
+}
+
+@media (max-width: 640px) {
+  .gcv-analise-linha { grid-template-columns: 78px 1fr 64px; gap: 8px; }
+}
