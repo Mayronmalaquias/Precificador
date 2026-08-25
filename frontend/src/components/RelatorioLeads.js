@@ -173,6 +173,19 @@ export default function RelatorioLeads({ idSolicitante, equipe, inicio, fim, cor
   const [chaveAplicada, setChaveAplicada] = useState("");
   const pendente = jaBuscou && chaveAtual !== chaveAplicada;
 
+  // Busca sozinha ao abrir. Antes nao buscava: a leitura era ao vivo do C2S e uma
+  // consulta custava minutos, entao a tela nascia vazia esperando o clique. Agora a
+  // listagem vem do espelho local (sincronizado de hora em hora) e a primeira carga e
+  // uma consulta indexada — deixar a tela vazia so escondia o conteudo.
+  //
+  // Os FILTROS continuam sendo rascunho, aplicados no botao: nao por custo, mas porque
+  // disparar a cada mexida num select era o comportamento reclamado antes.
+  useEffect(() => {
+    if (jaBuscou || !idSolicitante || !inicio || !fim) return;
+    aplicarFiltros();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [idSolicitante, inicio, fim]);
+
   // Aplicar = promover o rascunho. Os valores vao por parametro porque `setState` e
   // assincrono: ler `filtrosAtivos` aqui pegaria o valor anterior.
   const aplicarFiltros = () => {

@@ -81,7 +81,8 @@ export default function GestaoLeads() {
       { rotulo: "Sem acompanhamento", valor: semAcomp, alerta: true },
       { rotulo: "% acompanhados", valor: pct == null ? null : `${pct}%` },
       { rotulo: "Visitas agendadas", valor: resumo?.visita_agendada },
-      { rotulo: "Não agendaram", valor: resumo?.sem_visita },
+      { rotulo: "Arquivados", valor: resumo?.arquivados },
+      { rotulo: "Negócios fechados", valor: resumo?.negocios_fechados },
     ];
   }, [resumo]);
 
@@ -96,7 +97,9 @@ export default function GestaoLeads() {
 
   const rotuloSerie = { dia: "dia", semana: "semana", mes: "mês" }[resumo?.granularidade] || "dia";
 
-  const funil = useMemo(() => {
+  // Funil NOSSO (o que fizemos com o lead), diferente de `por_funil`, que e a etapa
+  // que o corretor marca dentro do C2S.
+  const funilAcompanhamento = useMemo(() => {
     if (!resumo) return [];
     return [
       { rotulo: "Chegaram", total: resumo.total },
@@ -112,8 +115,8 @@ export default function GestaoLeads() {
           <span className="gm-eyebrow">Módulo</span>
           <h1>Gestão de Leads</h1>
           <p>
-            Leads lidos ao vivo do Contact2Sale — situação, etapa do funil e motivo do
-            arquivamento como estão agora, não como estavam na importação.
+            Leads espelhados do Contact2Sale — situação, etapa do funil e motivo do
+            arquivamento acompanham as mudanças, não ficam congelados na entrada.
           </p>
         </div>
       </header>
@@ -198,8 +201,36 @@ export default function GestaoLeads() {
                 <p>Quanto sobra em cada passo</p>
               </div>
             </header>
-            <GraficoBarras dados={funil} sufixo="lead(s)" />
+            <GraficoBarras dados={funilAcompanhamento} sufixo="lead(s)" />
           </article>
+
+          <article className="gm-grafico">
+            <header><div><h4>Situação no C2S</h4><p>Onde o lead está agora</p></div></header>
+            <GraficoPizza dados={resumo.por_situacao} centroRotulo="leads" />
+          </article>
+
+          <article className="gm-grafico">
+            <header><div><h4>Etapa do funil</h4><p>Andamento do atendimento</p></div></header>
+            <GraficoBarras dados={resumo.por_funil} sufixo="lead(s)" />
+          </article>
+
+          <article className="gm-grafico">
+            <header><div><h4>Canal de entrada</h4><p>Por onde o cliente chegou</p></div></header>
+            <GraficoPizza dados={resumo.por_canal} centroRotulo="leads" />
+          </article>
+
+          {resumo.motivos_arquivamento?.length > 0 && (
+            <article className="gm-grafico">
+              <header>
+                <div>
+                  <h4>Motivo do arquivamento</h4>
+                  <p>Por que o lead foi encerrado</p>
+                </div>
+                <span className="gm-grafico-total">{resumo.arquivados}</span>
+              </header>
+              <GraficoBarras dados={resumo.motivos_arquivamento} sufixo="lead(s)" />
+            </article>
+          )}
 
           {resumo.motivos_sem_visita?.length > 0 && (
             <article className="gm-grafico">
@@ -216,10 +247,14 @@ export default function GestaoLeads() {
       )}
 
       <p className="gm-nota">
-        Cards e gráficos saem da base interna e respondem na hora — a situação neles é a da
-        última importação. A listagem abaixo lê direto do Contact2Sale, por isso só busca
-        quando você clica: a API deles não filtra por equipe, portal nem motivo, e cada
-        consulta filtrada varre o período inteiro.
+        Cards, gráficos e listagem saem todos do espelho local do Contact2Sale, atualizado
+        de hora em hora — por isso mostram o mesmo total.
+        {resumo?.sincronizado_em
+          ? ` Última sincronização: ${new Date(resumo.sincronizado_em).toLocaleString("pt-BR")}.`
+          : ""}
+        {" "}Lead que muda de situação ou é arquivado depois de entrar aparece atualizado na
+        passada seguinte. Os filtros continuam sendo aplicados no botão Buscar, para não
+        recarregar a cada mexida num select.
       </p>
 
       <section className="gm-conteudo">

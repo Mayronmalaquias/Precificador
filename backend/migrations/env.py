@@ -18,6 +18,7 @@ from app.models import captacao_snapshot  # noqa: F401
 from app.models import imovel_area  # noqa: F401
 from app.models import proposta_efetiva  # noqa: F401
 from app.models import dfimoveis_acesso  # noqa: F401
+from app.models import lead_c2s  # noqa: F401
 
 
 config = context.config

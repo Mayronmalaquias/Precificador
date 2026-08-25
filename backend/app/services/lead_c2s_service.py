@@ -48,10 +48,13 @@ from typing import Any, Dict, List, Optional
 
 import requests
 
+from sqlalchemy import func
+
 from app.database import SessionLocal
 from app.extensions import cache
 from app.models.equipe import Equipe
 from app.models.estoque_legado import LeadLegado
+from app.models.lead_c2s import LeadC2S
 from app.models.usuarios import Usuarios
 
 C2S_LEADS_URL = "https://api.contact2sale.com/integration/leads"
@@ -133,12 +136,18 @@ def _token() -> str:
 # ── acesso a API ────────────────────────────────────────────────────────────────
 
 def _pagina(campo_data: str, inicio: str, fim: str, page: int,
-            status: str = "") -> Dict[str, Any]:
-    """Uma pagina crua da API, com cache curto e espera no rate limit."""
+            status: str = "", usar_cache: bool = True) -> Dict[str, Any]:
+    """Uma pagina crua da API, com cache curto e espera no rate limit.
+
+    `usar_cache=False` no sync, por dois motivos: uma pagina guardada ha 15 minutos
+    gravaria estado velho na base — o oposto do que a sincronizacao existe para fazer —
+    e o cache e do Flask, que exige contexto de aplicacao que o cron nao tem.
+    """
     chave = f"c2s:{campo_data}:{inicio}:{fim}:{status}:{page}"
-    guardado = cache.get(chave)
-    if guardado is not None:
-        return guardado
+    if usar_cache:
+        guardado = cache.get(chave)
+        if guardado is not None:
+            return guardado
 
     params = {
         "page": page,
@@ -174,7 +183,8 @@ def _pagina(campo_data: str, inicio: str, fim: str, page: int,
             raise LeadC2SErro(f"Contact2Sale respondeu {r.status_code}.", 502)
         corpo = r.json() or {}
         resultado = {"data": corpo.get("data") or [], "total": (corpo.get("meta") or {}).get("total")}
-        cache.set(chave, resultado, timeout=CACHE_SEGUNDOS)
+        if usar_cache:
+            cache.set(chave, resultado, timeout=CACHE_SEGUNDOS)
         return resultado
     raise LeadC2SErro("Contact2Sale recusou por limite de requisições. Tente de novo em 1 minuto.", 429)
 
@@ -433,8 +443,14 @@ def _ids_internos(session, itens: List[Dict[str, Any]]) -> None:
 
 # ── listagem ────────────────────────────────────────────────────────────────────
 
-def listar(solicitante_id, inicio, fim, page=1, per_page=PER_PAGE_API,
-           campo_data="created", filtros=None) -> Dict[str, Any]:
+def listar_ao_vivo(solicitante_id, inicio, fim, page=1, per_page=PER_PAGE_API,
+                   campo_data="created", filtros=None) -> Dict[str, Any]:
+    """Leitura direta da API do C2S. Nao e mais o caminho da tela.
+
+    Continua aqui como escape hatch: se o espelho (`leads_c2s`) ficar atrasado ou
+    quebrar, `LEADS_FONTE=api` no ambiente devolve o comportamento antigo sem deploy de
+    codigo. Custa minutos por consulta filtrada — e o motivo de o espelho existir.
+    """
     filtros = {k: _texto(v) for k, v in (filtros or {}).items()}
     if not inicio or not fim:
         raise LeadC2SErro("Informe o período (início e fim).")
@@ -513,6 +529,229 @@ def listar(solicitante_id, inicio, fim, page=1, per_page=PER_PAGE_API,
             "tem_mais": len(casados) > corte + per_page or not acabou,
             "paginas_lidas": lidas, "fonte": "contact2sale",
             "opcoes": _opcoes(vistos),
+        }
+    finally:
+        session.close()
+
+
+# ── leitura do espelho local ────────────────────────────────────────────────────
+
+# Colunas do espelho na ordem em que a tela espera, para montar o item sem repetir o
+# nome de cada campo duas vezes.
+_COLUNAS_ITEM = (
+    "id_c2s", "cliente", "telefone", "email", "fonte", "canal", "equipe", "corretor",
+    "codigo_imovel", "imovel", "url", "situacao", "situacao_alias", "funil",
+    "motivo_arquivamento", "observacao",
+)
+
+
+def _item_do_banco(linha: LeadC2S) -> Dict[str, Any]:
+    """Mesma forma que `_traduzir` devolve, para a tela nao saber de onde veio."""
+    item = {campo: _texto(getattr(linha, campo)) for campo in _COLUNAS_ITEM}
+    item.update({
+        "arquivado": bool(linha.arquivado),
+        "negocio_fechado": bool(linha.negocio_fechado),
+        "valor_fechado": float(linha.valor_fechado) if linha.valor_fechado is not None else None,
+        "favorito": bool(linha.favorito),
+        "criado_em": linha.criado_em.isoformat() if linha.criado_em else "",
+        "atualizado_em": linha.atualizado_em.isoformat() if linha.atualizado_em else "",
+        "ultima_atividade": linha.ultima_atividade.isoformat() if linha.ultima_atividade else "",
+        "respondido_em": linha.respondido_em.isoformat() if linha.respondido_em else "",
+        "id_interno": linha.id_legado,
+    })
+    return item
+
+
+def _igual(coluna, valor: str):
+    """Comparacao exata sem depender de caixa.
+
+    Nao usa `_norm` (que tira acento) porque os dois lados sao string do C2S: o valor do
+    dropdown saiu da propria base. Tirar acento exigiria `unaccent`, que e extensao e
+    pode nao estar instalada no RDS.
+    """
+    return func.lower(coluna) == valor.strip().lower()
+
+
+def _contem(coluna, valor: str):
+    return coluna.ilike(f"%{valor.strip()}%")
+
+
+def _aplicar_filtros(query, f: Dict[str, str], escopo: Dict[str, Any]):
+    """Traduz os filtros da tela em SQL.
+
+    Antes cada um destes era um `if` em Python sobre a janela inteira puxada da API —
+    o que obrigava a varrer o periodo para filtrar. No banco todos viram predicado, e o
+    indice de data resolve o recorte.
+    """
+    if escopo["equipe"]:
+        query = query.filter(_igual(LeadC2S.equipe, escopo["equipe"]))
+    elif _texto(f.get("equipe")):
+        query = query.filter(_igual(LeadC2S.equipe, f["equipe"]))
+    if escopo["corretor"]:
+        query = query.filter(_contem(LeadC2S.corretor, escopo["corretor"]))
+    elif _texto(f.get("corretor")):
+        query = query.filter(_contem(LeadC2S.corretor, f["corretor"]))
+
+    for campo, coluna in (("situacao", LeadC2S.situacao), ("fonte", LeadC2S.fonte),
+                          ("canal", LeadC2S.canal), ("funil", LeadC2S.funil)):
+        if _texto(f.get(campo)):
+            query = query.filter(_igual(coluna, f[campo]))
+
+    if _texto(f.get("motivo")):
+        query = query.filter(_contem(LeadC2S.motivo_arquivamento, f["motivo"]))
+    if _texto(f.get("com_motivo")):
+        query = query.filter(LeadC2S.motivo_arquivamento.isnot(None))
+
+    arquivado = _norm(f.get("arquivado"))
+    if arquivado in {"sim", "1", "true"}:
+        query = query.filter(LeadC2S.arquivado.is_(True))
+    elif arquivado in {"nao", "não", "0", "false"}:
+        query = query.filter(LeadC2S.arquivado.isnot(True))
+
+    fechado = _norm(f.get("fechado"))
+    if fechado in {"sim", "1", "true"}:
+        query = query.filter(LeadC2S.negocio_fechado.is_(True))
+    elif fechado in {"nao", "não", "0", "false"}:
+        query = query.filter(LeadC2S.negocio_fechado.isnot(True))
+
+    busca = _texto(f.get("busca"))
+    if busca:
+        alvo = f"%{busca}%"
+        query = query.filter(
+            LeadC2S.cliente.ilike(alvo) | LeadC2S.telefone.ilike(alvo)
+            | LeadC2S.email.ilike(alvo) | LeadC2S.codigo_imovel.ilike(alvo)
+            | LeadC2S.imovel.ilike(alvo) | LeadC2S.corretor.ilike(alvo)
+            | LeadC2S.fonte.ilike(alvo) | LeadC2S.motivo_arquivamento.ilike(alvo)
+        )
+    return query
+
+
+def _acompanhamento_do_banco(session, itens: List[Dict[str, Any]]) -> None:
+    """Anexa o acompanhamento, que mora em `leads_legado` e nao vem do C2S.
+
+    Vai pelo `id_legado` ja resolvido no sync — o casamento por nome + telefone acontece
+    uma vez por hora, fora do caminho do usuario, em vez de a cada consulta.
+    """
+    ids = {item["id_interno"] for item in itens if item.get("id_interno")}
+    if not ids:
+        for item in itens:
+            item["acompanhamento_em"] = None
+            item["contato_status"] = ""
+        return
+    indice = {
+        linha.id: linha
+        for linha in session.query(LeadLegado).filter(LeadLegado.id.in_(ids)).all()
+    }
+    for item in itens:
+        achado = indice.get(item.get("id_interno"))
+        item["acompanhamento_em"] = (
+            achado.acompanhamento_em.isoformat() if achado and achado.acompanhamento_em else None
+        )
+        item["contato_status"] = _texto(achado.contato_status) if achado else ""
+
+
+def _opcoes_do_banco(session, base) -> Dict[str, List[str]]:
+    """Dropdowns a partir do que existe na janela consultada.
+
+    Um `distinct` por campo em vez de montar em Python: sem isso seria preciso carregar
+    a janela inteira so para saber quais valores existem — exatamente o custo que a
+    mudanca para o banco veio eliminar.
+    """
+    def distintos(coluna):
+        valores = [
+            v for (v,) in base.with_entities(coluna).distinct().all()
+            if _texto(v)
+        ]
+        return sorted(valores, key=_norm)
+
+    def na_ordem(coluna, ordem):
+        presentes = set(distintos(coluna))
+        conhecidos = [v for v in ordem if v in presentes]
+        return conhecidos + sorted(presentes - set(ordem), key=_norm)
+
+    return {
+        "situacoes": na_ordem(LeadC2S.situacao, ORDEM_SITUACAO),
+        "funis": na_ordem(LeadC2S.funil, ORDEM_FUNIL),
+        "fontes": distintos(LeadC2S.fonte),
+        "canais": distintos(LeadC2S.canal),
+        "equipes": distintos(LeadC2S.equipe),
+        "motivos": distintos(LeadC2S.motivo_arquivamento),
+    }
+
+
+def listar(solicitante_id, inicio, fim, page=1, per_page=PER_PAGE_API,
+           campo_data="created", filtros=None) -> Dict[str, Any]:
+    """Leads do espelho local (`leads_c2s`), sincronizado de hora em hora.
+
+    A leitura ao vivo continua em `listar_ao_vivo` e volta com `LEADS_FONTE=api`.
+
+    O que muda para quem usa a tela: `total` passa a ser sempre exato e a resposta chega
+    em milissegundos, com qualquer combinacao de filtros. O que se perde: a situacao
+    mostrada e a da ultima sincronizacao, nao a do segundo atual — por isso a resposta
+    traz `sincronizado_em`, para a tela dizer a idade do dado.
+    """
+    if _texto(os.getenv("LEADS_FONTE")).lower() == "api":
+        return listar_ao_vivo(solicitante_id, inicio, fim, page, per_page, campo_data, filtros)
+
+    filtros = {k: _texto(v) for k, v in (filtros or {}).items()}
+    if not inicio or not fim:
+        raise LeadC2SErro("Informe o período (início e fim).")
+    if campo_data not in {"created", "updated"}:
+        campo_data = "created"
+
+    page = max(int(page or 1), 1)
+    per_page = min(max(int(per_page or PER_PAGE_API), 1), 100)
+
+    session = SessionLocal()
+    try:
+        escopo = _escopo(session, solicitante_id, filtros.get("equipe"))
+        if escopo["equipe"]:
+            filtros.pop("equipe", None)
+        if escopo["corretor"]:
+            filtros.pop("corretor", None)
+
+        query = session.query(LeadC2S)
+        # `data` e `criado_em` truncado e indexado; a janela por atualizacao usa a coluna
+        # cheia porque o filtro ali e sobre o instante da mudanca.
+        if campo_data == "updated":
+            query = query.filter(
+                LeadC2S.atualizado_em >= f"{inicio} 00:00:00",
+                LeadC2S.atualizado_em <= f"{fim} 23:59:59",
+            )
+        else:
+            query = query.filter(LeadC2S.data >= inicio, LeadC2S.data <= fim)
+
+        query = _aplicar_filtros(query, filtros, escopo)
+
+        # `sem_acompanhamento`: o elo com a base interna e o `id_legado`, resolvido no
+        # sync. Sem elo o lead nunca teve acompanhamento, entao ele entra no recorte.
+        if filtros.get("sem_acompanhamento"):
+            com_acomp = [
+                i for (i,) in session.query(LeadLegado.id).filter(
+                    LeadLegado.acompanhamento_em.isnot(None)
+                ).all()
+            ]
+            if com_acomp:
+                query = query.filter(
+                    LeadC2S.id_legado.is_(None) | LeadC2S.id_legado.notin_(com_acomp)
+                )
+
+        total = query.with_entities(func.count(LeadC2S.id_c2s)).scalar() or 0
+        ordem = LeadC2S.atualizado_em if campo_data == "updated" else LeadC2S.criado_em
+        linhas = (query.order_by(ordem.desc().nullslast(), LeadC2S.id_c2s)
+                  .offset((page - 1) * per_page).limit(per_page).all())
+
+        itens = [_item_do_banco(linha) for linha in linhas]
+        _acompanhamento_do_banco(session, itens)
+
+        sincronizado = session.query(func.max(LeadC2S.sincronizado_em)).scalar()
+        return {
+            "ok": True, "itens": itens, "page": page, "per_page": per_page,
+            "total": int(total), "total_c2s": int(total), "total_exato": True,
+            "tem_mais": page * per_page < total, "paginas_lidas": 0,
+            "fonte": "banco",
+            "sincronizado_em": sincronizado.isoformat() if sincronizado else None,
+            "opcoes": _opcoes_do_banco(session, query),
         }
     finally:
         session.close()

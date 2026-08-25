@@ -18,6 +18,7 @@ from datetime import datetime, timedelta
 
 from app.database import SessionLocal
 from app.models.estoque_legado import LeadLegado
+from app.models.lead_c2s import LeadC2S
 from app.models.fato_bases import FatoCaptacao
 from app.models.imovel_area import ImovelArea
 from app.models.usuarios import Usuarios
@@ -488,82 +489,122 @@ def _query_com_escopo(session, perfil, equipe, inicio, fim, corretor=None):
     return query
 
 
+def _base_espelho(session, solicitante_id, inicio, fim, equipe, corretor):
+    """Query sobre `leads_c2s` com o mesmo escopo que a listagem da tela usa.
+
+    O escopo do espelho e por NOME (o C2S nao conhece nossos ids), entao reusa
+    `lead_c2s_service._escopo` em vez de `_filtro_de_escopo`, que trabalha com ids de
+    `leads_legado`. Duas regras de escopo sobre a mesma tela divergiriam.
+    """
+    from app.services import lead_c2s_service as c2s
+
+    escopo = c2s._escopo(session, solicitante_id, equipe)
+    query = session.query(LeadC2S)
+    if escopo["equipe"]:
+        query = query.filter(func.lower(LeadC2S.equipe) == escopo["equipe"].strip().lower())
+    elif _texto(equipe):
+        query = query.filter(func.lower(LeadC2S.equipe) == _texto(equipe).strip().lower())
+    if escopo["corretor"]:
+        query = query.filter(LeadC2S.corretor.ilike(f"%{escopo['corretor'].strip()}%"))
+    elif _texto(corretor):
+        query = query.filter(LeadC2S.corretor.ilike(f"%{_texto(corretor).strip()}%"))
+    if inicio:
+        query = query.filter(LeadC2S.data >= inicio)
+    if fim:
+        query = query.filter(LeadC2S.data <= fim)
+    return query, escopo
+
+
 def resumo(solicitante_id, inicio=None, fim=None, equipe=None, corretor=None) -> Dict[str, Any]:
     """Distribuicoes dos leads do periodo para os graficos.
 
-    Le de `leads_legado` (base interna, indexada), nao do C2S ao vivo: contar precisa
-    responder na hora, e a varredura da API deles leva minutos. O custo e que a situacao
-    aqui e a da importacao, nao a de agora — por isso a tela diz de onde cada numero vem.
+    Le do espelho `leads_c2s`, a MESMA fonte da listagem. Antes lia `leads_legado`, que
+    passa por um filtro de negocio na importacao (so lead criado pela recepcao, ou de
+    fonte Faixa/Indicacao) — o resultado eram dois totais na mesma tela: 1474 nos cards
+    contra 2264 na lista, para agosto/2026. Populacao diferente, nao bug de contagem.
 
-    Uma consulta por eixo com `group by`, em vez de puxar as linhas e agrupar em Python:
-    sao 68 mil leads na base e o recorte de um diretor sem filtro pega quase todos.
+    Uma consulta por eixo com `group by`: sao dezenas de milhares de leads e o recorte de
+    um diretor sem filtro pega quase todos.
     """
     session = SessionLocal()
     try:
+        base, escopo_c2s = _base_espelho(session, solicitante_id, inicio, fim, equipe, corretor)
         perfil = _perfil(session, solicitante_id)
-        base = _query_com_escopo(session, perfil, equipe, inicio, fim, corretor)
 
         def agrupar(coluna):
-            linhas = base.with_entities(coluna, func.count(LeadLegado.id)).group_by(coluna).all()
+            linhas = base.with_entities(coluna, func.count(LeadC2S.id_c2s)).group_by(coluna).all()
             contagem: Dict[str, int] = {}
             for valor, total in linhas:
                 chave = _rotulo(valor)
                 contagem[chave] = contagem.get(chave, 0) + int(total or 0)
             return contagem
 
-        total = base.with_entities(func.count(LeadLegado.id)).scalar() or 0
+        total = base.with_entities(func.count(LeadC2S.id_c2s)).scalar() or 0
 
         # Serie do grafico de linha, com granularidade automatica. Um diretor sem filtro
-        # de data pega 1591 dias distintos — 1591 circulos no SVG travam a tela e os
-        # rotulos viram uma mancha. Acima do limite a serie e agregada por semana e
-        # depois por mes; os totais continuam exatos, so o balde muda.
+        # de data pega milhares de dias distintos — um circulo por dia trava o SVG e os
+        # rotulos viram mancha. Acima do limite a serie e agregada por semana e depois
+        # por mes; os totais continuam exatos, so o balde muda.
         diario = [
             (d, int(t or 0))
-            for d, t in base.with_entities(LeadLegado.data, func.count(LeadLegado.id))
-                            .group_by(LeadLegado.data).order_by(LeadLegado.data).all()
+            for d, t in base.with_entities(LeadC2S.data, func.count(LeadC2S.id_c2s))
+                            .group_by(LeadC2S.data).order_by(LeadC2S.data).all()
             if d
         ]
         if len(diario) <= 62:
             granularidade = "dia"
-            por_dia = [
-                {"data": d.isoformat(), "label": d.strftime("%d/%m"), "total": t}
-                for d, t in diario
-            ]
+            por_dia = [{"data": d.isoformat(), "label": d.strftime("%d/%m"), "total": t}
+                       for d, t in diario]
         elif len(diario) <= 400:
             granularidade = "semana"
             baldes: Dict[Any, int] = {}
             for d, t in diario:
-                # Segunda-feira da semana do lead.
                 inicio_semana = d - timedelta(days=d.weekday())
                 baldes[inicio_semana] = baldes.get(inicio_semana, 0) + t
-            por_dia = [
-                {"data": k.isoformat(), "label": k.strftime("%d/%m"), "total": v}
-                for k, v in sorted(baldes.items())
-            ]
+            por_dia = [{"data": k.isoformat(), "label": k.strftime("%d/%m"), "total": v}
+                       for k, v in sorted(baldes.items())]
         else:
             granularidade = "mes"
             baldes = {}
             for d, t in diario:
                 baldes[(d.year, d.month)] = baldes.get((d.year, d.month), 0) + t
-            por_dia = [
-                {"data": f"{ano:04d}-{mes:02d}", "label": f"{mes:02d}/{str(ano)[2:]}", "total": v}
-                for (ano, mes), v in sorted(baldes.items())
-            ]
+            por_dia = [{"data": f"{ano:04d}-{mes:02d}", "label": f"{mes:02d}/{str(ano)[2:]}",
+                        "total": v}
+                       for (ano, mes), v in sorted(baldes.items())]
 
-        # Acompanhamento: o unico eixo que e nosso, nao do C2S.
-        com_acomp = base.filter(LeadLegado.acompanhamento_em.isnot(None)).with_entities(
-            func.count(LeadLegado.id)).scalar() or 0
-        agendadas = base.filter(LeadLegado.visita_agendada.is_(True)).with_entities(
-            func.count(LeadLegado.id)).scalar() or 0
-        sem_visita = base.filter(LeadLegado.visita_agendada.is_(False)).with_entities(
-            func.count(LeadLegado.id)).scalar() or 0
+        arquivados = base.filter(LeadC2S.arquivado.is_(True)).with_entities(
+            func.count(LeadC2S.id_c2s)).scalar() or 0
+        fechados = base.filter(LeadC2S.negocio_fechado.is_(True)).with_entities(
+            func.count(LeadC2S.id_c2s)).scalar() or 0
 
-        contato = agrupar(LeadLegado.contato_status)
-        # `contato_status` nulo vira "Nao informado" no agrupador; neste eixo o nome certo
-        # e "Sem acompanhamento", que e o que a ausencia significa.
-        if "Nao informado" in contato:
-            contato["Sem acompanhamento"] = contato.pop("Nao informado")
-        contato = {CONTATOS.get(k, k): v for k, v in contato.items()}
+        # Acompanhamento e coluna NOSSA (`leads_legado`), nao vem do C2S. O elo e o
+        # `id_legado` resolvido no sync — sem ele o lead nunca teve acompanhamento.
+        com_acomp = base.join(
+            LeadLegado, LeadLegado.id == LeadC2S.id_legado
+        ).filter(LeadLegado.acompanhamento_em.isnot(None)).with_entities(
+            func.count(LeadC2S.id_c2s)).scalar() or 0
+        agendadas = base.join(
+            LeadLegado, LeadLegado.id == LeadC2S.id_legado
+        ).filter(LeadLegado.visita_agendada.is_(True)).with_entities(
+            func.count(LeadC2S.id_c2s)).scalar() or 0
+        sem_visita = base.join(
+            LeadLegado, LeadLegado.id == LeadC2S.id_legado
+        ).filter(LeadLegado.visita_agendada.is_(False)).with_entities(
+            func.count(LeadC2S.id_c2s)).scalar() or 0
+
+        contato = {}
+        linhas_contato = base.join(
+            LeadLegado, LeadLegado.id == LeadC2S.id_legado
+        ).with_entities(LeadLegado.contato_status, func.count(LeadC2S.id_c2s)).group_by(
+            LeadLegado.contato_status).all()
+        for valor, qtd in linhas_contato:
+            rotulo = CONTATOS.get(_texto(valor), _texto(valor)) if _texto(valor) else None
+            if rotulo:
+                contato[rotulo] = contato.get(rotulo, 0) + int(qtd or 0)
+        # Quem nao tem elo nenhum tambem esta sem acompanhamento.
+        contato["Sem acompanhamento"] = int(total) - sum(contato.values())
+
+        sincronizado = session.query(func.max(LeadC2S.sincronizado_em)).scalar()
 
         return {
             "ok": True,
@@ -572,14 +613,23 @@ def resumo(solicitante_id, inicio=None, fim=None, equipe=None, corretor=None) ->
             "sem_acompanhamento": int(total) - int(com_acomp),
             "visita_agendada": int(agendadas),
             "sem_visita": int(sem_visita),
+            "arquivados": int(arquivados),
+            "negocios_fechados": int(fechados),
             "por_dia": por_dia,
             "granularidade": granularidade,
             "dias_com_entrada": len(diario),
-            "por_fonte": _top_n(agrupar(LeadLegado.fonte)),
-            "por_equipe": _top_n(agrupar(LeadLegado.equipe)),
-            "por_corretor": _top_n(agrupar(LeadLegado.atendimento), 10),
+            "por_fonte": _top_n(agrupar(LeadC2S.fonte)),
+            "por_equipe": _top_n(agrupar(LeadC2S.equipe)),
+            "por_corretor": _top_n(agrupar(LeadC2S.corretor), 10),
+            "por_situacao": _top_n(agrupar(LeadC2S.situacao)),
+            "por_canal": _top_n(agrupar(LeadC2S.canal)),
+            "por_funil": _top_n(agrupar(LeadC2S.funil)),
+            "motivos_arquivamento": _top_n(
+                {k: v for k, v in agrupar(LeadC2S.motivo_arquivamento).items()
+                 if k != "Nao informado"}, 8),
             "por_contato": _top_n(contato),
-            "motivos_sem_visita": _top_n(agrupar(LeadLegado.motivo_sem_visita), 6),
+            "fonte_dados": "leads_c2s",
+            "sincronizado_em": sincronizado.isoformat() if sincronizado else None,
             "escopo": {
                 "ve_tudo": perfil["permissao"] in PERFIS_GLOBAIS,
                 "pode_lancar": perfil["permissao"] in PERFIS_GESTAO,
@@ -587,7 +637,6 @@ def resumo(solicitante_id, inicio=None, fim=None, equipe=None, corretor=None) ->
         }
     finally:
         session.close()
-
 
 def editar_lead(solicitante_id, lead_id, dados: Dict[str, Any]) -> Dict[str, Any]:
     """Corrige os dados do lead na base interna.
