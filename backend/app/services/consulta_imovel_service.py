@@ -12,6 +12,7 @@ A busca usa o cache `imovel_area` (alimentado por `sync_areas_imoview.py`) porqu
 do Imoview **não filtra por código** — só por endereço, e paginado de 20 em 20.
 """
 from datetime import date, datetime, timedelta
+from decimal import Decimal
 
 from sqlalchemy import BigInteger, and_, case, func, or_, text
 
@@ -206,6 +207,21 @@ def _data_ou_none(valor):
         return datetime.strptime(texto, "%Y-%m-%d").date()
     except ValueError:
         return None
+
+
+def _valor_json(valor):
+    """Converte tipos nativos do banco em valores aceitos pelo JSON da API."""
+    if isinstance(valor, (date, datetime)):
+        return valor.isoformat()
+    if isinstance(valor, Decimal):
+        return float(valor)
+    if isinstance(valor, dict):
+        return {chave: _valor_json(item) for chave, item in valor.items()}
+    if isinstance(valor, list):
+        return [_valor_json(item) for item in valor]
+    if isinstance(valor, tuple):
+        return [_valor_json(item) for item in valor]
+    return valor
 
 
 def _codigos_marcados(session, coluna):
@@ -1001,7 +1017,7 @@ def detalhe(solicitante_id, codigo):
             (captacao or {}).get("captador3"),
         ])
 
-        return {
+        return _valor_json({
             "ok": True,
             "codigo": codigo,
             "imoview": imoview,
@@ -1059,7 +1075,7 @@ def detalhe(solicitante_id, codigo):
                     "gerente": venda.get("gerente_venda_nome"),
                 } if venda else None,
             },
-        }
+        })
     finally:
         session.close()
 
