@@ -408,6 +408,32 @@ def _aplicar_escopo(query, escopo):
     return query.filter(PropostaEfetiva.team == escopo["team"])
 
 
+def _valores_distintos(query, coluna) -> list:
+    """Valores presentes na coluna, para alimentar dropdown de filtro.
+
+    So o que existe: oferecer uma lista fixa incluiria bairros sem nenhuma proposta, e
+    escolher um deles devolveria vazio sem explicar por que.
+
+    Deduplica ignorando caixa e escolhe a grafia MAIS FREQUENTE. O campo e texto livre
+    digitado no lancamento, e o banco tem "Apartamento", "apartamento" e "APARTAMENTO"
+    como valores distintos — tres opcoes no dropdown para a mesma coisa, todas devolvendo
+    o mesmo resultado (a comparacao ja ignora caixa). O empate cai na ordem alfabetica,
+    que e estavel entre chamadas.
+    """
+    contagem: Dict[str, int] = {}
+    for valor, quantos in query.with_entities(
+        coluna, func.count(PropostaEfetiva.id)
+    ).group_by(coluna).all():
+        texto = _texto(valor)
+        if texto:
+            contagem[texto] = contagem.get(texto, 0) + int(quantos or 0)
+
+    melhor: Dict[str, str] = {}
+    for texto, quantos in sorted(contagem.items(), key=lambda kv: (-kv[1], kv[0])):
+        melhor.setdefault(texto.lower(), texto)
+    return sorted(melhor.values(), key=lambda x: x.lower())
+
+
 def listar(solicitante_id, filtros=None):
     escopo = escopo_do_solicitante(solicitante_id)
     filtros = filtros or {}
@@ -416,6 +442,11 @@ def listar(solicitante_id, filtros=None):
         query = _aplicar_escopo(
             session.query(PropostaEfetiva).filter(PropostaEfetiva.ativo.is_(True)), escopo
         )
+        # Guardada ANTES dos filtros do usuario: os dropdowns de bairro e tipo saem
+        # daqui. Se saissem da query ja filtrada, escolher "Asa Norte" reduziria a lista
+        # de bairros a "Asa Norte" e nao haveria como trocar sem limpar o filtro.
+        query_escopo = query
+
         if filtros.get("situacao"):
             query = query.filter(PropostaEfetiva.situacao == filtros["situacao"])
         if filtros.get("team") and escopo["ve_tudo"]:
@@ -447,6 +478,31 @@ def listar(solicitante_id, filtros=None):
         # diretor: `data_proposta` e digitada e vem retroativa/futura com frequencia.
         # As fronteiras vao pra UTC porque e assim que `created_at` e gravado — ver
         # `_intervalo_utc`.
+        # Nao existe filtro separado por gerente: `id_gerente` guarda o ID DA EQUIPE, o
+        # mesmo valor de `team` — conferido em 25/08/2026, identicos nas 26 propostas
+        # ativas. Dois dropdowns para o mesmo recorte so criariam a duvida de qual usar.
+        # O filtro de equipe acima ja e o filtro de gerente.
+
+        # Comparacao exata, nao parcial: o valor vem do dropdown, montado a partir dos
+        # proprios registros. Com `ILIKE %x%`, escolher "Casa" traria tambem
+        # "Casa Condominio" — duas coisas diferentes na operacao.
+        for chave, coluna in (("bairro", PropostaEfetiva.bairro),
+                              ("tipo", PropostaEfetiva.tipo)):
+            if filtros.get(chave):
+                query = query.filter(func.lower(coluna) == str(filtros[chave]).strip().lower())
+
+        for chave, comparador in (("valor_min", "ge"), ("valor_max", "le")):
+            bruto = str(filtros.get(chave) or "").strip().replace(",", ".")
+            if not bruto:
+                continue
+            try:
+                valor = float(bruto)
+            except ValueError:
+                # Campo digitado errado nao derruba a consulta — ignorar e melhor que 500.
+                continue
+            query = query.filter(PropostaEfetiva.valor >= valor if comparador == "ge"
+                                 else PropostaEfetiva.valor <= valor)
+
         if filtros.get("inicio"):
             query = query.filter(PropostaEfetiva.created_at >= _inicio_utc(_data(filtros["inicio"])))
         if filtros.get("fim"):
@@ -454,6 +510,15 @@ def listar(solicitante_id, filtros=None):
 
         agora = datetime.now()
         itens = [_serializar(p, agora) for p in query.order_by(PropostaEfetiva.created_at.desc()).all()]
+
+        # "Parada ha N dias" e derivado (`ultima_acao_em` contra hoje, com a regra de
+        # `_fim_da_contagem`), entao filtra depois de serializar, nao em SQL. Repetir a
+        # regra num predicado seria uma segunda definicao de "dias sem acao" — foi assim
+        # que o card e o funil da Visao do Diretor divergiram em agosto.
+        sem_acao_min = str(filtros.get("sem_acao_min") or "").strip()
+        if sem_acao_min.isdigit():
+            corte = int(sem_acao_min)
+            itens = [i for i in itens if (i["dias_sem_acao"] or 0) >= corte]
         # Sem acao ha mais tempo primeiro: e essa a leitura que o estagiario acompanha.
         abertas = [i for i in itens if not i["fechada"]]
         abertas.sort(key=lambda i: (-(i["dias_sem_acao"] or 0), -(i["dias_em_aberto"] or 0)))
@@ -477,6 +542,8 @@ def listar(solicitante_id, filtros=None):
                 "formas_pagamento": [{"value": f, "label": ROTULO_PAGAMENTO[f]} for f in FORMAS_PAGAMENTO],
                 "dias_atencao": DIAS_ATENCAO,
                 "dias_critico": DIAS_CRITICO,
+                "bairros": _valores_distintos(query_escopo, PropostaEfetiva.bairro),
+                "tipos": _valores_distintos(query_escopo, PropostaEfetiva.tipo),
             },
         }
     finally:

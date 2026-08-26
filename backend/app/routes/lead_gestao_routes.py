@@ -3,7 +3,7 @@
 O escopo é resolvido no service a partir do cadastro — a rota não confia no que a tela
 mandou. Ver `lead_gestao_service`.
 """
-from flask import current_app, request
+from flask import current_app, g, request
 from flask_restx import Namespace, Resource
 
 from app.services import lead_c2s_service as servico_c2s
@@ -18,6 +18,9 @@ lead_gestao_ns = Namespace(
 
 
 def _solicitante():
+    payload = getattr(g, "jwt_payload", None) or {}
+    if payload.get("sub"):
+        return payload["sub"]
     return request.args.get("solicitante_id") or (request.get_json(silent=True) or {}).get("solicitante_id")
 
 
@@ -136,6 +139,50 @@ class LeadGestaoDetalhe(Resource):
             return _erro(e, "Erro ao editar lead")
 
 
+@lead_gestao_ns.route("/leads/c2s/<string:id_c2s>")
+class LeadEspelhoDetalhe(Resource):
+    @lead_gestao_ns.doc(
+        description=(
+            "Detalhe do lead pelo id do Contact2Sale, lido do espelho local. Existe "
+            "porque 26% dos leads nao tem linha em `leads_legado` (a importacao legada "
+            "so aceita lead da recepcao ou de fonte Faixa/Indicacao) e por isso nao "
+            "abriam pela rota /leads/gestao/<id>. Quando ha elo, vem o acompanhamento e "
+            "`pode_editar` e verdadeiro; sem elo, o lead abre em leitura."
+        ),
+        params={"solicitante_id": "Id do usuario (obrigatorio)."},
+    )
+    def get(self, id_c2s):
+        try:
+            return servico.detalhe_espelho(_solicitante(), id_c2s), 200
+        except Exception as e:
+            return _erro(e, "Erro ao abrir lead do espelho")
+
+    @lead_gestao_ns.doc(description=(
+        "Grava o acompanhamento do lead pelo id do Contact2Sale: `contato_status` "
+        "(sem_contato|whatsapp|telefone|email), `visita_agendada` (bool) e, quando ela "
+        "for **false**, `motivo_sem_visita` (obrigatorio) e `proxima_acao`. Vale para "
+        "TODO lead do espelho, inclusive os que nao tem registro em `leads_legado`."
+    ))
+    def put(self, id_c2s):
+        dados = request.get_json(silent=True) or {}
+        try:
+            return servico.acompanhar_espelho(_solicitante(), id_c2s, dados), 200
+        except Exception as e:
+            return _erro(e, "Erro ao gravar acompanhamento do lead")
+
+    @lead_gestao_ns.doc(description=(
+        "Corrige os dados do lead (`cliente`, `telefone`, `codigo_imovel`, `fonte`, "
+        "`observacao`) pelo id do Contact2Sale. Grava em `leads_legado`, porque no "
+        "espelho o sync sobrescreveria — responde 409 quando o lead nao tem registro la."
+    ))
+    def patch(self, id_c2s):
+        dados = request.get_json(silent=True) or {}
+        try:
+            return servico.editar_lead_espelho(_solicitante(), id_c2s, dados), 200
+        except Exception as e:
+            return _erro(e, "Erro ao editar lead")
+
+
 @lead_gestao_ns.route("/leads/c2s")
 class LeadsAoVivo(Resource):
     @lead_gestao_ns.doc(
@@ -164,6 +211,9 @@ class LeadsAoVivo(Resource):
             "fechado": "sim | nao (negócio fechado).",
             "com_motivo": "1 para trazer só quem tem motivo de arquivamento preenchido.",
             "busca": "Cliente, telefone, e-mail, código, imóvel, corretor ou motivo.",
+            "bairro": "Bairro do imóvel citado (busca parcial, ignora acento).",
+            "tipo": "Tipo do imóvel citado (busca parcial).",
+            "quartos": "Número exato de quartos do imóvel citado.",
         },
     )
     def get(self):
@@ -178,8 +228,12 @@ class LeadsAoVivo(Resource):
                 campo_data="updated" if por == "atualizacao" else "created",
                 filtros={
                     k: request.args.get(k, "")
+                    # `bairro`, `tipo` e `quartos` nao sao do lead: recortam pelo imovel
+                    # citado, casado com o catalogo pelo codigo.
                     for k in ("situacao", "fonte", "canal", "equipe", "funil", "corretor",
-                              "motivo", "arquivado", "fechado", "com_motivo", "sem_acompanhamento", "busca")
+                              "motivo", "arquivado", "fechado", "com_motivo",
+                              "sem_acompanhamento", "busca",
+                              "bairro", "tipo", "quartos")
                 },
             ), 200
         except Exception as e:
@@ -189,7 +243,8 @@ class LeadsAoVivo(Resource):
 @lead_gestao_ns.route("/leads/c2s/opcoes")
 class LeadsC2SOpcoes(Resource):
     @lead_gestao_ns.doc(description=(
-        "Opções fixas dos filtros (motivo de arquivamento, situação, etapa do funil). "
+        "Opções dos filtros: motivo de arquivamento, situação e etapa do funil (catálogo "
+        "fixo da C2S) mais bairro, tipo e quartos dos imóveis que os leads citam. "
         "Não consulta o Contact2Sale — responde na hora, então a tela pode montar os "
         "dropdowns antes da primeira busca."
     ))

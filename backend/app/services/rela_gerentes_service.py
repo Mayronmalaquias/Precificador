@@ -432,6 +432,9 @@ def gestao_clientes_visitas(
             if nota is not None:
                 notas_por_cliente[cid].append(nota)
             avaliacoes_payload.append({
+                # Sem o id, `editar_visita` PULA a avaliacao (`if not id_av: continue`) —
+                # editar as notas por esta tela salvava silenciosamente nada.
+                "id_avaliacao": _safe_str(av.get("id_Avaliacao")),
                 "id_cliente": cid,
                 "cliente": _safe_str((cliente_map.get(cid) or {}).get("Nome_Cliente")),
                 "notaGeral": _safe_str(av.get("Nota_Geral")),
@@ -514,6 +517,15 @@ def gestao_clientes_visitas(
                 # Drive). Por isso a tela usa este campo para o botao "Ver anexo".
                 "link_imagem": _safe_str(visita.get("Link_Imagem")),
                 "link_audio": _safe_str(visita.get("Link_Audio")),
+                # Derivado, nao coluna: a escrita aceita quatro valores mas grava so dois
+                # estados (`Tipo_Captacao` preenchido ou `Imovel_Nao_Captado`), entao
+                # CAPTACAO_61 / _PROPRIA / _PARCEIRO colapsam num so. Devolver o estado
+                # real evita o modal mostrar uma escolha que o banco nao guarda.
+                "situacao_imovel": ("IMOVEL_NAO_CAPTADO"
+                                    if _is_true(visita.get("Imovel_Nao_Captado"))
+                                    else ("CAPTACAO_61"
+                                          if _safe_str(visita.get("Tipo_Captacao")) else "")),
+                "anexo_ficha_visita": anexo_ficha,
                 "notas": notas_visita,
                 "nota_media": _media(notas_cliente),
                 "avaliacoes": [a for a in avaliacoes_payload if not a["id_cliente"] or a["id_cliente"] == cid],

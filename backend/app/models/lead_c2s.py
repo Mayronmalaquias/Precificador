@@ -58,6 +58,22 @@ class LeadC2S(Base):
     ultima_atividade = Column(DateTime, nullable=True)
     respondido_em = Column(DateTime, nullable=True)
 
+    # ── acompanhamento (NOSSO, não vem do C2S) ────────────────────────────────
+    # Morava em `leads_legado`. Mudou de casa porque aquela tabela passa por um filtro de
+    # negócio na importação e 26% dos leads do espelho não têm linha lá — lead de portal
+    # não podia receber acompanhamento nenhum.
+    #
+    # Estas colunas ficam FORA do upsert do sync; a passada horária sobrescreveria o que
+    # o gerente escreveu. Ver `lead_sync_service.CAMPOS_PRESERVADOS`.
+    contato_status = Column(String(20), nullable=True, index=True)
+    # Nulo = ninguém respondeu ainda. Sem o nulo não dá para separar "não agendou" de
+    # "não olharam o lead".
+    visita_agendada = Column(Boolean, nullable=True, index=True)
+    motivo_sem_visita = Column(Text, nullable=True)
+    proxima_acao = Column(Text, nullable=True)
+    acompanhamento_por = Column(String(50), nullable=True)
+    acompanhamento_em = Column(DateTime, nullable=True, index=True)
+
     # ── controle da sincronização ─────────────────────────────────────────────
     id_legado = Column(Integer, nullable=True, index=True)
     sincronizado_em = Column(DateTime, server_default=func.now(), nullable=True)

@@ -92,6 +92,7 @@
   font: 500 13px var(--ds-font, inherit); background: var(--tf-fundo); color: var(--tf-ink);
 }
 .tf-filtros-linha input { min-width: 190px; }
+.tf-filtros-linha .tf-filtro-gerente { min-width: 250px; }
 
 /* ── botões ── */
 .tf-btn {
@@ -191,7 +192,8 @@
 
 @media (max-width: 640px) {
   .tf-topo { flex-direction: column; }
-  .tf-filtros-linha input { min-width: 100%; }
+  .tf-filtros-linha input,
+  .tf-filtros-linha .tf-filtro-gerente { min-width: 100%; }
 }
 
 /* ── ficha: ver/editar o registro de origem ── */
@@ -199,3 +201,33 @@
 .tf-ficha-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 11px; }
 .tf-ficha-grid .tf-ficha-largo { grid-column: 1 / -1; }
 @media (max-width: 560px) { .tf-ficha-grid { grid-template-columns: 1fr; } }
+
+/* ── anexo e PDFs da pendência de visita ── */
+.tf-anexo { margin: 14px 0 0; display: grid; gap: 6px; }
+/* Altura fixa: o visualizador do Drive não informa o tamanho do conteúdo, então sem
+   altura o iframe colapsa para 150px do padrão do navegador. */
+.tf-anexo iframe {
+  width: 100%; height: 380px; border: 1px solid #e6e2ec; border-radius: 9px;
+  background: #f4f2f7; display: block;
+}
+.tf-anexo .tf-link { justify-self: end; font-size: 11.5px; }
+
+.tf-pdfs { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.tf-pdfs .tf-btn { flex: 1 1 auto; min-width: 140px; justify-content: center; }
+.tf-pdfs .tf-btn:disabled { opacity: .45; cursor: not-allowed; }
+
+/* ── informações só de leitura na ficha ── */
+.tf-ficha-leitura {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 8px; margin: 0 0 14px; padding: 11px 13px;
+  background: #f6f5f8; border-radius: 9px;
+}
+.tf-ficha-leitura > div { display: grid; gap: 2px; min-width: 0; }
+.tf-ficha-leitura dt {
+  font-size: 10px; font-weight: 700; letter-spacing: .06em;
+  text-transform: uppercase; color: #857f92;
+}
+.tf-ficha-leitura dd {
+  margin: 0; font-size: 12.5px; color: #1c1a22;
+  overflow: hidden; text-overflow: ellipsis;
+}

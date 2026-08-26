@@ -1,4 +1,4 @@
-from flask import request, send_file, current_app
+from flask import g, request, send_file, current_app
 from flask_restx import Namespace, Resource
 from sqlalchemy import func, or_
 
@@ -432,10 +432,20 @@ class PdfEquipesDownload(Resource):
 @gerente_dashboard_ns.route("/gestao-clientes")
 class GestaoClientesVisitas(Resource):
     def get(self):
+        session = None
         try:
-            usuario_id = (request.args.get("usuario_id") or "").strip()
-            permissao = (request.args.get("permissao") or "").strip()
-            team = (request.args.get("team") or "").strip()
+            payload = getattr(g, "jwt_payload", None) or {}
+            usuario_id = (payload.get("sub") or request.args.get("usuario_id") or "").strip()
+            session = SessionLocal()
+            usuario = session.query(Usuarios).filter(
+                Usuarios.id_usuarios == usuario_id, Usuarios.ativo.is_(True)
+            ).first()
+            if not usuario:
+                return {"ok": False, "error": "Usuario sem acesso a gestao de clientes"}, 403
+            # Permissao e equipe saem sempre do cadastro. Alterar a query string nao
+            # pode transformar um gerente em diretor nem trocar sua equipe.
+            permissao = (usuario.permissao or "").strip()
+            team = (usuario.team or "").strip()
             escopo = (request.args.get("escopo") or "").strip()
             id_corretor = (request.args.get("id_corretor") or "").strip()
             id_gerente = (request.args.get("id_gerente") or "").strip()
@@ -444,9 +454,6 @@ class GestaoClientesVisitas(Resource):
             end = (request.args.get("end") or "").strip() or None
             limit_raw = (request.args.get("limit") or "").strip()
             limit = int(limit_raw) if limit_raw else None
-
-            if not usuario_id or not permissao:
-                return {"ok": False, "error": "usuario_id e permissao sao obrigatorios"}, 400
 
             data = gestao_clientes_visitas(
                 usuario_id=usuario_id,
@@ -465,6 +472,9 @@ class GestaoClientesVisitas(Resource):
         except Exception as e:
             current_app.logger.exception("Erro ao montar gestao de clientes")
             return {"ok": False, "error": str(e)}, 500
+        finally:
+            if session is not None:
+                session.close()
 
 
 @gerente_dashboard_ns.route("/gestao-clientes/acoes")

@@ -4,7 +4,10 @@ import { moedaInput, moedaNumero, moedaDeNumero } from '../services/moeda';
 import { porRotulo } from '../services/ordenar';
 import { descricaoImovel, edificioDe } from '../services/imovelLabel';
 import { useAuth } from '../context/AuthContext';
+import { useEquipes } from '../context/EquipesContext';
 import { useToast } from '../context/ToastContext';
+import { GraficoBarras, GraficoLinha, GraficoPizza } from './GraficosGestao';
+import '../assets/css/GestaoModulo.css';
 import '../assets/css/PropostasEfetivas.css';
 import '../assets/css/PropostasEfetivasPolish.css';
 
@@ -40,6 +43,16 @@ const dataBR = (v) => {
   return Number.isNaN(d.getTime()) ? '—' : d.toLocaleDateString('pt-BR');
 };
 
+const CORES_SITUACAO = {
+  'Em analise': '#6d7ce0',
+  'Em análise': '#6d7ce0',
+  Contraproposta: '#c07a11',
+  Aceita: '#1b8a5a',
+  Vendido: '#0f6247',
+  Recusada: '#b03040',
+  Cancelada: '#aeb4c2',
+};
+
 // Máscara de moeda em services/moeda.js — compartilhada com o Lançar Imóvel.
 
 export default function PropostasEfetivas() {
@@ -47,7 +60,15 @@ export default function PropostasEfetivas() {
   const { idCorretor } = useAuth();
   const [dados, setDados] = useState(null);
   const [carregando, setCarregando] = useState(true);
-  const [filtros, setFiltros] = useState({ situacao: '', forma_pagamento: '', busca: '', somente_abertas: 'false' });
+  const [filtros, setFiltros] = useState({
+    situacao: '', forma_pagamento: '', busca: '', somente_abertas: 'false',
+    // Recortes acrescentados em 25/08/2026. `team` e `id_gerente` só têm efeito para
+    // perfil global — o servidor ignora para gerente e corretor, cujo escopo sai do
+    // cadastro.
+    team: '', bairro: '', tipo: '',
+    valor_min: '', valor_max: '', sem_acao_min: '',
+  });
+  const [maisFiltros, setMaisFiltros] = useState(false);
   const [form, setForm] = useState(VAZIO);
   const [editandoId, setEditandoId] = useState(null);
   const [formAberto, setFormAberto] = useState(false);
@@ -63,7 +84,13 @@ export default function PropostasEfetivas() {
   const [visitas, setVisitas] = useState([]);
   const [buscandoVisita, setBuscandoVisita] = useState(false);
 
+  const { equipesOpcoes } = useEquipes();
   const podeEditar = !!dados?.escopo?.edita;
+  // Só quem enxerga tudo escolhe equipe ou gerente. Para os demais o filtro nem aparece:
+  // o servidor o ignoraria, e um controle que não faz nada é pior que controle ausente.
+  const veTudo = !!dados?.escopo?.ve_tudo;
+  const filtrosLigados = ['team', 'bairro', 'tipo', 'valor_min',
+    'valor_max', 'sem_acao_min'].filter((k) => String(filtros[k] || '').trim()).length;
 
   // O gerente da proposta pode nao estar na lista (deixou de ser gerente, ou a proposta
   // e de outra equipe). Sem acrescenta-lo, o select abriria em branco e salvar
@@ -76,7 +103,10 @@ export default function PropostasEfetivas() {
       team: '',
     }];
   }, [gerentes, form.id_gerente, form.gerente_nome]);
-  const opcoes = dados?.opcoes || { situacoes: [], formas_pagamento: [] };
+  const opcoes = useMemo(
+    () => dados?.opcoes || { situacoes: [], formas_pagamento: [], bairros: [], tipos: [] },
+    [dados?.opcoes],
+  );
 
   const carregar = useCallback(async () => {
     setCarregando(true);
@@ -265,9 +295,9 @@ export default function PropostasEfetivas() {
     }
   };
 
-  const itens = dados?.itens || [];
+  const itens = useMemo(() => dados?.itens || [], [dados?.itens]);
   const paradas = dados?.paradas || [];
-  const resumo = dados?.resumo || {};
+  const resumo = useMemo(() => dados?.resumo || {}, [dados?.resumo]);
   const ehPermuta = form.forma_pagamento === 'permuta';
   const setF = (k) => (e) => setFiltros((p) => ({ ...p, [k]: e.target.value }));
 
@@ -288,12 +318,57 @@ export default function PropostasEfetivas() {
       .filter((s) => s.qtd > 0);
   }, [itens, opcoes.situacoes]);
 
+  // Os graficos usam exatamente os itens devolvidos pela API. Assim, respeitam tanto
+  // o escopo do usuario quanto situacao, pagamento, busca e "so as abertas".
+  const graficos = useMemo(() => {
+    const porSituacao = new Map();
+    const porMes = new Map();
+    const porResponsavel = new Map();
+
+    itens.forEach((item) => {
+      const situacao = item.situacao_label || item.situacao || 'Nao informada';
+      porSituacao.set(situacao, (porSituacao.get(situacao) || 0) + 1);
+
+      // created_at representa o lancamento no sistema; data_proposta pode ser retroativa.
+      const mes = String(item.created_at || '').slice(0, 7);
+      if (/^\d{4}-\d{2}$/.test(mes)) porMes.set(mes, (porMes.get(mes) || 0) + 1);
+
+      const responsavel = item.corretor_nome || item.gerente_nome || 'Sem responsavel';
+      porResponsavel.set(responsavel, (porResponsavel.get(responsavel) || 0) + 1);
+    });
+
+    const situacoes = Array.from(porSituacao, ([rotulo, total]) => ({ rotulo, total }))
+      .sort((a, b) => b.total - a.total || a.rotulo.localeCompare(b.rotulo, 'pt-BR'));
+
+    const mesesComDados = Array.from(porMes.keys()).sort();
+    const evolucao = [];
+    if (mesesComDados.length) {
+      const [anoFinal, mesFinal] = mesesComDados[mesesComDados.length - 1].split('-').map(Number);
+      // Doze meses continuos deixam lacunas explicitas como zero, em vez de ligar meses distantes.
+      for (let delta = 11; delta >= 0; delta -= 1) {
+        const data = new Date(anoFinal, mesFinal - 1 - delta, 1);
+        const chave = `${data.getFullYear()}-${String(data.getMonth() + 1).padStart(2, '0')}`;
+        evolucao.push({
+          data: chave,
+          label: `${String(data.getMonth() + 1).padStart(2, '0')}/${String(data.getFullYear()).slice(-2)}`,
+          total: porMes.get(chave) || 0,
+        });
+      }
+    }
+
+    const responsaveis = Array.from(porResponsavel, ([rotulo, total]) => ({ rotulo, total }))
+      .sort((a, b) => b.total - a.total || a.rotulo.localeCompare(b.rotulo, 'pt-BR'))
+      .slice(0, 8);
+
+    return { situacoes, evolucao, responsaveis };
+  }, [itens]);
+
   return (
     <div className="pe-page">
       <header className="pe-hero">
         <div>
           <span className="pe-eyebrow"><i /> Comercial · Propostas</span>
-          <h1>Propostas efetivas</h1>
+          <h1>Gestão de propostas</h1>
           <p>Propostas formais de compra por imóvel — situação, forma de pagamento e o que já foi feito em cada uma.</p>
         </div>
         <div className="pe-hero-lado">
@@ -329,9 +404,39 @@ export default function PropostasEfetivas() {
         </section>
       )}
 
+      {itens.length > 0 && (
+        <>
+          <div className="pe-secao"><div><span>02 · ANÁLISE</span><h2>Leitura da carteira</h2></div><p>Os gráficos acompanham o mesmo escopo e os mesmos filtros da lista de propostas.</p></div>
+          <section className="pe-dashboard gm gm-dashboard" aria-label="Gráficos das propostas filtradas">
+            <article className="gm-grafico gm-grafico--linha">
+              <header>
+                <div><h4>Evolução de propostas</h4><p>Lançamentos por mês nos últimos 12 meses</p></div>
+                <strong className="gm-grafico-total">{itens.length}</strong>
+              </header>
+              <GraficoLinha pontos={graficos.evolucao} rotuloAria="Evolução mensal das propostas filtradas" unidade="proposta(s)" />
+            </article>
+
+            <article className="gm-grafico">
+              <header><div><h4>Propostas por situação</h4><p>Participação de cada etapa no filtro atual</p></div></header>
+              <GraficoPizza
+                dados={graficos.situacoes}
+                centroValor={itens.length}
+                centroRotulo="propostas"
+                cores={CORES_SITUACAO}
+              />
+            </article>
+
+            <article className="gm-grafico">
+              <header><div><h4>Volume por responsável</h4><p>Até 8 responsáveis com mais propostas no filtro</p></div></header>
+              <GraficoBarras dados={graficos.responsaveis} sufixo="proposta(s)" />
+            </article>
+          </section>
+        </>
+      )}
+
       {paradas.length > 0 && (
         <>
-          <div className="pe-secao"><div><span>02 · ACOMPANHAMENTO</span><h2>Paradas há mais tempo</h2></div><p>Ordenado pelo tempo sem ação do gerente. É por aqui que o acompanhamento começa.</p></div>
+          <div className="pe-secao"><div><span>03 · ACOMPANHAMENTO</span><h2>Paradas há mais tempo</h2></div><p>Ordenado pelo tempo sem ação do gerente. É por aqui que o acompanhamento começa.</p></div>
           <section className="pe-paradas">
             <div className="pe-parada-list">
               {paradas.slice(0, 8).map((item) => (
@@ -350,7 +455,7 @@ export default function PropostasEfetivas() {
         </>
       )}
 
-      <div className="pe-secao"><div><span>03 · CARTEIRA</span><h2>Todas as propostas</h2></div><p>Clique em qualquer linha para ver o histórico de ações e registrar uma nova.</p></div>
+      <div className="pe-secao"><div><span>04 · CARTEIRA</span><h2>Todas as propostas</h2></div><p>Clique em qualquer linha para ver o histórico de ações e registrar uma nova.</p></div>
 
       <section className="pe-filtros">
         <span className="pe-filtro-icone"><Icon name="filtro" size={15} /></span>
@@ -367,7 +472,61 @@ export default function PropostasEfetivas() {
           <input type="checkbox" checked={filtros.somente_abertas === 'true'} onChange={(e) => setFiltros((p) => ({ ...p, somente_abertas: e.target.checked ? 'true' : 'false' }))} />
           Só as abertas
         </label>
+        <button type="button" className={`pe-mais-filtros ${maisFiltros || filtrosLigados ? 'is-ativo' : ''}`}
+          aria-pressed={maisFiltros} onClick={() => setMaisFiltros((v) => !v)}>
+          Filtros{filtrosLigados ? ` (${filtrosLigados})` : ''}
+        </button>
       </section>
+
+      {maisFiltros && (
+        <section className="pe-filtros-extra">
+          {veTudo && (
+            <>
+              {/* Um dropdown só: `id_gerente` da proposta guarda o id da EQUIPE, o mesmo
+                  valor de `team`. Dois controles para o mesmo recorte só criariam a
+                  dúvida de qual usar. */}
+              <label>Equipe / gerente
+                <select value={filtros.team} onChange={setF('team')}>
+                  <option value="">Todas as equipes</option>
+                  {equipesOpcoes.map((eq) => (
+                    <option key={eq.value} value={eq.value}>{eq.label}</option>
+                  ))}
+                </select>
+              </label>
+            </>
+          )}
+          {/* Só o que existe nas propostas do escopo — as listas vêm do servidor já
+              deduplicadas por caixa ("Apartamento" e "APARTAMENTO" viram uma opção só). */}
+          <label>Bairro
+            <select value={filtros.bairro} onChange={setF('bairro')}>
+              <option value="">Todos os bairros</option>
+              {(opcoes.bairros || []).map((b) => <option key={b} value={b}>{b}</option>)}
+            </select>
+          </label>
+          <label>Tipo
+            <select value={filtros.tipo} onChange={setF('tipo')}>
+              <option value="">Todos os tipos</option>
+              {(opcoes.tipos || []).map((t) => <option key={t} value={t}>{t}</option>)}
+            </select>
+          </label>
+          <label>Valor de
+            <input type="number" value={filtros.valor_min} placeholder="0" onChange={setF('valor_min')} />
+          </label>
+          <label>Valor até
+            <input type="number" value={filtros.valor_max} placeholder="sem teto" onChange={setF('valor_max')} />
+          </label>
+          <label>Parada há (dias)
+            <input type="number" min="0" value={filtros.sem_acao_min} placeholder="ex.: 7"
+              onChange={setF('sem_acao_min')} />
+          </label>
+          <button type="button" className="pe-limpar" onClick={() => setFiltros((p) => ({
+            ...p, team: '', bairro: '', tipo: '',
+            valor_min: '', valor_max: '', sem_acao_min: '',
+          }))}>
+            Limpar
+          </button>
+        </section>
+      )}
 
       <section className="pe-tabela-wrap">
         <table className="pe-tabela">

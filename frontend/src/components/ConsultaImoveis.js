@@ -2,6 +2,11 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { BASE } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
+import { GraficoLinhaDupla, GraficoPizza, GraficoBarras } from './GraficosGestao';
+// `GestaoModulo.css` traz as classes `gm-*` dos graficos. O bundle do CRA e unico, entao
+// elas ja estariam la por causa de outra tela — mas depender disso quebraria a hora que
+// aquela tela saisse do ar.
+import '../assets/css/GestaoModulo.css';
 import '../assets/css/ConsultaImoveis.css';
 
 const moeda = (v) => (v == null || v === '' ? '—'
@@ -16,8 +21,19 @@ const area = (v) => (v == null || v === '' ? '—' : `${String(v).replace('.', '
 const SITUACOES = [
   { value: 'disponivel', label: 'Disponíveis' },
   { value: 'vendido', label: 'Vendidos' },
+  { value: 'saiu', label: 'Saíram do estoque' },
+  { value: 'desativado', label: 'Desativados' },
+  { value: 'moderacao', label: 'Em moderação' },
   { value: 'todos', label: 'Todos' },
 ];
+
+// Rascunho dos filtros. Vazio = campo não enviado; o servidor ignora chave em branco.
+const FILTROS_VAZIOS = {
+  bairro: '', tipo: '', finalidade: '', foco: '',
+  valor_min: '', valor_max: '', area_min: '', area_max: '',
+  quartos_min: '', vagas_min: '',
+  mudou_de: '', mudou_ate: '', captado_de: '', captado_ate: '',
+};
 
 const FOCOS = [
   { value: 'nao_foco', label: 'Não foco' },
@@ -63,8 +79,19 @@ export default function ConsultaImoveis() {
   // "Lancei eu": filtra pelos imoveis cuja CAPTACAO o proprio usuario lancou
   // (`fato_captacao.criado_por`). E a pergunta do estagiario: o que eu ja subi?
   const [apenasMeus, setApenasMeus] = useState(false);
+  const [baixandoPdf, setBaixandoPdf] = useState(false);
 
-  const carregar = useCallback(async (termo, page = 1, filtroSituacao = situacao, meus = apenasMeus) => {
+  // `filtros` é o RASCUNHO (o que está nos campos); `filtrosAtivos` é o que foi
+  // efetivamente buscado. Sem a separação, cada tecla digitada numa faixa de valor
+  // dispararia uma consulta — foi o que já incomodou na tela de leads.
+  const [filtros, setFiltros] = useState(FILTROS_VAZIOS);
+  const [filtrosAtivos, setFiltrosAtivos] = useState(FILTROS_VAZIOS);
+  const [painelFiltros, setPainelFiltros] = useState(false);
+  const [opcoes, setOpcoes] = useState({ bairros: [], tipos: [], finalidades: [] });
+  const [resumo, setResumo] = useState(null);
+
+  const carregar = useCallback(async (termo, page = 1, filtroSituacao = situacao,
+                                      meus = apenasMeus, extras = filtrosAtivos) => {
     setCarregando(true);
     setErro('');
     try {
@@ -73,19 +100,105 @@ export default function ConsultaImoveis() {
       });
       if (termo) qs.set('busca', termo);
       if (meus) qs.set('meus', '1');
+      Object.entries(extras || {}).forEach(([chave, valor]) => {
+        if (String(valor || '').trim()) qs.set(chave, String(valor).trim());
+      });
       const r = await fetch(`${BASE}/imoveis/consulta?${qs.toString()}`);
       const d = await r.json();
       if (!r.ok || d.ok === false) throw new Error(d.error || 'Erro ao buscar imóveis');
       setLista({ itens: d.itens || [], total: d.total || 0, page: d.page || 1, paginas: d.paginas || 1 });
+      setResumo(d.resumo || null);
     } catch (e) {
       setErro(e.message || 'Erro ao buscar imóveis');
       setLista({ itens: [], total: 0, page: 1, paginas: 1 });
+      setResumo(null);
     } finally {
       setCarregando(false);
     }
-  }, [idCorretor, situacao, apenasMeus]);
+  }, [idCorretor, situacao, apenasMeus, filtrosAtivos]);
 
   useEffect(() => { carregar('', 1); }, [carregar]);
+
+  // Bairros e tipos saem do catálogo, não de lista fixa: bairro novo aparece sozinho
+  // quando a operação capta lá pela primeira vez.
+  useEffect(() => {
+    if (!idCorretor) return;
+    (async () => {
+      try {
+        const r = await fetch(`${BASE}/imoveis/consulta/opcoes?solicitante_id=${idCorretor}`);
+        const d = await r.json();
+        if (r.ok && d.ok !== false) setOpcoes(d);
+      } catch { /* dropdown vazio não impede a busca por texto */ }
+    })();
+  }, [idCorretor]);
+
+  // Gráficos: mesmo recorte da listagem, endpoint separado. Ficam num `useEffect`
+  // próprio para a tabela aparecer sem esperar as agregações, que são mais caras.
+  const [graficos, setGraficos] = useState(null);
+  const [carregandoGraficos, setCarregandoGraficos] = useState(false);
+  const [painelGraficos, setPainelGraficos] = useState(true);
+
+  const carregarGraficos = useCallback(async (termo, filtroSituacao, meus, extras) => {
+    if (!idCorretor) return;
+    setCarregandoGraficos(true);
+    try {
+      const qs = new URLSearchParams({
+        solicitante_id: idCorretor, situacao: filtroSituacao,
+      });
+      if (termo) qs.set('busca', termo);
+      if (meus) qs.set('meus', '1');
+      Object.entries(extras || {}).forEach(([chave, valor]) => {
+        if (String(valor || '').trim()) qs.set(chave, String(valor).trim());
+      });
+      const r = await fetch(`${BASE}/imoveis/consulta/graficos?${qs.toString()}`);
+      const d = await r.json();
+      setGraficos(r.ok && d.ok !== false ? d : null);
+    } catch {
+      setGraficos(null);
+    } finally {
+      setCarregandoGraficos(false);
+    }
+  }, [idCorretor]);
+
+  useEffect(() => {
+    if (painelGraficos) carregarGraficos(termoAtivo, situacao, apenasMeus, filtrosAtivos);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [painelGraficos, termoAtivo, situacao, apenasMeus, filtrosAtivos, carregarGraficos]);
+
+  const aplicarFiltros = () => {
+    setFiltrosAtivos(filtros);
+    carregar(termoAtivo, 1, situacao, apenasMeus, filtros);
+  };
+
+  const limparFiltros = () => {
+    setFiltros(FILTROS_VAZIOS);
+    setFiltrosAtivos(FILTROS_VAZIOS);
+    carregar(termoAtivo, 1, situacao, apenasMeus, FILTROS_VAZIOS);
+  };
+
+  const filtrosLigados = Object.values(filtrosAtivos).filter((v) => String(v || '').trim()).length;
+
+  const baixarPdfImovel = async (codigo) => {
+    if (baixandoPdf || !codigo) return;
+    setBaixandoPdf(true);
+    try {
+      const r = await fetch(`${BASE}/imoveis/pdf/download?imovel_id=${encodeURIComponent(codigo)}`);
+      if (!r.ok) throw new Error('Não consegui gerar o relatório deste imóvel.');
+      const blob = await r.blob();
+      const href = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = href;
+      a.download = `imovel-${codigo}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(href);
+    } catch (err) {
+      toast(err.message || 'Não consegui gerar o relatório.', 'error');
+    } finally {
+      setBaixandoPdf(false);
+    }
+  };
 
   const buscar = (e) => {
     e?.preventDefault();
@@ -177,9 +290,13 @@ export default function ConsultaImoveis() {
     <div className="ci-page">
       <header className="ci-hero">
         <div>
-          <span className="ci-eyebrow"><i /> Consulta · Imóveis</span>
-          <h1>Consulta de imóveis</h1>
-          <p>Busque por código ou endereço e veja, numa tela só, o que o CRM tem e o que a inteligência registrou.</p>
+          <span className="ci-eyebrow"><i /> Módulo · Imóveis</span>
+          <h1>Gestão de imóveis</h1>
+          <p>
+            Estoque, saídas e foco num lugar só. Recorte por situação, período, bairro,
+            faixa de valor ou metragem — e veja o VGV e o preço médio do recorte inteiro,
+            não só da página.
+          </p>
         </div>
       </header>
 
@@ -218,7 +335,23 @@ export default function ConsultaImoveis() {
           title="Imóveis cuja captação foi lançada por você"
           onClick={() => { const v = !apenasMeus; setApenasMeus(v); carregar(termoAtivo, 1, situacao, v); }}
         >
-          Lancei eu
+          Lançado por mim
+        </button>
+        <button
+          type="button"
+          className={`ci-meus ${painelFiltros || filtrosLigados ? 'is-ativo' : ''}`}
+          aria-pressed={painelFiltros}
+          onClick={() => setPainelFiltros((v) => !v)}
+        >
+          Filtros{filtrosLigados ? ` (${filtrosLigados})` : ''}
+        </button>
+        <button
+          type="button"
+          className={`ci-meus ${painelGraficos ? 'is-ativo' : ''}`}
+          aria-pressed={painelGraficos}
+          onClick={() => setPainelGraficos((v) => !v)}
+        >
+          Gráficos
         </button>
         <span className="ci-contador">
           {carregando ? 'Buscando…' : `${numero(lista.total)} imóve${lista.total === 1 ? 'l' : 'is'}`}
@@ -226,6 +359,192 @@ export default function ConsultaImoveis() {
           {apenasMeus ? ' que você lançou' : ''}
         </span>
       </form>
+
+      {painelFiltros && (
+        <section className="ci-filtros">
+          <div className="ci-filtros-grid">
+            <label>Bairro
+              <select value={filtros.bairro}
+                onChange={(e) => setFiltros((f) => ({ ...f, bairro: e.target.value }))}>
+                <option value="">Todos os bairros</option>
+                {(opcoes.bairros || []).map((b2) => <option key={b2} value={b2}>{b2}</option>)}
+              </select>
+            </label>
+            <label>Tipo
+              <select value={filtros.tipo}
+                onChange={(e) => setFiltros((f) => ({ ...f, tipo: e.target.value }))}>
+                <option value="">Todos os tipos</option>
+                {(opcoes.tipos || []).map((t) => <option key={t} value={t}>{t}</option>)}
+              </select>
+            </label>
+            <label>Finalidade
+              <select value={filtros.finalidade}
+                onChange={(e) => setFiltros((f) => ({ ...f, finalidade: e.target.value }))}>
+                <option value="">Todas</option>
+                {(opcoes.finalidades || []).map((x) => <option key={x} value={x}>{x}</option>)}
+              </select>
+            </label>
+            <label>Foco
+              <select value={filtros.foco}
+                onChange={(e) => setFiltros((f) => ({ ...f, foco: e.target.value }))}>
+                <option value="">Qualquer</option>
+                <option value="qualquer">Só os de foco</option>
+                <option value="pp">Foco PP</option>
+                <option value="ac">Foco AC</option>
+                <option value="pp_ac">Foco PP + AC</option>
+                <option value="nao_foco">Não foco</option>
+              </select>
+            </label>
+
+            <label>Valor de
+              <input type="number" value={filtros.valor_min} placeholder="0"
+                onChange={(e) => setFiltros((f) => ({ ...f, valor_min: e.target.value }))} />
+            </label>
+            <label>Valor até
+              <input type="number" value={filtros.valor_max} placeholder="sem teto"
+                onChange={(e) => setFiltros((f) => ({ ...f, valor_max: e.target.value }))} />
+            </label>
+            <label>Área de (m²)
+              <input type="number" value={filtros.area_min}
+                onChange={(e) => setFiltros((f) => ({ ...f, area_min: e.target.value }))} />
+            </label>
+            <label>Área até (m²)
+              <input type="number" value={filtros.area_max}
+                onChange={(e) => setFiltros((f) => ({ ...f, area_max: e.target.value }))} />
+            </label>
+
+            <label>Quartos (mín.)
+              <input type="number" min="0" value={filtros.quartos_min}
+                onChange={(e) => setFiltros((f) => ({ ...f, quartos_min: e.target.value }))} />
+            </label>
+            <label>Vagas (mín.)
+              <input type="number" min="0" value={filtros.vagas_min}
+                onChange={(e) => setFiltros((f) => ({ ...f, vagas_min: e.target.value }))} />
+            </label>
+
+            <label>Mudou de situação — de
+              <input type="date" value={filtros.mudou_de}
+                onChange={(e) => setFiltros((f) => ({ ...f, mudou_de: e.target.value }))} />
+            </label>
+            <label>até
+              <input type="date" value={filtros.mudou_ate}
+                onChange={(e) => setFiltros((f) => ({ ...f, mudou_ate: e.target.value }))} />
+            </label>
+
+            <label>Captado — de
+              <input type="date" value={filtros.captado_de}
+                onChange={(e) => setFiltros((f) => ({ ...f, captado_de: e.target.value }))} />
+            </label>
+            <label>até
+              <input type="date" value={filtros.captado_ate}
+                onChange={(e) => setFiltros((f) => ({ ...f, captado_ate: e.target.value }))} />
+            </label>
+          </div>
+
+          <p className="ci-filtros-dica">
+            <strong>Vendidos no período:</strong> escolha a situação <em>Vendidos</em> nos
+            chips acima e preencha <em>Mudou de situação</em>. A data é o
+            <code> datahoraultimasituacao </code> do Imoview — não existe “data da venda” na
+            API deles. Se o imóvel mudar de situação outra vez, essa data é sobrescrita.
+          </p>
+
+          <div className="ci-filtros-acoes">
+            <button type="button" className="ci-limpar" onClick={limparFiltros}>
+              Limpar filtros
+            </button>
+            <button type="button" className="ci-cta" onClick={aplicarFiltros}>
+              Aplicar filtros
+            </button>
+          </div>
+        </section>
+      )}
+
+      {resumo && !carregando && (
+        <section className="ci-resumo">
+          <div><span>Imóveis</span><strong>{numero(resumo.total)}</strong></div>
+          <div>
+            <span>VGV do recorte</span>
+            <strong>{moeda(resumo.vgv)}</strong>
+            <small>{numero(resumo.com_valor)} com valor</small>
+          </div>
+          <div>
+            <span>Ticket médio</span>
+            <strong>{moeda(resumo.ticket_medio)}</strong>
+          </div>
+          <div>
+            <span>Área média</span>
+            <strong>{area(resumo.area_media)}</strong>
+          </div>
+          <div>
+            <span>Preço por m²</span>
+            <strong>{moeda(resumo.valor_m2_medio)}</strong>
+            <small>{numero(resumo.com_area_e_valor)} com área</small>
+          </div>
+        </section>
+      )}
+
+      {painelGraficos && (
+        <section className="ci-graficos">
+          {carregandoGraficos && <p className="ci-estado">Montando gráficos…</p>}
+          {!carregandoGraficos && !graficos && (
+            <p className="ci-estado">Não consegui montar os gráficos deste recorte.</p>
+          )}
+          {!carregandoGraficos && graficos && (
+            <>
+              <article className="gm-grafico ci-grafico--largo">
+                <header>
+                  <div>
+                    <h4>Entradas e saídas por mês</h4>
+                    <p>
+                      Entrada é a data de cadastro no Imoview; saída é a mudança para
+                      vendido, desativado ou em reforma. Não responde aos filtros de
+                      recorte — é o fluxo do catálogo inteiro.
+                    </p>
+                  </div>
+                </header>
+                <GraficoLinhaDupla
+                  pontos={graficos.fluxo_mensal}
+                  series={[
+                    { campo: 'entradas', rotulo: 'Entradas', cor: '#1b6340' },
+                    { campo: 'saidas', rotulo: 'Saídas', cor: '#c4005a' },
+                  ]}
+                  rotuloAria="Entradas e saídas de imóveis por mês"
+                />
+              </article>
+
+              <article className="gm-grafico">
+                <header><div><h4>Situação</h4><p>Onde o estoque está</p></div></header>
+                <GraficoPizza dados={graficos.por_situacao} centroRotulo="imóveis" />
+              </article>
+
+              <article className="gm-grafico">
+                <header><div><h4>Foco</h4><p>PP, AC ou fora do foco</p></div></header>
+                <GraficoPizza dados={graficos.por_foco} centroRotulo="imóveis" />
+              </article>
+
+              <article className="gm-grafico">
+                <header><div><h4>Tipo</h4><p>Composição do estoque</p></div></header>
+                <GraficoPizza dados={graficos.por_tipo} centroRotulo="imóveis" />
+              </article>
+
+              <article className="gm-grafico">
+                <header><div><h4>Faixa de valor</h4><p>Distribuição de preço</p></div></header>
+                <GraficoBarras dados={graficos.por_faixa_valor} sufixo="imóvel(is)" />
+              </article>
+
+              <article className="gm-grafico">
+                <header><div><h4>Bairro</h4><p>Os 10 maiores do recorte</p></div></header>
+                <GraficoBarras dados={graficos.por_bairro} sufixo="imóvel(is)" />
+              </article>
+
+              <article className="gm-grafico">
+                <header><div><h4>Finalidade</h4><p>Venda ou aluguel</p></div></header>
+                <GraficoBarras dados={graficos.por_finalidade} sufixo="imóvel(is)" />
+              </article>
+            </>
+          )}
+        </section>
+      )}
 
       {erro && <p className="ci-estado ci-estado--erro">{erro}</p>}
       {!erro && carregando && <p className="ci-estado">Carregando imóveis…</p>}
@@ -290,7 +609,16 @@ export default function ConsultaImoveis() {
                   </div>
                 )}
               </div>
-              <button type="button" className="ci-fechar" onClick={() => setCodigoAberto(null)} aria-label="Fechar">✕</button>
+              <div className="ci-modal-acoes">
+                {/* Relatorio de visitas do imovel: quem visitou, quando e o que respondeu.
+                    Vai por `fetch` como blob porque a API exige X-API-KEY, injetado no
+                    `fetch` global — um `<a href>` nao passa pelo interceptor e leva 401. */}
+                <button type="button" className="ci-cta" disabled={baixandoPdf}
+                  onClick={() => baixarPdfImovel(codigoAberto)}>
+                  {baixandoPdf ? 'Gerando…' : 'PDF de visitas'}
+                </button>
+                <button type="button" className="ci-fechar" onClick={() => setCodigoAberto(null)} aria-label="Fechar">✕</button>
+              </div>
             </header>
 
             {carregandoDetalhe && <p className="ci-estado">Carregando dados do imóvel…</p>}

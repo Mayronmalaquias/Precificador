@@ -8,7 +8,21 @@
  * esta base já teve (um `button {}` nu pintou de rosa o app inteiro).
  */
 
-.gm {
+/* A paleta é declarada também nos contêineres de gráfico, não só em `.gm`.
+ *
+ * Os componentes de `GraficosGestao` são usados fora dos módulos — Gestão de Clientes,
+ * Gestão de Propostas e Gestão de Imóveis têm raiz própria (`.gcv-page`, `.pe-page`,
+ * `.ci-page`). Ali `var(--gm-fundo)` ficava indefinido e o `background` caía para
+ * transparente: os cards apareciam vazados, deixando a arte da página passar por trás.
+ *
+ * Declarar em `:root` resolveria, mas é exatamente o vazamento global que o comentário
+ * acima existe para evitar. Assim o card carrega a própria paleta e funciona em
+ * qualquer hospedeiro.
+ */
+.gm,
+.gm-grafico,
+.gm-dashboard,
+.gm-dashboard-leads {
   --gm-ink: #1c1a22;
   --gm-ink2: #5b5766;
   --gm-ink3: #857f92;
@@ -268,3 +282,146 @@
 }
 .gm-dashboard-leads .gm-grafico { margin-bottom: 0; min-width: 0; }
 .gm-dashboard-leads .gm-grafico--largo { grid-column: 1 / -1; }
+
+.gm-legenda-inline {
+  display: flex; flex-wrap: wrap; gap: 14px; justify-content: center;
+  margin-top: 8px; font-size: 11px; color: var(--gm-ink2);
+}
+.gm-legenda-inline span { display: inline-flex; align-items: center; gap: 6px; }
+.gm-legenda-inline i { width: 10px; height: 3px; border-radius: 99px; }
+
+
+/* métricas dentro de um card de gráfico */
+.gm-metricas {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 10px; margin-top: 14px;
+}
+.gm-metricas > div {
+  background: var(--gm-fundo2); border-radius: 9px; padding: 10px 12px;
+  display: grid; gap: 2px;
+}
+.gm-metricas span {
+  font-size: 10px; font-weight: 700; letter-spacing: .06em;
+  text-transform: uppercase; color: var(--gm-ink3);
+}
+.gm-metricas strong {
+  font-size: 16px; letter-spacing: -.3px; font-variant-numeric: tabular-nums;
+}
+.gm-metricas small { font-size: 10px; color: var(--gm-ink3); }
+
+/* ── abas da Gestão de Visitas ── */
+.gm-abas { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 14px; }
+.gm-abas button {
+  padding: 8px 14px; border: 1px solid var(--gm-linha); border-radius: 99px;
+  background: var(--gm-fundo); font-size: 12.5px; font-weight: 600;
+  color: var(--gm-ink2); cursor: pointer;
+}
+.gm-abas button:hover { border-color: var(--gm-rosa); color: var(--gm-rosa); }
+.gm-abas button.is-ativa {
+  background: var(--gm-rosa); border-color: var(--gm-rosa); color: #fff;
+}
+
+.gm-col-larga { max-width: 220px; }
+.gm-respostas { display: flex; flex-wrap: wrap; gap: 6px; font-size: 11px; }
+.gm-respostas b { font-weight: 700; white-space: nowrap; }
+.gm-respostas .r-sim { color: var(--gm-sim); }
+.gm-respostas .r-talvez { color: var(--gm-talvez); }
+.gm-respostas .r-nao { color: var(--gm-nao); }
+.gm-selo {
+  display: inline-block; margin-left: 7px; padding: 1px 7px; border-radius: 99px;
+  background: var(--gm-alerta-bg); color: var(--gm-alerta);
+  font-size: 10px; font-weight: 700; white-space: nowrap;
+}
+
+/* ── ranking de visitas ── */
+.gm-podio {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px; margin: 0 0 16px;
+}
+.gm-podio-item {
+  position: relative; overflow: hidden;
+  padding: 16px 16px 14px; border-radius: 12px;
+  border: 1px solid var(--gm-linha); background: var(--gm-fundo);
+  display: grid; gap: 1px;
+}
+/* Faixa de cor no topo em vez de fundo colorido: o card fica legível e a posição
+   continua óbvia num relance. */
+.gm-podio-item::before {
+  content: ""; position: absolute; inset: 0 0 auto 0; height: 4px;
+}
+.gm-podio-item.p-1::before { background: #c9a227; }
+.gm-podio-item.p-2::before { background: #9aa2b1; }
+.gm-podio-item.p-3::before { background: #b07a4a; }
+.gm-podio-item.p-1 { box-shadow: 0 6px 20px rgba(201, 162, 39, .16); }
+
+.gm-podio-pos {
+  font-size: 11px; font-weight: 800; letter-spacing: .06em; color: var(--gm-ink3);
+}
+.gm-podio-nome {
+  font-size: 14px; line-height: 1.3; letter-spacing: -.2px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.gm-podio-visitas {
+  margin-top: 6px; font-size: 30px; font-weight: 800; line-height: 1;
+  letter-spacing: -1.5px; color: var(--gm-rosa); font-variant-numeric: tabular-nums;
+}
+.gm-podio-item small {
+  font-size: 10.5px; text-transform: uppercase; letter-spacing: .06em;
+  color: var(--gm-ink3);
+}
+.gm-podio-extra {
+  display: flex; flex-wrap: wrap; gap: 10px; margin-top: 9px;
+  padding-top: 9px; border-top: 1px solid var(--gm-linha);
+  font-size: 11px; color: var(--gm-ink2);
+}
+
+.gm-rank-titulo {
+  margin: 0 0 10px; font-size: 12px; font-weight: 700; letter-spacing: .05em;
+  text-transform: uppercase; color: var(--gm-ink3);
+}
+.gm-rank-equipes { margin-top: 16px; }
+
+.gm-tabela--rank td, .gm-tabela--rank th { white-space: nowrap; }
+.gm-rank-pos {
+  font-weight: 800; color: var(--gm-ink3); font-variant-numeric: tabular-nums;
+}
+.gm-rank-barra {
+  position: relative; display: flex; align-items: center; gap: 8px; min-width: 120px;
+}
+.gm-rank-barra span {
+  display: block; height: 8px; border-radius: 99px; background: var(--gm-rosa);
+  opacity: .85; flex: 0 0 auto; max-width: 100px;
+}
+.gm-rank-barra b { font-variant-numeric: tabular-nums; font-size: 12px; }
+
+.gm-taxa { font-weight: 700; color: var(--gm-ok); }
+.gm-taxa.is-baixa { color: var(--gm-alerta); }
+
+.gm-tabela .r-sim { color: var(--gm-sim); font-weight: 600; }
+.gm-tabela .r-talvez { color: var(--gm-talvez); font-weight: 600; }
+.gm-tabela .r-nao { color: var(--gm-nao); font-weight: 600; }
+
+.gm-linha-svg--alta { height: 280px; }
+.gm-legenda-inline b { font-variant-numeric: tabular-nums; color: var(--gm-ink); }
+
+/* ── barra de relatórios consolidados ── */
+.gm-pdfs-barra {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
+  margin: 0 0 14px; padding: 11px 13px;
+  background: var(--gm-fundo2); border-radius: 10px;
+}
+.gm-pdfs-rotulo {
+  font-size: 10.5px; font-weight: 700; letter-spacing: .06em;
+  text-transform: uppercase; color: var(--gm-ink3); margin-right: 2px;
+}
+.gm-pdfs-barra select {
+  padding: 7px 10px; border: 1px solid var(--gm-linha); border-radius: 8px;
+  font-size: 12.5px; background: var(--gm-fundo); color: var(--gm-ink); max-width: 220px;
+}
+.gm-pdfs-barra .gm-btn:disabled { opacity: .45; cursor: not-allowed; }
+
+.gm-grafico-controles { display: flex; flex-wrap: wrap; gap: 6px; }
+.gm-grafico-controles select {
+  padding: 6px 9px; border: 1px solid var(--gm-linha); border-radius: 8px;
+  font-size: 12px; background: var(--gm-fundo); color: var(--gm-ink);
+}

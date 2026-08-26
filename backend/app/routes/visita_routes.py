@@ -1,4 +1,5 @@
 ﻿from flask import request, current_app, send_file
+from flask import g
 from flask_restx import Namespace, Resource
 
 from app.services.visita_service import (
@@ -26,6 +27,13 @@ from app.services.gerente_visitas_service import gerar_json_corretores
 from app.services.rela_gerentes_service import invalidar_cache_visitas
 
 visita_ns = Namespace("visitas", description="Visitas: lançamento, edição, upload de ficha e busca de imóvel no Imoview")
+
+
+def _solicitante():
+    payload = getattr(g, "jwt_payload", None) or {}
+    if payload.get("sub"):
+        return payload["sub"]
+    return request.args.get("solicitante_id") or (request.get_json(silent=True) or {}).get("solicitante_id")
 
 
 @visita_ns.route("/visitas")
@@ -94,7 +102,7 @@ class VisitaDetalhe(Resource):
         from app.services import gestao_visitas_service as servico
         from app.services.gestao_visitas_service import VisitaGestaoErro
         try:
-            return servico.detalhe(request.args.get("solicitante_id"), id_visita), 200
+            return servico.detalhe(_solicitante(), id_visita), 200
         except VisitaGestaoErro as e:
             return {"ok": False, "error": e.mensagem}, e.status
         except Exception:
@@ -323,7 +331,7 @@ class ClienteItem(Resource):
     def get(self, id_cliente):
         from app.services.visita_service import obter_cliente, ClienteErro
         try:
-            return obter_cliente(id_cliente, request.args.get("solicitante_id")), 200
+            return obter_cliente(id_cliente, _solicitante()), 200
         except ClienteErro as e:
             return {"ok": False, "error": e.mensagem}, e.status
         except Exception:
@@ -342,7 +350,7 @@ class ClienteItem(Resource):
     def put(self, id_cliente):
         from app.services.visita_service import editar_cliente, ClienteErro
         payload = request.get_json(silent=True) or {}
-        solicitante = payload.get("solicitante_id") or request.args.get("solicitante_id")
+        solicitante = _solicitante()
         try:
             return editar_cliente(id_cliente, payload, solicitante), 200
         except ClienteErro as e:
@@ -492,7 +500,7 @@ class GestaoVisitas(Resource):
         from app.services.gestao_visitas_service import VisitaGestaoErro
         try:
             return servico.listar(
-                request.args.get("solicitante_id"),
+                _solicitante(),
                 inicio=request.args.get("inicio"),
                 fim=request.args.get("fim"),
                 equipe=request.args.get("id_gerente"),

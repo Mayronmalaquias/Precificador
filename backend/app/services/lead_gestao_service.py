@@ -12,12 +12,13 @@ import re
 from typing import Any, Dict, List, Optional
 
 import requests
-from sqlalchemy import func
+from sqlalchemy import and_, case, func
 
 from datetime import datetime, timedelta
 
 from app.database import SessionLocal
 from app.models.estoque_legado import LeadLegado
+from app.models.imovel_area import ImovelArea
 from app.models.lead_c2s import LeadC2S
 from app.models.fato_bases import FatoCaptacao
 from app.models.imovel_area import ImovelArea
@@ -267,6 +268,7 @@ def detalhe(solicitante_id, lead_id) -> Dict[str, Any]:
         atendente = session.query(Usuarios).filter(
             Usuarios.id_usuarios == _texto(lead.atendimento)
         ).first()
+        espelho = session.query(LeadC2S).filter(LeadC2S.id_legado == lead.id).first()
         return {
             "ok": True,
             "lead": {
@@ -283,10 +285,98 @@ def detalhe(solicitante_id, lead_id) -> Dict[str, Any]:
                 "equipe": lead.equipe,
                 "observacao": lead.observacao,
                 "san_observacao": lead.san_observacao,
-                "acompanhamento": _acompanhamento(lead),
+                # Preferir o espelho: e onde o acompanhamento passou a ser gravado. A
+                # coluna do legado continua sendo espelhada por `acompanhar_espelho`,
+                # mas ler dela como fonte primaria mostraria dado velho se algum dia o
+                # espelhamento falhar.
+                "acompanhamento": _acompanhamento(espelho or lead),
+                "id_c2s": espelho.id_c2s if espelho else None,
             },
             "imovel": _imovel_do_lead(session, lead.codigo_imovel),
             "pode_editar": perfil["permissao"] in PERFIS_GESTAO,
+            "pode_corrigir_dados": perfil["permissao"] in PERFIS_GESTAO,
+            "opcoes": {"contatos": [{"value": k, "label": v} for k, v in CONTATOS.items()]},
+        }
+    finally:
+        session.close()
+
+
+def detalhe_espelho(solicitante_id, id_c2s) -> Dict[str, Any]:
+    """Detalhe do lead a partir de `leads_c2s`, no mesmo formato de `detalhe`.
+
+    Existe porque o detalhe antigo so sabia abrir por `leads_legado.id`, e **26% dos
+    leads do espelho nao tem linha la**: a importacao legada so aceita lead criado pela
+    recepcao ou de fonte Faixa/Indicacao, entao lead de portal (Grupo Zap, DF imoveis,
+    ImovelWeb) nunca entrou. Na tela isso aparecia como lead que simplesmente nao abre.
+
+    Medido em 25/08/2026: 5.203 leads sem elo, dos quais 4.761 (91,5%) nao existem em
+    `leads_legado` de jeito nenhum. Normalizar a chave de casamento recuperaria 442 —
+    por isso o conserto e ler do espelho, nao melhorar o casamento.
+
+    O acompanhamento continua morando em `leads_legado`: quando ha elo (`id_legado`) ele
+    vem junto e pode ser editado; sem elo, o lead abre em leitura e a tela diz por que.
+    """
+    from app.services import lead_c2s_service as c2s
+
+    session = SessionLocal()
+    try:
+        perfil = _perfil(session, solicitante_id)
+        lead = session.query(LeadC2S).filter(LeadC2S.id_c2s == _texto(id_c2s)).first()
+        if not lead:
+            raise LeadErro("Lead não encontrado", 404)
+
+        # O escopo do espelho e por NOME (o C2S nao conhece nossos ids) — mesma regra da
+        # listagem. Duas regras de escopo sobre a mesma tela divergiriam.
+        escopo = c2s._escopo(session, solicitante_id, None)
+        if escopo["equipe"] and c2s._norm_equipe(lead.equipe) != c2s._norm_equipe(escopo["equipe"]):
+            raise LeadErro("Esse lead é de outra equipe", 403)
+        if escopo["corretor"] and c2s._norm(escopo["corretor"]) not in c2s._norm(lead.corretor):
+            raise LeadErro("Esse lead é de outro corretor", 403)
+
+        legado = None
+        if lead.id_legado:
+            legado = session.query(LeadLegado).filter(LeadLegado.id == lead.id_legado).first()
+
+        return {
+            "ok": True,
+            "lead": {
+                # `id` e o do legado quando existe: e ele que o PUT/PATCH usam. Nulo
+                # avisa a tela de que acompanhamento e edicao nao estao disponiveis.
+                "id": legado.id if legado else None,
+                "id_c2s": lead.id_c2s,
+                "data": lead.data.isoformat() if lead.data else None,
+                "cliente": lead.cliente,
+                "telefone": lead.telefone,
+                "email": lead.email,
+                "codigo_imovel": lead.codigo_imovel,
+                "fonte": lead.fonte,
+                "contato": lead.canal,
+                "relatorio": lead.imovel,
+                "atendimento": lead.corretor,
+                "atendimento_nome": lead.corretor,
+                "equipe": lead.equipe,
+                "observacao": lead.observacao,
+                "san_observacao": None,
+                "situacao": lead.situacao,
+                "funil": lead.funil,
+                "arquivado": lead.arquivado,
+                "motivo_arquivamento": lead.motivo_arquivamento,
+                "negocio_fechado": lead.negocio_fechado,
+                "url": lead.url,
+                "ultima_atividade": (lead.ultima_atividade.isoformat()
+                                     if lead.ultima_atividade else None),
+                # Do proprio espelho: e onde o acompanhamento mora desde a migracao
+                # 20260825_acomp_c2s. Antes vinha do legado e por isso 26% dos leads
+                # abriam sem nenhum acompanhamento possivel.
+                "acompanhamento": _acompanhamento(lead),
+            },
+            "imovel": _imovel_do_lead(session, lead.codigo_imovel),
+            # Acompanhamento vale para todo lead do espelho. `pode_corrigir_dados` e
+            # que continua preso ao legado: corrigir nome/telefone grava la, porque no
+            # espelho a proxima passada do sync sobrescreveria com o valor do C2S.
+            "pode_editar": perfil["permissao"] in PERFIS_GESTAO,
+            "pode_corrigir_dados": bool(legado) and perfil["permissao"] in PERFIS_GESTAO,
+            "sem_registro_interno": legado is None,
             "opcoes": {"contatos": [{"value": k, "label": v} for k, v in CONTATOS.items()]},
         }
     finally:
@@ -377,14 +467,116 @@ def criar_lead(solicitante_id, dados: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
-def atualizar_acompanhamento(solicitante_id, lead_id, dados: Dict[str, Any]) -> Dict[str, Any]:
-    """Grava o acompanhamento do lead: contato, visita agendada, motivo e próxima ação.
+def _aplicar_acompanhamento(lead, dados: Dict[str, Any], autor: str) -> None:
+    """Grava contato, visita agendada, motivo e proxima acao em `lead`.
 
-    Regra de consistência: **visita agendada = não** exige motivo. Sem isso o campo vira
-    uma caixa de "não" sem explicação, que é o que o bloco existe para evitar. Com "sim",
-    motivo e próxima ação são limpos — deixá-los para trás mostraria um motivo de recusa
+    Regra de consistencia: **visita agendada = nao** exige motivo. Sem isso o campo vira
+    uma caixa de "nao" sem explicacao, que e o que o bloco existe para evitar. Com "sim",
+    motivo e proxima acao sao limpos — deixa-los para tras mostraria um motivo de recusa
     ao lado de uma visita marcada.
+
+    Extraido para os dois caminhos (espelho e legado) compartilharem a MESMA regra: com a
+    validacao duplicada, o primeiro ajuste feito num so deixaria a tela aceitando pela
+    Gestao de Leads o que o painel de tarefas recusa.
     """
+    if "contato_status" in dados:
+        escolha = _texto(dados.get("contato_status"))
+        if escolha and escolha not in CONTATOS:
+            raise LeadErro(f"Contato inválido. Use um destes: {', '.join(CONTATOS)}")
+        lead.contato_status = escolha or None
+
+    if "visita_agendada" in dados:
+        bruto = dados.get("visita_agendada")
+        agendada = None if bruto in (None, "") else str(bruto).lower() in {"true", "1", "sim"}
+        lead.visita_agendada = agendada
+
+        if agendada is False:
+            motivo = _texto(dados.get("motivo_sem_visita"))
+            if not motivo:
+                raise LeadErro("Sem visita agendada: informe o motivo")
+            lead.motivo_sem_visita = motivo
+            lead.proxima_acao = _texto(dados.get("proxima_acao")) or None
+        else:
+            lead.motivo_sem_visita = None
+            lead.proxima_acao = None
+    else:
+        # Edicao parcial (so o motivo, por exemplo) nao pode contornar a regra acima.
+        if "motivo_sem_visita" in dados and lead.visita_agendada is False:
+            lead.motivo_sem_visita = _texto(dados.get("motivo_sem_visita")) or lead.motivo_sem_visita
+        if "proxima_acao" in dados and lead.visita_agendada is False:
+            lead.proxima_acao = _texto(dados.get("proxima_acao")) or None
+
+    lead.acompanhamento_por = autor
+    lead.acompanhamento_em = datetime.now()
+
+
+def acompanhar_espelho(solicitante_id, id_c2s, dados: Dict[str, Any]) -> Dict[str, Any]:
+    """Grava o acompanhamento em `leads_c2s`, pelo id do Contact2Sale.
+
+    E o caminho novo. O antigo escrevia em `leads_legado`, que so tem 74% dos leads: a
+    importacao historica descarta lead de portal, entao Grupo Zap, DF imoveis e ImovelWeb
+    nao tinham onde registrar acompanhamento.
+
+    `id_legado` continua sendo mantido em espelho quando existe, para o relatorio antigo
+    (que le de `leads_legado`) nao regredir enquanto ainda houver quem o consulte.
+    """
+    from app.services import lead_c2s_service as c2s
+
+    session = SessionLocal()
+    try:
+        perfil = _perfil(session, solicitante_id)
+        if perfil["permissao"] not in PERFIS_GESTAO:
+            raise LeadErro("Sem permissão para editar o acompanhamento", 403)
+
+        lead = session.query(LeadC2S).filter(LeadC2S.id_c2s == _texto(id_c2s)).first()
+        if not lead:
+            raise LeadErro("Lead não encontrado", 404)
+
+        # Escopo por NOME, como no resto do espelho — o C2S nao conhece nossos ids.
+        escopo = c2s._escopo(session, solicitante_id, None)
+        if escopo["equipe"] and c2s._norm_equipe(lead.equipe) != c2s._norm_equipe(escopo["equipe"]):
+            raise LeadErro("Esse lead é de outra equipe", 403)
+        if escopo["corretor"] and c2s._norm(escopo["corretor"]) not in c2s._norm(lead.corretor):
+            raise LeadErro("Esse lead é de outro corretor", 403)
+
+        _aplicar_acompanhamento(lead, dados, perfil["id"])
+
+        # Espelha no legado quando ha elo: o relatorio historico ainda le de la.
+        if lead.id_legado:
+            legado = session.query(LeadLegado).filter(LeadLegado.id == lead.id_legado).first()
+            if legado:
+                for campo in ("contato_status", "visita_agendada", "motivo_sem_visita",
+                              "proxima_acao", "acompanhamento_por", "acompanhamento_em"):
+                    setattr(legado, campo, getattr(lead, campo))
+
+        session.commit()
+        return {"ok": True, "id_c2s": lead.id_c2s, "acompanhamento": _acompanhamento(lead)}
+    except Exception:
+        session.rollback()
+        raise
+    finally:
+        session.close()
+
+
+def atualizar_acompanhamento(solicitante_id, lead_id, dados: Dict[str, Any]) -> Dict[str, Any]:
+    """Compatibilidade: grava o acompanhamento pelo id de `leads_legado`.
+
+    O acompanhamento mudou de casa para `leads_c2s` (migracao 20260825_acomp_c2s). Esta
+    rota continua existindo porque links e integracoes antigas usam o id inteiro, mas o
+    trabalho e feito em `acompanhar_espelho` — uma implementacao so, nao duas regras.
+
+    Sem lead correspondente no espelho, grava direto no legado: e o caso do lead que a
+    importacao trouxe mas o sync ainda nao alcancou.
+    """
+    session = SessionLocal()
+    try:
+        espelho = session.query(LeadC2S.id_c2s).filter(LeadC2S.id_legado == lead_id).first()
+    finally:
+        session.close()
+
+    if espelho:
+        return acompanhar_espelho(solicitante_id, espelho[0], dados)
+
     session = SessionLocal()
     try:
         perfil = _perfil(session, solicitante_id)
@@ -399,35 +591,7 @@ def atualizar_acompanhamento(solicitante_id, lead_id, dados: Dict[str, Any]) -> 
         if chaves is not None and _texto(lead.atendimento) not in chaves and _texto(lead.equipe) not in chaves:
             raise LeadErro("Esse lead é de outra equipe", 403)
 
-        if "contato_status" in dados:
-            escolha = _texto(dados.get("contato_status"))
-            if escolha and escolha not in CONTATOS:
-                raise LeadErro(f"Contato inválido. Use um destes: {', '.join(CONTATOS)}")
-            lead.contato_status = escolha or None
-
-        if "visita_agendada" in dados:
-            bruto = dados.get("visita_agendada")
-            agendada = None if bruto in (None, "") else str(bruto).lower() in {"true", "1", "sim"}
-            lead.visita_agendada = agendada
-
-            if agendada is False:
-                motivo = _texto(dados.get("motivo_sem_visita"))
-                if not motivo:
-                    raise LeadErro("Sem visita agendada: informe o motivo")
-                lead.motivo_sem_visita = motivo
-                lead.proxima_acao = _texto(dados.get("proxima_acao")) or None
-            else:
-                lead.motivo_sem_visita = None
-                lead.proxima_acao = None
-        else:
-            # Edição parcial (só o motivo, por exemplo) não pode contornar a regra acima.
-            if "motivo_sem_visita" in dados and lead.visita_agendada is False:
-                lead.motivo_sem_visita = _texto(dados.get("motivo_sem_visita")) or lead.motivo_sem_visita
-            if "proxima_acao" in dados and lead.visita_agendada is False:
-                lead.proxima_acao = _texto(dados.get("proxima_acao")) or None
-
-        lead.acompanhamento_por = perfil["id"]
-        lead.acompanhamento_em = datetime.now()
+        _aplicar_acompanhamento(lead, dados, perfil["id"])
         session.commit()
         return {"ok": True, "id": lead.id, "acompanhamento": _acompanhamento(lead)}
     except Exception:
@@ -487,6 +651,35 @@ def _query_com_escopo(session, perfil, equipe, inicio, fim, corretor=None):
     if fim:
         query = query.filter(LeadLegado.data <= fim)
     return query
+
+
+def _float_ou_none(valor):
+    """Numeric do Postgres -> float serializavel. `None` continua `None`."""
+    return float(valor) if valor is not None else None
+
+
+# Faixas de preco do imovel procurado. Cortes redondos e do jeito que a operacao fala do
+# produto; faixas de largura igual dariam uma barra gigante embaixo e nada em cima,
+# porque a distribuicao de preco e assimetrica.
+FAIXAS_VALOR_LEAD = [
+    ("Ate 500 mil", None, 500_000),
+    ("500 mil a 1 mi", 500_000, 1_000_000),
+    ("1 a 2 mi", 1_000_000, 2_000_000),
+    ("2 a 3 mi", 2_000_000, 3_000_000),
+    ("3 a 5 mi", 3_000_000, 5_000_000),
+    ("Acima de 5 mi", 5_000_000, None),
+]
+
+# Recencia da ultima atividade no C2S. E a unica leitura de INTERACAO disponivel:
+# `replied_at` da API vem vazio em 100% dos leads desta conta, entao tempo de primeira
+# resposta nao existe como dado.
+FAIXAS_INTERACAO = [
+    ("Hoje", 0, 0),
+    ("1 a 3 dias", 1, 3),
+    ("4 a 7 dias", 4, 7),
+    ("8 a 30 dias", 8, 30),
+    ("Mais de 30 dias", 31, None),
+]
 
 
 def _base_espelho(session, solicitante_id, inicio, fim, equipe, corretor):
@@ -579,30 +772,114 @@ def resumo(solicitante_id, inicio=None, fim=None, equipe=None, corretor=None) ->
 
         # Acompanhamento e coluna NOSSA (`leads_legado`), nao vem do C2S. O elo e o
         # `id_legado` resolvido no sync — sem ele o lead nunca teve acompanhamento.
-        com_acomp = base.join(
-            LeadLegado, LeadLegado.id == LeadC2S.id_legado
-        ).filter(LeadLegado.acompanhamento_em.isnot(None)).with_entities(
+        # Acompanhamento agora e coluna do proprio espelho: some o join com
+        # `leads_legado`, que so cobria 74% dos leads e por isso subcontava.
+        com_acomp = base.filter(LeadC2S.acompanhamento_em.isnot(None)).with_entities(
             func.count(LeadC2S.id_c2s)).scalar() or 0
-        agendadas = base.join(
-            LeadLegado, LeadLegado.id == LeadC2S.id_legado
-        ).filter(LeadLegado.visita_agendada.is_(True)).with_entities(
+        agendadas = base.filter(LeadC2S.visita_agendada.is_(True)).with_entities(
             func.count(LeadC2S.id_c2s)).scalar() or 0
-        sem_visita = base.join(
-            LeadLegado, LeadLegado.id == LeadC2S.id_legado
-        ).filter(LeadLegado.visita_agendada.is_(False)).with_entities(
+        sem_visita = base.filter(LeadC2S.visita_agendada.is_(False)).with_entities(
             func.count(LeadC2S.id_c2s)).scalar() or 0
 
-        contato = {}
-        linhas_contato = base.join(
-            LeadLegado, LeadLegado.id == LeadC2S.id_legado
-        ).with_entities(LeadLegado.contato_status, func.count(LeadC2S.id_c2s)).group_by(
-            LeadLegado.contato_status).all()
-        for valor, qtd in linhas_contato:
+        contato: Dict[str, int] = {}
+        for valor, qtd in base.with_entities(
+            LeadC2S.contato_status, func.count(LeadC2S.id_c2s)
+        ).group_by(LeadC2S.contato_status).all():
             rotulo = CONTATOS.get(_texto(valor), _texto(valor)) if _texto(valor) else None
             if rotulo:
                 contato[rotulo] = contato.get(rotulo, 0) + int(qtd or 0)
-        # Quem nao tem elo nenhum tambem esta sem acompanhamento.
         contato["Sem acompanhamento"] = int(total) - sum(contato.values())
+
+        # ── o que o lead procurava ────────────────────────────────────────────
+        # Bairro, tipo, quartos e valor nao existem no lead: moram no catalogo, e o elo e
+        # o `prop_ref` que o cliente citou. O join e INTERNO de proposito — lead sem
+        # codigo, ou com codigo que nao esta no catalogo, simplesmente nao entra nestes
+        # graficos. Contar esses como "Nao informado" inflaria uma categoria que nao diz
+        # nada sobre demanda; `leads_com_imovel` deixa a cobertura explicita.
+        com_imovel = base.join(ImovelArea, ImovelArea.codigo == LeadC2S.codigo_imovel)
+        leads_com_imovel = com_imovel.with_entities(func.count(LeadC2S.id_c2s)).scalar() or 0
+
+        def agrupar_imovel(coluna, limite=TOPO_FATIAS):
+            linhas = com_imovel.with_entities(coluna, func.count(LeadC2S.id_c2s)) \
+                               .group_by(coluna).all()
+            contagem: Dict[str, int] = {}
+            for valor, qtd in linhas:
+                if valor is None or _texto(valor) == "":
+                    continue
+                contagem[_texto(valor)] = contagem.get(_texto(valor), 0) + int(qtd or 0)
+            return _top_n(contagem, limite)
+
+        # Quartos e numero: ordena por quantidade de quartos, nao por volume — fora dessa
+        # ordem o grafico deixa de ser distribuicao e vira ranking.
+        quartos_bruto = {
+            int(q): int(qtd or 0)
+            for q, qtd in com_imovel.with_entities(
+                ImovelArea.quartos, func.count(LeadC2S.id_c2s)
+            ).filter(ImovelArea.quartos.isnot(None)).group_by(ImovelArea.quartos).all()
+            if q is not None
+        }
+        por_quartos = [
+            {"rotulo": f"{q} quarto{'s' if q != 1 else ''}" if q else "Sem quarto",
+             "total": quartos_bruto[q]}
+            for q in sorted(quartos_bruto)
+        ]
+
+        # Faixa de valor num `case` so, para nao virar seis consultas.
+        ramos_valor = []
+        for rotulo, minimo, maximo in FAIXAS_VALOR_LEAD:
+            condicoes = []
+            if minimo is not None:
+                condicoes.append(ImovelArea.valor >= minimo)
+            if maximo is not None:
+                condicoes.append(ImovelArea.valor < maximo)
+            ramos_valor.append((and_(*condicoes), rotulo))
+        faixa_valor = case(*ramos_valor, else_=None)
+        valor_bruto = dict(
+            com_imovel.with_entities(faixa_valor, func.count(LeadC2S.id_c2s))
+                      .group_by(faixa_valor).all()
+        )
+        por_faixa_valor = [{"rotulo": r, "total": int(valor_bruto.get(r, 0) or 0)}
+                           for r, _, _ in FAIXAS_VALOR_LEAD]
+
+        # Metricas do imovel procurado. A mediana entra ao lado da media porque um lead
+        # numa mansao de 20 mi puxa a media inteira; a mediana diz onde a demanda esta.
+        metricas = com_imovel.with_entities(
+            func.avg(ImovelArea.valor),
+            func.percentile_cont(0.5).within_group(ImovelArea.valor.asc()),
+            func.min(ImovelArea.valor),
+            func.max(ImovelArea.valor),
+            func.avg(func.nullif(ImovelArea.area, 0)),
+            func.avg(ImovelArea.quartos),
+            func.count(ImovelArea.valor),
+        ).one()
+        metricas_imovel = {
+            "valor_medio": _float_ou_none(metricas[0]),
+            "valor_mediano": _float_ou_none(metricas[1]),
+            "valor_min": _float_ou_none(metricas[2]),
+            "valor_max": _float_ou_none(metricas[3]),
+            "area_media": _float_ou_none(metricas[4]),
+            "quartos_medio": _float_ou_none(metricas[5]),
+            "com_valor": int(metricas[6] or 0),
+        }
+
+        # ── interacao: recencia da ultima atividade no C2S ────────────────────
+        dias_sem = func.date_part("day", func.now() - LeadC2S.ultima_atividade)
+        ramos_int = []
+        for rotulo, minimo, maximo in FAIXAS_INTERACAO:
+            condicoes = [dias_sem >= minimo]
+            if maximo is not None:
+                condicoes.append(dias_sem <= maximo)
+            ramos_int.append((and_(*condicoes), rotulo))
+        faixa_int = case(*ramos_int, else_="Sem atividade")
+        int_bruto = dict(
+            base.with_entities(faixa_int, func.count(LeadC2S.id_c2s))
+                .group_by(faixa_int).all()
+        )
+        por_interacao = [{"rotulo": r, "total": int(int_bruto.get(r, 0) or 0)}
+                         for r, _, _ in FAIXAS_INTERACAO]
+        sem_atividade = int(int_bruto.get("Sem atividade", 0) or 0)
+        if sem_atividade:
+            por_interacao.append({"rotulo": "Sem atividade", "total": sem_atividade})
 
         sincronizado = session.query(func.max(LeadC2S.sincronizado_em)).scalar()
 
@@ -628,6 +905,13 @@ def resumo(solicitante_id, inicio=None, fim=None, equipe=None, corretor=None) ->
                 {k: v for k, v in agrupar(LeadC2S.motivo_arquivamento).items()
                  if k != "Nao informado"}, 8),
             "por_contato": _top_n(contato),
+            "por_interacao": por_interacao,
+            "leads_com_imovel": int(leads_com_imovel),
+            "por_bairro_imovel": agrupar_imovel(ImovelArea.bairro, 10),
+            "por_tipo_imovel": agrupar_imovel(ImovelArea.tipo),
+            "por_quartos": por_quartos,
+            "por_faixa_valor_imovel": por_faixa_valor,
+            "metricas_imovel": metricas_imovel,
             "fonte_dados": "leads_c2s",
             "sincronizado_em": sincronizado.isoformat() if sincronizado else None,
             "escopo": {
@@ -637,6 +921,30 @@ def resumo(solicitante_id, inicio=None, fim=None, equipe=None, corretor=None) ->
         }
     finally:
         session.close()
+
+def editar_lead_espelho(solicitante_id, id_c2s, dados: Dict[str, Any]) -> Dict[str, Any]:
+    """Corrige os dados do lead a partir do id do C2S.
+
+    A correcao continua gravando em `leads_legado`, nao no espelho: `cliente`, `telefone`
+    e `fonte` sao campos DO C2S, e a passada horaria do sync sobrescreveria o que fosse
+    escrito no espelho. Por isso, sem registro no legado nao ha onde corrigir — e a
+    resposta diz isso em vez de fingir que gravou.
+    """
+    session = SessionLocal()
+    try:
+        lead = session.query(LeadC2S).filter(LeadC2S.id_c2s == _texto(id_c2s)).first()
+        if not lead:
+            raise LeadErro("Lead não encontrado", 404)
+        id_legado = lead.id_legado
+    finally:
+        session.close()
+
+    if not id_legado:
+        raise LeadErro(
+            "Esse lead veio de portal e não tem registro na base histórica — não há onde "
+            "gravar a correção. O acompanhamento continua disponível.", 409)
+    return editar_lead(solicitante_id, id_legado, dados)
+
 
 def editar_lead(solicitante_id, lead_id, dados: Dict[str, Any]) -> Dict[str, Any]:
     """Corrige os dados do lead na base interna.

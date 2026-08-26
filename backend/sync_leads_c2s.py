@@ -44,19 +44,29 @@ def main() -> int:
                    help="Campo da janela. 'atualizacao' (padrao) pega quem mudou.")
     p.add_argument("--inicial", action="store_true",
                    help="Carga inicial: varre por data de CRIACAO desde 2020.")
+    p.add_argument("--retomar", action="store_true",
+                   help="Continua a carga inicial de onde parou (lead mais antigo ja espelhado).")
     p.add_argument("--max-paginas", type=int, default=sync.MAX_PAGINAS)
     args = p.parse_args()
 
-    inicio, por = args.de, args.por
-    if args.inicial:
+    inicio, fim, por = args.de, args.ate, args.por
+    if args.inicial or args.retomar:
         # Carga inicial vai por criacao: `updated_at` de lead antigo pode ser recente, e
         # varrer por atualizacao deixaria buracos de leads nunca tocados desde a entrada.
         inicio, por = inicio or "2020-01-01", "criacao"
+    if args.retomar:
+        # A varredura anda do mais novo para o mais velho. Fechar a janela no mais antigo
+        # ja gravado retoma dali; sem isso a retomada releria tudo desde hoje.
+        marca = sync.mais_antigo()
+        if marca:
+            fim = fim or marca.isoformat()
+            print(f"# retomando: janela ate {fim} (lead mais antigo ja espelhado)",
+                  file=sys.stderr)
 
     campo = "created" if por == "criacao" else "updated"
     comeco = datetime.now()
     try:
-        resumo = sync.sincronizar(inicio=inicio, fim=args.ate, campo_data=campo,
+        resumo = sync.sincronizar(inicio=inicio, fim=fim, campo_data=campo,
                                   max_paginas=args.max_paginas)
     except sync.SyncErro as e:
         print(json.dumps({"ok": False, "erro": e.mensagem}, ensure_ascii=False))

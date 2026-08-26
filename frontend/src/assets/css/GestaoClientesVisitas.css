@@ -1655,42 +1655,33 @@
 
 @media (max-width: 560px) { .gcv-modal-grid { grid-template-columns: 1fr; } }
 
-/* ── Aba Analise ─────────────────────────────────────────────────────────── */
+/* ── Aba Análise ─────────────────────────────────────────────────────────── */
 .gcv-panel-head-acoes { display: flex; align-items: center; gap: 10px; }
 
 .gcv-analise-nota {
-  margin: 0 0 14px; font-size: 12.5px; line-height: 1.5; color: #6f6880;
+  margin: 0 0 14px; padding: 10px 12px; background: #f6f5f8;
+  border-radius: 9px; font-size: 12.5px; line-height: 1.5; color: #6f6880;
 }
 
-.gcv-analise-grid {
-  display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 14px;
+/* Grade dos gráficos. `align-items: start` evita que um card baixo estique até a altura
+   do vizinho — era o que deixava os painéis parecendo sobrepostos. */
+.gcv-graficos {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 12px; align-items: start; margin: 0 0 18px;
 }
+.gcv-graficos .gcv-grafico--largo { grid-column: 1 / -1; }
 
-.gcv-analise-panel { margin-bottom: 14px; }
+/* `.gm-grafico` vem de GestaoModulo.css e já traz fundo, borda e padding — o fundo
+   transparente do painel anterior deixava a imagem da página aparecer por baixo. */
+.gcv-graficos .gm-grafico { margin-bottom: 0; min-width: 0; }
 
-.gcv-analise-lista { display: flex; flex-direction: column; gap: 10px; }
-
-.gcv-analise-linha {
-  display: grid; grid-template-columns: 96px 1fr 76px; align-items: center; gap: 10px;
-}
-
-.gcv-analise-rotulo { font-size: 12.5px; font-weight: 600; color: #4b4459; }
-
-.gcv-analise-valor {
-  font-size: 13px; font-weight: 700; color: #2f2a3a; text-align: right;
-}
-.gcv-analise-valor em {
-  display: block; font-style: normal; font-size: 11px; font-weight: 500; color: #8a8398;
-}
-
-.gcv-bar-fill.is-alerta { background: #e8734a; }
-
-.gcv-tabela-wrap { overflow-x: auto; }
+.gcv-tabela-wrap { overflow-x: auto; margin-top: 12px; }
 
 .gcv-analise-tabela { width: 100%; border-collapse: collapse; font-size: 13px; }
 .gcv-analise-tabela th {
   text-align: left; padding: 8px 10px; font-size: 11px; text-transform: uppercase;
   letter-spacing: .04em; color: #8a8398; border-bottom: 1px solid #ece9f1;
+  white-space: nowrap;
 }
 .gcv-analise-tabela td { padding: 9px 10px; border-bottom: 1px solid #f4f2f7; }
 .gcv-analise-tabela tbody tr:last-child td { border-bottom: none; }
@@ -1698,10 +1689,8 @@
 .gcv-taxa { font-weight: 700; color: #2e7d5b; }
 .gcv-taxa.is-baixa { color: #c1532e; }
 
+.gcv-metrics .is-alerta strong { color: #c1532e; }
+
 .gcv-modal-dica {
   margin: 12px 0 0; font-size: 12px; line-height: 1.5; color: #6f6880;
-}
-
-@media (max-width: 640px) {
-  .gcv-analise-linha { grid-template-columns: 78px 1fr 64px; gap: 8px; }
 }

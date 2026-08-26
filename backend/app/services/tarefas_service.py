@@ -30,11 +30,13 @@ administrativo veem tudo; corretor ve o proprio; assistente ve e nao resolve.
 from datetime import date, datetime, timedelta
 from typing import Any, Dict, List, Optional
 
-from sqlalchemy import or_
+from sqlalchemy import func, or_
 
 from app.database import SessionLocal
 from app.models.estoque_legado import LeadLegado
+from app.models.lead_c2s import LeadC2S
 from app.models.gerente_visita_visualizada import GerenteVisitaVisualizada
+from app.services.gestao_visitas_service import pendencias_de_revisao
 from app.models.proposta_efetiva import SITUACOES_FECHADAS, PropostaEfetiva
 from app.models.usuarios import Usuarios
 from app.models.visita import ClienteVisita, Visita
@@ -58,13 +60,26 @@ REGUAS = {
     "proposta": (DIAS_ATENCAO, DIAS_CRITICO),   # 1 / 2 — regra ja documentada
     "visita":   (3, 7),
     "lead":     (2, 5),
-    "cliente":  (7, 15),
+    # "cliente": (7, 15),  # tipo desativado; ver o comentario de TIPOS
 }
 
-# Teto por tipo: a lista e para trabalhar, nao para contemplar. O resumo conta tudo.
+
+# Teto de COLETA: quanto cada tipo pode trazer do banco. Alto de proposito — os chips
+# contam o que foi coletado, entao um teto baixo aqui vira numero errado na tela, nao
+# lista curta. Com teto de 100, o painel do diretor dizia 100 leads quando havia 2.868.
+# Existe so como protecao contra caso patologico; a janela de dias e o filtro de verdade.
+TETO_COLETA = 5000
+
+# Teto de EXIBICAO por tipo: quantas linhas a lista mostra. Ninguem rola 2.868 itens, e o
+# rodizio ja garante que os quatro tipos aparecem no topo.
 MAX_POR_TIPO = 100
 
-TIPOS = ("proposta", "visita", "lead", "cliente")
+# `cliente` saiu do painel (25/08/2026). A pendencia era "visita SIM/TALVEZ sem proposta
+# depois dela" — informacao util, mas que so se resolve LANCANDO uma proposta, um fluxo
+# completo que nao cabe na ficha. Ficava como a maior fila do painel (314 para o diretor)
+# sem nada acionavel dentro da tela. O coletor continua no modulo, desregistrado, para
+# quem quiser reativa-lo.
+TIPOS = ("proposta", "visita", "lead")
 
 
 class TarefaErro(Exception):
@@ -123,6 +138,30 @@ def _ids_da_equipe(session, team: str) -> List[str]:
         session.query(Usuarios.id_usuarios).filter(Usuarios.team == team).all()
         if u.id_usuarios
     ]
+
+
+def _gerentes_disponiveis(session) -> List[Dict[str, str]]:
+    """Gerentes ativos que possuem equipe e podem ser usados como recorte global.
+
+    Alem da permissao formal de gerente, inclui quem encabeca a equipe usando o proprio
+    id como `team` (caso de diretor que tambem responde por uma equipe).
+    """
+    rows = session.query(Usuarios).filter(
+        Usuarios.ativo.is_(True),
+        Usuarios.id_usuarios.isnot(None),
+        Usuarios.team.isnot(None),
+        func.trim(Usuarios.team) != "",
+        or_(
+            func.lower(func.trim(Usuarios.permissao)) == "gerente",
+            Usuarios.id_usuarios == Usuarios.team,
+        ),
+    ).order_by(Usuarios.nome, Usuarios.username, Usuarios.id_usuarios).all()
+
+    return [{
+        "id": _texto(user.id_usuarios),
+        "nome": _texto(user.nome or user.username or user.id_usuarios),
+        "team": _texto(user.team),
+    } for user in rows if _texto(user.id_usuarios) and _texto(user.team)]
 
 
 # ── os quatro tipos ──────────────────────────────────────────────────────────────
@@ -191,10 +230,14 @@ def _visitas_sem_revisao(session, escopo, hoje) -> List[Dict[str, Any]]:
         query = query.filter(GerenteVisitaVisualizada.id_gerente == escopo["team"])
 
     tarefas = []
-    for flags, visita, corretor in query.limit(MAX_POR_TIPO * 3).all():
-        pendentes = [rotulo for valor, rotulo in (
-            (flags.viu_anexo, "anexo"), (flags.viu_notas, "notas"), (flags.add_motivo, "motivo"),
-        ) if not valor]
+    for flags, visita, corretor in query.limit(TETO_COLETA).all():
+        # Mesma regra da Gestao de Visitas, importada em vez de repetida: aqui a lista
+        # era montada so pelas flags, e cobrava anexo de visita sem anexo e motivo de
+        # quem respondeu NAO. O `or_` do SQL acima e pre-filtro grosso; a decisao fina e
+        # esta.
+        pendentes = pendencias_de_revisao(visita, flags)
+        if not pendentes:
+            continue
         dias = _dias(visita.data_visita, hoje)
         if dias < DIAS_VISITA_SEM_REVISAO:
             continue
@@ -211,54 +254,70 @@ def _visitas_sem_revisao(session, escopo, hoje) -> List[Dict[str, Any]]:
             "dias": dias,
             "nivel": _nivel(dias, "visita"),
             "motivo": f"Falta revisar: {', '.join(pendentes)}",
-            "acao": {"rotulo": "Marcar revisada", "tipo": "revisar_visita",
+            "acao": {"rotulo": "Abrir visita", "tipo": "abrir_visita",
                      "id": visita.id_visita, "pendentes": pendentes},
-            "link": f"/RelatorioGerente?visita={visita.id_visita}",
+            "link": f"/GestaoVisitas?visita={visita.id_visita}",
         })
     return tarefas
 
 
 def _leads_sem_contato(session, escopo, hoje) -> List[Dict[str, Any]]:
-    """Lead importado sem nenhum acompanhamento registrado.
+    """Lead sem nenhum acompanhamento registrado.
 
-    Recorte de 30 dias pelo mesmo motivo das visitas: a base tem 68 mil leads e apenas 13
-    com acompanhamento, entao sem janela isso soterraria as outras tres pendencias.
+    Le de `leads_c2s`, nao de `leads_legado`: aquela tabela passa por um filtro de negocio
+    na importacao (so lead da recepcao ou de fonte Faixa/Indicacao) e por isso nao tem 26%
+    dos leads. Lead de portal nunca virava pendencia aqui, embora seja lead como
+    qualquer outro.
+
+    Recorte de 30 dias pelo mesmo motivo das visitas: sem janela isso soterraria as outras
+    tres pendencias.
     """
+    from app.services import lead_c2s_service as c2s
+
     corte = (hoje - timedelta(days=30)).date()
     limite = (hoje - timedelta(days=DIAS_LEAD_SEM_CONTATO)).date()
-    query = session.query(LeadLegado).filter(
-        LeadLegado.acompanhamento_em.is_(None),
-        LeadLegado.data >= corte,
-        LeadLegado.data <= limite,
+    query = session.query(LeadC2S).filter(
+        LeadC2S.acompanhamento_em.is_(None),
+        LeadC2S.data >= corte,
+        LeadC2S.data <= limite,
     )
+
     if not escopo["ve_tudo"]:
-        chaves = _ids_da_equipe(session, escopo["team"]) if escopo["team"] else [escopo["id"]]
-        if escopo["team"]:
-            chaves.append(escopo["team"])
-        query = query.filter(or_(
-            LeadLegado.atendimento.in_(chaves), LeadLegado.equipe.in_(chaves)
-        ))
+        # O espelho guarda NOME de equipe e de corretor (o C2S nao conhece nossos ids),
+        # entao o recorte tem que ser traduzido. Mesma regra da tela de leads — duas
+        # regras de escopo sobre o mesmo dado divergiriam.
+        recorte = c2s._escopo(session, escopo["id"], None)
+        if recorte["equipe"]:
+            query = query.filter(
+                func.lower(LeadC2S.equipe) == recorte["equipe"].strip().lower()
+            )
+        elif recorte["corretor"]:
+            query = query.filter(LeadC2S.corretor.ilike(f"%{recorte['corretor'].strip()}%"))
+        else:
+            return []
 
     tarefas = []
-    for lead in query.order_by(LeadLegado.data.desc()).limit(MAX_POR_TIPO).all():
+    for lead in query.order_by(LeadC2S.data.desc()).limit(TETO_COLETA).all():
         dias = _dias(lead.data, hoje)
         tarefas.append({
-            "chave": f"lead:{lead.id}",
+            "chave": f"lead:{lead.id_c2s}",
             "tipo": "lead",
             "titulo": lead.cliente or "Lead sem nome",
             "detalhe": " · ".join(x for x in [
                 lead.telefone, lead.codigo_imovel, lead.fonte,
             ] if x),
-            "responsavel": lead.atendimento or "—",
+            "responsavel": lead.corretor or "—",
             "equipe": lead.equipe,
             "dias": dias,
             "nivel": _nivel(dias, "lead"),
             "motivo": f"Sem contato há {dias} dia{'s' if dias != 1 else ''}",
-            "acao": {"rotulo": "Registrar contato", "tipo": "contato_lead", "id": lead.id},
-            "link": f"/GestaoLeads?lead={lead.id}",
+            # `id` e o do C2S: e por ele que `PUT /leads/c2s/<id>` grava, e e o unico id
+            # que todo lead tem.
+            "acao": {"rotulo": "Registrar contato", "tipo": "contato_lead",
+                     "id": lead.id_c2s},
+            "link": f"/GestaoLeads?lead={lead.id_c2s}",
         })
     return tarefas
-
 
 def _clientes_sem_proposta(session, escopo, hoje) -> List[Dict[str, Any]]:
     """Visita com resposta SIM/TALVEZ e nenhuma proposta do cliente depois dela.
@@ -285,7 +344,7 @@ def _clientes_sem_proposta(session, escopo, hoje) -> List[Dict[str, Any]]:
         else:
             query = query.filter(Visita.id_corretor == escopo["id"])
 
-    linhas = query.limit(MAX_POR_TIPO * 3).all()
+    linhas = query.limit(TETO_COLETA).all()
     nomes = {_texto(c.nome_cliente) for _, c, _ in linhas if _texto(c.nome_cliente)}
     com_proposta = set()
     if nomes:
@@ -324,7 +383,7 @@ def _clientes_sem_proposta(session, escopo, hoje) -> List[Dict[str, Any]]:
                      # Sem o id do cliente a tarefa so conseguia lancar proposta; com ele
                      # da para abrir e corrigir o cadastro sem sair do painel.
                      "id_cliente": cliente.id_cliente},
-            "link": f"/PropostasEfetivas?novo=1&cliente={cliente.nome_cliente or ''}",
+            "link": f"/GestaoClientes?cliente={cliente.id_cliente}",
         })
     return tarefas
 
@@ -333,22 +392,57 @@ COLETORES = {
     "proposta": _propostas_sem_acao,
     "visita": _visitas_sem_revisao,
     "lead": _leads_sem_contato,
-    "cliente": _clientes_sem_proposta,
 }
 
 
 # ── agregacao ────────────────────────────────────────────────────────────────────
 
 def listar(solicitante_id, tipos: Optional[List[str]] = None,
-           nivel: Optional[str] = None, responsavel: Optional[str] = None) -> Dict[str, Any]:
+           nivel: Optional[str] = None, responsavel: Optional[str] = None,
+           gerente_id: Optional[str] = None) -> Dict[str, Any]:
     session = SessionLocal()
     try:
-        escopo = _escopo(session, solicitante_id)
+        escopo_original = _escopo(session, solicitante_id)
+        permissao = _texto(escopo_original["user"].permissao).casefold()
+        pode_filtrar_gerente = (
+            escopo_original["ve_tudo"]
+            and (permissao in PERFIS_GLOBAIS
+                 or _texto(escopo_original["user"].team).casefold() == "administrativo")
+        )
+        gerentes = _gerentes_disponiveis(session) if pode_filtrar_gerente else []
+
+        gerente_selecionado = None
+        gerente_alvo = _texto(gerente_id)
+        if gerente_alvo:
+            if not pode_filtrar_gerente:
+                raise TarefaErro("Sem permissao para filtrar tarefas de outro gerente", 403)
+            gerente_selecionado = next(
+                (gerente for gerente in gerentes if gerente["id"] == gerente_alvo), None
+            )
+            if not gerente_selecionado:
+                raise TarefaErro("Gerente nao encontrado ou sem equipe ativa", 400)
+
+            # Reusa exatamente o escopo do gerente escolhido. Isso e importante para
+            # leads, cujo espelho traduz equipe a partir do id do usuario, e impede que
+            # o filtro seja apenas cosmetico depois dos limites de cada coletor.
+            escopo = {
+                **escopo_original,
+                "ve_tudo": False,
+                "team": gerente_selecionado["team"],
+                "id": gerente_selecionado["id"],
+            }
+        else:
+            escopo = escopo_original
+
         hoje = datetime.now()
-        alvos = [t for t in (tipos or TIPOS) if t in COLETORES]
+        # Coleta SEMPRE os quatro tipos, mesmo com recorte pedido. Os contadores dos
+        # chips sao navegacao — precisam dizer quanto existe de cada tipo para o usuario
+        # poder trocar. Rodando so o coletor pedido, escolher "Leads" zerava Propostas e
+        # Visitas e nao havia como voltar. O recorte e aplicado adiante, so na lista.
+        pedidos = {t for t in (tipos or []) if t in COLETORES}
 
         tarefas: List[Dict[str, Any]] = []
-        for tipo in alvos:
+        for tipo in TIPOS:
             try:
                 tarefas.extend(COLETORES[tipo](session, escopo, hoje))
             except Exception:
@@ -371,7 +465,22 @@ def listar(solicitante_id, tipos: Optional[List[str]] = None,
             fila.sort(key=lambda t: (0 if t["nivel"] == "critica" else 1, -t["dias"]))
 
         # Conta antes de intercalar: o rodizio abaixo esvazia as filas com `pop`.
+        # Conta sobre TODOS os tipos, antes do recorte — ver o comentario da coleta.
         contagem_tipo = {t: len(por_tipo.get(t, [])) for t in TIPOS}
+
+        # Cabecalho e chips descrevem o ESCOPO inteiro; a lista abaixo e que e o
+        # recorte. Contar so o recorte fazia "Tudo" mostrar o mesmo numero do tipo
+        # escolhido — a soma dos chips deixava de fechar com o total.
+        criticas = sum(1 for t in tarefas if t["nivel"] == "critica")
+        atencao = sum(1 for t in tarefas if t["nivel"] == "atencao")
+
+        # Agora sim o recorte, que vale so para a lista exibida.
+        if pedidos:
+            por_tipo = {t: fila for t, fila in por_tipo.items() if t in pedidos}
+        # E o teto de exibicao, aplicado DEPOIS da contagem: os chips mostram quanto
+        # existe, a lista mostra o que cabe. Como cada fila ja esta ordenada por
+        # gravidade, o corte tira as menos urgentes.
+        por_tipo = {t: fila[:MAX_POR_TIPO] for t, fila in por_tipo.items()}
 
         intercalado: List[Dict[str, Any]] = []
         filas = [f for f in por_tipo.values() if f]
@@ -386,15 +495,23 @@ def listar(solicitante_id, tipos: Optional[List[str]] = None,
             "ok": True,
             "itens": intercalado,
             "resumo": {
-                "total": len(intercalado),
-                "criticas": sum(1 for t in intercalado if t["nivel"] == "critica"),
-                "atencao": sum(1 for t in intercalado if t["nivel"] == "atencao"),
+                "total": sum(contagem_tipo.values()),
+                "criticas": criticas,
+                "atencao": atencao,
                 "por_tipo": contagem_tipo,
+                # Quantas a lista abaixo esta mostrando de fato. Sem isto nao daria para
+                # a tela dizer "75 de 231" quando ha recorte por tipo.
+                "exibidas": len(intercalado),
             },
             "escopo": {
-                "ve_tudo": escopo["ve_tudo"],
-                "resolve": escopo["resolve"],
-                "team": escopo["team"],
+                "ve_tudo": escopo_original["ve_tudo"],
+                "resolve": escopo_original["resolve"],
+                "team": escopo_original["team"],
+            },
+            "filtros": {
+                "pode_filtrar_gerente": pode_filtrar_gerente,
+                "gerentes": gerentes,
+                "gerente_id": gerente_selecionado["id"] if gerente_selecionado else None,
             },
             "reguas": {"atencao": DIAS_ATENCAO, "critico": DIAS_CRITICO},
         }

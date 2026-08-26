@@ -87,10 +87,14 @@ function Header() {
     { to: '/GestaoLeads', label: 'Gestão de Leads', subtitle: 'ao vivo do C2S', show: isLogado && isAdmin },
     { to: '/GestaoClientes', label: 'Gestao de Clientes', show: isLogado },
     { to: '/GestaoVisitas', label: 'Gestão de Visitas', subtitle: 'revisão e conversão', show: isLogado && isAdmin },
-    { to: '/RelatorioGerente', label: 'Relatório Gerente', show: isLogado && isAdmin },
+    // Relatorio Gerente saiu do menu em 25/08/2026: visitas, imoveis visitados,
+    // clientes, ranking, evolucao e os tres PDFs consolidados passaram para a Gestao
+    // de Visitas; leads e propostas para os modulos deles. A ROTA continua viva para
+    // quem tiver link salvo — so a entrada saiu.
+    // { to: '/RelatorioGerente', label: 'Relatório Gerente', show: isLogado && isAdmin },
     { to: '/VisaoDiretor', label: 'Visão do Diretor', show: isLogado && (isDiretor || permissao === 'gerente') },
-    { to: '/ConsultaImoveis', label: 'Consulta de Imóveis', subtitle: 'CRM + inteligência', show: isLogado && (isDiretor || isAdministrador || isAssistente || permissao === 'gerente') },
-    { to: '/PropostasEfetivas', label: 'Propostas Efetivas', subtitle: 'propostas de compra', show: isLogado && (isDiretor || isAdministrador || isAssistente || permissao === 'gerente') },
+    { to: '/ConsultaImoveis', label: 'Gestão de Imóveis', subtitle: 'estoque, saídas e foco', show: isLogado && (isDiretor || isAdministrador || isAssistente || permissao === 'gerente') },
+    { to: '/PropostasEfetivas', label: 'Gestão de Propostas', subtitle: 'propostas de compra', show: isLogado && (isDiretor || isAdministrador || isAssistente || permissao === 'gerente') },
     { to: '/ranking', label: 'Ranking', show: isLogado && isAdmin },
     { to: '/AdminBases', label: 'Gestão de Bases', show: isLogado && isAdministrador },
     { to: '/Vendas', label: 'Vendas', show: isLogado && (isAdministrador || isDiretor) },

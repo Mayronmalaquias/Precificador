@@ -33,6 +33,27 @@ const CORES_CONTATO = {
   "Sem contato": "#a3444a",
 };
 
+// Recência tem ordem natural: verde perto, vermelho longe. Cor por posição, não pela
+// paleta rotativa — aqui a cor carrega significado.
+const CORES_INTERACAO = {
+  "Hoje": "#1b6340",
+  "1 a 3 dias": "#4f8f3f",
+  "4 a 7 dias": "#c07a11",
+  "8 a 30 dias": "#c4005a",
+  "Mais de 30 dias": "#8a1f3d",
+  "Sem atividade": "#b9b4c2",
+};
+
+/** R$ 1,3 mi em vez de R$ 1.260.000 — o card tem largura de cartão, não de tabela. */
+const moedaCurta = (v) => {
+  if (v == null) return "—";
+  const n = Number(v);
+  if (Number.isNaN(n)) return "—";
+  if (n >= 1_000_000) return `R$ ${(n / 1_000_000).toFixed(1).replace(".", ",")} mi`;
+  if (n >= 1_000) return `R$ ${Math.round(n / 1_000)} mil`;
+  return `R$ ${n.toLocaleString("pt-BR")}`;
+};
+
 export default function GestaoLeads() {
   const { idCorretor, permissao } = useAuth();
   const { equipesOpcoes, getNomeEquipe } = useEquipes();
@@ -232,17 +253,83 @@ export default function GestaoLeads() {
             </article>
           )}
 
-          {resumo.motivos_sem_visita?.length > 0 && (
-            <article className="gm-grafico">
-              <header>
-                <div>
-                  <h4>Por que não agendou</h4>
-                  <p>Motivos registrados pelo corretor</p>
-                </div>
-              </header>
-              <GraficoBarras dados={resumo.motivos_sem_visita} sufixo="lead(s)" />
-            </article>
-          )}
+          <article className="gm-grafico">
+            <header>
+              <div>
+                <h4>Interação</h4>
+                <p>Há quanto tempo o lead teve a última atividade no C2S</p>
+              </div>
+            </header>
+            <GraficoPizza dados={resumo.por_interacao} cores={CORES_INTERACAO}
+              centroRotulo="leads" />
+          </article>
+
+          <article className="gm-grafico gm-grafico--largo">
+            <header>
+              <div>
+                <h4>O que o lead procurava</h4>
+                <p>
+                  {resumo.leads_com_imovel} de {resumo.total} leads citaram um imóvel que
+                  está no catálogo. Os gráficos abaixo olham só esses — bairro, tipo,
+                  quartos e valor não vêm do lead, vêm do imóvel citado.
+                </p>
+              </div>
+              <span className="gm-grafico-total">{resumo.leads_com_imovel}</span>
+            </header>
+            <div className="gm-metricas">
+              <div>
+                <span>Valor médio</span>
+                <strong>{moedaCurta(resumo.metricas_imovel?.valor_medio)}</strong>
+              </div>
+              <div>
+                <span>Valor mediano</span>
+                <strong>{moedaCurta(resumo.metricas_imovel?.valor_mediano)}</strong>
+                <small>onde a demanda está</small>
+              </div>
+              <div>
+                <span>Faixa</span>
+                <strong>
+                  {moedaCurta(resumo.metricas_imovel?.valor_min)} – {moedaCurta(resumo.metricas_imovel?.valor_max)}
+                </strong>
+              </div>
+              <div>
+                <span>Área média</span>
+                <strong>
+                  {resumo.metricas_imovel?.area_media
+                    ? `${Math.round(resumo.metricas_imovel.area_media)} m²`
+                    : "—"}
+                </strong>
+              </div>
+              <div>
+                <span>Quartos (média)</span>
+                <strong>
+                  {resumo.metricas_imovel?.quartos_medio
+                    ? resumo.metricas_imovel.quartos_medio.toFixed(1)
+                    : "—"}
+                </strong>
+              </div>
+            </div>
+          </article>
+
+          <article className="gm-grafico">
+            <header><div><h4>Bairro procurado</h4><p>Os 10 mais pedidos</p></div></header>
+            <GraficoBarras dados={resumo.por_bairro_imovel} sufixo="lead(s)" />
+          </article>
+
+          <article className="gm-grafico">
+            <header><div><h4>Tipo procurado</h4><p>Composição da demanda</p></div></header>
+            <GraficoPizza dados={resumo.por_tipo_imovel} centroRotulo="leads" />
+          </article>
+
+          <article className="gm-grafico">
+            <header><div><h4>Quartos</h4><p>Do menor para o maior</p></div></header>
+            <GraficoBarras dados={resumo.por_quartos} sufixo="lead(s)" />
+          </article>
+
+          <article className="gm-grafico">
+            <header><div><h4>Faixa de valor procurada</h4><p>Preço do imóvel citado</p></div></header>
+            <GraficoBarras dados={resumo.por_faixa_valor_imovel} sufixo="lead(s)" />
+          </article>
         </div>
       )}
 

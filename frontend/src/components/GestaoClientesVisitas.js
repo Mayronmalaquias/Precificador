@@ -1,5 +1,11 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { BASE } from "../services/api";
+import Avaliacoes from "./Avaliacoes";
+import { GraficoLinha, GraficoPizza, GraficoBarras } from "./GraficosGestao";
+// `GestaoModulo.css` traz as classes `gm-*` dos gráficos. O bundle do CRA é único,
+// então elas já estariam lá por causa de outra tela — mas depender disso quebraria na
+// hora que aquela tela saísse do ar.
+import "../assets/css/GestaoModulo.css";
 import { useAuth } from "../context/AuthContext";
 import { useEquipes } from "../context/EquipesContext";
 import "../assets/css/GestaoClientesVisitas.css";
@@ -181,43 +187,15 @@ function ResumoVisitasPeriodo({ serie }) {
   );
 }
 
-/** Barras horizontais para distribuicoes por faixa.
- *
- * O denominador e o total de clientes, nao o maior balde: com o maior balde a barra
- * cheia significaria coisas diferentes em cada grafico e daria a impressao de "todo
- * mundo esta aqui" mesmo quando a faixa tem 20% da carteira.
- */
-function BarrasFaixa({ titulo, legenda, dados, total, destaque }) {
-  const base = Math.max(1, Number(total) || 0);
-  return (
-    <section className="gcv-panel gcv-analise-panel">
-      <div className="gcv-panel-head">
-        <h2>{titulo}</h2>
-        {legenda && <span>{legenda}</span>}
-      </div>
-      <div className="gcv-analise-lista" role="list">
-        {dados.map((item) => {
-          const valor = Number(item.total) || 0;
-          const pct = Math.round((valor / base) * 1000) / 10;
-          return (
-            <div className="gcv-analise-linha" key={item.faixa} role="listitem">
-              <span className="gcv-analise-rotulo">{item.faixa}</span>
-              <div className="gcv-bar-track">
-                <span
-                  className={`gcv-bar-fill ${destaque === item.faixa ? "is-alerta" : ""}`}
-                  style={{ width: `${valor ? Math.max(3, pct) : 0}%` }}
-                />
-              </div>
-              <span className="gcv-analise-valor">
-                {valor} <em>{pct}%</em>
-              </span>
-            </div>
-          );
-        })}
-      </div>
-    </section>
-  );
-}
+// Resposta e recencia tem significado fixo — cor fixa tambem, para o olho nao reaprender
+// a legenda a cada consulta. Recencia vai de verde (perto) a vermelho (longe).
+const CORES_RESPOSTA = { Sim: "#1b6340", Talvez: "#c07a11", Nao: "#4c5563" };
+const CORES_RECENCIA = {
+  "Ate 15 dias": "#1b6340",
+  "16 a 30": "#4f8f3f",
+  "31 a 60": "#c07a11",
+  "Mais de 60": "#c4005a",
+};
 
 function CalendarioAcoes({ mes, setMes, dias, onSelecionarCliente, onAtualizarStatus, atualizandoAcaoId }) {
   const semana = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sab"];
@@ -608,6 +586,25 @@ function GestaoClientesVisitas() {
   );
 
   const resumoPeriodo = useMemo(() => montarResumoPeriodo(clientes), [clientes]);
+
+  // Serie diaria das visitas, no formato que `GraficoLinha` espera. Sai de
+  // `resumoPeriodo`, calculado sobre os MESMOS clientes filtrados — declarado depois
+  // dele de proposito: `useMemo` roda na hora, e ler antes estouraria no TDZ.
+  const serieVisitas = useMemo(
+    () => (resumoPeriodo || []).map((item) => ({
+      data: item.id, label: item.label, total: Number(item.total) || 0,
+    })),
+    [resumoPeriodo],
+  );
+
+  // A pizza precisa de [{rotulo, total}]; o dashboard guarda {Sim: n, Nao: n}. Ordem
+  // fixa para a cor de cada fatia nao trocar entre consultas.
+  const pizzaResposta = useMemo(
+    () => ["Sim", "Talvez", "Nao"].map((rotulo) => ({
+      rotulo, total: Number(dashboard.propostas?.[rotulo]) || 0,
+    })),
+    [dashboard.propostas],
+  );
   const todasAcoes = useMemo(
     () =>
       clientes.flatMap((cliente) =>
@@ -674,6 +671,9 @@ function GestaoClientesVisitas() {
       enderecoExterno: visita.endereco_externo || "",
       linkImagem: visita.link_imagem || "",
       linkAudio: visita.link_audio || "",
+      anexoFichaVisita: visita.anexo_ficha || visita.anexo_ficha_visita || "",
+      situacaoImovel: visita.situacao_imovel || "",
+      avaliacoes: visita.avaliacoes || [],
     });
   };
 
@@ -1108,109 +1108,109 @@ function GestaoClientesVisitas() {
             <div><span>Clientes</span><strong>{dashboard.total_clientes || 0}</strong></div>
             <div><span>Taxa de interesse</span><strong>{dashboard.taxa_interesse}%</strong></div>
             <div><span>Visitas por cliente</span><strong>{dashboard.visitas_por_cliente}</strong></div>
-            <div><span>Nota media</span><strong>{dashboard.nota_media_geral ?? "-"}</strong></div>
-            <div><span>Sem retorno 30d</span><strong>{dashboard.sem_retorno_30}</strong></div>
-            <div><span>Sem telefone/e-mail</span><strong>{dashboard.sem_contato}</strong></div>
+            <div><span>Nota média</span><strong>{dashboard.nota_media_geral ?? "—"}</strong></div>
+            <div className={dashboard.sem_retorno_30 ? "is-alerta" : ""}>
+              <span>Sem retorno 30d</span><strong>{dashboard.sem_retorno_30}</strong>
+            </div>
+            <div className={dashboard.sem_contato ? "is-alerta" : ""}>
+              <span>Sem telefone/e-mail</span><strong>{dashboard.sem_contato}</strong>
+            </div>
           </section>
 
-          <p className="gcv-analise-nota">
-            Tudo abaixo responde aos mesmos filtros da aba Clientes, inclusive a busca.
-            &quot;Interesse&quot; e a visita que terminou em SIM ou TALVEZ — nao e proposta
-            lancada.
-          </p>
+          {!dashboard.total_clientes ? (
+            <p className="gcv-analise-nota">
+              Nenhum cliente nos filtros aplicados — por isso os gráficos abaixo aparecem
+              zerados. Amplie o período ou limpe a busca na aba Clientes.
+            </p>
+          ) : (
+            <p className="gcv-analise-nota">
+              Tudo abaixo responde aos mesmos filtros da aba Clientes, inclusive a busca.
+              “Interesse” é a visita que terminou em SIM ou TALVEZ — não é proposta lançada.
+            </p>
+          )}
 
-          <div className="gcv-analise-grid">
-            <BarrasFaixa
-              titulo="Recorrencia"
-              legenda="Visitas por cliente no periodo"
-              dados={dashboard.recorrencia}
-              total={dashboard.total_clientes}
-              destaque="1 visita"
-            />
-            <BarrasFaixa
-              titulo="Ultima visita"
-              legenda="Quanto tempo faz que o cliente nao e visitado"
-              dados={dashboard.recencia}
-              total={dashboard.total_clientes}
-              destaque="Mais de 60"
-            />
-            <BarrasFaixa
-              titulo="Nota do imovel"
-              legenda={`${dashboard.clientes_sem_nota} sem avaliacao (fora do grafico)`}
-              dados={dashboard.notas_faixa}
-              total={dashboard.total_clientes - dashboard.clientes_sem_nota}
-              destaque="Ate 5"
-            />
-            <section className="gcv-panel gcv-analise-panel">
-              <div className="gcv-panel-head">
-                <h2>Resposta da visita</h2>
-                <span>Somando todas as visitas do periodo</span>
+          <div className="gcv-graficos">
+            <article className="gm-grafico gcv-grafico--largo">
+              <header>
+                <div>
+                  <h4>Visitas por dia</h4>
+                  <p>Ritmo de atendimento no período</p>
+                </div>
+                <span className="gm-grafico-total">{dashboard.total_visitas || 0}</span>
+              </header>
+              <GraficoLinha pontos={serieVisitas} unidade="visita(s)"
+                rotuloAria="Quantidade de visitas por dia" />
+            </article>
+
+            <article className="gm-grafico">
+              <header>
+                <div><h4>Resposta da visita</h4><p>Somando todas as visitas do período</p></div>
+              </header>
+              <GraficoPizza dados={pizzaResposta} cores={CORES_RESPOSTA} centroRotulo="visitas" />
+            </article>
+
+            <article className="gm-grafico">
+              <header>
+                <div><h4>Última visita</h4><p>Há quanto tempo o cliente não é visitado</p></div>
+              </header>
+              <GraficoPizza dados={dashboard.recencia} cores={CORES_RECENCIA}
+                centroRotulo="clientes" />
+            </article>
+
+            <article className="gm-grafico">
+              <header>
+                <div><h4>Recorrência</h4><p>Visitas por cliente no período</p></div>
+              </header>
+              <GraficoBarras dados={dashboard.recorrencia} sufixo="cliente(s)"
+                resolverRotulo={(r) => r} />
+            </article>
+
+            <article className="gm-grafico">
+              <header>
+                <div>
+                  <h4>Nota do imóvel</h4>
+                  <p>{dashboard.clientes_sem_nota} sem avaliação (fora do gráfico)</p>
+                </div>
+              </header>
+              <GraficoBarras dados={dashboard.notas_faixa} sufixo="cliente(s)" />
+            </article>
+
+            <article className="gm-grafico gcv-grafico--largo">
+              <header>
+                <div><h4>Por corretor</h4><p>Ordenado por carteira no período</p></div>
+              </header>
+              <div className="gcv-tabela-wrap">
+                <table className="gcv-analise-tabela">
+                  <thead>
+                    <tr>
+                      <th>Corretor</th><th>Clientes</th><th>Visitas</th>
+                      <th>Visitas/cliente</th><th>Com interesse</th><th>Taxa</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {dashboard.ranking_corretor.length === 0 ? (
+                      <tr><td colSpan={6}>Nenhum cliente nos filtros aplicados.</td></tr>
+                    ) : (
+                      dashboard.ranking_corretor.map((item) => (
+                        <tr key={item.corretor}>
+                          <td>{item.corretor}</td>
+                          <td>{item.clientes}</td>
+                          <td>{item.visitas}</td>
+                          <td>{(item.visitas / item.clientes).toFixed(1)}</td>
+                          <td>{item.comInteresse}</td>
+                          <td>
+                            <span className={`gcv-taxa ${item.taxa < 50 ? "is-baixa" : ""}`}>
+                              {item.taxa}%
+                            </span>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
               </div>
-              <div className="gcv-analise-lista" role="list">
-                {["Sim", "Talvez", "Nao"].map((chave) => {
-                  const valor = Number(dashboard.propostas?.[chave]) || 0;
-                  const soma = Object.values(dashboard.propostas || {}).reduce(
-                    (acc, n) => acc + (Number(n) || 0),
-                    0,
-                  );
-                  const pct = soma ? Math.round((valor / soma) * 1000) / 10 : 0;
-                  return (
-                    <div className="gcv-analise-linha" key={chave} role="listitem">
-                      <span className="gcv-analise-rotulo">{chave}</span>
-                      <div className="gcv-bar-track">
-                        <span
-                          className={`gcv-bar-fill ${chave === "Nao" ? "is-alerta" : ""}`}
-                          style={{ width: `${valor ? Math.max(3, pct) : 0}%` }}
-                        />
-                      </div>
-                      <span className="gcv-analise-valor">{valor} <em>{pct}%</em></span>
-                    </div>
-                  );
-                })}
-              </div>
-            </section>
+            </article>
           </div>
-
-          <section className="gcv-panel gcv-analise-panel">
-            <div className="gcv-panel-head">
-              <h2>Por corretor</h2>
-              <span>Ordenado por carteira no periodo</span>
-            </div>
-            <div className="gcv-tabela-wrap">
-              <table className="gcv-analise-tabela">
-                <thead>
-                  <tr>
-                    <th>Corretor</th>
-                    <th>Clientes</th>
-                    <th>Visitas</th>
-                    <th>Visitas/cliente</th>
-                    <th>Com interesse</th>
-                    <th>Taxa</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {dashboard.ranking_corretor.length === 0 ? (
-                    <tr><td colSpan={6}>Nenhum cliente nos filtros aplicados.</td></tr>
-                  ) : (
-                    dashboard.ranking_corretor.map((item) => (
-                      <tr key={item.corretor}>
-                        <td>{item.corretor}</td>
-                        <td>{item.clientes}</td>
-                        <td>{item.visitas}</td>
-                        <td>{(item.visitas / item.clientes).toFixed(1)}</td>
-                        <td>{item.comInteresse}</td>
-                        <td>
-                          <span className={`gcv-taxa ${item.taxa < 50 ? "is-baixa" : ""}`}>
-                            {item.taxa}%
-                          </span>
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </section>
         </>
       ) : (
         <>
@@ -1727,12 +1727,31 @@ function GestaoClientesVisitas() {
                 <input value={formVisita.linkAudio || ""} placeholder="https://drive.google.com/…"
                   onChange={(e) => setFormVisita((f) => ({ ...f, linkAudio: e.target.value }))} />
               </label>
+              <label className="gcv-largo">Situação do imóvel
+                <select value={formVisita.situacaoImovel || ""}
+                  onChange={(e) => setFormVisita((f) => ({ ...f, situacaoImovel: e.target.value }))}>
+                  <option value="">Manter como está</option>
+                  <option value="CAPTACAO_61">Captação 61</option>
+                  <option value="IMOVEL_NAO_CAPTADO">Imóvel não captado</option>
+                </select>
+              </label>
+              <label className="gcv-largo">Arquivo da ficha
+                <input value={formVisita.anexoFichaVisita || ""}
+                  placeholder="Caminho ou link do arquivo"
+                  onChange={(e) => setFormVisita((f) => ({ ...f, anexoFichaVisita: e.target.value }))} />
+              </label>
               <label className="gcv-largo">Endereço externo
                 <input value={formVisita.enderecoExterno || ""}
                   placeholder="Só para imóvel fora do CRM"
                   onChange={(e) => setFormVisita((f) => ({ ...f, enderecoExterno: e.target.value }))} />
               </label>
             </div>
+
+            <h4 className="gcv-subtitulo">Avaliação do imóvel</h4>
+            <Avaliacoes
+              avaliacoes={formVisita.avaliacoes || []}
+              onChange={(lista) => setFormVisita((f) => ({ ...f, avaliacoes: lista }))}
+            />
 
             <footer>
               <button type="button" className="gcv-motive-save"

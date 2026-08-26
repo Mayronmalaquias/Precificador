@@ -1,5 +1,7 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { BASE } from "../services/api";
+import { GraficoMultiLinha } from "./GraficosGestao";
+import Avaliacoes from "./Avaliacoes";
 import { useAuth } from "../context/AuthContext";
 import { useEquipes } from "../context/EquipesContext";
 import { useToast } from "../context/ToastContext";
@@ -12,8 +14,7 @@ import "../assets/css/GestaoModulo.css";
  * campo de agendamento futuro, então a faixa semanal aqui é distribuição do que já
  * aconteceu, não agenda. Transformar em calendário de marcação exige coluna nova.
  *
- * O checkout de revisão marca as três flags de uma vez (`viu_anexo`, `viu_notas`,
- * `add_motivo`). Elas são monotônicas: uma vez `true`, permanecem.
+ * As flags de revisão acompanham a ação real: abrir anexo, abrir notas e salvar motivo.
  */
 
 const iso = (d) => d.toISOString().slice(0, 10);
@@ -91,6 +92,16 @@ export default function GestaoVisitas() {
   const [form, setForm] = useState({});
   const [salvando, setSalvando] = useState(false);
   const [baixando, setBaixando] = useState(null);
+  const [aba, setAba] = useState("visitas");
+  // Evolução vem do servidor, não da agregação local: ela precisa de série por
+  // corretor ao longo do tempo, e a lista carregada é achatada por visita.
+  const [evolucao, setEvolucao] = useState(null);
+  const [carregandoEvolucao, setCarregandoEvolucao] = useState(false);
+  const [granularidade, setGranularidade] = useState("dia");
+  const [dimensao, setDimensao] = useState("corretor");
+  const [corretores, setCorretores] = useState([]);
+  const [pdfCorretor, setPdfCorretor] = useState("");
+  const visitaUrlAberta = useRef(false);
 
   const veTudo = ["diretor", "administrador", "administrativo", "inteligencia"].includes(
     norm(permissao),
@@ -179,9 +190,9 @@ export default function GestaoVisitas() {
     }).join(", ")})`;
   }, [indicadores.porResposta]);
 
-  const revisar = async (v) => {
+  const marcarParteVista = async (v, pendencia, flag) => {
     if (revisando) return;
-    setRevisando(v.id_visita);
+    setRevisando(`${v.id_visita}:${pendencia}`);
     try {
       const r = await fetch(`${BASE}/visitas/vistas?solicitante_id=${encodeURIComponent(idCorretor)}`, {
         method: "POST",
@@ -189,20 +200,27 @@ export default function GestaoVisitas() {
         // `id_gerente` da tabela de flags é o id da EQUIPE — é assim que o painel casa.
         body: JSON.stringify({
           id_gerente: v.equipe, id_visita: v.id_visita,
-          viu_anexo: true, viu_notas: true, add_motivo: true,
+          [flag]: true,
         }),
       });
       const d = await r.json().catch(() => ({}));
       if (!r.ok || d.ok === false) throw new Error(d.error || "Não consegui marcar");
-      toast("Visita marcada como revisada.", "success");
       setVisitas((lista) => lista.map((x) => (
-        x.id_visita === v.id_visita ? { ...x, revisao_pendente: false, pendencias: [] } : x
+        x.id_visita === v.id_visita ? (() => {
+          const pendencias = (x.pendencias || []).filter((p) => p !== pendencia);
+          return { ...x, revisao_pendente: Boolean(pendencias.length), pendencias };
+        })() : x
       )));
     } catch (e) {
       toast(e.message, "error");
     } finally {
       setRevisando(null);
     }
+  };
+
+  const abrirNotas = (v) => {
+    abrirEdicao(v);
+    marcarParteVista(v, "notas", "viu_notas");
   };
 
   const abrirEdicao = (v) => {
@@ -215,8 +233,22 @@ export default function GestaoVisitas() {
       enderecoExterno: v.endereco_externo || "",
       linkImagem: v.link_imagem || "",
       linkAudio: v.link_audio || "",
+      anexoFichaVisita: v.anexo_ficha_visita || "",
+      situacaoImovel: v.situacao_imovel || "",
+      avaliacoes: v.avaliacoes || [],
     });
   };
+
+  useEffect(() => {
+    if (visitaUrlAberta.current || !visitas.length) return;
+    const id = new URLSearchParams(window.location.search).get("visita");
+    if (!id) return;
+    const visita = visitas.find((v) => String(v.id_visita) === id);
+    if (visita) {
+      visitaUrlAberta.current = true;
+      abrirEdicao(visita);
+    }
+  }, [visitas]); // abre uma unica vez o registro indicado pelo painel de tarefas
 
   const fecharEdicao = () => { setEditando(null); setForm({}); };
 
@@ -241,6 +273,10 @@ export default function GestaoVisitas() {
       });
       const d = await r.json().catch(() => ({}));
       if (!r.ok || d.ok === false) throw new Error(d.error || "Não consegui salvar");
+      const motivo = resp === "sim" ? form.motivoSim : resp === "talvez" ? form.motivoTalvez : "";
+      if (String(motivo || "").trim()) {
+        await marcarParteVista(editando, "motivo", "add_motivo");
+      }
       toast("Visita atualizada.", "success");
       fecharEdicao();
       carregar();
@@ -256,6 +292,180 @@ export default function GestaoVisitas() {
    * A API exige `X-API-KEY`, injetado pelo interceptor global de `fetch`. Um `<a href>`
    * comum não passa por ele e receberia 401.
    */
+  /** Imoveis e clientes do periodo, agregados a partir das MESMAS visitas filtradas.
+   *
+   *  Sem endpoint novo de proposito: as duas abas respondem por construcao aos mesmos
+   *  filtros da aba de visitas. Um endpoint proprio precisaria repetir periodo, equipe,
+   *  resposta e busca — e a primeira divergencia entre as duas implementacoes apareceria
+   *  como "a lista mostra 12 imoveis e o resumo diz 15".
+   */
+  const agrupar = useCallback((chaveId, chaveNome) => {
+    const mapa = new Map();
+    filtradas.forEach((v) => {
+      const id = v[chaveId];
+      if (!id) return;
+      if (!mapa.has(id)) {
+        mapa.set(id, {
+          id,
+          nome: v[chaveNome] || id,
+          visitas: 0,
+          // Set porque a mesma visita repete cliente/imovel: contar linhas daria
+          // "3 clientes" para o mesmo cliente que voltou tres vezes.
+          outros: new Set(),
+          corretores: new Set(),
+          respostas: { Sim: 0, Talvez: 0, Nao: 0 },
+          notas: [],
+          ultima: null,
+          pendentes: 0,
+        });
+      }
+      const item = mapa.get(id);
+      item.visitas += 1;
+      const outro = chaveId === "id_imovel" ? v.cliente : v.imovel;
+      if (outro) item.outros.add(outro);
+      if (v.corretor) item.corretores.add(v.corretor);
+      const r = norm(v.proposta);
+      if (r === "sim") item.respostas.Sim += 1;
+      else if (r === "talvez") item.respostas.Talvez += 1;
+      else if (r === "nao" || r === "não") item.respostas.Nao += 1;
+      (v.avaliacoes || []).forEach((av) => {
+        const n = Number(av.notaGeral);
+        if (!Number.isNaN(n) && av.notaGeral != null) item.notas.push(n);
+      });
+      if (v.revisao_pendente) item.pendentes += 1;
+      if (!item.ultima || (v.data_visita || "") > item.ultima) item.ultima = v.data_visita;
+    });
+    return [...mapa.values()]
+      .map((item) => ({
+        ...item,
+        outros: item.outros.size,
+        corretores: [...item.corretores].join(", "),
+        nota: item.notas.length
+          ? (item.notas.reduce((x, y) => x + y, 0) / item.notas.length).toFixed(1)
+          : null,
+      }))
+      .sort((x, y) => y.visitas - x.visitas || String(x.nome).localeCompare(String(y.nome)));
+  }, [filtradas]);
+
+  // Só busca quando a aba está aberta: é uma consulta a mais, e a tela abre em Visitas.
+  useEffect(() => {
+    if (aba !== "evolucao" || !idCorretor) return;
+    let vivo = true;
+    setCarregandoEvolucao(true);
+    (async () => {
+      try {
+        const p = new URLSearchParams({
+          start: periodo.inicio, end: periodo.fim,
+          granularidade, dimensao,
+        });
+        if (equipe) p.set("id_gerente", equipe);
+        const r = await fetch(`${BASE}/gerente-dashboard/visitas/evolucao?${p.toString()}`);
+        const d = await r.json();
+        if (vivo) setEvolucao(r.ok && d.ok !== false ? d : null);
+      } catch {
+        if (vivo) setEvolucao(null);
+      } finally {
+        if (vivo) setCarregandoEvolucao(false);
+      }
+    })();
+    return () => { vivo = false; };
+  }, [aba, idCorretor, periodo.inicio, periodo.fim, equipe, granularidade, dimensao]);
+
+  // Lista de corretores para o PDF individual: a visita traz o NOME, e o endpoint do
+  // PDF quer o id.
+  useEffect(() => {
+    if (!idCorretor) return;
+    (async () => {
+      try {
+        const r = await fetch(`${BASE}/propostas/corretores?solicitante_id=${encodeURIComponent(idCorretor)}`);
+        const d = await r.json();
+        if (r.ok && d.ok !== false) setCorretores(d.itens || []);
+      } catch { /* sem lista, só o PDF individual fica indisponível */ }
+    })();
+  }, [idCorretor]);
+
+  /** Ranking por pessoa ou equipe, das MESMAS visitas filtradas.
+   *
+   *  `agrupar` acima nao serve: la a chave e um id de registro (imovel, cliente) e o que
+   *  interessa e quantos DISTINTOS passaram por ele. Aqui a chave e quem fez a visita, e
+   *  o que interessa e o resultado — quanto virou interesse do cliente.
+   */
+  const ranquear = useCallback((chave, rotular) => {
+    const mapa = new Map();
+    filtradas.forEach((v) => {
+      const id = v[chave];
+      if (!id) return;
+      if (!mapa.has(id)) {
+        mapa.set(id, {
+          id, nome: rotular ? rotular(id) : id,
+          visitas: 0, clientes: new Set(), imoveis: new Set(),
+          sim: 0, talvez: 0, nao: 0, notas: [], pendentes: 0,
+        });
+      }
+      const item = mapa.get(id);
+      item.visitas += 1;
+      if (v.id_cliente) item.clientes.add(v.id_cliente);
+      if (v.id_imovel) item.imoveis.add(v.id_imovel);
+      const r = norm(v.proposta);
+      if (r === "sim") item.sim += 1;
+      else if (r === "talvez") item.talvez += 1;
+      else if (r === "nao" || r === "não") item.nao += 1;
+      (v.avaliacoes || []).forEach((av) => {
+        const n = Number(av.notaGeral);
+        if (av.notaGeral != null && !Number.isNaN(n)) item.notas.push(n);
+      });
+      if (v.revisao_pendente) item.pendentes += 1;
+    });
+    return [...mapa.values()]
+      .map((item) => ({
+        ...item,
+        clientes: item.clientes.size,
+        imoveis: item.imoveis.size,
+        // Interesse = SIM ou TALVEZ. Sobre as visitas COM resposta, nao sobre todas:
+        // visita sem resposta registrada nao e recusa, e dado que falta.
+        respondidas: item.sim + item.talvez + item.nao,
+        taxa: (item.sim + item.talvez + item.nao)
+          ? Math.round(((item.sim + item.talvez) / (item.sim + item.talvez + item.nao)) * 1000) / 10
+          : null,
+        nota: item.notas.length
+          ? (item.notas.reduce((x, y) => x + y, 0) / item.notas.length).toFixed(1)
+          : null,
+      }))
+      .sort((x, y) => y.visitas - x.visitas || String(x.nome).localeCompare(String(y.nome)));
+  }, [filtradas]);
+
+  const rankCorretor = useMemo(() => ranquear("corretor"), [ranquear]);
+  const rankEquipe = useMemo(
+    () => ranquear("equipe", (id) => getNomeEquipe(id) || id),
+    [ranquear, getNomeEquipe],
+  );
+
+  const imoveis = useMemo(() => agrupar("id_imovel", "imovel"), [agrupar]);
+  const clientes = useMemo(() => agrupar("id_cliente", "cliente"), [agrupar]);
+
+  /** PDF por fetch, nao por link: a API exige X-API-KEY, injetado no `fetch` global. */
+  const baixarPdfDe = async (rotulo, url, chave, nome) => {
+    if (baixando) return;
+    setBaixando(chave);
+    try {
+      const r = await fetch(`${BASE}${url}`);
+      if (!r.ok) throw new Error(`Nao consegui gerar o PDF do ${rotulo}.`);
+      const blob = await r.blob();
+      const href = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = href;
+      a.download = `${rotulo}-${nome}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(href);
+    } catch (e) {
+      toast(e.message || "Nao consegui gerar o PDF", "error");
+    } finally {
+      setBaixando(null);
+    }
+  };
+
   const baixarPdf = async (v) => {
     if (baixando) return;
     setBaixando(v.id_visita);
@@ -381,13 +591,69 @@ export default function GestaoVisitas() {
         </section>
       )}
 
+      {/* PDFs consolidados do período, herdados do Relatório do Gerente. Diferentes dos
+          PDFs das abas, que são de um registro só: aqui é o fechamento do período —
+          corretor no mês, gerente com a equipe toda, comparativo entre equipes. */}
+      <div className="gm-pdfs-barra">
+        <span className="gm-pdfs-rotulo">Relatórios do período</span>
+        <select value={pdfCorretor} onChange={(e) => setPdfCorretor(e.target.value)}
+          aria-label="Corretor do relatório individual">
+          <option value="">Escolha o corretor…</option>
+          {corretores.map((co) => (
+            <option key={co.id} value={co.id}>{co.nome}</option>
+          ))}
+        </select>
+        <button type="button" className="gm-btn" disabled={!pdfCorretor || baixando === "pdf-corretor"}
+          onClick={() => baixarPdfDe(
+            "corretor",
+            `/gerente-dashboard/corretor/pdf/download?id_corretor=${encodeURIComponent(pdfCorretor)}`
+            + `&start=${periodo.inicio}&end=${periodo.fim}`,
+            "pdf-corretor", pdfCorretor,
+          )}>
+          {baixando === "pdf-corretor" ? "Gerando…" : "PDF do corretor"}
+        </button>
+        <button type="button" className="gm-btn" disabled={!equipe || baixando === "pdf-gerente"}
+          title={equipe ? "" : "Escolha uma equipe no filtro acima"}
+          onClick={() => baixarPdfDe(
+            "gerente",
+            `/gerente-dashboard/gerente/pdf/download?id_gerente=${encodeURIComponent(equipe)}`
+            + `&start=${periodo.inicio}&end=${periodo.fim}`,
+            "pdf-gerente", equipe,
+          )}>
+          {baixando === "pdf-gerente" ? "Gerando…" : "PDF do gerente"}
+        </button>
+        <button type="button" className="gm-btn" disabled={baixando === "pdf-equipes"}
+          onClick={() => baixarPdfDe(
+            "equipes",
+            `/gerente-dashboard/equipes/pdf/download?start=${periodo.inicio}&end=${periodo.fim}`,
+            "pdf-equipes", "periodo",
+          )}>
+          {baixando === "pdf-equipes" ? "Gerando…" : "PDF por equipe"}
+        </button>
+      </div>
+
+      <div className="gm-abas" role="tablist" aria-label="Visoes da gestao de visitas">
+        {[
+          ["visitas", `Visitas (${filtradas.length})`],
+          ["imoveis", `Imoveis visitados (${imoveis.length})`],
+          ["clientes", `Clientes que visitaram (${clientes.length})`],
+          ["ranking", `Ranking (${rankCorretor.length})`],
+          ["evolucao", "Evolução"],
+        ].map(([id, rotulo]) => (
+          <button key={id} type="button" role="tab" aria-selected={aba === id}
+            className={aba === id ? "is-ativa" : ""} onClick={() => setAba(id)}>
+            {rotulo}
+          </button>
+        ))}
+      </div>
+
       {erro && <p className="gm-estado gm-estado--erro">{erro}</p>}
       {carregando && <p className="gm-estado">Carregando visitas…</p>}
       {!carregando && !erro && !filtradas.length && (
         <p className="gm-estado">Nenhuma visita com esse filtro.</p>
       )}
 
-      {!!filtradas.length && (
+      {aba === "visitas" && !!filtradas.length && (
         <div className="gm-tabela-wrap">
           <table className="gm-tabela">
             <thead>
@@ -425,22 +691,258 @@ export default function GestaoVisitas() {
                     <button type="button" className="gm-btn" onClick={() => abrirEdicao(v)}>
                       Editar
                     </button>
+                    {(v.pendencias || []).includes("motivo")
+                      && ["sim", "talvez"].includes(norm(v.proposta)) && (
+                      <button type="button" className="gm-btn gm-btn--primario"
+                        onClick={() => abrirEdicao(v)}>
+                        Adicionar motivo
+                      </button>
+                    )}
+                    {v.link_imagem && (
+                      <a className="gm-btn" href={v.link_imagem} target="_blank" rel="noreferrer"
+                        onClick={() => marcarParteVista(v, "anexo", "viu_anexo")}>
+                        Abrir anexo
+                      </a>
+                    )}
+                    <button type="button" className="gm-btn" onClick={() => abrirNotas(v)}>
+                      Abrir notas
+                    </button>
                     <button type="button" className="gm-btn"
                       onClick={() => baixarPdf(v)} disabled={baixando === v.id_visita}>
                       {baixando === v.id_visita ? "Gerando…" : "PDF"}
                     </button>
-                    {v.revisao_pendente && (
-                      <button type="button" className="gm-btn gm-btn--primario"
-                        onClick={() => revisar(v)} disabled={revisando === v.id_visita}>
-                        {revisando === v.id_visita ? "Marcando…" : "Revisar"}
-                      </button>
-                    )}
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
+      )}
+
+      {/* Imoveis e clientes: mesma estrutura, colunas espelhadas. O que muda e o que a
+          linha AGREGA — no imovel, quantos clientes distintos passaram; no cliente,
+          quantos imoveis distintos viu. */}
+      {(aba === "imoveis" || aba === "clientes") && (() => {
+        const ehImovel = aba === "imoveis";
+        const linhas = ehImovel ? imoveis : clientes;
+        if (!linhas.length) {
+          return <p className="gm-estado">Nenhum registro com esse filtro.</p>;
+        }
+        return (
+          <div className="gm-tabela-wrap">
+            <table className="gm-tabela">
+              <thead>
+                <tr>
+                  <th>{ehImovel ? "Imóvel" : "Cliente"}</th>
+                  <th>Visitas</th>
+                  <th>{ehImovel ? "Clientes" : "Imóveis"}</th>
+                  <th>Corretor(es)</th>
+                  <th>Respostas</th>
+                  <th>Nota</th>
+                  <th>Última</th>
+                  <th />
+                </tr>
+              </thead>
+              <tbody>
+                {linhas.map((item) => (
+                  <tr key={item.id}>
+                    <td>
+                      {item.nome}
+                      {item.pendentes > 0 && (
+                        <span className="gm-selo" title="Visitas com revisão pendente">
+                          {item.pendentes} a revisar
+                        </span>
+                      )}
+                    </td>
+                    <td>{item.visitas}</td>
+                    <td>{item.outros}</td>
+                    <td className="gm-col-larga">{item.corretores || "—"}</td>
+                    <td className="gm-respostas">
+                      {item.respostas.Sim > 0 && <b className="r-sim">{item.respostas.Sim} sim</b>}
+                      {item.respostas.Talvez > 0 && <b className="r-talvez">{item.respostas.Talvez} talvez</b>}
+                      {item.respostas.Nao > 0 && <b className="r-nao">{item.respostas.Nao} não</b>}
+                      {!item.respostas.Sim && !item.respostas.Talvez && !item.respostas.Nao && "—"}
+                    </td>
+                    <td>{item.nota ?? "—"}</td>
+                    <td>{dataBR(item.ultima)}</td>
+                    <td>
+                      <button
+                        type="button"
+                        className="gm-btn"
+                        disabled={baixando === item.id}
+                        onClick={() => baixarPdfDe(
+                          ehImovel ? "imovel" : "cliente",
+                          ehImovel
+                            ? `/imoveis/pdf/download?imovel_id=${encodeURIComponent(item.id)}`
+                            : `/clientes/pdf/download?id_cliente=${encodeURIComponent(item.id)}`,
+                          item.id,
+                          item.id,
+                        )}
+                      >
+                        {baixando === item.id ? "Gerando…" : "PDF"}
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        );
+      })()}
+
+      {aba === "ranking" && (
+        !rankCorretor.length ? (
+          <p className="gm-estado">Nenhuma visita com esse filtro.</p>
+        ) : (
+          <>
+            {/* Pódio dos três primeiros. O resto vem na tabela abaixo — o pódio é para
+                reconhecer, a tabela é para comparar. */}
+            <div className="gm-podio">
+              {rankCorretor.slice(0, 3).map((item, i) => (
+                <article key={item.id} className={`gm-podio-item p-${i + 1}`}>
+                  <span className="gm-podio-pos">{i + 1}º</span>
+                  <strong className="gm-podio-nome">{item.nome}</strong>
+                  <span className="gm-podio-visitas">{item.visitas}</span>
+                  <small>visita{item.visitas === 1 ? "" : "s"}</small>
+                  <div className="gm-podio-extra">
+                    <span>{item.clientes} cliente(s)</span>
+                    <span>{item.taxa == null ? "—" : `${item.taxa}% interesse`}</span>
+                  </div>
+                </article>
+              ))}
+            </div>
+
+            <div className="gm-tabela-wrap">
+              <table className="gm-tabela gm-tabela--rank">
+                <thead>
+                  <tr>
+                    <th>#</th><th>Corretor</th><th>Visitas</th><th>Clientes</th>
+                    <th>Imóveis</th><th>Sim</th><th>Talvez</th><th>Não</th>
+                    <th>Interesse</th><th>Nota</th><th>A revisar</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {rankCorretor.map((item, i) => (
+                    <tr key={item.id}>
+                      <td className="gm-rank-pos">{i + 1}</td>
+                      <td>{item.nome}</td>
+                      <td>
+                        {/* Barra proporcional ao líder: a comparação que interessa é
+                            relativa, e o número absoluto está do lado. */}
+                        <div className="gm-rank-barra">
+                          <span style={{
+                            width: `${Math.max(4, (item.visitas / rankCorretor[0].visitas) * 100)}%`,
+                          }} />
+                          <b>{item.visitas}</b>
+                        </div>
+                      </td>
+                      <td>{item.clientes}</td>
+                      <td>{item.imoveis}</td>
+                      <td className="r-sim">{item.sim || "—"}</td>
+                      <td className="r-talvez">{item.talvez || "—"}</td>
+                      <td className="r-nao">{item.nao || "—"}</td>
+                      <td>
+                        {item.taxa == null ? "—" : (
+                          <span className={`gm-taxa ${item.taxa < 50 ? "is-baixa" : ""}`}>
+                            {item.taxa}%
+                          </span>
+                        )}
+                      </td>
+                      <td>{item.nota ?? "—"}</td>
+                      <td>
+                        {item.pendentes
+                          ? <span className="gm-selo">{item.pendentes}</span>
+                          : "—"}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Só faz sentido quando há mais de uma equipe no recorte — para o gerente
+                seria uma tabela de uma linha só. */}
+            {rankEquipe.length > 1 && (
+              <div className="gm-tabela-wrap gm-rank-equipes">
+                <h4 className="gm-rank-titulo">Por equipe</h4>
+                <table className="gm-tabela gm-tabela--rank">
+                  <thead>
+                    <tr>
+                      <th>#</th><th>Equipe</th><th>Visitas</th><th>Clientes</th>
+                      <th>Imóveis</th><th>Interesse</th><th>Nota</th><th>A revisar</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {rankEquipe.map((item, i) => (
+                      <tr key={item.id}>
+                        <td className="gm-rank-pos">{i + 1}</td>
+                        <td>{item.nome}</td>
+                        <td>
+                          <div className="gm-rank-barra">
+                            <span style={{
+                              width: `${Math.max(4, (item.visitas / rankEquipe[0].visitas) * 100)}%`,
+                            }} />
+                            <b>{item.visitas}</b>
+                          </div>
+                        </td>
+                        <td>{item.clientes}</td>
+                        <td>{item.imoveis}</td>
+                        <td>
+                          {item.taxa == null ? "—" : (
+                            <span className={`gm-taxa ${item.taxa < 50 ? "is-baixa" : ""}`}>
+                              {item.taxa}%
+                            </span>
+                          )}
+                        </td>
+                        <td>{item.nota ?? "—"}</td>
+                        <td>{item.pendentes || "—"}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </>
+        )
+      )}
+
+      {aba === "evolucao" && (
+        <article className="gm-grafico">
+          <header>
+            <div>
+              <h4>Evolução das visitas</h4>
+              <p>
+                {evolucao?.resumo
+                  ? `${evolucao.resumo.total_visitas} visitas · ${evolucao.resumo.clientes_unicos} clientes · ${evolucao.resumo.imoveis_unicos} imóveis`
+                  : "Quem visitou, e quando, ao longo do período"}
+              </p>
+            </div>
+            <div className="gm-grafico-controles">
+              <select value={dimensao} onChange={(e) => setDimensao(e.target.value)}
+                aria-label="Agrupar a evolução por">
+                <option value="corretor">Por corretor</option>
+                <option value="equipe">Por equipe</option>
+              </select>
+              <select value={granularidade} onChange={(e) => setGranularidade(e.target.value)}
+                aria-label="Granularidade da evolução">
+                <option value="dia">Por dia</option>
+                <option value="semana">Por semana</option>
+                <option value="mes">Por mês</option>
+              </select>
+            </div>
+          </header>
+          {carregandoEvolucao ? (
+            <p className="gm-estado">Montando a evolução…</p>
+          ) : !evolucao ? (
+            <p className="gm-estado">Não consegui carregar a evolução deste recorte.</p>
+          ) : (
+            <GraficoMultiLinha
+              datas={evolucao.datas || []}
+              series={evolucao.series || []}
+              rotuloAria="Evolução das visitas por período"
+            />
+          )}
+        </article>
       )}
 
       {editando && (
@@ -499,6 +1001,19 @@ export default function GestaoVisitas() {
                 <input value={form.linkAudio || ""} placeholder="https://drive.google.com/…"
                   onChange={(e) => setForm((f) => ({ ...f, linkAudio: e.target.value }))} />
               </label>
+              <label className="gm-largo">Situação do imóvel
+                <select value={form.situacaoImovel || ""}
+                  onChange={(e) => setForm((f) => ({ ...f, situacaoImovel: e.target.value }))}>
+                  <option value="">Manter como está</option>
+                  <option value="CAPTACAO_61">Captação 61</option>
+                  <option value="IMOVEL_NAO_CAPTADO">Imóvel não captado</option>
+                </select>
+              </label>
+              <label className="gm-largo">Arquivo da ficha
+                <input value={form.anexoFichaVisita || ""}
+                  placeholder="Caminho ou link do arquivo"
+                  onChange={(e) => setForm((f) => ({ ...f, anexoFichaVisita: e.target.value }))} />
+              </label>
               <label className="gm-largo">Endereço externo
                 <input value={form.enderecoExterno || ""}
                   placeholder="Só para imóvel fora do CRM"
@@ -506,11 +1021,17 @@ export default function GestaoVisitas() {
               </label>
             </div>
 
+            <h4 className="gm-subtitulo">Avaliação do imóvel</h4>
+            <Avaliacoes
+              avaliacoes={form.avaliacoes || []}
+              onChange={(lista) => setForm((f) => ({ ...f, avaliacoes: lista }))}
+            />
+
             {!!(editando.pendencias || []).length && (
               <p className="gm-nota gm-nota--modal">
                 Falta revisar: <strong>{editando.pendencias.join(", ")}</strong>. Preencher o
-                motivo aqui resolve essa parte; anexo e notas você marca com o botão
-                Revisar na lista.
+                motivo aqui resolve essa parte; anexo e notas só contam quando forem
+                abertos pelos respectivos botões.
               </p>
             )}
 

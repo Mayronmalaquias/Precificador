@@ -29,6 +29,7 @@ class Tarefas(Resource):
         "tipos": "Lista separada por vírgula: proposta,visita,lead,cliente.",
         "nivel": "critica | atencao | normal",
         "responsavel": "Filtra por nome de quem responde (busca parcial).",
+        "gerente_id": "Recorta pela equipe do gerente (somente perfis globais).",
     })
     def get(self):
         try:
@@ -38,6 +39,7 @@ class Tarefas(Resource):
                 tipos=tipos or None,
                 nivel=request.args.get("nivel") or None,
                 responsavel=request.args.get("responsavel") or None,
+                gerente_id=request.args.get("gerente_id") or None,
             ), 200
         except TarefaErro as e:
             return {"ok": False, "error": e.mensagem}, e.status

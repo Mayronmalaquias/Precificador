@@ -20,6 +20,8 @@ const NEGOCIACOES = ["Comprar", "Alugar", "Lançamento"];
 const FILTROS_VAZIOS = {
   situacao: "", fonte: "", canal: "", funil: "", motivo: "",
   arquivado: "", fechado: "", por: "criacao",
+  // Do IMÓVEL citado, não do lead: casam com o catálogo pelo código.
+  bairro: "", tipo: "", quartos: "",
 };
 
 const FORM_VAZIO = {
@@ -66,6 +68,9 @@ export default function RelatorioLeads({ idSolicitante, equipe, inicio, fim, cor
   // Correcao dos dados do lead. `null` = bloco fechado; abrir copia o que esta na tela.
   const [edicao, setEdicao] = useState(null);
   const [salvandoEdicao, setSalvandoEdicao] = useState(false);
+  // Corretores para o repasse de dono. O servidor recusa repasse para fora da equipe,
+  // entao a lista aqui e conveniencia, nao controle de acesso.
+  const [corretoresDoRepasse, setCorretoresDoRepasse] = useState([]);
   // Qual seta esta buscando: so ela mostra "Carregando", as duas ficam travadas.
   const [paginando, setPaginando] = useState(null);
 
@@ -144,7 +149,9 @@ export default function RelatorioLeads({ idSolicitante, equipe, inicio, fim, cor
 
   // Catálogo fixo dos filtros. É uma chamada local (não consulta o Contact2Sale), então
   // pode rodar ao abrir — é o que permite escolher o motivo antes da primeira busca.
-  const [catalogo, setCatalogo] = useState({ motivos: [], situacoes: [], funis: [] });
+  const [catalogo, setCatalogo] = useState({
+    motivos: [], situacoes: [], funis: [], bairros: [], tipos: [], quartos: [],
+  });
   useEffect(() => {
     let vivo = true;
     (async () => {
@@ -152,12 +159,28 @@ export default function RelatorioLeads({ idSolicitante, equipe, inicio, fim, cor
         const r = await fetch(`${BASE}/leads/c2s/opcoes`);
         const d = await r.json();
         if (vivo && r.ok && d.ok) {
-          setCatalogo({ motivos: d.motivos || [], situacoes: d.situacoes || [], funis: d.funis || [] });
+          // Guarda a resposta inteira em vez de escolher chave por chave: era assim
+          // antes, e por isso `bairros`, `tipos` e `quartos` chegavam do servidor e eram
+          // descartados aqui — os dropdowns ficavam só com "Todos". `ok` fora porque não
+          // é lista de opção.
+          const { ok, ...listas } = d;
+          setCatalogo(listas);
         }
       } catch { /* dropdown cai no que a busca trouxer */ }
     })();
     return () => { vivo = false; };
   }, []);
+
+  useEffect(() => {
+    if (!idSolicitante) return;
+    (async () => {
+      try {
+        const r = await fetch(`${BASE}/propostas/corretores?solicitante_id=${encodeURIComponent(idSolicitante)}`);
+        const d = await r.json();
+        if (r.ok && d.ok !== false) setCorretoresDoRepasse(d.itens || []);
+      } catch { /* sem lista o repasse fica indisponível; o resto da edição continua */ }
+    })();
+  }, [idSolicitante]);
 
   // Opções = catálogo fixo + o que a janela consultada trouxer de novo (motivo com
   // texto livre do corretor, portal novo). `dados.opcoes` só existe depois de buscar.
@@ -196,13 +219,29 @@ export default function RelatorioLeads({ idSolicitante, equipe, inicio, fim, cor
     carregar(1, busca, filtros);
   };
 
-  const abrir = async (id) => {
-    setDetalhe({ id });
+  /** Abre o detalhe. Duas rotas, e a escolha importa.
+   *
+   * `id_interno` só existe para o lead que também está em `leads_legado`. A importação
+   * legada só aceita lead da recepção ou de fonte Faixa/Indicação, então lead de portal
+   * (Grupo Zap, DF imóveis, ImovelWeb) nunca teve linha lá — 26% do espelho. Antes esses
+   * apareciam com um "—" no lugar do botão e não abriam de jeito nenhum.
+   *
+   * Sem `id_interno`, abre pelo id do C2S: o espelho tem o lead inteiro. O que falta é
+   * onde gravar acompanhamento, e aí `pode_editar` vem falso.
+   */
+  const abrir = async (lead) => {
+    const idInterno = lead?.id_interno;
+    const url = idInterno
+      ? `${BASE}/leads/gestao/${idInterno}`
+      : `${BASE}/leads/c2s/${encodeURIComponent(lead?.id_c2s)}`;
+    setDetalhe({ id: idInterno || null });
     try {
-      const r = await fetch(`${BASE}/leads/gestao/${id}?solicitante_id=${encodeURIComponent(idSolicitante)}`);
+      const r = await fetch(`${url}?solicitante_id=${encodeURIComponent(idSolicitante)}`);
       const d = await r.json();
       if (!r.ok || d.ok === false) throw new Error(d.error || "Erro ao abrir lead");
-      setDetalhe({ ...d.lead, _imovel: d.imovel, _pode_editar: d.pode_editar, _opcoes: d.opcoes });
+      setDetalhe({ ...d.lead, _imovel: d.imovel, _pode_editar: d.pode_editar,
+                   _pode_corrigir: d.pode_corrigir_dados,
+                   _sem_registro: d.sem_registro_interno, _opcoes: d.opcoes });
       setEdicao(null);
       const a = d.lead?.acompanhamento || {};
       setAcomp({
@@ -221,6 +260,9 @@ export default function RelatorioLeads({ idSolicitante, equipe, inicio, fim, cor
   const set = (campo) => (e) => setForm((f) => ({ ...f, [campo]: e.target.value }));
 
   const abrirEdicao = () => setEdicao({
+    // `atendimento` nasce vazio de proposito: em branco significa "manter o dono", e
+    // preenchê-lo com o valor atual faria todo salvamento tentar um repasse.
+    atendimento: "",
     cliente: detalhe.cliente || "",
     telefone: detalhe.telefone || "",
     codigo_imovel: detalhe.codigo_imovel || "",
@@ -241,7 +283,13 @@ export default function RelatorioLeads({ idSolicitante, equipe, inicio, fim, cor
       const r = await fetch(`${BASE}/leads/gestao/${detalhe.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...edicao, solicitante_id: idSolicitante }),
+        // `atendimento` em branco significa "manter", não "limpar" — enviar `""` faria
+        // o servidor tentar resolver um corretor vazio.
+        body: JSON.stringify({
+          ...edicao,
+          ...(edicao.atendimento ? {} : { atendimento: undefined }),
+          solicitante_id: idSolicitante,
+        }),
       });
       const d = await r.json().catch(() => ({}));
       if (!r.ok || !d.ok) throw new Error(d.error || "Erro ao salvar o lead.");
@@ -302,7 +350,10 @@ export default function RelatorioLeads({ idSolicitante, equipe, inicio, fim, cor
         motivo_sem_visita: acomp.motivo_sem_visita,
         proxima_acao: acomp.proxima_acao,
       };
-      const r = await fetch(`${BASE}/leads/gestao/${detalhe.id}?solicitante_id=${encodeURIComponent(idSolicitante)}`, {
+      // Acompanhamento grava pelo id do C2S: `detalhe.id` (o de `leads_legado`) só
+      // existe para 74% dos leads, e é justamente essa dependência que impedia lead de
+      // portal de receber acompanhamento.
+      const r = await fetch(`${BASE}/leads/c2s/${encodeURIComponent(detalhe.id_c2s)}?solicitante_id=${encodeURIComponent(idSolicitante)}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(corpo),
@@ -416,6 +467,32 @@ export default function RelatorioLeads({ idSolicitante, equipe, inicio, fim, cor
               {(dados.opcoes?.canais || []).map((v) => <option key={v} value={v}>{v}</option>)}
             </select>
           </label>
+
+          {/* Bairro, tipo e quartos são do IMÓVEL que o cliente citou, não do lead. As
+              opções saem do catálogo restrito ao que os leads de fato pedem — oferecer os
+              109 bairros do catálogo incluiria dezenas que devolvem lista vazia.
+              Lead sem código, ou com código fora do catálogo, sai do resultado quando
+              qualquer um destes está ligado. */}
+          <label>Bairro do imóvel
+            <select value={filtros.bairro} onChange={setFiltro("bairro")}>
+              <option value="">Todos</option>
+              {opcoesDe("bairros").map((v) => <option key={v} value={v}>{v}</option>)}
+            </select>
+          </label>
+          <label>Tipo do imóvel
+            <select value={filtros.tipo} onChange={setFiltro("tipo")}>
+              <option value="">Todos</option>
+              {opcoesDe("tipos").map((v) => <option key={v} value={v}>{v}</option>)}
+            </select>
+          </label>
+          <label>Quartos
+            <select value={filtros.quartos} onChange={setFiltro("quartos")}>
+              <option value="">Qualquer</option>
+              {opcoesDe("quartos").map((v) => (
+                <option key={v} value={v}>{v} quarto{Number(v) === 1 ? "" : "s"}</option>
+              ))}
+            </select>
+          </label>
           <label>Arquivado
             <select value={filtros.arquivado} onChange={setFiltro("arquivado")}>
               <option value="">Tanto faz</option>
@@ -509,9 +586,9 @@ export default function RelatorioLeads({ idSolicitante, equipe, inicio, fim, cor
                     </td>
                     <td>{l.motivo_arquivamento || "—"}</td>
                     <td>
-                      {l.id_interno
-                        ? <button type="button" className="raba-link" onClick={() => abrir(l.id_interno)}>Abrir</button>
-                        : <span className="raba-vazio" title="Lead ainda não importado para a base interna">—</span>}
+                      <button type="button" className="raba-link" onClick={() => abrir(l)}>
+                        Abrir
+                      </button>
                     </td>
                   </tr>
                 ))}
@@ -596,7 +673,16 @@ export default function RelatorioLeads({ idSolicitante, equipe, inicio, fim, cor
               </p>
             )}
 
-            {detalhe._pode_editar && (
+            {detalhe._sem_registro && (
+              <p className="raba-nota">
+                Lead vindo de portal, sem registro na base histórica — a importação antiga
+                só aceita lead da recepção ou de fonte Faixa/Indicação. O acompanhamento
+                funciona normalmente; só a correção dos dados do lead depende daquele
+                registro.
+              </p>
+            )}
+
+            {detalhe._pode_corrigir && (
               <>
                 <h4 className="raba-subtitulo">
                   Dados do lead
@@ -624,6 +710,17 @@ export default function RelatorioLeads({ idSolicitante, equipe, inicio, fim, cor
                       <label>Fonte
                         <input value={edicao.fonte}
                           onChange={(e) => setEdicao((v) => ({ ...v, fonte: e.target.value }))} />
+                      </label>
+                      <label>Repassar para
+                        <select value={edicao.atendimento}
+                          onChange={(e) => setEdicao((v) => ({ ...v, atendimento: e.target.value }))}>
+                          <option value="">Manter o dono atual</option>
+                          {(corretoresDoRepasse || []).map((p2) => (
+                            <option key={p2.id} value={p2.id}>
+                              {p2.nome}{p2.team ? ` · ${p2.team}` : ""}
+                            </option>
+                          ))}
+                        </select>
                       </label>
                       <label className="raba-form-largo">Observação
                         <input value={edicao.observacao}

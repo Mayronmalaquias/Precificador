@@ -52,6 +52,13 @@ class Propostas(Resource):
                 "corretor": request.args.get("corretor"),
                 "inicio": request.args.get("inicio"),
                 "fim": request.args.get("fim"),
+                # Recortes da Gestao de Propostas. `team` so tem efeito para quem
+                # enxerga tudo — o service ignora para os demais.
+                "bairro": request.args.get("bairro"),
+                "tipo": request.args.get("tipo"),
+                "valor_min": request.args.get("valor_min"),
+                "valor_max": request.args.get("valor_max"),
+                "sem_acao_min": request.args.get("sem_acao_min"),
             }), 200
         except Exception as e:
             return _erro(e, "Erro ao listar propostas efetivas")

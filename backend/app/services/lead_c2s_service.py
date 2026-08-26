@@ -48,12 +48,13 @@ from typing import Any, Dict, List, Optional
 
 import requests
 
-from sqlalchemy import func
+from sqlalchemy import func, select
 
 from app.database import SessionLocal
 from app.extensions import cache
 from app.models.equipe import Equipe
 from app.models.estoque_legado import LeadLegado
+from app.models.imovel_area import ImovelArea
 from app.models.lead_c2s import LeadC2S
 from app.models.usuarios import Usuarios
 
@@ -558,8 +559,33 @@ def _item_do_banco(linha: LeadC2S) -> Dict[str, Any]:
         "ultima_atividade": linha.ultima_atividade.isoformat() if linha.ultima_atividade else "",
         "respondido_em": linha.respondido_em.isoformat() if linha.respondido_em else "",
         "id_interno": linha.id_legado,
+        # Acompanhamento mora na propria linha desde a migracao 20260825_acomp_c2s.
+        # Antes vinha de `leads_legado` por join, e por isso ficava vazio nos 26% de
+        # leads que aquela tabela nao tem.
+        "acompanhamento_em": (linha.acompanhamento_em.isoformat()
+                              if linha.acompanhamento_em else None),
+        "contato_status": _texto(linha.contato_status),
+        "visita_agendada": linha.visita_agendada,
     })
     return item
+
+
+# Pares acento -> sem acento para o `translate` do Postgres. `unaccent` seria mais limpo,
+# mas e extensao e pode nao estar instalada no RDS; `translate` e builtin.
+_COM_ACENTO = "áàâãäéèêëíìîïóòôõöúùûüçÁÀÂÃÄÉÈÊËÍÌÎÏÓÒÔÕÖÚÙÛÜÇ"
+_SEM_ACENTO = "aaaaaeeeeiiiiooooouuuucAAAAAEEEEIIIIOOOOOUUUUC"
+
+
+def _contem_sem_acento(coluna, termo: str):
+    """Busca parcial que ignora acento E caixa.
+
+    `ILIKE` sozinho ignora so a caixa: com ele, procurar "aguas" nao acha "Águas Claras"
+    — e ninguem digita o acento. Mesma solucao ja usada na Gestao de Imoveis.
+    """
+    alvo = termo.strip().lower()
+    for com, sem in zip(_COM_ACENTO, _SEM_ACENTO):
+        alvo = alvo.replace(com, sem)
+    return func.lower(func.translate(coluna, _COM_ACENTO, _SEM_ACENTO)).like(f"%{alvo}%")
 
 
 def _igual(coluna, valor: str):
@@ -614,6 +640,30 @@ def _aplicar_filtros(query, f: Dict[str, str], escopo: Dict[str, Any]):
     elif fechado in {"nao", "não", "0", "false"}:
         query = query.filter(LeadC2S.negocio_fechado.isnot(True))
 
+    # ── recortes que vem do IMOVEL citado, nao do lead ────────────────────────
+    # Bairro, tipo e quartos moram no catalogo; o elo e o `prop_ref` que o cliente citou.
+    # Subconsulta em vez de join: com join, lead cujo codigo aparece duas vezes no
+    # catalogo entraria duplicado na listagem e o total passaria a mentir.
+    filtros_imovel = [
+        (f.get("bairro"), lambda v: _contem_sem_acento(ImovelArea.bairro, v)),
+        (f.get("tipo"), lambda v: _contem_sem_acento(ImovelArea.tipo, v)),
+        (f.get("quartos"), lambda v: ImovelArea.quartos == int(v)),
+    ]
+    condicoes_imovel = []
+    for valor, monta in filtros_imovel:
+        valor = _texto(valor)
+        if not valor:
+            continue
+        try:
+            condicoes_imovel.append(monta(valor))
+        except (TypeError, ValueError):
+            # Quartos com texto invalido: ignorar e o comportamento certo — a alternativa
+            # seria estourar 500 por causa de um campo que o usuario digitou errado.
+            continue
+    if condicoes_imovel:
+        codigos = select(ImovelArea.codigo).where(*condicoes_imovel)
+        query = query.filter(LeadC2S.codigo_imovel.in_(codigos))
+
     busca = _texto(f.get("busca"))
     if busca:
         alvo = f"%{busca}%"
@@ -626,57 +676,40 @@ def _aplicar_filtros(query, f: Dict[str, str], escopo: Dict[str, Any]):
     return query
 
 
-def _acompanhamento_do_banco(session, itens: List[Dict[str, Any]]) -> None:
-    """Anexa o acompanhamento, que mora em `leads_legado` e nao vem do C2S.
-
-    Vai pelo `id_legado` ja resolvido no sync — o casamento por nome + telefone acontece
-    uma vez por hora, fora do caminho do usuario, em vez de a cada consulta.
-    """
-    ids = {item["id_interno"] for item in itens if item.get("id_interno")}
-    if not ids:
-        for item in itens:
-            item["acompanhamento_em"] = None
-            item["contato_status"] = ""
-        return
-    indice = {
-        linha.id: linha
-        for linha in session.query(LeadLegado).filter(LeadLegado.id.in_(ids)).all()
-    }
-    for item in itens:
-        achado = indice.get(item.get("id_interno"))
-        item["acompanhamento_em"] = (
-            achado.acompanhamento_em.isoformat() if achado and achado.acompanhamento_em else None
-        )
-        item["contato_status"] = _texto(achado.contato_status) if achado else ""
+_CAMPOS_OPCOES = (
+    ("situacoes", LeadC2S.situacao),
+    ("funis", LeadC2S.funil),
+    ("fontes", LeadC2S.fonte),
+    ("canais", LeadC2S.canal),
+    ("equipes", LeadC2S.equipe),
+    ("motivos", LeadC2S.motivo_arquivamento),
+)
 
 
 def _opcoes_do_banco(session, base) -> Dict[str, List[str]]:
     """Dropdowns a partir do que existe na janela consultada.
 
-    Um `distinct` por campo em vez de montar em Python: sem isso seria preciso carregar
-    a janela inteira so para saber quais valores existem — exatamente o custo que a
-    mudanca para o banco veio eliminar.
+    Os seis campos saem de UMA consulta com `array_agg(DISTINCT ...)`. Com um `DISTINCT`
+    por campo eram seis varreduras da mesma janela e seis idas ao banco por requisicao —
+    e a listagem em si e uma consulta so, entao os dropdowns dominavam o tempo da tela.
     """
-    def distintos(coluna):
-        valores = [
-            v for (v,) in base.with_entities(coluna).distinct().all()
-            if _texto(v)
-        ]
-        return sorted(valores, key=_norm)
+    linha = base.with_entities(*[
+        func.array_agg(coluna.distinct()) for _, coluna in _CAMPOS_OPCOES
+    ]).one()
 
-    def na_ordem(coluna, ordem):
-        presentes = set(distintos(coluna))
-        conhecidos = [v for v in ordem if v in presentes]
-        return conhecidos + sorted(presentes - set(ordem), key=_norm)
-
-    return {
-        "situacoes": na_ordem(LeadC2S.situacao, ORDEM_SITUACAO),
-        "funis": na_ordem(LeadC2S.funil, ORDEM_FUNIL),
-        "fontes": distintos(LeadC2S.fonte),
-        "canais": distintos(LeadC2S.canal),
-        "equipes": distintos(LeadC2S.equipe),
-        "motivos": distintos(LeadC2S.motivo_arquivamento),
+    bruto = {
+        nome: sorted({v for v in (valores or []) if _texto(v)}, key=_norm)
+        for (nome, _), valores in zip(_CAMPOS_OPCOES, linha)
     }
+
+    def na_ordem(valores, ordem):
+        """Etapas tem ordem propria; alfabetica poria "Arquivado" antes de "Novo"."""
+        presentes = set(valores)
+        return [v for v in ordem if v in presentes] + sorted(presentes - set(ordem), key=_norm)
+
+    bruto["situacoes"] = na_ordem(bruto["situacoes"], ORDEM_SITUACAO)
+    bruto["funis"] = na_ordem(bruto["funis"], ORDEM_FUNIL)
+    return bruto
 
 
 def listar(solicitante_id, inicio, fim, page=1, per_page=PER_PAGE_API,
@@ -723,18 +756,12 @@ def listar(solicitante_id, inicio, fim, page=1, per_page=PER_PAGE_API,
 
         query = _aplicar_filtros(query, filtros, escopo)
 
-        # `sem_acompanhamento`: o elo com a base interna e o `id_legado`, resolvido no
-        # sync. Sem elo o lead nunca teve acompanhamento, entao ele entra no recorte.
+        # `sem_acompanhamento` virou coluna indexada da propria tabela. Antes era uma
+        # lista de ids de `leads_legado` trazida inteira para Python e devolvida como
+        # `NOT IN` — e leads sem elo entravam por construcao, mesmo que tivessem sido
+        # trabalhados.
         if filtros.get("sem_acompanhamento"):
-            com_acomp = [
-                i for (i,) in session.query(LeadLegado.id).filter(
-                    LeadLegado.acompanhamento_em.isnot(None)
-                ).all()
-            ]
-            if com_acomp:
-                query = query.filter(
-                    LeadC2S.id_legado.is_(None) | LeadC2S.id_legado.notin_(com_acomp)
-                )
+            query = query.filter(LeadC2S.acompanhamento_em.is_(None))
 
         total = query.with_entities(func.count(LeadC2S.id_c2s)).scalar() or 0
         ordem = LeadC2S.atualizado_em if campo_data == "updated" else LeadC2S.criado_em
@@ -742,7 +769,6 @@ def listar(solicitante_id, inicio, fim, page=1, per_page=PER_PAGE_API,
                   .offset((page - 1) * per_page).limit(per_page).all())
 
         itens = [_item_do_banco(linha) for linha in linhas]
-        _acompanhamento_do_banco(session, itens)
 
         sincronizado = session.query(func.max(LeadC2S.sincronizado_em)).scalar()
         return {
@@ -771,11 +797,35 @@ def catalogo_opcoes() -> Dict[str, Any]:
     escolher um filtro antes da primeira busca. Estes valores sao o catalogo da propria
     C2S, entao valem sempre; o que a janela trouxer de novo e acrescentado por cima.
     """
-    return {
-        "motivos": sorted(set(MOTIVOS_PT.values()), key=_norm),
-        "situacoes": list(ORDEM_SITUACAO),
-        "funis": list(ORDEM_FUNIL),
-    }
+    session = SessionLocal()
+    try:
+        # So o que os leads REALMENTE citam. O catalogo tem 109 bairros; oferecer todos
+        # incluiria dezenas que nunca apareceram num lead e que devolvem lista vazia.
+        citados = select(LeadC2S.codigo_imovel).where(LeadC2S.codigo_imovel.isnot(None))
+
+        def distintos(coluna):
+            return sorted({
+                _texto(v) for (v,) in session.query(coluna)
+                .filter(ImovelArea.codigo.in_(citados), coluna.isnot(None))
+                .distinct().all() if _texto(v)
+            }, key=_norm)
+
+        quartos = sorted({
+            int(q) for (q,) in session.query(ImovelArea.quartos)
+            .filter(ImovelArea.codigo.in_(citados), ImovelArea.quartos.isnot(None))
+            .distinct().all() if q is not None
+        })
+
+        return {
+            "motivos": sorted(set(MOTIVOS_PT.values()), key=_norm),
+            "situacoes": list(ORDEM_SITUACAO),
+            "funis": list(ORDEM_FUNIL),
+            "bairros": distintos(ImovelArea.bairro),
+            "tipos": distintos(ImovelArea.tipo),
+            "quartos": quartos,
+        }
+    finally:
+        session.close()
 
 
 def _opcoes(itens: List[Dict[str, Any]]) -> Dict[str, List[str]]:

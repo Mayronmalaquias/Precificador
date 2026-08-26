@@ -44,6 +44,16 @@ MAX_PAGINAS = 1200
 # outra cairia no vao e ficaria desatualizado ate mudar de novo.
 MARGEM_MINUTOS = 15
 
+# Colunas que o sync NUNCA sobrescreve. `id_c2s` e a chave; `id_legado` e montado por
+# `_ligar_legado`; o resto e o acompanhamento, que e nosso e mora aqui desde a migracao
+# 20260825_acomp_c2s. O payload da API nao traz nenhuma delas — sem esta lista, o
+# `ON CONFLICT DO UPDATE` gravaria NULL por cima toda hora.
+CAMPOS_PRESERVADOS = frozenset({
+    "id_c2s", "id_legado",
+    "contato_status", "visita_agendada", "motivo_sem_visita", "proxima_acao",
+    "acompanhamento_por", "acompanhamento_em",
+})
+
 CAMPOS_C2S = (
     "cliente", "telefone", "email", "fonte", "canal", "equipe", "corretor",
     "codigo_imovel", "imovel", "url", "observacao", "situacao", "situacao_alias",
@@ -114,8 +124,9 @@ def _gravar(session, linhas: List[Dict[str, Any]]) -> Dict[str, int]:
     linha a linha seria 50 idas ao banco por pagina. Tambem elimina a corrida entre o
     cron e uma carga manual rodando junto.
 
-    `id_legado` fica de fora do UPDATE de proposito — quem o preenche e `_ligar_legado`,
-    e sobrescrever com NULL aqui apagaria o elo a cada passada.
+    `CAMPOS_PRESERVADOS` fica de fora do UPDATE: sao colunas NOSSAS, que o C2S nao
+    conhece e nao manda. Sobrescreve-las com o NULL do payload apagaria o elo e o
+    acompanhamento do gerente a cada passada horaria.
     """
     if not linhas:
         return {"gravados": 0}
@@ -125,7 +136,7 @@ def _gravar(session, linhas: List[Dict[str, Any]]) -> Dict[str, int]:
     atualizaveis = {
         c.name: stmt.excluded[c.name]
         for c in tabela.columns
-        if c.name not in ("id_c2s", "id_legado")
+        if c.name not in CAMPOS_PRESERVADOS
     }
     session.execute(stmt.on_conflict_do_update(index_elements=["id_c2s"], set_=atualizaveis))
     return {"gravados": len(linhas)}
@@ -165,6 +176,20 @@ def _ligar_legado(session, ids: List[str]) -> int:
 
 def _ultima_atualizacao(session) -> Optional[datetime]:
     return session.query(func.max(LeadC2S.atualizado_em)).scalar()
+
+
+def mais_antigo() -> Optional[date]:
+    """Data de criacao do lead mais VELHO ja espelhado.
+
+    A carga inicial anda de tras para frente (a API e ordenada por `-created_at`), entao
+    este e o ponto ate onde ela chegou. Serve para retomar do lugar em vez de recomecar
+    de 2020 — uma varredura de horas nao pode perder o trabalho porque a maquina caiu.
+    """
+    session = SessionLocal()
+    try:
+        return session.query(func.min(LeadC2S.data)).scalar()
+    finally:
+        session.close()
 
 
 def sincronizar(inicio=None, fim=None, campo_data: str = "updated",

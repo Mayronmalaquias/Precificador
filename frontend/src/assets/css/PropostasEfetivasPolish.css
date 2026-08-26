@@ -79,6 +79,20 @@
 .pe-distribuicao-legenda b { font-size: 11px; color: var(--ink); }
 
 /* ── Paradas / filtros / tabela ───────────────────────────────────────── */
+/* Painel analitico: reaproveita os graficos das demais gestoes, mas ocupa a largura
+   da carteira de propostas em vez do limite menor do modulo compartilhado. */
+.pe-dashboard.gm {
+  max-width: 1440px;
+  margin: 0 auto 4px;
+  padding: 0;
+}
+.pe-dashboard .gm-grafico {
+  border-color: var(--line);
+  border-radius: 13px;
+  box-shadow: 0 3px 13px rgba(38, 44, 73, .035);
+}
+.pe-dashboard .gm-grafico-total { color: var(--rosa); }
+
 .pe-paradas { padding: 15px; }
 .pe-parada { transition: transform .16s ease, box-shadow .16s ease; }
 .pe-parada:hover { transform: translateY(-1px); box-shadow: 0 6px 16px rgba(38, 44, 73, .06); }
@@ -224,3 +238,35 @@
   line-height: 1.45;
   margin-top: 2px;
 }
+
+/* ── painel de filtros extras ── */
+.pe-mais-filtros {
+  padding: 8px 14px; border: 1px solid #e3e0e9; border-radius: 99px;
+  background: #fff; font-size: 12.5px; font-weight: 600; color: #5b5766; cursor: pointer;
+}
+.pe-mais-filtros:hover { border-color: #c4005a; color: #c4005a; }
+.pe-mais-filtros.is-ativo { background: #c4005a; border-color: #c4005a; color: #fff; }
+
+.pe-filtros-extra {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 11px; align-items: end;
+  margin: 0 0 16px; padding: 14px 16px;
+  background: #fff; border: 1px solid #e6e2ec; border-radius: 12px;
+}
+.pe-filtros-extra label {
+  display: grid; gap: 5px; font-size: 11px; font-weight: 700;
+  letter-spacing: .04em; text-transform: uppercase; color: #857f92;
+}
+.pe-filtros-extra input, .pe-filtros-extra select {
+  padding: 8px 10px; border: 1px solid #ddd8e4; border-radius: 8px;
+  font-size: 13px; font-weight: 500; text-transform: none; letter-spacing: 0;
+  color: #1c1a22; background: #fff; width: 100%;
+}
+.pe-filtros-extra input:focus, .pe-filtros-extra select:focus {
+  outline: none; border-color: #c4005a; box-shadow: 0 0 0 3px rgba(196, 0, 90, .1);
+}
+.pe-limpar {
+  padding: 9px 14px; border: 1px solid #ddd8e4; border-radius: 8px;
+  background: #fff; font-size: 12.5px; color: #5b5766; cursor: pointer;
+}
+.pe-limpar:hover { border-color: #c4005a; color: #c4005a; }
