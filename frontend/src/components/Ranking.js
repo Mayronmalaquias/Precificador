@@ -127,6 +127,9 @@ function FechamentoMes({ apiBase, toast }) {
   const [texto, setTexto] = useState('');
   const [loading, setLoading] = useState(false);
   const [copiado, setCopiado] = useState(false);
+  // Dados do MESMO retorno que o texto: o servidor renderiza o texto a partir deles, e
+  // por isso o número colado no grupo é o número da tela, sempre.
+  const [dados, setDados] = useState(null);
 
   const gerar = useCallback(async () => {
     setLoading(true);
@@ -136,12 +139,19 @@ function FechamentoMes({ apiBase, toast }) {
       const d = await r.json();
       if (!r.ok || d.ok === false) throw new Error(d.error || 'Erro ao gerar fechamento.');
       setTexto(d.texto || '');
+      setDados(d);
     } catch (e) {
       toast(e.message || 'Erro ao gerar fechamento.', 'error');
     } finally {
       setLoading(false);
     }
   }, [apiBase, mes, toast]);
+
+  // Percentual geral sobre o TOTAL do ranking, não sobre o atribuído: captação sem dono
+  // foi feita, e tirá-la do numerador faria a equipe parecer pior do que foi.
+  const pctGeral = dados?.resumo?.meta_total
+    ? Math.round((dados.resumo.total_ranking / dados.resumo.meta_total) * 1000) / 10
+    : 0;
 
   const copiar = () => {
     if (!texto) return;
@@ -169,6 +179,67 @@ function FechamentoMes({ apiBase, toast }) {
           </button>
         )}
       </div>
+      {dados?.resumo && (
+        <>
+          <div className="fech-cards">
+            <div>
+              <span>Captações</span>
+              <strong>{dados.resumo.total_ranking}</strong>
+              <small>{dados.resumo.corretores} corretores em {dados.resumo.equipes} equipes</small>
+            </div>
+            <div>
+              <span>Meta do mês</span>
+              <strong>{dados.resumo.meta_total}</strong>
+              <small>{dados.meta} por corretor</small>
+            </div>
+            <div className={pctGeral < 50 ? 'is-alerta' : ''}>
+              <span>% da meta</span>
+              <strong>{pctGeral}%</strong>
+            </div>
+            <div>
+              <span>Bateram a meta</span>
+              <strong>{dados.resumo.bateram_meta}</strong>
+              <small>de {dados.resumo.corretores}</small>
+            </div>
+            <div className={dados.resumo.corretores - dados.resumo.com_captacao ? 'is-alerta' : ''}>
+              <span>Sem nenhuma captação</span>
+              <strong>{dados.resumo.corretores - dados.resumo.com_captacao}</strong>
+            </div>
+            {/* Só aparece quando existe: captação cujo captador não está no cadastro.
+                Antes essas sumiam da conta sem deixar rastro. */}
+            {dados.resumo.sem_dono > 0 && (
+              <div className="is-alerta">
+                <span>Sem dono</span>
+                <strong>{dados.resumo.sem_dono}</strong>
+                <small>captador fora do cadastro</small>
+              </div>
+            )}
+          </div>
+
+          <div className="fech-equipes">
+            {dados.equipes.map((eq) => (
+              <article key={eq.id_equipe} className="fech-equipe">
+                <header>
+                  <h4>{eq.nome}</h4>
+                  <strong>{eq.total}</strong>
+                </header>
+                {/* Barra contra a META da equipe, não contra a maior equipe: o que
+                    interessa é quanto falta para o combinado, não quem está na frente. */}
+                <div className="fech-barra">
+                  <span style={{ width: `${Math.min(100, eq.pct_meta || 0)}%` }}
+                    className={(eq.pct_meta || 0) >= 100 ? 'is-ok' : ''} />
+                </div>
+                <div className="fech-detalhe">
+                  <span>{eq.pct_meta ?? 0}% da meta ({eq.meta_equipe})</span>
+                  <span>{eq.com_captacao}/{eq.corretores} captaram</span>
+                  <span>{eq.bateram_meta} bateram</span>
+                </div>
+              </article>
+            ))}
+          </div>
+        </>
+      )}
+
       {texto && (
         <textarea readOnly value={texto} rows={Math.min(30, texto.split('\n').length + 1)}
           style={{ width: '100%', fontFamily: 'ui-monospace, Consolas, monospace', fontSize: 13, lineHeight: 1.55,

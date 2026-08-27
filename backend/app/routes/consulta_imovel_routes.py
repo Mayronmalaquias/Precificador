@@ -54,6 +54,9 @@ class ConsultaLista(Resource):
         "mudou_ate": "Data final da última mudança de situação (YYYY-MM-DD).",
         "captado_de": "Data inicial do cadastro do imóvel (YYYY-MM-DD).",
         "captado_ate": "Data final do cadastro do imóvel (YYYY-MM-DD).",
+        "visitas": "com | sem — imóveis que receberam (ou nunca receberam) visita.",
+        "visita_de": "Data inicial da visita (YYYY-MM-DD). Só afeta `visitas=com`.",
+        "visita_ate": "Data final da visita (YYYY-MM-DD).",
     })
     def get(self):
         try:

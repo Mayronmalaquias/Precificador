@@ -157,6 +157,7 @@ FILTROS_DE_CATALOGO = (
     "bairro", "tipo", "finalidade", "foco", "valor_min", "valor_max",
     "area_min", "area_max", "quartos_min", "vagas_min",
     "mudou_de", "mudou_ate", "captado_de", "captado_ate",
+    "visitas", "visita_de", "visita_ate",
 )
 
 
@@ -305,6 +306,26 @@ def _aplicar_recortes(session, query, termo, situacao, f):
         query = query.filter(ImovelArea.cadastrado_em >= c_de)
     if c_ate:
         query = query.filter(ImovelArea.cadastrado_em < c_ate + timedelta(days=1))
+
+    # Visitas: recorta pelos imoveis que a operacao levou cliente para ver. Sao 406 dos
+    # 12.450 do catalogo (3%) — e justamente por ser pouco que interessa isolar.
+    #
+    # Subconsulta, nao join: um imovel com 12 visitas apareceria 12 vezes na listagem e o
+    # total mentiria.
+    visitas = _texto(f.get("visitas")).lower()
+    if visitas in {"com", "sem"}:
+        visitados = session.query(Visita.id_imovel).filter(Visita.id_imovel.isnot(None))
+        # A janela vale para o filtro "com": "visitado em agosto" e uma pergunta; "nunca
+        # visitado" nao tem janela — ou tem visita ou nao tem.
+        v_de, v_ate = _data_ou_none(f.get("visita_de")), _data_ou_none(f.get("visita_ate"))
+        if visitas == "com":
+            if v_de:
+                visitados = visitados.filter(Visita.data_visita >= v_de)
+            if v_ate:
+                visitados = visitados.filter(Visita.data_visita <= v_ate)
+            query = query.filter(ImovelArea.codigo.in_(visitados.scalar_subquery()))
+        else:
+            query = query.filter(ImovelArea.codigo.notin_(visitados.scalar_subquery()))
 
     if f.get("foco"):
         condicao = _filtro_de_foco(session, f["foco"].lower())

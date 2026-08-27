@@ -274,3 +274,13 @@
 .ci-modal-acoes { display: flex; align-items: center; gap: 8px; flex: 0 0 auto; }
 .ci-modal-acoes .ci-cta { white-space: nowrap; }
 .ci-modal-acoes .ci-cta:disabled { opacity: .5; cursor: not-allowed; }
+
+/* Data desabilitada quando o filtro de visita não é "Com visita". */
+.ci-filtros-grid input:disabled {
+  background: #f4f2f7; color: #9aa2b1; cursor: not-allowed;
+}
+
+/* Data desabilitada quando o filtro de visita não é "Com visita". */
+.ci-filtros-grid input:disabled {
+  background: #f4f2f7; color: #9aa2b1; cursor: not-allowed;
+}

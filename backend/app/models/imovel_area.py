@@ -46,5 +46,20 @@ class ImovelArea(Base):
     # quando a matricula/inscricao for corrigida na Consulta de Imoveis.
     trello_card_id = Column(String(40), nullable=True)
     trello_card_url = Column(Text, nullable=True)
+    # ── captadores, vindos da API com `exibircaptadores=true` ─────────────────
+    # A flag e o que faz `captadores` vir preenchido; sem ela a API devolve `[]`, e era
+    # por isso que se achava que o captador so existia na planilha exportada a mao.
+    # Cobertura medida em 27/08/2026: 100% (160 de 160 na amostra).
+    #
+    # `percentual` e o rateio oficial entre co-captadores — e NAO e sempre meio a meio:
+    # ha imovel com principal em 0% e o outro em 100%. Guardar o numero evita supor `1/n`.
+    captador1 = Column(Text, nullable=True, index=True)
+    captador2 = Column(Text, nullable=True)
+    captador3 = Column(Text, nullable=True)
+    percentual1 = Column(Numeric(5, 2), nullable=True)
+    percentual2 = Column(Numeric(5, 2), nullable=True)
+    percentual3 = Column(Numeric(5, 2), nullable=True)
+    captador_principal = Column(Text, nullable=True)
+
     origem = Column(String(30), nullable=True, default="imoview")
     atualizado_em = Column(DateTime, server_default=func.now(), onupdate=func.now(), nullable=True)

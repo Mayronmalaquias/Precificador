@@ -10,6 +10,7 @@ ja saiu do ar continua sem area (nao ha de onde tirar).
 Uso (cwd = backend/):
     cd /caminho/Precificador/backend && venv/bin/python sync_areas_imoview.py
 """
+import time
 import sys
 import unicodedata
 from datetime import date, datetime, timedelta
@@ -47,6 +48,8 @@ SITUACAO_DESATIVADO = 6
 NOME_SITUACAO = {**SITUACOES, 6: "Desativado"}
 DIAS_DESATIVADO = 45      # margem sobre o intervalo do cron; nao e o custo, e a folga
 MAX_PAGINAS_DESATIVADO = 40
+# Teto da varredura completa dos desativados: 9.354 / 20 por pagina = 468, com folga.
+MAX_PAGINAS_TUDO = 700
 
 
 def _num(valor):
@@ -86,16 +89,39 @@ def _data_hora(valor):
     return None
 
 
-def coletar():
+def coletar(desativados_completo=False):
     """Percorre o catalogo por situacao e devolve {codigo: dados de area}.
 
     `naoconsiderarmeusite=True` e obrigatorio: sem ele a API devolve so os 741 imoveis
     publicados no site, e o recem-lancado (que ainda nao foi publicado) fica de fora.
+
+    Cobertura do Imoview em 27/08/2026 (`quantidade` da propria API):
+
+        1 Vago/Disponivel      864   varrido inteiro
+        3 Vendido            1.181   varrido inteiro
+        4 Em reforma             4   varrido inteiro
+        5 Em moderacao          84   varrido inteiro
+        6 Desativado         9.354   fatia de 45 dias por padrao
+        2 Alugado                0   nao existe nesta conta
+        7 Em desocupacao         0   nao existe nesta conta
+        ------------------------------
+        0 todas             11.487
+
+    Os desativados sao 81% do catalogo. Varre-los todo dia custa 468 paginas (~26 min) e
+    nao muda quase nada — imovel desativado ha meses continua desativado. Por isso o
+    padrao e a fatia recente.
+
+    `desativados_completo=True` varre os 9.354. Serve para a carga inicial, uma vez: sem
+    ela o catalogo fica com ~2.600 dos 11.487, e um imovel vendido em 2023 nunca aparece.
     """
     catalogo = {}
     for situacao in SITUACOES:
         catalogo.update(_coletar_situacao(situacao))
-    catalogo.update(_coletar_desativados_recentes())
+    if desativados_completo:
+        catalogo.update(_coletar_situacao(
+            SITUACAO_DESATIVADO, max_paginas=MAX_PAGINAS_TUDO))
+    else:
+        catalogo.update(_coletar_desativados_recentes())
     return catalogo
 
 
@@ -114,6 +140,73 @@ def _coletar_desativados_recentes():
     )
 
 
+# Pausa entre paginas. O Imoview nao publica limite, mas devolve 401 "Chave invalida!"
+# depois de uma rajada — aconteceu na pagina ~180 de uma varredura completa, e o erro
+# mente sobre a causa: a chave continua valida logo em seguida.
+PAUSA_ENTRE_PAGINAS = 0.35
+TENTATIVAS = 4
+
+
+def _pedir(corpo):
+    """POST na API com retentativa e espera crescente.
+
+    O 401 do Imoview e transitorio e nao distingue chave errada de excesso de chamadas.
+    Tratar como fatal fazia 10 minutos de varredura irem embora — `coletar()` so grava no
+    fim, entao uma falha na pagina 180 perde as 179 anteriores.
+
+    Chave realmente invalida falha nas quatro tentativas e ai sim estoura.
+    """
+    ultimo = None
+    for tentativa in range(1, TENTATIVAS + 1):
+        resposta = requests.post(ENDPOINT, headers=_headers(), json=corpo, timeout=60)
+        if resposta.status_code < 400:
+            time.sleep(PAUSA_ENTRE_PAGINAS)
+            return resposta
+        ultimo = resposta
+        if resposta.status_code in (401, 429) or resposta.status_code >= 500:
+            espera = 5 * (2 ** (tentativa - 1))  # 5s, 10s, 20s
+            print(f"  Imoview {resposta.status_code} na pagina "
+                  f"{corpo.get('numeropagina')}; nova tentativa em {espera}s",
+                  file=sys.stderr)
+            time.sleep(espera)
+            continue
+        break
+    raise RuntimeError(
+        f"Imoview HTTP {ultimo.status_code} apos {TENTATIVAS} tentativas: "
+        f"{ultimo.text[:200]}"
+    )
+
+
+def _captadores(item):
+    """Ate 3 captadores do imovel, com o percentual de cada um.
+
+    O `percentual` e o rateio OFICIAL do CRM entre co-captadores, e nao e sempre meio a
+    meio: ha imovel com o captador marcado como principal em 0% e o outro em 100%.
+    Guardar o numero evita supor `1/n`, que erraria justamente nesses casos.
+
+    `principal` tambem e guardado a parte porque nao coincide com quem tem o maior
+    percentual — sao duas informacoes diferentes do CRM.
+    """
+    lista = item.get("captadores") or []
+    dados = {
+        "captador1": None, "captador2": None, "captador3": None,
+        "percentual1": None, "percentual2": None, "percentual3": None,
+        "captador_principal": None,
+    }
+    for i, c in enumerate(lista[:3], start=1):
+        nome = str((c or {}).get("nome") or "").strip()
+        if not nome:
+            continue
+        dados[f"captador{i}"] = nome
+        try:
+            dados[f"percentual{i}"] = float((c or {}).get("percentual") or 0)
+        except (TypeError, ValueError):
+            dados[f"percentual{i}"] = None
+        if (c or {}).get("principal"):
+            dados["captador_principal"] = nome
+    return dados
+
+
 def _coletar_situacao(situacao, ordenacao=None, parar_antes_de=None, max_paginas=None):
     catalogo = {}
     pagina = 1
@@ -122,12 +215,14 @@ def _coletar_situacao(situacao, ordenacao=None, parar_antes_de=None, max_paginas
         corpo = {
             "numeropagina": pagina, "numeroregistros": POR_PAGINA,
             "naoconsiderarmeusite": True, "situacao": situacao,
+            # Sem esta flag o campo `captadores` volta `[]` — e era por isso que se
+            # acreditava que a API nao informava o captador. Com ela, a cobertura medida
+            # em 27/08/2026 foi de 100% (160 de 160 na amostra).
+            "exibircaptadores": True,
         }
         if ordenacao:
             corpo["ordenacao"] = ordenacao
-        resposta = requests.post(ENDPOINT, headers=_headers(), json=corpo, timeout=45)
-        if resposta.status_code >= 400:
-            raise RuntimeError(f"Imoview HTTP {resposta.status_code}: {resposta.text[:300]}")
+        resposta = _pedir(corpo)
         lista = (resposta.json() or {}).get("lista") or []
         if not lista:
             break
@@ -156,6 +251,7 @@ def _coletar_situacao(situacao, ordenacao=None, parar_antes_de=None, max_paginas
                 "cadastrado_em": _data_hora(item.get("datahoracadastro")),
                 "finalidade": (item.get("finalidade") or "").strip() or None,
                 "situacao_em": _data_hora(item.get("datahoraultimasituacao")),
+                **_captadores(item),
             }
             # Matricula quase nunca vem preenchida do CRM (2 em 60 na amostra), mas
             # quando vem serve de ponto de partida. Fica fora do dict acima de proposito:
@@ -273,8 +369,11 @@ def gravar(catalogo):
 
 if __name__ == "__main__":
     agora = datetime.now().isoformat(timespec="seconds")
+    # `--tudo` varre TODOS os desativados. E carga inicial, nao rotina: ~26 min contra
+    # ~1 min do incremental. O cron continua sem a flag.
+    completo = "--tudo" in sys.argv
     try:
-        catalogo = coletar()
+        catalogo = coletar(desativados_completo=completo)
         novos, atualizados, eventos, baseline = gravar(catalogo)
         saidas = [e for e in eventos if _e_disponivel(e["antes"]) and not _e_disponivel(e["depois"])]
         print(f"[{agora}] areas imoview: catalogo={len(catalogo)} novos={novos} "

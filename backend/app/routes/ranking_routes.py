@@ -93,8 +93,19 @@ class RankingFechamento(Resource):
         except ValueError:
             meta = 4
         try:
-            texto = RankingService().gerar_texto_fechamento(mes, meta=meta)
-            return {"ok": True, "mes": mes, "texto": texto}, 200
+            servico = RankingService()
+            # Texto e dados vem do MESMO calculo: `gerar_texto_fechamento` renderiza
+            # `fechamento()`. Dois calculos fariam o numero colado no grupo divergir do
+            # numero da tela no primeiro ajuste feito em um so.
+            dados = servico.fechamento(mes, meta=meta)
+            return {
+                "ok": True, "mes": mes,
+                "texto": servico.gerar_texto_fechamento(mes, meta=meta),
+                "equipes": dados["equipes"],
+                "orfas": dados["orfas"],
+                "resumo": dados["resumo"],
+                "meta": dados["meta"],
+            }, 200
         except ValueError as e:
             return {"ok": False, "error": str(e)}, 400
         except Exception as e:

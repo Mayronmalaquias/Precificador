@@ -33,6 +33,9 @@ const FILTROS_VAZIOS = {
   valor_min: '', valor_max: '', area_min: '', area_max: '',
   quartos_min: '', vagas_min: '',
   mudou_de: '', mudou_ate: '', captado_de: '', captado_ate: '',
+  // `visita_de`/`visita_ate` só valem com `visitas=com` — "nunca visitado" não tem
+  // janela. `limparFiltros` zera tudo por `FILTROS_VAZIOS`, então basta estar aqui.
+  visitas: '', visita_de: '', visita_ate: '',
 };
 
 const FOCOS = [
@@ -429,6 +432,27 @@ export default function ConsultaImoveis() {
             <label>até
               <input type="date" value={filtros.mudou_ate}
                 onChange={(e) => setFiltros((f) => ({ ...f, mudou_ate: e.target.value }))} />
+            </label>
+
+            {/* Visitas: 406 dos 12.450 imóveis já receberam alguém (3%) — é por ser
+                pouco que interessa isolar. As datas ficam desabilitadas fora de
+                "Com visita", para não sugerir um recorte que o servidor ignora. */}
+            <label>Visitas
+              <select value={filtros.visitas}
+                onChange={(e) => setFiltros((f) => ({ ...f, visitas: e.target.value }))}>
+                <option value="">Tanto faz</option>
+                <option value="com">Com visita</option>
+                <option value="sem">Nunca visitado</option>
+              </select>
+            </label>
+            <label>Visitado — de
+              <input type="date" value={filtros.visita_de} disabled={filtros.visitas !== 'com'}
+                title={filtros.visitas === 'com' ? '' : 'Só vale com "Com visita" selecionado'}
+                onChange={(e) => setFiltros((f) => ({ ...f, visita_de: e.target.value }))} />
+            </label>
+            <label>até
+              <input type="date" value={filtros.visita_ate} disabled={filtros.visitas !== 'com'}
+                onChange={(e) => setFiltros((f) => ({ ...f, visita_ate: e.target.value }))} />
             </label>
 
             <label>Captado — de

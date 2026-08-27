@@ -746,70 +746,420 @@ class RankingService:
     # =========================================================
     # Texto de fechamento do mês (por equipe) p/ o grupo
     # =========================================================
-    def gerar_texto_fechamento(self, mes: str, meta: int = 4) -> str:
-        """Monta o texto de fechamento por equipe (captações do mês / meta), no padrão do
-        grupo. `mes` = 'YYYY-MM'. Captações vêm do ranking (`fato_captacao`); os membros
-        e equipes vêm do cadastro. Corretor com 0 aparece como '/{meta}'; gerente sem /meta."""
-        from calendar import monthrange
+    @staticmethod
+    def _chave_captador(nome: Any) -> str:
+        """Chave de casamento entre `fato_captacao` e o cadastro.
+
+        Sem acento e sem caixa. `_limpar_nome` so faz `upper()`, e por isso a captacao de
+        "PATRICIA MOREIRA" (como veio do Imoview) nunca casava com "Patrícia Moreira" do
+        cadastro — cinco captacoes de agosto/2026 ficavam orfas por causa disso.
+
+        Nao substitui `_limpar_nome`: aquele e usado para AGRUPAR o ranking e para exibir,
+        e mexer nele mudaria numeros de outras telas. Este serve so ao casamento.
+        """
+        import unicodedata
+        texto = RankingService._limpar_nome(nome)
+        if not texto:
+            return ""
+        sem_acento = unicodedata.normalize("NFKD", texto)
+        limpo = "".join(c for c in sem_acento if not unicodedata.combining(c))
+        # Colapsa espaco repetido: o Imoview devolve "RODRIGO  PAVONI" com dois espacos, e
+        # sem isto a igualdade com "Rodrigo Pavoni" falha por um caractere invisivel.
+        # Eram 145 imoveis so nesse nome, 95 em "SERGIO  CARDOSO".
+        return " ".join(limpo.split())
+
+    def _indice_captadores(self):
+        """Índice nome-do-Imoview -> id do cadastro, construído uma vez por chamada.
+
+        O catálogo devolve o nome COMPLETO ("IONNARA VIEIRA DE ARAÚJO"); o cadastro tem o
+        curto ("Ionnara Vieira"). Casar por igualdade perdia 20,5 captações de agosto/2026
+        em nomes que são de gente ativa — Ionnara, Paolla, Kaio, Heloisa, Marcelo Ribeiro.
+
+        E-mail seria a chave certa, mas só 17 dos 92 usuários ativos têm um preenchido.
+
+        Regra: normaliza sem acento, tenta igualdade, depois **prefixo por tokens** com no
+        mínimo dois tokens. Um token só ("Patrícia") casaria com pessoas diferentes.
+
+        Entre homônimos, **o ativo vence**: o cadastro tem a mesma pessoa em contas
+        antigas desativadas, e creditar a captação na conta morta a tira da equipe.
+        """
         from app.database import SessionLocal
-        from app.models.equipe import Equipe
         from app.models.usuarios import Usuarios
 
-        MESES = ["", "JANEIRO", "FEVEREIRO", "MARÇO", "ABRIL", "MAIO", "JUNHO",
-                 "JULHO", "AGOSTO", "SETEMBRO", "OUTUBRO", "NOVEMBRO", "DEZEMBRO"]
+        session = SessionLocal()
+        try:
+            usuarios = session.query(
+                Usuarios.id_usuarios, Usuarios.nome, Usuarios.ativo
+            ).all()
+        finally:
+            session.close()
+
+        # Ativo por último para sobrescrever o inativo de mesmo nome.
+        exato, por_tokens = {}, {}
+        for uid, nome, ativo in sorted(usuarios, key=lambda u: bool(u[2])):
+            chave = self._chave_captador(nome)
+            if not chave:
+                continue
+            exato[chave] = uid
+            por_tokens[tuple(chave.split())] = uid
+        return exato, por_tokens
+
+    def _resolver_captador(self, nome: str, indice) -> str:
+        """Nome do catálogo -> id do cadastro. Devolve o nome normalizado se não achar."""
+        exato, por_tokens = indice
+        chave = self._chave_captador(nome)
+        if not chave:
+            return ""
+        if chave in exato:
+            return exato[chave]
+
+        tokens = tuple(chave.split())
+        # Do mais específico para o menos: "IONNARA VIEIRA DE ARAUJO" tenta a tupla
+        # inteira, depois (IONNARA,VIEIRA,DE), depois (IONNARA,VIEIRA). Para em 2 — um
+        # token casaria pessoas diferentes.
+        #
+        # O limite superior e `len(tokens)`, nao `len(tokens)-1`: com o anterior, nome de
+        # DOIS tokens gerava um range vazio e nunca chegava a tentar o casamento.
+        for corte in range(len(tokens), 1, -1):
+            achado = por_tokens.get(tokens[:corte])
+            if achado:
+                return achado
+        return chave
+
+    def _mes_para_intervalo(self, mes: str):
+        from calendar import monthrange
         try:
             ano, m = int(str(mes)[:4]), int(str(mes)[5:7])
             assert 1 <= m <= 12
         except Exception:
             raise ValueError("mes deve ser 'YYYY-MM'")
+        return ano, m, f"{ano}-{m:02d}-01", f"{ano}-{m:02d}-{monthrange(ano, m)[1]:02d}"
 
-        start = f"{ano}-{m:02d}-01"
-        end = f"{ano}-{m:02d}-{monthrange(ano, m)[1]:02d}"
+    def _captacoes_rateadas(self, start: str, end: str) -> Dict[str, float]:
+        """Captacoes do periodo por captador, com credito RATEADO.
 
-        rank = self._calc_captacao_rank(start, end)
-        counts: Dict[str, int] = {}
-        for _, r in rank.iterrows():
-            k = self._limpar_nome(r["Nome_Corretor"])
-            counts[k] = counts.get(k, 0) + int(round(float(r["total"])))
+        Cada imovel vale 1, dividido pelo **percentual que o CRM registra** para cada
+        captador (`imovel_area.percentual1..3`, vindo da API do Imoview com
+        `exibircaptadores=true`). E a regra que a operacao usa no texto do grupo
+        ("Armando: 1,5/4"), e a que faz a soma das equipes fechar com o numero de imoveis.
+
+        **O percentual nao e sempre meio a meio.** No imovel 10911 o captador marcado
+        como principal esta com 0% e o outro com 100%. Dividir por `1/n` — como esta
+        funcao fazia ate 27/08/2026 — erraria exatamente nesses casos, dando 0,5 a quem o
+        CRM nao credita nada.
+
+        Sem percentual no catalogo (imovel que a varredura ainda nao alcancou, ou captador
+        que so existe em `fato_captacao`), cai no rateio igual. E aproximacao declarada,
+        nao silencio: `_captacoes_rateadas` devolve tambem quantas linhas usaram cada
+        caminho.
+
+        O ranking geral (`_calc_captacao_rank`) conta diferente de proposito — la o 2o
+        captador vale 1 inteiro, como esta documentado naquele metodo. Sao perguntas
+        diferentes: "quantos imoveis esta pessoa ajudou a captar" contra "quantos imoveis
+        a equipe captou". Em agosto/2026 a diferenca era de 79 contra 75, com Armando e
+        Renata levando 4 cada pelas MESMAS 4 captacoes conjuntas.
+
+        A chave e o id (`C61xxx`), que e o que `fato_captacao` grava; nome so entra para
+        linha antiga gravada com nome.
+        """
+        from app.database import SessionLocal
+        from app.models.fato_bases import FatoCaptacao
+
+        from app.models.imovel_area import ImovelArea
 
         session = SessionLocal()
         try:
-            equipes = session.query(Equipe).filter(Equipe.ativo.is_(True)).order_by(Equipe.nome.asc()).all()
-            usuarios = session.query(Usuarios).filter(Usuarios.ativo.is_(True)).all()
+            linhas = session.query(
+                FatoCaptacao.codigo_imovel,
+                FatoCaptacao.captador1, FatoCaptacao.captador2, FatoCaptacao.captador3
+            ).filter(
+                FatoCaptacao.data_entrada >= start, FatoCaptacao.data_entrada <= end
+            ).all()
+
+            # Percentuais do catalogo, so dos codigos do periodo: uma consulta em vez de
+            # uma por imovel.
+            codigos = {str(c or "").strip() for c, *_ in linhas if str(c or "").strip()}
+            percentuais: Dict[str, List[tuple]] = {}
+            if codigos:
+                for area in session.query(
+                    ImovelArea.codigo,
+                    ImovelArea.captador1, ImovelArea.captador2, ImovelArea.captador3,
+                    ImovelArea.percentual1, ImovelArea.percentual2, ImovelArea.percentual3,
+                ).filter(ImovelArea.codigo.in_(codigos)).all():
+                    pares = [
+                        (str(n).strip(), float(p))
+                        for n, p in ((area[1], area[4]), (area[2], area[5]), (area[3], area[6]))
+                        if str(n or "").strip() and p is not None
+                    ]
+                    # Soma zero significa CRM sem rateio definido: nao serve de divisor.
+                    if pares and sum(p for _, p in pares) > 0:
+                        percentuais[str(area[0])] = pares
         finally:
             session.close()
 
+        def valido(v) -> bool:
+            t = str(v or "").strip()
+            return bool(t) and t.upper() not in {"-", "NAN", "NONE"}
+
+        indice = self._indice_captadores()
+        por_captador: Dict[str, float] = {}
+        origem = {"percentual": 0, "igual": 0, "estoque": 0}
+
+        for cod, c1, c2, c3 in linhas:
+            codigo = str(cod or "").strip()
+            donos = [str(v).strip().upper() for v in (c1, c2, c3) if valido(v)]
+            if not donos:
+                # Captacao sem captador na linha: o responsavel vem do estoque do
+                # Imoview, que e a fonte de quem cuida do imovel hoje.
+                do_estoque = self._responsavel_no_estoque(cod)
+                if not do_estoque:
+                    continue
+                donos = [do_estoque]
+                origem["estoque"] += 1
+
+            pares = percentuais.get(codigo)
+            if pares:
+                # Rateio do CRM. As chaves do catalogo sao NOMES completos; as da captacao
+                # sao ids. Sem resolver, o credito ia para uma chave que ninguem consome e
+                # a captacao aparecia como "sem dono".
+                total_pct = sum(p for _, p in pares)
+                for nome, pct in pares:
+                    chave = self._resolver_captador(nome, indice)
+                    por_captador[chave] = por_captador.get(chave, 0.0) + (pct / total_pct)
+                origem["percentual"] += 1
+                continue
+
+            fatia = 1.0 / len(donos)
+            for dono in donos:
+                por_captador[dono] = por_captador.get(dono, 0.0) + fatia
+            origem["igual"] += 1
+
+        self._origem_rateio = origem
+        return por_captador
+
+    def _responsavel_no_estoque(self, codigo: Any) -> str:
+        """Captador do imovel no estoque do Imoview (`fato_estoque`), o mais recente.
+
+        Ultimo recurso: so entra quando a captacao nao diz de quem e. **O estoque fica
+        para tras** — em 25/08/2026 a `data_estoque` mais recente era 03/08, e nenhum
+        imovel captado depois disso estava la. Serve para linha antiga, nao para o mes
+        corrente.
+        """
+        from app.database import SessionLocal
+        from app.models.fato_bases import FatoEstoque
+
+        cod = str(codigo or "").strip()
+        if not cod:
+            return ""
+        session = SessionLocal()
+        try:
+            linha = session.query(FatoEstoque.captador1).filter(
+                FatoEstoque.codigo_imovel == cod
+            ).order_by(FatoEstoque.data_estoque.desc(), FatoEstoque.id.desc()).first()
+        finally:
+            session.close()
+        return str((linha[0] if linha else "") or "").strip().upper()
+
+    @staticmethod
+    def _formatar_total(valor: float) -> str:
+        """3 -> "3"; 1.5 -> "1,5". O grupo le virgula, e "1.5" parece outro numero."""
+        arredondado = round(float(valor or 0), 2)
+        if abs(arredondado - round(arredondado)) < 0.01:
+            return str(int(round(arredondado)))
+        return f"{arredondado:.1f}".replace(".", ",")
+
+    def fechamento(self, mes: str, meta: int = 4) -> Dict[str, Any]:
+        """Dados do fechamento do mes por equipe.
+
+        Fonte unica do texto E do dashboard: com dois calculos, o numero colado no grupo
+        e o numero da tela divergiriam no primeiro ajuste feito em um so.
+
+        Tres correcoes sobre a versao anterior, todas medidas em agosto/2026:
+
+          1. Casamento sem acento (`_chave_captador`) — cinco captacoes ficavam orfas.
+          2. Cada captacao conta UMA vez. O cadastro tem contas duplicadas, e como o
+             casamento e por nome, dois usuarios com o mesmo nome recebiam a contagem
+             inteira cada um: o texto somava 78 atribuidas MAIS 5 orfas de um total de 78.
+          3. Membro que nao e corretor nem gerente entra quando tem captacao. Jose Marques
+             encabeca a AGEF sem a permissao formal, e sumia do texto junto com a
+             captacao dele.
+        """
+        from app.database import SessionLocal
+        from app.models.equipe import Equipe
+        from app.models.usuarios import Usuarios
+
+        ano, m, start, end = self._mes_para_intervalo(mes)
+
+        # Por ID, com rateio. Casar por nome era a origem de dois defeitos: captacao orfa
+        # por diferenca de acento, e contagem dobrada quando o cadastro tem a mesma pessoa
+        # em duas contas. O id e o que `fato_captacao` grava.
+        por_id = self._captacoes_rateadas(start, end)
+        id_to_name, name_to_id = self._maps_corretores()
+
+        counts: Dict[str, float] = {}
+        rotulo_original: Dict[str, str] = {}
+        for chave, valor in por_id.items():
+            # Linha antiga pode ter nome no lugar do id; resolve o caminho inverso.
+            alvo = chave if chave in id_to_name else name_to_id.get(chave, chave)
+            counts[alvo] = counts.get(alvo, 0.0) + valor
+            rotulo_original.setdefault(alvo, id_to_name.get(alvo) or chave)
+
+        session = SessionLocal()
+        try:
+            equipes = session.query(Equipe).filter(
+                Equipe.ativo.is_(True)
+            ).order_by(Equipe.nome.asc()).all()
+            # TODOS, nao so os ativos. O roster de cada equipe continua sendo os ativos —
+            # e o que "sincronizar com os ativos do sistema" quer dizer —, mas quem captou
+            # e depois foi desativado nao pode sumir com a captacao junto: em agosto/2026
+            # eram quatro pessoas (Patricia Moreira, Sergio Camargo, Andre Brusk e Marcela
+            # Bagli), todas com equipe definida no cadastro, e as quatro captacoes
+            # apareciam como "sem dono".
+            usuarios = session.query(Usuarios).all()
+        finally:
+            session.close()
+
+        ativos = [u for u in usuarios if u.ativo]
+        inativos_com_captacao = [
+            u for u in usuarios
+            if not u.ativo and counts.get(str(u.id_usuarios or "").strip().upper(), 0)
+        ]
+
         por_time: Dict[str, List[Any]] = {}
-        for u in usuarios:
+        for u in ativos + inativos_com_captacao:
             por_time.setdefault(str(u.team or ""), []).append(u)
 
-        def _cnt(u) -> int:
-            return counts.get(self._limpar_nome(u.nome or ""), 0)
+        # Consome pelo ID do usuario. Cada chave e consumida uma vez — conta duplicada no
+        # cadastro tem id diferente, entao nao ha mais o risco de dobrar.
+        usadas: set = set()
 
-        linhas = [f"FECHAMENTO {MESES[m]}/{str(ano)[2:]}", ""]
+        def consumir(u) -> float:
+            k = str(u.id_usuarios or "").strip().upper()
+            if not k or k in usadas:
+                return 0.0
+            usadas.add(k)
+            return round(counts.get(k, 0.0), 2)
+
+        times: List[Dict[str, Any]] = []
         for eq in equipes:
             membros = por_time.get(str(eq.id_equipe), [])
             if not membros:
                 continue
+
+            # Roster = quem esta ATIVO hoje. Quem saiu aparece a parte, abaixo.
             corretores = sorted(
-                [u for u in membros if str(u.permissao or "").lower() == "corretor"],
+                [u for u in membros
+                 if u.ativo and str(u.permissao or "").lower() == "corretor"],
                 key=lambda u: (u.nome or "").lower(),
             )
-            gerentes = [u for u in membros if str(u.permissao or "").lower() == "gerente"]
+            gerentes = [u for u in membros
+                        if u.ativo and str(u.permissao or "").lower() == "gerente"]
+            # Quem nao e nem um nem outro so entra se captou — assistente sem captacao
+            # nao tem por que ocupar linha no texto do grupo.
+            outros = sorted(
+                [u for u in membros
+                 if u.ativo
+                 and str(u.permissao or "").lower() not in ("corretor", "gerente")
+                 and counts.get(str(u.id_usuarios or "").strip().upper(), 0)],
+                key=lambda u: (u.nome or "").lower(),
+            )
+            # Desativado que captou no mes: conta para a equipe, mas fica marcado — o
+            # gerente precisa saber que aquele numero nao volta no mes que vem.
+            saiu = sorted(
+                [u for u in membros if not u.ativo],
+                key=lambda u: (u.nome or "").lower(),
+            )
 
-            linhas.append(f"Equipe {eq.nome}")
-            total = 0
+            linhas = []
             for u in corretores:
-                n = _cnt(u)
-                total += n
-                linhas.append(f"{u.nome}: {n or ''}/{meta}")
-            for g in gerentes:
-                n = _cnt(g)
-                total += n
-                linhas.append(f"{g.nome} Gerente: {n}")
-            linhas.append(f"TOTAL Equipe {eq.nome} - {total}")
+                linhas.append({"nome": u.nome, "papel": "corretor", "total": consumir(u)})
+            for u in gerentes:
+                linhas.append({"nome": u.nome, "papel": "gerente", "total": consumir(u)})
+            for u in outros:
+                linhas.append({"nome": u.nome, "papel": "outro", "total": consumir(u)})
+            for u in saiu:
+                linhas.append({"nome": u.nome, "papel": "inativo", "total": consumir(u)})
+
+            total = round(sum(x["total"] for x in linhas), 2)
+            com_captacao = sum(1 for x in linhas if x["total"])
+            bateram = sum(1 for x in linhas if x["papel"] == "corretor" and x["total"] >= meta)
+            times.append({
+                "id_equipe": eq.id_equipe,
+                "nome": eq.nome,
+                "linhas": linhas,
+                "total": total,
+                "membros": len(linhas),
+                "corretores": len(corretores),
+                "com_captacao": com_captacao,
+                "sem_captacao": len(linhas) - com_captacao,
+                "bateram_meta": bateram,
+                "meta_equipe": len(corretores) * meta,
+                "pct_meta": round(total / (len(corretores) * meta) * 100, 1) if corretores else None,
+            })
+
+        # O que sobrou sem dono. Aparece no retorno de proposito: sem isso a soma das
+        # equipes fica menor que o ranking e ninguem sabe por que.
+        orfas = sorted(
+            ({"nome": rotulo_original.get(k, k), "total": v}
+             for k, v in counts.items() if k not in usadas and v),
+            key=lambda x: -x["total"],
+        )
+
+        total_geral = round(sum(t["total"] for t in times), 2)
+        return {
+            "ok": True,
+            "mes": f"{ano}-{m:02d}",
+            "meta": meta,
+            "equipes": sorted(times, key=lambda t: -t["total"]),
+            "orfas": orfas,
+            "resumo": {
+                "total_captacoes": total_geral,
+                "total_ranking": round(sum(counts.values()), 2),
+                "sem_dono": round(sum(x["total"] for x in orfas), 2),
+                "equipes": len(times),
+                "corretores": sum(t["corretores"] for t in times),
+                "com_captacao": sum(t["com_captacao"] for t in times),
+                "bateram_meta": sum(t["bateram_meta"] for t in times),
+                "meta_total": sum(t["meta_equipe"] for t in times),
+                # De onde saiu o rateio de cada captacao. `igual` e aproximacao: imovel
+                # que a varredura do catalogo ainda nao alcancou.
+                "rateio": getattr(self, "_origem_rateio", {}),
+            },
+        }
+
+    def gerar_texto_fechamento(self, mes: str, meta: int = 4) -> str:
+        """Texto do fechamento para colar no grupo. Renderiza `fechamento()`."""
+        MESES = ["", "JANEIRO", "FEVEREIRO", "MARÇO", "ABRIL", "MAIO", "JUNHO",
+                 "JULHO", "AGOSTO", "SETEMBRO", "OUTUBRO", "NOVEMBRO", "DEZEMBRO"]
+        dados = self.fechamento(mes, meta)
+        ano, m = int(dados["mes"][:4]), int(dados["mes"][5:7])
+
+        linhas = [f"*{MESES[m]}/{str(ano)[2:]}*", ""]
+        for eq in dados["equipes"]:
+            # Asteriscos: o texto e colado no WhatsApp, que os le como negrito.
+            linhas.append(f"*Equipe {eq['nome']}*")
+            for item in eq["linhas"]:
+                n = self._formatar_total(item["total"])
+                if item["papel"] == "corretor":
+                    linhas.append(f"{item['nome']}: {n if item['total'] else ''}/{meta}")
+                elif item["papel"] == "gerente":
+                    linhas.append(f"{item['nome']} Gerente: {n}")
+                elif item["papel"] == "inativo":
+                    linhas.append(f"{item['nome']} (saiu): {n}")
+                else:
+                    linhas.append(f"{item['nome']}: {n}")
+            linhas.append(f"*TOTAL Equipe {eq['nome']} - {self._formatar_total(eq['total'])}*")
             linhas.append("")
 
+        # Captacao cujo captador nao esta no cadastro fica visivel no fim, em vez de
+        # simplesmente sumir da conta.
+        if dados["orfas"]:
+            linhas.append("Sem equipe identificada:")
+            for o in dados["orfas"]:
+                linhas.append(f"{o['nome']}: {self._formatar_total(o['total'])}")
+            linhas.append("")
+
+        linhas.append(f"*TOTAL 61 - {self._formatar_total(dados['resumo']['total_ranking'])}*")
         return "\n".join(linhas).rstrip()
 
     # =========================================================

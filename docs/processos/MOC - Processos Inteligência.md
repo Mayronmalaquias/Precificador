@@ -44,6 +44,8 @@ tipo: MOC (Map of Content)
 | 2.14 | Visão do Diretor / Executive View | ✅ 🆕 | [[2.14 - Visão do Diretor]] |
 | 2.15 | Propostas Efetivas (proposta formal de compra) | ✅ 🆕 | [[2.15 - Propostas Efetivas]] |
 | 2.16 | Consulta de Imóveis (controle total do estoque) | ✅ 🆕 | [[2.16 - Consulta de Imóveis]] |
+| 2.17 | Painel de Tarefas (pendências dos quatro módulos) | ✅ 🆕 | [[2.17 - Painel de Tarefas]] |
+| 2.18 | Espelho de Leads do Contact2Sale (sync horário) | ✅ 🆕 | [[2.18 - Espelho de Leads do Contact2Sale]] |
 
 ## Nível 3 — Alta complexidade
 | # | Processo | Status | Nota |
@@ -80,6 +82,7 @@ Complementam as notas de processo — não as substituem.
 | [[_Registro - 2026-08-13]] | Visão do Diretor (funil, indicadores, estoque, governança), abas de Propostas/Leads no Relatório do Gerente, página do Corretor, lead do C2S no Criar Visita, 2 migrations |
 | [[_Registro - 2026-08-17]] | Pipeline de `estudo_metricas` (cluster por bairro, corte por série, faixas de metragem), leitura de `.xlsx` no estoque, divergência 490×598 de visitas, encerradas no gráfico da jornada, validação e **deduplicação de usuários** |
 | [[_Registro - 2026-08-21]] | **Rodada 18–21/08.** Leads do C2S ao vivo (o que a API aceita de verdade), `_data()` duplicada quebrando toda criação de proposta, plano de QA com 9 achados corrigidos e **primeira suíte de testes**, saídas do estoque 6→51, gerente responsável na proposta, timeouts do nginx e limpeza de disco |
+| [[_Registro - 2026-08-25]] | **Rodada 25/08.** Espelho local dos leads do C2S com sync horário (consulta de minutos → 2,3s), acompanhamento migrado para `leads_c2s` (26% dos leads não podiam receber acompanhamento), módulos de gestão consolidados a ponto de **aposentar o Relatório do Gerente**, e correções em números que a tela mostrava errado — pendência de revisão cobrando o impossível, contador de tarefas limitado pelo teto de exibição, e o fechamento do mês contando captação conjunta em dobro |
 
 ### Operações de dados (migrações pontuais)
 | Operação | Cobre |
