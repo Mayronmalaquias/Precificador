@@ -447,8 +447,16 @@ def listar(solicitante_id, filtros=None):
         # de bairros a "Asa Norte" e nao haveria como trocar sem limpar o filtro.
         query_escopo = query
 
-        if filtros.get("situacao"):
-            query = query.filter(PropostaEfetiva.situacao == filtros["situacao"])
+        # `ativos` e `inativos` sao pseudo-situacoes: recortam pelo GRUPO, nao por um
+        # valor da coluna. Ativa = nao vendida nem cancelada (decisao de 21/08/2026 —
+        # `aceita` continua ativa porque proposta aceita ainda pode cair).
+        situacao_pedida = _texto(filtros.get("situacao"))
+        if situacao_pedida == "ativos":
+            query = query.filter(PropostaEfetiva.situacao.notin_(SITUACOES_FECHADAS))
+        elif situacao_pedida == "inativos":
+            query = query.filter(PropostaEfetiva.situacao.in_(SITUACOES_FECHADAS))
+        elif situacao_pedida:
+            query = query.filter(PropostaEfetiva.situacao == situacao_pedida)
         if filtros.get("team") and escopo["ve_tudo"]:
             query = query.filter(PropostaEfetiva.team == filtros["team"])
         if filtros.get("forma_pagamento"):
@@ -472,6 +480,10 @@ def listar(solicitante_id, filtros=None):
                 PropostaEfetiva.cliente.ilike(alvo),
                 PropostaEfetiva.corretor_nome.ilike(alvo),
             ))
+        # `somente_abertas` e o mesmo recorte de `situacao=ativos`. Continua aceito porque
+        # o Relatorio do Gerente o usa, mas a Gestao de Propostas passou a oferecer so o
+        # dropdown — dois controles para o mesmo filtro so criam a duvida de qual vence
+        # quando os dois estao marcados.
         if str(filtros.get("somente_abertas") or "").lower() == "true":
             query = query.filter(PropostaEfetiva.situacao.notin_(SITUACOES_FECHADAS))
         # Periodo pela data de LANCAMENTO (`created_at`), o mesmo criterio do painel do
@@ -538,7 +550,11 @@ def listar(solicitante_id, filtros=None):
                 "valor_aberto": sum(i["valor"] or 0 for i in abertas),
             },
             "opcoes": {
-                "situacoes": [{"value": s, "label": ROTULO_SITUACAO[s]} for s in SITUACOES],
+                "situacoes": [
+                    # Grupos primeiro: sao o recorte que a operacao pede todo dia.
+                    {"value": "ativos", "label": "Ativas (em andamento)"},
+                    {"value": "inativos", "label": "Inativas (vendidas ou canceladas)"},
+                ] + [{"value": s, "label": ROTULO_SITUACAO[s]} for s in SITUACOES],
                 "formas_pagamento": [{"value": f, "label": ROTULO_PAGAMENTO[f]} for f in FORMAS_PAGAMENTO],
                 "dias_atencao": DIAS_ATENCAO,
                 "dias_critico": DIAS_CRITICO,

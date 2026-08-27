@@ -61,7 +61,7 @@ export default function PropostasEfetivas() {
   const [dados, setDados] = useState(null);
   const [carregando, setCarregando] = useState(true);
   const [filtros, setFiltros] = useState({
-    situacao: '', forma_pagamento: '', busca: '', somente_abertas: 'false',
+    situacao: '', forma_pagamento: '', busca: '',
     // Recortes acrescentados em 25/08/2026. `team` e `id_gerente` só têm efeito para
     // perfil global — o servidor ignora para gerente e corretor, cujo escopo sai do
     // cadastro.
@@ -468,10 +468,10 @@ export default function PropostasEfetivas() {
           <option value="">Toda forma de pagamento</option>
           {opcoes.formas_pagamento.map((f) => <option key={f.value} value={f.value}>{f.label}</option>)}
         </select>
-        <label className="pe-check">
-          <input type="checkbox" checked={filtros.somente_abertas === 'true'} onChange={(e) => setFiltros((p) => ({ ...p, somente_abertas: e.target.checked ? 'true' : 'false' }))} />
-          Só as abertas
-        </label>
+        {/* O checkbox "Só as abertas" saiu: virou a opção "Ativas" do dropdown acima,
+            que é o mesmo recorte (não vendida nem cancelada). Com os dois, marcar o
+            checkbox e escolher "Vendido" deixava a tela pedindo duas coisas
+            contraditórias, e vencia quem aplicasse por último no servidor. */}
         <button type="button" className={`pe-mais-filtros ${maisFiltros || filtrosLigados ? 'is-ativo' : ''}`}
           aria-pressed={maisFiltros} onClick={() => setMaisFiltros((v) => !v)}>
           Filtros{filtrosLigados ? ` (${filtrosLigados})` : ''}

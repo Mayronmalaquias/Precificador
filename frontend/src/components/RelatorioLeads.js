@@ -742,7 +742,17 @@ export default function RelatorioLeads({ idSolicitante, equipe, inicio, fim, cor
                     </div>
                   </>
                 ) : null}
+              </>
+            )}
 
+            {/* Acompanhamento e bloco IRMAO, nao filho do gate de correcao.
+                Estava aninhado dentro de `_pode_corrigir`, que e falso para lead de
+                portal (nao tem linha em `leads_legado`) — e por isso interacao e
+                agendamento sumiam justamente nos 26% de leads que so podem ser
+                trabalhados por aqui. Correcao de dados depende do registro historico;
+                acompanhamento, nao. */}
+            {detalhe._pode_editar && (
+              <>
                 <h4 className="raba-subtitulo">Acompanhamento</h4>
                 <div className="raba-form">
                   <label>Interação

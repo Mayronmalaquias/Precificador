@@ -898,6 +898,14 @@ def resumo(solicitante_id, inicio=None, fim=None, equipe=None, corretor=None) ->
             "por_fonte": _top_n(agrupar(LeadC2S.fonte)),
             "por_equipe": _top_n(agrupar(LeadC2S.equipe)),
             "por_corretor": _top_n(agrupar(LeadC2S.corretor), 10),
+            # Lista COMPLETA para o dropdown de filtro — `por_corretor` e o grafico, e
+            # corta no 10o com "Outros". Os nomes saem do proprio espelho para casarem
+            # exatamente com o que o filtro compara; uma lista vinda do cadastro traria
+            # grafia diferente e o filtro devolveria vazio.
+            "corretores": sorted(
+                {c for c in agrupar(LeadC2S.corretor) if c and c != "Nao informado"},
+                key=lambda x: x.lower(),
+            ),
             "por_situacao": _top_n(agrupar(LeadC2S.situacao)),
             "por_canal": _top_n(agrupar(LeadC2S.canal)),
             "por_funil": _top_n(agrupar(LeadC2S.funil)),

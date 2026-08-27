@@ -60,6 +60,10 @@ export default function GestaoLeads() {
 
   const [periodo, setPeriodo] = useState({ inicio: primeiroDiaDoMes(), fim: iso(hoje()) });
   const [equipe, setEquipe] = useState("");
+  // Corretor: a lista vem do resumo (nomes do próprio espelho), então casa exatamente
+  // com o que o servidor compara. Vale para gerente também — antes a tela mandava
+  // `corretor=""` fixo e o controle nem existia.
+  const [corretor, setCorretor] = useState("");
   const [resumo, setResumo] = useState(null);
   const [carregandoResumo, setCarregandoResumo] = useState(true);
   const [erroResumo, setErroResumo] = useState("");
@@ -75,6 +79,7 @@ export default function GestaoLeads() {
     try {
       const p = new URLSearchParams({ solicitante_id: idCorretor });
       if (equipe) p.set("id_gerente", equipe);
+      if (corretor) p.set("corretor", corretor);
       if (periodo.inicio) p.set("inicio", periodo.inicio);
       if (periodo.fim) p.set("fim", periodo.fim);
       const r = await fetch(`${BASE}/leads/gestao/resumo?${p.toString()}`);
@@ -87,7 +92,7 @@ export default function GestaoLeads() {
     } finally {
       setCarregandoResumo(false);
     }
-  }, [idCorretor, equipe, periodo.inicio, periodo.fim]);
+  }, [idCorretor, equipe, corretor, periodo.inicio, periodo.fim]);
 
   useEffect(() => { carregarResumo(); }, [carregarResumo]);
 
@@ -157,6 +162,19 @@ export default function GestaoLeads() {
               <option value="">Todas as equipes</option>
               {equipesOpcoes.map((eq) => (
                 <option key={eq.value} value={eq.value}>{eq.label}</option>
+              ))}
+            </select>
+          </label>
+        )}
+        {/* Sem gate de perfil: gerente filtra os PRÓPRIOS corretores, e a lista já vem
+            recortada pelo escopo do servidor — 8 nomes para o gerente da LOTUS, 53 para
+            o diretor. Some quando não há nome nenhum no recorte. */}
+        {(resumo?.corretores || []).length > 0 && (
+          <label>Corretor
+            <select value={corretor} onChange={(e) => setCorretor(e.target.value)}>
+              <option value="">Todos os corretores</option>
+              {resumo.corretores.map((nome) => (
+                <option key={nome} value={nome}>{nome}</option>
               ))}
             </select>
           </label>
@@ -350,7 +368,7 @@ export default function GestaoLeads() {
           equipe={equipe}
           inicio={periodo.inicio}
           fim={periodo.fim}
-          corretor=""
+          corretor={corretor}
           podeLancar={Boolean(resumo?.escopo?.pode_lancar)}
         />
       </section>
