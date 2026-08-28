@@ -17,7 +17,11 @@ const METRICAS = [['leads', 'Leads'], ['clientes', 'Clientes'], ['visitas', 'Vis
 const TETO_BARRA = 150;
 // Recortes do funil. O valor casa com a chave devolvida em `data.funil`.
 const RECORTES_FUNIL = [['empresa', '61'], ['gerentes', 'Gerente'], ['corretores', 'Corretor']];
-const ETAPAS_FUNIL = [['leads', 'Leads'], ['clientes', 'Clientes'], ['visitas', 'Visitas'], ['propostas', 'Propostas'], ['vendas', 'Vendas']];
+// Visita ficou de FORA de propósito. Não é um estreitamento das etapas vizinhas: um
+// cliente visita vários imóveis, então a etapa subia em vez de cair (52 clientes -> 86
+// visitas em ago/26, exibido como "queda de 165%") e o desenho deixava de afunilar.
+// O número continua vindo do servidor e aparece em "Esforço por resultado".
+const ETAPAS_FUNIL = [['leads', 'Leads'], ['clientes', 'Clientes'], ['propostas', 'Propostas'], ['vendas', 'Vendas']];
 
 // Imóveis parados por página no bloco de governança.
 const PARADOS_POR_PAGINA = 8;
@@ -526,7 +530,11 @@ function VisaoDiretor() {
               </div>
               <div className="ev-card-footer">
                 <span>
-                  Lead → venda: <b>{etapasFunil[0].valor ? pct((etapasFunil[4].valor / etapasFunil[0].valor) * 100) : '—'}</b>
+                  {/* Ultima etapa pelo tamanho do array, nao por indice fixo: com `[4]`
+                      cravado, tirar uma etapa do funil quebrava a tela inteira. */}
+                  Lead → venda: <b>{etapasFunil[0].valor
+                    ? pct((etapasFunil[etapasFunil.length - 1].valor / etapasFunil[0].valor) * 100)
+                    : '—'}</b>
                 </span>
                 <span>Proposta pertence ao gerente; venda casa pelo nome no contrato.</span>
               </div>

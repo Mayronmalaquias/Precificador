@@ -331,6 +331,9 @@
 }
 .ev-funil-etapa em::before { content: '↓ '; color: #b6bbc9; }
 .ev-funil-etapa em.alta { color: #18885f; }
+/* Etapa que CRESCE em vez de encolher: a seta tem que virar junto com a cor, senao a
+   linha diz "queda" em verde e o leitor acredita no simbolo, nao no numero. */
+.ev-funil-etapa em.alta::before { content: '↑ '; color: #18885f; }
 
 /* ── Qualidade atendimento: números por parte na barra empilhada ─────────────── */
 .ev-stacked-partes { display: flex; align-items: center; gap: 6px; font-weight: 700; }
