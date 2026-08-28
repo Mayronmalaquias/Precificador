@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { BASE } from "../services/api";
-import { GraficoMultiLinha } from "./GraficosGestao";
+import { GraficoMultiLinha, GraficoBarras } from "./GraficosGestao";
 import Avaliacoes from "./Avaliacoes";
 import { useAuth } from "../context/AuthContext";
 import { useEquipes } from "../context/EquipesContext";
@@ -443,6 +443,41 @@ export default function GestaoVisitas() {
   const imoveis = useMemo(() => agrupar("id_imovel", "imovel"), [agrupar]);
   const clientes = useMemo(() => agrupar("id_cliente", "cliente"), [agrupar]);
 
+  /* Distribuicao de clientes por numero de visitas.
+   *
+   * A aba Clientes ja mostra o ranking — quem visitou mais. O que ela nao responde e a
+   * forma da cauda: se a operacao vive de cliente que vem uma vez so ou de cliente que
+   * volta. Sao decisoes diferentes (captar mais x cuidar melhor de quem ja esta na mao).
+   *
+   * Faixas em vez de valor exato porque a cauda e longa e esparsa: um cliente com 11
+   * visitas e outro com 9 viram duas barras de altura 1 que nao dizem nada. `6+` junta.
+   *
+   * Reusa `clientes`, que ja e o agrupamento por id_cliente do periodo filtrado — contar
+   * de novo a partir de `filtradas` daria os mesmos numeros com risco de divergir depois. */
+  const porVisitasCliente = useMemo(() => {
+    const faixas = [
+      { rotulo: "1 visita", teste: (n) => n === 1 },
+      { rotulo: "2 visitas", teste: (n) => n === 2 },
+      { rotulo: "3 visitas", teste: (n) => n === 3 },
+      { rotulo: "4 a 5 visitas", teste: (n) => n >= 4 && n <= 5 },
+      { rotulo: "6 ou mais", teste: (n) => n >= 6 },
+    ];
+    const dados = faixas.map(({ rotulo, teste }) => ({
+      rotulo,
+      total: clientes.filter((c) => teste(c.visitas)).length,
+    }));
+    const voltaram = clientes.filter((c) => c.visitas > 1).length;
+    return {
+      // Faixa vazia vira barra de altura zero e so ocupa espaco.
+      dados: dados.filter((d) => d.total),
+      voltaram,
+      pctVoltaram: clientes.length ? Math.round((voltaram / clientes.length) * 100) : 0,
+      media: clientes.length
+        ? (clientes.reduce((s, c) => s + c.visitas, 0) / clientes.length).toFixed(1)
+        : "0,0",
+    };
+  }, [clientes]);
+
   /** PDF por fetch, nao por link: a API exige X-API-KEY, injetado no `fetch` global. */
   const baixarPdfDe = async (rotulo, url, chave, nome) => {
     if (baixando) return;
@@ -587,6 +622,17 @@ export default function GestaoVisitas() {
                 );
               })}
             </div>
+          </article>
+          <article className="gm-grafico gm-grafico--ranking">
+            <header>
+              <div>
+                <h4>Visitas por cliente</h4>
+                <p>{porVisitasCliente.voltaram} de {clientes.length} voltaram
+                  ({porVisitasCliente.pctVoltaram}%) — média de {porVisitasCliente.media} por cliente</p>
+              </div>
+              <span className="gm-grafico-total">{clientes.length}</span>
+            </header>
+            <GraficoBarras dados={porVisitasCliente.dados} sufixo="cliente(s)" />
           </article>
         </section>
       )}

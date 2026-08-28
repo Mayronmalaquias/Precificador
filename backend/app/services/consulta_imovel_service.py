@@ -23,7 +23,8 @@ from app.models.dfimoveis_acesso import DfImoveisAcesso
 from app.models.fato_bases import FatoCaptacao, FatoEstoque, FatoSaida
 from app.models.imovel_area import ImovelArea
 from app.models.legado_diversos import ImovelLegado
-from app.models.proposta_efetiva import PropostaEfetiva
+from app.models.lead_c2s import LeadC2S
+from app.models.proposta_efetiva import PropostaEfetiva, SITUACOES_FECHADAS
 from app.models.usuarios import Usuarios
 from app.models.visita import Visita
 
@@ -158,6 +159,8 @@ FILTROS_DE_CATALOGO = (
     "area_min", "area_max", "quartos_min", "vagas_min",
     "mudou_de", "mudou_ate", "captado_de", "captado_ate",
     "visitas", "visita_de", "visita_ate",
+    "propostas",
+    "leads", "lead_de", "lead_ate",
 )
 
 
@@ -327,6 +330,62 @@ def _aplicar_recortes(session, query, termo, situacao, f):
         else:
             query = query.filter(ImovelArea.codigo.notin_(visitados.scalar_subquery()))
 
+    # Leads: "tem lead" e "tem lead EM ANDAMENTO" sao perguntas diferentes. O catalogo
+    # tem 1.651 imoveis cujos leads foram todos arquivados — pelo criterio "qualquer"
+    # eles pareceriam procurados, quando na pratica ninguem esta mais atras deles. O
+    # imovel 653 e o caso extremo: 583 leads, 583 arquivados.
+    leads = _texto(f.get("leads")).lower()
+    if leads in {"qualquer", "ativos", "arquivados", "sem"}:
+        base_lead = session.query(LeadC2S.codigo_imovel).filter(
+            LeadC2S.codigo_imovel.isnot(None))
+
+        # A janela vale para quem TEM lead; "sem lead" nao tem janela — ou nunca recebeu
+        # ou recebeu, e restringir por data mudaria a pergunta.
+        l_de, l_ate = _data_ou_none(f.get("lead_de")), _data_ou_none(f.get("lead_ate"))
+        if leads != "sem":
+            if l_de:
+                base_lead = base_lead.filter(LeadC2S.data >= l_de)
+            if l_ate:
+                base_lead = base_lead.filter(LeadC2S.data <= l_ate)
+
+        if leads == "ativos":
+            query = query.filter(ImovelArea.codigo.in_(
+                base_lead.filter(LeadC2S.arquivado.isnot(True)).scalar_subquery()))
+        elif leads == "arquivados":
+            # Tem lead, e NENHUM em andamento: esta no conjunto todo e fora do de ativos.
+            query = query.filter(
+                ImovelArea.codigo.in_(base_lead.scalar_subquery()),
+                ImovelArea.codigo.notin_(
+                    base_lead.filter(LeadC2S.arquivado.isnot(True)).scalar_subquery()),
+            )
+        elif leads == "sem":
+            query = query.filter(ImovelArea.codigo.notin_(base_lead.scalar_subquery()))
+        else:
+            query = query.filter(ImovelArea.codigo.in_(base_lead.scalar_subquery()))
+
+    # Propostas: `abertas` usa SITUACOES_FECHADAS, a mesma constante da Visao do Diretor
+    # e do painel de tarefas — se a regra do que encerra uma proposta mudar, muda num
+    # lugar so. Subconsulta pelo mesmo motivo do filtro de visitas: com join, imovel com
+    # tres propostas apareceria tres vezes.
+    propostas = _texto(f.get("propostas")).lower()
+    if propostas in {"qualquer", "abertas", "fechadas", "sem"}:
+        com_proposta = session.query(PropostaEfetiva.codigo_imovel).filter(
+            PropostaEfetiva.ativo.is_(True),
+            PropostaEfetiva.codigo_imovel.isnot(None),
+        )
+        if propostas == "abertas":
+            com_proposta = com_proposta.filter(
+                PropostaEfetiva.situacao.notin_(SITUACOES_FECHADAS))
+        elif propostas == "fechadas":
+            com_proposta = com_proposta.filter(
+                PropostaEfetiva.situacao.in_(SITUACOES_FECHADAS))
+
+        sub = com_proposta.scalar_subquery()
+        if propostas == "sem":
+            query = query.filter(ImovelArea.codigo.notin_(sub))
+        else:
+            query = query.filter(ImovelArea.codigo.in_(sub))
+
     if f.get("foco"):
         condicao = _filtro_de_foco(session, f["foco"].lower())
         if condicao is not None:
@@ -380,6 +439,7 @@ def buscar(solicitante_id, termo="", page=1, per_page=24, situacao="disponivel",
 
         total = query.count()
         resumo = _resumo_da_query(query)
+        resumo["portais"] = _portais_da_query(query)
         # Lancamento mais recente primeiro. `cadastrado_em` vem do `datahoracadastro` do
         # Imoview; quem ainda nao tem (catalogo antigo) cai no codigo, que cresce junto —
         # cast numerico porque a coluna e texto e "999" > "12400" em ordem alfabetica.
@@ -445,6 +505,15 @@ def buscar(solicitante_id, termo="", page=1, per_page=24, situacao="disponivel",
             "paginas": max(-(-total // per_page), 1),
             "apenas_meus": bool(apenas_meus),
             "resumo": resumo,
+            # Eco do que foi REALMENTE aplicado. Existe porque "por que apareceram so 170
+            # imoveis?" nao tinha resposta olhando a tela: os dropdowns mostram o rotulo,
+            # nao o valor enviado, e filtro vindo de estado antigo ficava invisivel.
+            "filtros_aplicados": {
+                "situacao": str(situacao or "disponivel"),
+                "busca": termo or None,
+                "meus": bool(apenas_meus),
+                **{k: v for k, v in f.items() if str(v or "").strip()},
+            },
         }
     finally:
         session.close()
@@ -458,7 +527,97 @@ AREA_MINIMA_M2 = 10
 
 def _resumo_vazio():
     return {"total": 0, "vgv": 0.0, "ticket_medio": None, "area_media": None,
-            "valor_m2_medio": None, "com_valor": 0, "com_area_e_valor": 0}
+            "valor_m2_medio": None, "com_valor": 0, "com_area_e_valor": 0,
+            "portais": {"publicados": 0, "sem_portal": 0, "no_site_proprio": 0,
+                        "sem_dado": 0, "por_destaque": []}}
+
+
+# Niveis de destaque do CRM, na ordem em que a operacao pensa neles. O rotulo vem da
+# API; este mapa existe para ORDENAR e para nomear nivel que nao apareceu na amostra.
+NIVEIS_DESTAQUE = {
+    1: "Simples", 2: "Destaque", 3: "Super destaque",
+    4: "Premiere especial", 5: "Premiere premium", 6: "Triplo",
+}
+
+
+def _leads_do_imovel(session, codigo):
+    """Leads que citaram este imovel, agrupados por origem.
+
+    Le do espelho `leads_c2s`, nao de `leads_legado`: aquela tabela passa por um filtro de
+    negocio na importacao e nao tem 26% dos leads — o imovel pareceria ter menos procura
+    do que teve. O elo e o `prop_ref` que o cliente citou.
+
+    `arquivado` sai a parte porque muda a leitura: 40 leads com 38 arquivados nao e a
+    mesma coisa que 40 em andamento.
+    """
+    alvos = {str(codigo or "").strip(), _codigo_limpo(codigo)}
+    alvos = {c for c in alvos if c}
+    if not alvos:
+        return {"total": 0, "arquivados": 0, "por_origem": [], "primeiro": None, "ultimo": None}
+
+    base = session.query(LeadC2S).filter(LeadC2S.codigo_imovel.in_(alvos))
+
+    por_origem = [
+        {"origem": _texto(fonte) or "Nao informado", "total": int(qtd or 0)}
+        for fonte, qtd in base.with_entities(
+            LeadC2S.fonte, func.count(LeadC2S.id_c2s)
+        ).group_by(LeadC2S.fonte).order_by(func.count(LeadC2S.id_c2s).desc()).all()
+    ]
+
+    agregado = base.with_entities(
+        func.count(LeadC2S.id_c2s),
+        func.sum(case((LeadC2S.arquivado.is_(True), 1), else_=0)),
+        func.min(LeadC2S.data),
+        func.max(LeadC2S.data),
+    ).one()
+
+    return {
+        "total": int(agregado[0] or 0),
+        "arquivados": int(agregado[1] or 0),
+        "por_origem": por_origem,
+        "primeiro": agregado[2].isoformat() if agregado[2] else None,
+        "ultimo": agregado[3].isoformat() if agregado[3] else None,
+    }
+
+
+def _portais_da_query(query):
+    """Publicacao nos portais do recorte inteiro, nao so da pagina.
+
+    `portais_ativos > 0` e "esta publicado agora". Portal retirado conta em
+    `portais_total` mas nao aqui — o imovel ja esteve no ar e nao esta mais, que e
+    justamente a diferenca que interessa.
+
+    Imovel sem sincronizacao de portal (`portais_ativos IS NULL`) fica fora dos dois
+    lados: nao e "publicado" nem "sem portal", e some. `sem_dado` diz quantos.
+    """
+    linha = query.with_entities(
+        func.count(ImovelArea.codigo),
+        func.count(ImovelArea.portais_ativos),
+        func.sum(case((ImovelArea.portais_ativos > 0, 1), else_=0)),
+        func.sum(case((ImovelArea.exibir_meu_site.is_(True), 1), else_=0)),
+    ).one()
+    total, com_dado, publicados, no_site = linha
+
+    por_destaque = []
+    bruto = dict(
+        query.with_entities(ImovelArea.destaque_nivel, func.count(ImovelArea.codigo))
+             .filter(ImovelArea.portais_ativos > 0)
+             .group_by(ImovelArea.destaque_nivel).all()
+    )
+    for nivel, rotulo in NIVEIS_DESTAQUE.items():
+        qtd = int(bruto.get(nivel, 0) or 0)
+        if qtd:
+            por_destaque.append({"nivel": nivel, "rotulo": rotulo, "total": qtd})
+
+    return {
+        "publicados": int(publicados or 0),
+        "sem_portal": int(com_dado or 0) - int(publicados or 0),
+        "no_site_proprio": int(no_site or 0),
+        # Quantos ainda nao passaram pelo `sync_portais_imoview.py`. Sem isto, um sync
+        # incompleto pareceria "ninguem publicado".
+        "sem_dado": int(total or 0) - int(com_dado or 0),
+        "por_destaque": por_destaque,
+    }
 
 
 def _resumo_da_query(query):
@@ -1087,6 +1246,21 @@ def detalhe(solicitante_id, codigo):
                     "id": p["id"], "valor": p["valor"], "situacao": p["situacao"],
                     "corretor": p["corretor"], "data_proposta": p["data_proposta"],
                 } for p in propostas],
+                # Contagem ao lado da lista: "3 propostas, 2 em aberto" e o que se quer
+                # saber de relance, e a lista ja vem recortada pelo escopo do gerente
+                # acima — contar aqui mantem os dois numeros coerentes.
+                "propostas_resumo": {
+                    "total": len(propostas),
+                    "abertas": sum(1 for p in propostas
+                                   if _texto(p.get("situacao")) not in SITUACOES_FECHADAS),
+                    "fechadas": sum(1 for p in propostas
+                                    if _texto(p.get("situacao")) in SITUACOES_FECHADAS),
+                    "maior_valor": max(
+                        (float(p["valor"]) for p in propostas if p.get("valor") is not None),
+                        default=None,
+                    ),
+                },
+                "leads": _leads_do_imovel(session, codigo),
                 "venda": {
                     "id_contrato": venda.get("id_contrato"),
                     "data": venda.get("data_contrato"),

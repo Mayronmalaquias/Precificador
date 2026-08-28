@@ -22,6 +22,9 @@ const FILTROS_VAZIOS = {
   arquivado: "", fechado: "", por: "criacao",
   // Do IMÓVEL citado, não do lead: casam com o catálogo pelo código.
   bairro: "", tipo: "", quartos: "",
+  valor_min: "", valor_max: "", area_min: "", area_max: "",
+  // Janela de ENTRADA do lead, independente de `por`.
+  origem_de: "", origem_ate: "",
 };
 
 const FORM_VAZIO = {
@@ -493,9 +496,41 @@ export default function RelatorioLeads({ idSolicitante, equipe, inicio, fim, cor
               ))}
             </select>
           </label>
+          {/* Faixas do imóvel citado. 94% dos leads (39.878 de 42.446) casam com o
+              catálogo, então o recorte é representativo — mas lead sem código, ou com
+              código fora do catálogo, sai do resultado, igual a bairro/tipo/quartos. */}
+          <label>Valor do imóvel — de
+            <input type="number" min="0" step="10000" placeholder="R$ mínimo"
+              value={filtros.valor_min} onChange={setFiltro("valor_min")} />
+          </label>
+          <label>até
+            <input type="number" min="0" step="10000" placeholder="R$ máximo"
+              value={filtros.valor_max} onChange={setFiltro("valor_max")} />
+          </label>
+          <label>Metragem — de
+            <input type="number" min="0" step="10" placeholder="m² mínimo"
+              value={filtros.area_min} onChange={setFiltro("area_min")} />
+          </label>
+          <label>até
+            <input type="number" min="0" step="10" placeholder="m² máximo"
+              value={filtros.area_max} onChange={setFiltro("area_max")} />
+          </label>
+
+          {/* Data de ENTRADA do lead, separada da janela do topo de propósito. Com o
+              seletor de período em "atualização", esta é a única forma de perguntar
+              "mexeram nesta semana, mas entraram em julho" — 827 dos 3.640 leads
+              atualizados em agosto/26 entraram antes dele. Com o período em "criação"
+              as duas janelas apenas se cruzam, e a mais estreita vence. */}
+          <label>Entrada do lead — de
+            <input type="date" value={filtros.origem_de} onChange={setFiltro("origem_de")} />
+          </label>
+          <label>até
+            <input type="date" value={filtros.origem_ate} onChange={setFiltro("origem_ate")} />
+          </label>
+
           <label>Arquivado
             <select value={filtros.arquivado} onChange={setFiltro("arquivado")}>
-              <option value="">Tanto faz</option>
+              <option value="">Todos</option>
               <option value="sim">So arquivados</option>
               <option value="nao">So ativos</option>
             </select>
@@ -508,7 +543,7 @@ export default function RelatorioLeads({ idSolicitante, equipe, inicio, fim, cor
           </label>
           <label>Negocio fechado
             <select value={filtros.fechado} onChange={setFiltro("fechado")}>
-              <option value="">Tanto faz</option>
+              <option value="">Todos</option>
               <option value="sim">So fechados</option>
               <option value="nao">So em aberto</option>
             </select>

@@ -214,6 +214,13 @@ class LeadsAoVivo(Resource):
             "bairro": "Bairro do imóvel citado (busca parcial, ignora acento).",
             "tipo": "Tipo do imóvel citado (busca parcial).",
             "quartos": "Número exato de quartos do imóvel citado.",
+            "valor_min": "Valor mínimo do imóvel citado (R$).",
+            "valor_max": "Valor máximo do imóvel citado (R$).",
+            "area_min": "Área mínima do imóvel citado (m²).",
+            "area_max": "Área máxima do imóvel citado (m²).",
+            "origem_de": "Data mínima de ENTRADA do lead (AAAA-MM-DD). Vale mesmo com "
+                         "a janela principal em 'atualizacao'.",
+            "origem_ate": "Data máxima de entrada do lead (AAAA-MM-DD).",
         },
     )
     def get(self):
@@ -233,7 +240,11 @@ class LeadsAoVivo(Resource):
                     for k in ("situacao", "fonte", "canal", "equipe", "funil", "corretor",
                               "motivo", "arquivado", "fechado", "com_motivo",
                               "sem_acompanhamento", "busca",
-                              "bairro", "tipo", "quartos")
+                              "bairro", "tipo", "quartos",
+                              "valor_min", "valor_max", "area_min", "area_max",
+                              # `origem_*` recorta a data de ENTRADA e e independente
+                              # de `por` — ver comentario em `_aplicar_filtros`.
+                              "origem_de", "origem_ate")
                 },
             ), 200
         except Exception as e:

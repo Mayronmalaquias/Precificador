@@ -57,6 +57,10 @@ class ConsultaLista(Resource):
         "visitas": "com | sem — imóveis que receberam (ou nunca receberam) visita.",
         "visita_de": "Data inicial da visita (YYYY-MM-DD). Só afeta `visitas=com`.",
         "visita_ate": "Data final da visita (YYYY-MM-DD).",
+        "propostas": "qualquer | abertas | fechadas | sem — imóveis por proposta recebida.",
+        "leads": "qualquer | ativos | arquivados | sem — imóveis por lead recebido.",
+        "lead_de": "Data inicial do lead (YYYY-MM-DD). Não afeta `leads=sem`.",
+        "lead_ate": "Data final do lead (YYYY-MM-DD).",
     })
     def get(self):
         try:

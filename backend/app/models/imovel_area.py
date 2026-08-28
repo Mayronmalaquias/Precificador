@@ -7,7 +7,7 @@ que a gente precisa da metragem, p/ calcular o valor do m2 do contrato fechado.
 O job `sync_areas_imoview.py` varre o catalogo periodicamente e grava aqui, entao a
 area fica registrada ANTES da venda e sobrevive ao imovel sair do ar.
 """
-from sqlalchemy import Column, DateTime, Integer, Numeric, String, Text, func
+from sqlalchemy import Boolean, Column, DateTime, Integer, Numeric, String, Text, func
 
 from app.models.base import Base
 
@@ -60,6 +60,20 @@ class ImovelArea(Base):
     percentual2 = Column(Numeric(5, 2), nullable=True)
     percentual3 = Column(Numeric(5, 2), nullable=True)
     captador_principal = Column(Text, nullable=True)
+
+    # ── publicacao nos portais (RetornarPortaisImoveis) ───────────────────────
+    # Agregado, nao uma linha por portal: a tela pergunta "quantos estao publicados e com
+    # que destaque". `destaque_nivel` guarda o MAIOR nivel ativo — imovel Simples em
+    # quatro portais e Super Destaque num quinto esta, na pratica, em Super Destaque.
+    portais_ativos = Column(Integer, nullable=True, index=True)
+    portais_total = Column(Integer, nullable=True)
+    destaque_nivel = Column(Integer, nullable=True, index=True)
+    destaque_portal = Column(Text, nullable=True)
+    # Site proprio nao e portal: vem em campos separados do imovel, e `codigoportal=0`
+    # devolve `portais` vazio de proposito.
+    exibir_meu_site = Column(Boolean, nullable=True)
+    destaque_site = Column(Text, nullable=True)
+    portais_em = Column(DateTime, nullable=True)
 
     origem = Column(String(30), nullable=True, default="imoview")
     atualizado_em = Column(DateTime, server_default=func.now(), onupdate=func.now(), nullable=True)

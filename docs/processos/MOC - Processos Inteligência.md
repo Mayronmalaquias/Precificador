@@ -24,6 +24,7 @@ tipo: MOC (Map of Content)
 | 1.7 | Preparação de Estoque (Imoview → `Fato_Estoque`) | 🟨 🤖 📦 | [[1.7 - Preparação de Estoque (Imoview)]] |
 | 1.8 | Cadastro em massa de usuários (corretores) | 🟨 🤖 📦 | [[1.8 - Cadastro em Massa de Usuários]] |
 | 1.9 | Lançamento de imóvel pelos assistentes (Imoview + estoque + Trello) | ✅ 🆕 | [[1.9 - Lançamento de Imóvel pelos Assistentes]] |
+| 1.10 | **Catálogo completo do Imoview** — `exibircaptadores`, varredura de todas as situações, portais e conclusão do `fato_estoque` | ✅ 🆕 | [[1.10 - Catálogo Completo do Imoview]] |
 
 ## Nível 2 — Média complexidade
 | # | Processo | Status | Nota |
@@ -82,6 +83,7 @@ Complementam as notas de processo — não as substituem.
 | [[_Registro - 2026-08-13]] | Visão do Diretor (funil, indicadores, estoque, governança), abas de Propostas/Leads no Relatório do Gerente, página do Corretor, lead do C2S no Criar Visita, 2 migrations |
 | [[_Registro - 2026-08-17]] | Pipeline de `estudo_metricas` (cluster por bairro, corte por série, faixas de metragem), leitura de `.xlsx` no estoque, divergência 490×598 de visitas, encerradas no gráfico da jornada, validação e **deduplicação de usuários** |
 | [[_Registro - 2026-08-21]] | **Rodada 18–21/08.** Leads do C2S ao vivo (o que a API aceita de verdade), `_data()` duplicada quebrando toda criação de proposta, plano de QA com 9 achados corrigidos e **primeira suíte de testes**, saídas do estoque 6→51, gerente responsável na proposta, timeouts do nginx e limpeza de disco |
+| [[_Registro - 2026-08-28]] | **Rodada 26–28/08.** O catálogo do Imoview deixou de ser amostra: 2.624 → **12.451** imóveis, depois que se descobriu que faltava mandar `exibircaptadores=true` — captador foi de 53% para 96% e o rateio do fechamento passou a usar o `percentual` do CRM. `fato_estoque` completado (lacuna de 1.545 → 1). Publicação nos portais sincronizada (**348 imóveis à venda fora de todo portal**). Filtros de visita, proposta e lead na Gestão de Imóveis (**1.651 imóveis com todos os leads arquivados**), faixa de valor/metragem/data de entrada na Gestão de Leads (**827 dos 3.640 leads mexidos em agosto entraram antes dele**), e distribuição de visitas por cliente na Gestão de Visitas (**67% visitam uma vez só**). ⚠️ Nada deployado |
 | [[_Registro - 2026-08-25]] | **Rodada 25/08.** Espelho local dos leads do C2S com sync horário (consulta de minutos → 2,3s), acompanhamento migrado para `leads_c2s` (26% dos leads não podiam receber acompanhamento), módulos de gestão consolidados a ponto de **aposentar o Relatório do Gerente**, e correções em números que a tela mostrava errado — pendência de revisão cobrando o impossível, contador de tarefas limitado pelo teto de exibição, e o fechamento do mês contando captação conjunta em dobro |
 
 ### Operações de dados (migrações pontuais)

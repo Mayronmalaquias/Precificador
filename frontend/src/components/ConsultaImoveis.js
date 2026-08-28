@@ -15,7 +15,10 @@ const moeda = (v) => (v == null || v === '' ? '—'
     : String(v));
 const numero = (v) => (v == null || v === '' ? '—' : Number(v).toLocaleString('pt-BR'));
 const dataBR = (v) => (v ? new Date(`${String(v).slice(0, 10)}T00:00:00`).toLocaleDateString('pt-BR') : '—');
-const area = (v) => (v == null || v === '' ? '—' : `${String(v).replace('.', ',')} m²`);
+// Duas casas: a media vem com a precisao do banco (`481.83333...`) e imprimir cru
+// enchia o card de digitos que nao dizem nada.
+const area = (v) => (v == null || v === '' ? '—'
+  : `${Number(v).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} m²`);
 
 // Situações que o cache guarda (ver sync_areas_imoview.SITUACOES).
 const SITUACOES = [
@@ -29,13 +32,18 @@ const SITUACOES = [
 
 // Rascunho dos filtros. Vazio = campo não enviado; o servidor ignora chave em branco.
 const FILTROS_VAZIOS = {
-  bairro: '', tipo: '', finalidade: '', foco: '',
+  bairro: '', tipo: '',
+  // Venda por padrao: a tela e do estoque COMERCIAL. Com "todas", o card de imoveis
+  // somava 999 de venda + 53 de aluguel e dizia 1.052 — numero que a operacao nao
+  // reconhece como estoque. Fica visivel no dropdown, nao escondido no servidor.
+  finalidade: 'Venda', foco: '',
   valor_min: '', valor_max: '', area_min: '', area_max: '',
   quartos_min: '', vagas_min: '',
   mudou_de: '', mudou_ate: '', captado_de: '', captado_ate: '',
   // `visita_de`/`visita_ate` só valem com `visitas=com` — "nunca visitado" não tem
   // janela. `limparFiltros` zera tudo por `FILTROS_VAZIOS`, então basta estar aqui.
-  visitas: '', visita_de: '', visita_ate: '',
+  visitas: '', visita_de: '', visita_ate: '', propostas: '',
+  leads: '', lead_de: '', lead_ate: '',
 };
 
 const FOCOS = [
@@ -92,6 +100,7 @@ export default function ConsultaImoveis() {
   const [painelFiltros, setPainelFiltros] = useState(false);
   const [opcoes, setOpcoes] = useState({ bairros: [], tipos: [], finalidades: [] });
   const [resumo, setResumo] = useState(null);
+  const [aplicados, setAplicados] = useState(null);
 
   const carregar = useCallback(async (termo, page = 1, filtroSituacao = situacao,
                                       meus = apenasMeus, extras = filtrosAtivos) => {
@@ -111,10 +120,12 @@ export default function ConsultaImoveis() {
       if (!r.ok || d.ok === false) throw new Error(d.error || 'Erro ao buscar imóveis');
       setLista({ itens: d.itens || [], total: d.total || 0, page: d.page || 1, paginas: d.paginas || 1 });
       setResumo(d.resumo || null);
+      setAplicados(d.filtros_aplicados || null);
     } catch (e) {
       setErro(e.message || 'Erro ao buscar imóveis');
       setLista({ itens: [], total: 0, page: 1, paginas: 1 });
       setResumo(null);
+      setAplicados(null);
     } finally {
       setCarregando(false);
     }
@@ -437,10 +448,48 @@ export default function ConsultaImoveis() {
             {/* Visitas: 406 dos 12.450 imóveis já receberam alguém (3%) — é por ser
                 pouco que interessa isolar. As datas ficam desabilitadas fora de
                 "Com visita", para não sugerir um recorte que o servidor ignora. */}
+            {/* "Tem lead" e "tem lead EM ANDAMENTO" são perguntas diferentes: 1.651
+                imóveis do catálogo tiveram todos os leads arquivados. Por "qualquer"
+                eles pareceriam procurados, quando ninguém está mais atrás deles. */}
+            <label>Leads
+              <select value={filtros.leads}
+                onChange={(e) => setFiltros((f) => ({ ...f, leads: e.target.value }))}>
+                <option value="">Todos</option>
+                <option value="qualquer">Com lead (qualquer)</option>
+                <option value="ativos">Com lead em andamento</option>
+                <option value="arquivados">Só leads arquivados</option>
+                <option value="sem">Sem nenhum lead</option>
+              </select>
+            </label>
+            <label>Lead — de
+              <input type="date" value={filtros.lead_de}
+                disabled={!filtros.leads || filtros.leads === 'sem'}
+                title={filtros.leads && filtros.leads !== 'sem' ? '' : 'Não se aplica a "Sem nenhum lead"'}
+                onChange={(e) => setFiltros((f) => ({ ...f, lead_de: e.target.value }))} />
+            </label>
+            <label>até
+              <input type="date" value={filtros.lead_ate}
+                disabled={!filtros.leads || filtros.leads === 'sem'}
+                onChange={(e) => setFiltros((f) => ({ ...f, lead_ate: e.target.value }))} />
+            </label>
+
+            {/* Propostas: 22 dos 12.450 imóveis já receberam alguma (15 abertas, 7
+                fechadas). "Aberta" usa a mesma constante da Visão do Diretor — vendido e
+                cancelado encerram, aceita continua aberta. */}
+            <label>Propostas
+              <select value={filtros.propostas}
+                onChange={(e) => setFiltros((f) => ({ ...f, propostas: e.target.value }))}>
+                <option value="">Todos</option>
+                <option value="qualquer">Com proposta (qualquer)</option>
+                <option value="abertas">Com proposta em aberto</option>
+                <option value="fechadas">Com proposta fechada</option>
+                <option value="sem">Sem nenhuma proposta</option>
+              </select>
+            </label>
             <label>Visitas
               <select value={filtros.visitas}
                 onChange={(e) => setFiltros((f) => ({ ...f, visitas: e.target.value }))}>
-                <option value="">Tanto faz</option>
+                <option value="">Todos</option>
                 <option value="com">Com visita</option>
                 <option value="sem">Nunca visitado</option>
               </select>
@@ -483,6 +532,18 @@ export default function ConsultaImoveis() {
         </section>
       )}
 
+      {/* O que o servidor de fato aplicou. Sem isto, filtro herdado de estado anterior
+          some da vista: o dropdown mostra "Todos os bairros" e o recorte continua ativo. */}
+      {aplicados && !carregando && (
+        <p className="ci-aplicados">
+          <b>Recorte:</b>{' '}
+          {Object.entries(aplicados)
+            .filter(([k, v]) => v !== null && v !== false && v !== '')
+            .map(([k, v]) => `${k}=${v}`)
+            .join(' · ')}
+        </p>
+      )}
+
       {resumo && !carregando && (
         <section className="ci-resumo">
           <div><span>Imóveis</span><strong>{numero(resumo.total)}</strong></div>
@@ -498,6 +559,33 @@ export default function ConsultaImoveis() {
           <div>
             <span>Área média</span>
             <strong>{area(resumo.area_media)}</strong>
+          </div>
+          {/* Publicados = com ao menos um portal ATIVO agora. Portal retirado não conta:
+              o imóvel já esteve no ar e não está mais, que é a diferença que importa. */}
+          <div className={resumo.portais?.sem_portal ? 'is-alerta' : ''}>
+            <span>Nos portais</span>
+            <strong>{numero(resumo.portais?.publicados)}</strong>
+            <small>
+              {numero(resumo.portais?.sem_portal)} fora
+              {resumo.portais?.sem_dado
+                ? ` · ${numero(resumo.portais.sem_dado)} sem dado`
+                : ''}
+            </small>
+          </div>
+          {(resumo.portais?.por_destaque || []).map((d) => (
+            <div key={d.nivel}>
+              <span>{d.rotulo}</span>
+              <strong>{numero(d.total)}</strong>
+              <small>
+                {resumo.portais.publicados
+                  ? `${Math.round((d.total / resumo.portais.publicados) * 100)}% dos publicados`
+                  : ''}
+              </small>
+            </div>
+          ))}
+          <div>
+            <span>Site próprio</span>
+            <strong>{numero(resumo.portais?.no_site_proprio)}</strong>
           </div>
           <div>
             <span>Preço por m²</span>
@@ -798,9 +886,45 @@ export default function ConsultaImoveis() {
                     <Dado label="Relatório de">{dataBR(interno?.midia?.data_relatorio)}</Dado>
                     <Dado label="Visitas">{numero(interno?.visitas?.total)}</Dado>
                     <Dado label="Última visita">{dataBR(interno?.visitas?.ultima)}</Dado>
-                    <Dado label="Propostas efetivas">{numero(interno?.propostas?.length)}</Dado>
+                    <Dado label="Propostas efetivas">
+                      {interno?.propostas_resumo?.total
+                        ? `${interno.propostas_resumo.total} (${interno.propostas_resumo.abertas} em aberto)`
+                        : '—'}
+                    </Dado>
+                    <Dado label="Maior proposta">{moeda(interno?.propostas_resumo?.maior_valor)}</Dado>
+                    {/* Leads vêm do espelho do C2S pelo código que o cliente citou.
+                        Arquivados aparecem à parte: 18 leads com 13 arquivados não é a
+                        mesma procura que 18 em andamento. */}
+                    <Dado label="Leads recebidos">
+                      {interno?.leads?.total
+                        ? `${interno.leads.total} (${interno.leads.arquivados} arquivados)`
+                        : '—'}
+                    </Dado>
+                    <Dado label="1º / último lead">
+                      {interno?.leads?.total
+                        ? `${dataBR(interno.leads.primeiro)} — ${dataBR(interno.leads.ultimo)}`
+                        : '—'}
+                    </Dado>
                     <Dado label="Venda">{interno?.venda ? `${dataBR(interno.venda.data)} — ${moeda(interno.venda.valor)}` : '—'}</Dado>
                   </div>
+
+                  {(interno?.leads?.por_origem || []).length > 0 && (
+                    <>
+                      <h4 className="ci-sub">Leads por origem</h4>
+                      <div className="ci-origens">
+                        {interno.leads.por_origem.map((o) => (
+                          <div key={o.origem}>
+                            <span>{o.origem}</span>
+                            <strong>{o.total}</strong>
+                            <small>
+                              {Math.round((o.total / interno.leads.total) * 100)}%
+                            </small>
+                          </div>
+                        ))}
+                      </div>
+                    </>
+                  )}
+
 
                   {!!interno?.visitas?.itens?.length && (
                     <table className="ci-tabela">

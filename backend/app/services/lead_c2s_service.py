@@ -576,6 +576,26 @@ _COM_ACENTO = "áàâãäéèêëíìîïóòôõöúùûüçÁÀÂÃÄÉÈÊË�
 _SEM_ACENTO = "aaaaaeeeeiiiiooooouuuucAAAAAEEEEIIIIOOOOOUUUUC"
 
 
+def _num_filtro(valor):
+    """Numero digitado pelo usuario -> float, ou None se nao der.
+
+    Aceita "500000", "500.000" e "500.000,00": o campo chega como texto e o usuario
+    digita no formato BR. Devolve None em vez de estourar — filtro invalido deve ser
+    ignorado, nao virar 500 na tela de quem so errou a virgula.
+    """
+    texto = _texto(valor).replace(" ", "")
+    if not texto:
+        return None
+    # So mexe na pontuacao quando ha virgula decimal; "250.5" vindo de <input type=number>
+    # tem ponto DECIMAL e nao milhar.
+    if "," in texto:
+        texto = texto.replace(".", "").replace(",", ".")
+    try:
+        return float(texto)
+    except ValueError:
+        return None
+
+
 def _contem_sem_acento(coluna, termo: str):
     """Busca parcial que ignora acento E caixa.
 
@@ -649,7 +669,23 @@ def _aplicar_filtros(query, f: Dict[str, str], escopo: Dict[str, Any]):
         (f.get("tipo"), lambda v: _contem_sem_acento(ImovelArea.tipo, v)),
         (f.get("quartos"), lambda v: ImovelArea.quartos == int(v)),
     ]
+    # Faixas entram fora da lista acima porque nao sao "um valor -> um predicado": o
+    # minimo e o maximo sao campos separados e cada ponta pode vir sozinha ("acima de
+    # 500 mil", sem teto). `>=` e `<=` nas duas pontas — quem digita 600.000 no maximo
+    # espera o imovel de exatamente 600.000 na lista.
+    faixas = (
+        (ImovelArea.valor, f.get("valor_min"), f.get("valor_max")),
+        (ImovelArea.area, f.get("area_min"), f.get("area_max")),
+    )
+
     condicoes_imovel = []
+    for coluna, minimo, maximo in faixas:
+        piso, teto = _num_filtro(minimo), _num_filtro(maximo)
+        if piso is not None:
+            condicoes_imovel.append(coluna >= piso)
+        if teto is not None:
+            condicoes_imovel.append(coluna <= teto)
+
     for valor, monta in filtros_imovel:
         valor = _texto(valor)
         if not valor:
@@ -663,6 +699,17 @@ def _aplicar_filtros(query, f: Dict[str, str], escopo: Dict[str, Any]):
     if condicoes_imovel:
         codigos = select(ImovelArea.codigo).where(*condicoes_imovel)
         query = query.filter(LeadC2S.codigo_imovel.in_(codigos))
+
+    # Janela de ORIGEM do lead, sempre sobre `data` (criacao), independente do toggle
+    # `campo_data` da tela. E o que faltava para perguntar "leads que MEXERAM esta
+    # semana mas ENTRARAM em julho": com a janela principal em 'atualizacao', nao havia
+    # como limitar a entrada. Com o toggle em 'criacao' as duas apenas se cruzam, o que
+    # nao faz mal — a mais estreita vence.
+    origem_de, origem_ate = _texto(f.get("origem_de")), _texto(f.get("origem_ate"))
+    if origem_de:
+        query = query.filter(LeadC2S.data >= origem_de)
+    if origem_ate:
+        query = query.filter(LeadC2S.data <= origem_ate)
 
     busca = _texto(f.get("busca"))
     if busca:
