@@ -301,6 +301,30 @@ def detalhe(solicitante_id, lead_id) -> Dict[str, Any]:
         session.close()
 
 
+# Janela para aceitar o elo com `leads_legado` como sendo O MESMO lead.
+#
+# `id_legado` e montado por cliente + telefone (`lead_sync_service._ligar_legado`), chave
+# que nao distingue "este lead" de "a mesma pessoa dois anos atras". Medido em
+# 28/08/2026, sobre 31.829 elos: 21.121 sao do mesmo dia — esses sao o lead de verdade —
+# e 8.746 tem mais de 7 dias de diferenca. Alem disso 16.272 leads apontam para apenas
+# 5.282 linhas do legado, ou seja, varios leads dividem o mesmo registro.
+#
+# O elo existia para achar o ACOMPANHAMENTO, que mudou para `leads_c2s` na migration
+# 20260825_acomp_c2s. Hoje o unico consumidor e a correcao de nome/telefone — e gravar
+# isso na linha errada reescreve o cadastro de outro atendimento.
+JANELA_ELO_DIAS = 7
+
+
+def _legado_do_mesmo_lead(lead, legado) -> bool:
+    """O registro do legado e plausivelmente o mesmo lead, nao so a mesma pessoa."""
+    if not legado:
+        return False
+    # Sem data dos dois lados nao da para julgar; aceita, que e o comportamento antigo.
+    if not lead.data or not legado.data:
+        return True
+    return abs((lead.data - legado.data).days) <= JANELA_ELO_DIAS
+
+
 def detalhe_espelho(solicitante_id, id_c2s) -> Dict[str, Any]:
     """Detalhe do lead a partir de `leads_c2s`, no mesmo formato de `detalhe`.
 
@@ -336,6 +360,10 @@ def detalhe_espelho(solicitante_id, id_c2s) -> Dict[str, Any]:
         legado = None
         if lead.id_legado:
             legado = session.query(LeadLegado).filter(LeadLegado.id == lead.id_legado).first()
+            # Elo distante no tempo e a mesma PESSOA, nao o mesmo LEAD. Melhor abrir sem
+            # correcao de dados do que oferecer um botao que grava no registro errado.
+            if not _legado_do_mesmo_lead(lead, legado):
+                legado = None
 
         return {
             "ok": True,

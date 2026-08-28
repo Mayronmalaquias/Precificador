@@ -233,11 +233,17 @@ export default function RelatorioLeads({ idSolicitante, equipe, inicio, fim, cor
    * onde gravar acompanhamento, e aí `pode_editar` vem falso.
    */
   const abrir = async (lead) => {
-    const idInterno = lead?.id_interno;
-    const url = idInterno
-      ? `${BASE}/leads/gestao/${idInterno}`
-      : `${BASE}/leads/c2s/${encodeURIComponent(lead?.id_c2s)}`;
-    setDetalhe({ id: idInterno || null });
+    // SEMPRE pelo id do C2S quando ele existe. Abrir pelo `id_interno` mostrava o
+    // registro ERRADO: o elo com `leads_legado` é por cliente + telefone, então cliente
+    // que volta anos depois é ligado ao próprio registro antigo. Medido em 28/08/2026:
+    // de 31.829 elos, 8.746 apontam para um lead com mais de 7 dias de diferença — o
+    // caso que apareceu foi um lead de 26/08/2026 (equipe Alpha) abrindo um registro de
+    // 14/03/2024 de outra equipe, o que ainda dava 403 porque o detalhe legado usa
+    // regra de escopo por id do cadastro, e a listagem usa o nome da equipe do C2S.
+    const url = lead?.id_c2s
+      ? `${BASE}/leads/c2s/${encodeURIComponent(lead.id_c2s)}`
+      : `${BASE}/leads/gestao/${lead?.id_interno}`;
+    setDetalhe({ id: lead?.id_c2s ? null : (lead?.id_interno || null) });
     try {
       const r = await fetch(`${url}?solicitante_id=${encodeURIComponent(idSolicitante)}`);
       const d = await r.json();

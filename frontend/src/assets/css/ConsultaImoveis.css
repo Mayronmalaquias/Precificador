@@ -245,12 +245,18 @@
 }
 
 .ci-resumo {
-  display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  /* 160px, nao 140: com 140 cabiam 8 cards por linha e o track ficava estreito demais
+     para o VGV na casa dos bilhoes. Como todos os tracks sao `1fr`, um valor comprido
+     nao alarga so o proprio cartao — ele transborda para fora dele. */
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
   gap: 10px; margin: 0 0 16px;
 }
 .ci-resumo > div {
   background: #fff; border: 1px solid #e6e2ec; border-radius: 11px;
   padding: 12px 14px; display: grid; gap: 2px;
+  /* Sem isto o item de grid nao encolhe abaixo do proprio conteudo e empurra a faixa
+     inteira para fora da pagina. */
+  min-width: 0;
 }
 .ci-resumo span {
   font-size: 10.5px; font-weight: 700; letter-spacing: .07em;
@@ -259,7 +265,13 @@
 .ci-resumo strong {
   font-size: 20px; letter-spacing: -.5px; color: #1c1a22;
   font-variant-numeric: tabular-nums;
+  /* Quebra em vez de vazar, caso o valor passe das faixas previstas em `Valor`. */
+  overflow-wrap: anywhere;
 }
+/* Dois degraus, aplicados por comprimento em `Valor` (ConsultaImoveis.js).
+   "R$ 2.031.481" (12) fica em 20px; "R$ 2.027.417.634" (16) cai para 15px. */
+.ci-resumo strong.longo { font-size: 17px; letter-spacing: -.4px; }
+.ci-resumo strong.muito-longo { font-size: 15px; letter-spacing: -.3px; }
 .ci-resumo small { font-size: 10.5px; color: #9a94a6; }
 
 /* ── gráficos do estoque ── */

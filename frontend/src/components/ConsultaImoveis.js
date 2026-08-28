@@ -20,6 +20,20 @@ const dataBR = (v) => (v ? new Date(`${String(v).slice(0, 10)}T00:00:00`).toLoca
 const area = (v) => (v == null || v === '' ? '—'
   : `${Number(v).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} m²`);
 
+/* Valor de card que encolhe quando o número é comprido.
+ *
+ * O VGV chega na casa dos bilhões — "R$ 2.027.417.634" tem 16 caracteres e o min-content
+ * dele passa da largura do track do grid, então vazava para fora do cartão.
+ *
+ * Encolher a fonte mantém o número EXATO. Abreviar para "R$ 2,03 bi" caberia folgado,
+ * mas é um número que a diretoria cita de cabeça — perder os dígitos ali é pior que
+ * ter dois tamanhos de fonte na mesma faixa de cards. */
+const Valor = ({ children }) => {
+  const texto = String(children ?? '');
+  const classe = texto.length > 15 ? 'muito-longo' : texto.length > 12 ? 'longo' : '';
+  return <strong className={classe || undefined}>{children}</strong>;
+};
+
 // Situações que o cache guarda (ver sync_areas_imoview.SITUACOES).
 const SITUACOES = [
   { value: 'disponivel', label: 'Disponíveis' },
@@ -546,25 +560,25 @@ export default function ConsultaImoveis() {
 
       {resumo && !carregando && (
         <section className="ci-resumo">
-          <div><span>Imóveis</span><strong>{numero(resumo.total)}</strong></div>
+          <div><span>Imóveis</span><Valor>{numero(resumo.total)}</Valor></div>
           <div>
             <span>VGV do recorte</span>
-            <strong>{moeda(resumo.vgv)}</strong>
+            <Valor>{moeda(resumo.vgv)}</Valor>
             <small>{numero(resumo.com_valor)} com valor</small>
           </div>
           <div>
             <span>Ticket médio</span>
-            <strong>{moeda(resumo.ticket_medio)}</strong>
+            <Valor>{moeda(resumo.ticket_medio)}</Valor>
           </div>
           <div>
             <span>Área média</span>
-            <strong>{area(resumo.area_media)}</strong>
+            <Valor>{area(resumo.area_media)}</Valor>
           </div>
           {/* Publicados = com ao menos um portal ATIVO agora. Portal retirado não conta:
               o imóvel já esteve no ar e não está mais, que é a diferença que importa. */}
           <div className={resumo.portais?.sem_portal ? 'is-alerta' : ''}>
             <span>Nos portais</span>
-            <strong>{numero(resumo.portais?.publicados)}</strong>
+            <Valor>{numero(resumo.portais?.publicados)}</Valor>
             <small>
               {numero(resumo.portais?.sem_portal)} fora
               {resumo.portais?.sem_dado
@@ -575,7 +589,7 @@ export default function ConsultaImoveis() {
           {(resumo.portais?.por_destaque || []).map((d) => (
             <div key={d.nivel}>
               <span>{d.rotulo}</span>
-              <strong>{numero(d.total)}</strong>
+              <Valor>{numero(d.total)}</Valor>
               <small>
                 {resumo.portais.publicados
                   ? `${Math.round((d.total / resumo.portais.publicados) * 100)}% dos publicados`
@@ -585,11 +599,11 @@ export default function ConsultaImoveis() {
           ))}
           <div>
             <span>Site próprio</span>
-            <strong>{numero(resumo.portais?.no_site_proprio)}</strong>
+            <Valor>{numero(resumo.portais?.no_site_proprio)}</Valor>
           </div>
           <div>
             <span>Preço por m²</span>
-            <strong>{moeda(resumo.valor_m2_medio)}</strong>
+            <Valor>{moeda(resumo.valor_m2_medio)}</Valor>
             <small>{numero(resumo.com_area_e_valor)} com área</small>
           </div>
         </section>
