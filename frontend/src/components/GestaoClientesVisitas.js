@@ -950,7 +950,9 @@ function GestaoClientesVisitas() {
         </button>
       </header>
 
-      <section className="gcv-filters">
+      {/* Barra fixa: abaixo dela vêm os painéis de período, calendário, rankings e a
+          tabela de clientes — trocar de corretor no meio da lista obrigava a subir tudo. */}
+      <section className="gcv-filters gcv-filters--fixa">
         <label>
           Escopo
           <select

@@ -45,6 +45,22 @@ const SITUACOES = [
 ];
 
 // Rascunho dos filtros. Vazio = campo não enviado; o servidor ignora chave em branco.
+/* Rótulo humano de cada filtro, para os chips do recorte.
+ * A linha "Recorte:" mostrava a chave crua (`valor_min=500000`), que é nome de código,
+ * não o que a pessoa escolheu. */
+const ROTULO_FILTRO = {
+  bairro: 'Bairro', tipo: 'Tipo', finalidade: 'Finalidade', foco: 'Foco',
+  valor_min: 'Valor min', valor_max: 'Valor máx',
+  area_min: 'Área min', area_max: 'Área máx',
+  quartos_min: 'Quartos', vagas_min: 'Vagas',
+  mudou_de: 'Mudou de', mudou_ate: 'Mudou até',
+  captado_de: 'Captado de', captado_ate: 'Captado até',
+  visitas: 'Visitas', visita_de: 'Visita de', visita_ate: 'Visita até',
+  propostas: 'Propostas', leads: 'Leads',
+  lead_de: 'Lead de', lead_ate: 'Lead até',
+  fotos: 'Fotos', anexos: 'Anexos',
+};
+
 const FILTROS_VAZIOS = {
   bairro: '', tipo: '',
   // Venda por padrao: a tela e do estoque COMERCIAL. Com "todas", o card de imoveis
@@ -207,6 +223,17 @@ export default function ConsultaImoveis() {
 
   const filtrosLigados = Object.values(filtrosAtivos).filter((v) => String(v || '').trim()).length;
 
+  /* Tira UM filtro e busca na hora, sem passar pelo "Aplicar".
+   * É a única ação da tela que dispensa confirmação, e por um motivo: tirar recorte só
+   * pode aumentar o resultado. Acrescentar continua exigindo o "Aplicar", porque são ~20
+   * controles e uma consulta por tecla digitada seria pior que o problema. */
+  const removerFiltro = (chave) => {
+    const proximos = { ...filtros, [chave]: '' };
+    setFiltros(proximos);
+    setFiltrosAtivos(proximos);
+    carregar(termoAtivo, 1, situacao, apenasMeus, proximos);
+  };
+
   const baixarPdfImovel = async (codigo) => {
     if (baixandoPdf || !codigo) return;
     setBaixandoPdf(true);
@@ -329,7 +356,10 @@ export default function ConsultaImoveis() {
         </div>
       </header>
 
-      <form className="ci-busca" onSubmit={buscar}>
+      {/* Barra de busca fixa: entre ela e a lista existem os cards, a tabela de portais
+          e sete gráficos. Sem fixar, mudar de situação no meio dos resultados obrigava a
+          rolar a página inteira de volta. */}
+      <form className="ci-busca ci-busca--fixa" onSubmit={buscar}>
         <input
           value={busca}
           onChange={(e) => setBusca(e.target.value)}
@@ -389,8 +419,18 @@ export default function ConsultaImoveis() {
         </span>
       </form>
 
+      {/* Gaveta lateral. Antes o painel abria no fluxo e empurrava a lista para baixo:
+          quem estava no meio dos resultados perdia a posição só por abrir os filtros. */}
       {painelFiltros && (
-        <section className="ci-filtros">
+        <div className="ci-gaveta-bg" onClick={() => setPainelFiltros(false)} />
+      )}
+      {painelFiltros && (
+        <section className="ci-filtros ci-gaveta" role="dialog" aria-label="Filtros de imóveis">
+          <header className="ci-gaveta-topo">
+            <strong>Filtros{filtrosLigados ? ` (${filtrosLigados})` : ''}</strong>
+            <button type="button" className="ci-limpar"
+              onClick={() => setPainelFiltros(false)}>Fechar</button>
+          </header>
           <div className="ci-filtros-grid">
             <label>Bairro
               <select value={filtros.bairro}
@@ -560,7 +600,8 @@ export default function ConsultaImoveis() {
             <button type="button" className="ci-limpar" onClick={limparFiltros}>
               Limpar filtros
             </button>
-            <button type="button" className="ci-cta" onClick={aplicarFiltros}>
+            <button type="button" className="ci-cta"
+              onClick={() => { aplicarFiltros(); setPainelFiltros(false); }}>
               Aplicar filtros
             </button>
           </div>
@@ -570,13 +611,25 @@ export default function ConsultaImoveis() {
       {/* O que o servidor de fato aplicou. Sem isto, filtro herdado de estado anterior
           some da vista: o dropdown mostra "Todos os bairros" e o recorte continua ativo. */}
       {aplicados && !carregando && (
-        <p className="ci-aplicados">
-          <b>Recorte:</b>{' '}
+        <div className="ci-aplicados">
+          <b>Recorte:</b>
           {Object.entries(aplicados)
             .filter(([k, v]) => v !== null && v !== false && v !== '')
-            .map(([k, v]) => `${k}=${v}`)
-            .join(' · ')}
-        </p>
+            .map(([k, v]) => (
+              /* Clicável: desfazer um recorte no meio da lista sem subir a página e sem
+                 reabrir a gaveta era o motivo desta tela cansar. */
+              <button key={k} type="button" className="ci-chip-filtro"
+                title={`Remover filtro ${ROTULO_FILTRO[k] || k}`}
+                onClick={() => removerFiltro(k)}>
+                <span>{ROTULO_FILTRO[k] || k}</span><b>{String(v)}</b>
+                <i aria-hidden="true">×</i>
+              </button>
+            ))}
+          {filtrosLigados > 1 && (
+            <button type="button" className="ci-limpar ci-chip-limpar"
+              onClick={limparFiltros}>Limpar tudo</button>
+          )}
+        </div>
       )}
 
       {resumo && !carregando && (

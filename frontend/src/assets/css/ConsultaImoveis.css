@@ -376,3 +376,68 @@
   color: #857f92; border: 1px solid #e0dce7; border-radius: 5px; padding: 1px 5px;
   flex: 0 0 auto; margin-left: auto;
 }
+
+/* ── barra de busca fixa ───────────────────────────────────────────────────
+   Entre a barra e a lista existem os cards, a tabela de portais e sete gráficos. Sem
+   fixar, trocar de situação no meio dos resultados obrigava a rolar tudo de volta. */
+.ci-busca--fixa {
+  position: sticky; top: 0; z-index: 30;
+  background: #f7f6fa;
+  /* -8px lateral para o fundo cobrir a largura toda: sem isso a lista aparecia por
+     baixo da barra ao rolar. */
+  margin: 0 -8px 12px; padding: 10px 8px;
+  border-bottom: 1px solid #e6e2ec;
+  box-shadow: 0 6px 14px -12px rgba(28, 26, 34, .5);
+}
+
+/* ── recorte aplicado, agora clicável ── */
+.ci-aplicados {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 6px;
+  margin: 0 0 12px; font-size: 11.5px; color: #857f92;
+}
+.ci-chip-filtro {
+  display: inline-flex; align-items: center; gap: 5px;
+  background: #f3f0f8; border: 1px solid #e2dcec; border-radius: 999px;
+  padding: 3px 9px; font-size: 11px; color: #5b5766; cursor: pointer;
+  transition: background .15s ease, border-color .15s ease, color .15s ease;
+}
+.ci-chip-filtro:hover { background: #fdecf2; border-color: #f3c9db; color: #b3004a; }
+.ci-chip-filtro b { color: #1c1a22; font-weight: 700; }
+.ci-chip-filtro:hover b { color: #b3004a; }
+.ci-chip-filtro i { font-style: normal; font-size: 13px; line-height: 1; opacity: .55; }
+.ci-chip-filtro:hover i { opacity: 1; }
+.ci-chip-limpar { font-size: 11px; }
+
+/* ── gaveta de filtros ─────────────────────────────────────────────────────
+   O painel não empurra mais a lista: quem está no meio dos resultados mantém a posição. */
+.ci-gaveta-bg {
+  position: fixed; inset: 0; background: rgba(28, 26, 34, .28);
+  z-index: 60; animation: ci-fade .16s ease;
+}
+.ci-gaveta {
+  position: fixed; top: 0; right: 0; bottom: 0; width: min(420px, 94vw);
+  z-index: 61; display: flex; flex-direction: column;
+  margin: 0; border-radius: 0;
+  box-shadow: -12px 0 32px -18px rgba(28, 26, 34, .55);
+  animation: ci-entra .18s ease;
+}
+@keyframes ci-fade { from { opacity: 0; } }
+@keyframes ci-entra { from { transform: translateX(20px); opacity: .6; } }
+.ci-gaveta-topo {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  padding: 13px 16px; border-bottom: 1px solid #e6e2ec; flex: 0 0 auto;
+}
+.ci-gaveta-topo strong { font-size: 13.5px; letter-spacing: -.2px; color: #1c1a22; }
+/* O corpo rola sozinho para o rodapé com "Aplicar" ficar sempre visível — senão o
+   problema de rolar-para-achar-o-botão voltaria dentro da própria gaveta. */
+.ci-gaveta .ci-filtros-grid,
+.ci-gaveta .ci-filtros-dica { flex: 0 0 auto; }
+.ci-gaveta > .ci-filtros-grid { flex: 1 1 auto; overflow-y: auto; }
+.ci-gaveta .ci-filtros-grid { grid-template-columns: 1fr 1fr; padding: 14px 16px; }
+.ci-gaveta .ci-filtros-dica { padding: 0 16px 12px; margin: 0; }
+.ci-gaveta .ci-filtros-acoes {
+  flex: 0 0 auto; border-top: 1px solid #e6e2ec; padding: 12px 16px; margin: 0;
+}
+@media (max-width: 560px) {
+  .ci-gaveta .ci-filtros-grid { grid-template-columns: 1fr; }
+}

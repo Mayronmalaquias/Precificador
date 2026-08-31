@@ -157,6 +157,21 @@ export default function GestaoVisitas() {
   }, [visitas]);
 
   /** Indicadores das visitas realizadas que estão visíveis com os filtros locais. */
+  // Altura real da barra fixa -> variavel CSS herdada pelo resto da tela.
+  const barraRef = useRef(null);
+  useEffect(() => {
+    const alvo = barraRef.current;
+    if (!alvo || typeof ResizeObserver === "undefined") return undefined;
+    const medir = () => {
+      const raiz = alvo.closest(".gm") || document.documentElement;
+      raiz.style.setProperty("--gl-barra-h", `${alvo.offsetHeight}px`);
+    };
+    medir();
+    const observador = new ResizeObserver(medir);
+    observador.observe(alvo);
+    return () => observador.disconnect();
+  }, []);
+
   const indicadores = useMemo(() => {
     const mapa = new Map();
     const respostas = { sim: 0, talvez: 0, nao: 0, vazio: 0 };
@@ -535,7 +550,10 @@ export default function GestaoVisitas() {
         </div>
       </header>
 
-      <div className="gm-barra">
+      {/* Barra fixa: entre ela e a tabela existem os cards, quatro gráficos e as abas.
+          Mede a própria altura porque ela muda com o perfil (o gerente não vê o seletor
+          de equipe) — valor cravado no CSS erraria para metade dos usuários. */}
+      <div className="gm-barra gm-barra--fixa" ref={barraRef}>
         <label>De
           <input type="date" value={periodo.inicio}
             onChange={(e) => setPeriodo((p) => ({ ...p, inicio: e.target.value }))} />
