@@ -201,3 +201,69 @@
 @media (prefers-reduced-motion: reduce) {
   .raba-cta--pendente { animation: none; outline: 2px solid rgba(225, 0, 91, .45); outline-offset: 2px; }
 }
+
+/* ── barra de busca fixa + chips + gaveta de filtros ───────────────────────
+   `--gl-barra-h` é medida em runtime pela Gestão de Leads (a altura muda com o perfil:
+   o gerente não vê o seletor de equipe). Fora dela a variável não existe e o fallback
+   0px mantém o comportamento antigo — a aba dentro do Relatório do Gerente não regride. */
+.raba-barra {
+  position: sticky;
+  top: var(--gl-barra-h, 0px);
+  z-index: 20;
+  background: #fff;
+  padding: 8px 4px;
+  /* Mantem o respiro de 14px que a regra original dava; o -4px lateral e para o fundo
+     cobrir a largura toda e a lista nao aparecer por baixo ao rolar. */
+  margin: 0 -4px 14px;
+  border-bottom: 1px solid #ece9f1;
+}
+
+/* Chips do que está aplicado: desfazer um recorte sem subir e sem abrir a gaveta. */
+.raba-chips {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 6px;
+  flex-basis: 100%; margin-top: 6px;
+}
+.raba-chip {
+  display: inline-flex; align-items: center; gap: 5px;
+  background: #f3f0f8; border: 1px solid #e2dcec; border-radius: 999px;
+  padding: 3px 9px; font-size: 11px; color: #5b5766; cursor: pointer;
+  transition: background .15s ease, border-color .15s ease;
+}
+.raba-chip:hover { background: #fdecf2; border-color: #f3c9db; color: #b3004a; }
+.raba-chip b { color: #1c1a22; font-weight: 700; }
+.raba-chip:hover b { color: #b3004a; }
+.raba-chip i { font-style: normal; font-size: 13px; line-height: 1; opacity: .55; }
+.raba-chip:hover i { opacity: 1; }
+.raba-chips-limpar { font-size: 11px; }
+
+/* Gaveta: o painel não empurra mais a lista, então quem estava no meio da tabela não
+   perde a posição ao abrir os filtros. */
+.raba-gaveta-bg {
+  position: fixed; inset: 0; background: rgba(28, 26, 34, .28);
+  z-index: 60; animation: raba-fade .16s ease;
+}
+.raba-gaveta {
+  position: fixed; top: 0; right: 0; bottom: 0; width: min(380px, 92vw);
+  background: #fff; z-index: 61; display: flex; flex-direction: column;
+  box-shadow: -12px 0 32px -18px rgba(28, 26, 34, .55);
+  animation: raba-entra .18s ease;
+}
+@keyframes raba-fade { from { opacity: 0; } }
+@keyframes raba-entra { from { transform: translateX(18px); opacity: .6; } }
+.raba-gaveta-topo, .raba-gaveta-rodape {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  padding: 12px 16px; flex: 0 0 auto;
+}
+.raba-gaveta-topo { border-bottom: 1px solid #ece9f1; }
+.raba-gaveta-topo strong { font-size: 13.5px; letter-spacing: -.2px; }
+.raba-gaveta-rodape { border-top: 1px solid #ece9f1; }
+/* O corpo rola sozinho: são ~20 controles e o rodapé com "Aplicar" tem que ficar visível
+   o tempo todo, senão volta o problema de rolar para achar o botão. */
+.raba-gaveta .raba-filtros {
+  flex: 1 1 auto; overflow-y: auto; display: grid; grid-template-columns: 1fr 1fr;
+  gap: 10px; padding: 14px 16px; margin: 0; border: 0; background: transparent;
+}
+.raba-gaveta .raba-filtros label { display: grid; gap: 3px; font-size: 11px; }
+@media (max-width: 520px) {
+  .raba-gaveta .raba-filtros { grid-template-columns: 1fr; }
+}

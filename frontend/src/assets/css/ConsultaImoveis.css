@@ -353,3 +353,26 @@
 /* Zero em super destaque é achado, não dado faltando — fica visível, não apagado. */
 .ci-portais td.is-zero { color: #b6bbc9; }
 .ci-portais-fora { color: #9a94a6; }
+
+/* ── fotos e anexos do Imoview ── */
+.ci-midia-resumo { display: flex; flex-wrap: wrap; gap: 8px; margin: 4px 0 8px; }
+.ci-midia-resumo span {
+  background: #f5f6fa; border-radius: 7px; padding: 4px 10px;
+  font-size: 11.5px; color: #5f6679;
+}
+.ci-midia-resumo strong { color: #1c1a22; font-variant-numeric: tabular-nums; }
+/* Zero foto num imóvel publicado é problema comercial: fica marcado, não neutro. */
+.ci-midia-resumo span.is-alerta { background: #fdecf2; color: #b3004a; }
+.ci-midia-resumo span.is-alerta strong { color: #b3004a; }
+.ci-anexos { list-style: none; margin: 0; padding: 0; display: grid; gap: 3px; }
+.ci-anexos li {
+  display: flex; align-items: center; gap: 8px; font-size: 12px; color: #3f3b4a;
+  padding: 5px 9px; background: #faf9fc; border-radius: 6px;
+  /* Nome de arquivo é longo e sem espaço: quebra em vez de esticar o modal. */
+  overflow-wrap: anywhere;
+}
+.ci-anexos em {
+  font-style: normal; font-size: 9px; font-weight: 700; text-transform: uppercase;
+  color: #857f92; border: 1px solid #e0dce7; border-radius: 5px; padding: 1px 5px;
+  flex: 0 0 auto; margin-left: auto;
+}

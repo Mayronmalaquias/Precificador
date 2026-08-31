@@ -778,6 +778,12 @@ def resumo(solicitante_id, inicio=None, fim=None, equipe=None, corretor=None) ->
         base, escopo_c2s = _base_espelho(session, solicitante_id, inicio, fim, equipe, corretor)
         perfil = _perfil(session, solicitante_id)
 
+        # Mesmo recorte SEM o filtro de corretor. So serve para montar a lista do
+        # dropdown: tirada de `base`, ela encolhia para o proprio corretor escolhido e o
+        # gerente precisava voltar em "Todos os corretores" para ver os outros de novo —
+        # o filtro apagava as proprias opcoes.
+        base_dropdown, _ = _base_espelho(session, solicitante_id, inicio, fim, equipe, None)
+
         def agrupar(coluna):
             linhas = base.with_entities(coluna, func.count(LeadC2S.id_c2s)).group_by(coluna).all()
             contagem: Dict[str, int] = {}
@@ -957,7 +963,12 @@ def resumo(solicitante_id, inicio=None, fim=None, equipe=None, corretor=None) ->
             # exatamente com o que o filtro compara; uma lista vinda do cadastro traria
             # grafia diferente e o filtro devolveria vazio.
             "corretores": sorted(
-                {c for c in agrupar(LeadC2S.corretor) if c and c != "Nao informado"},
+                {
+                    _rotulo(valor)
+                    for (valor,) in base_dropdown.with_entities(LeadC2S.corretor)
+                                                 .distinct().all()
+                    if _texto(valor)
+                },
                 key=lambda x: x.lower(),
             ),
             "por_situacao": _top_n(agrupar(LeadC2S.situacao)),

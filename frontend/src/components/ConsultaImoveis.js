@@ -58,6 +58,7 @@ const FILTROS_VAZIOS = {
   // janela. `limparFiltros` zera tudo por `FILTROS_VAZIOS`, então basta estar aqui.
   visitas: '', visita_de: '', visita_ate: '', propostas: '',
   leads: '', lead_de: '', lead_ate: '',
+  fotos: '', anexos: '',
 };
 
 const FOCOS = [
@@ -465,6 +466,26 @@ export default function ConsultaImoveis() {
             {/* "Tem lead" e "tem lead EM ANDAMENTO" são perguntas diferentes: 1.651
                 imóveis do catálogo tiveram todos os leads arquivados. Por "qualquer"
                 eles pareceriam procurados, quando ninguém está mais atrás deles. */}
+            {/* Fotos e anexos vêm do Imoview. Imóvel que ainda não passou pela
+                varredura de mídia fica fora dos dois lados — "sem foto" tem que
+                significar medido e vazio, não desconhecido. */}
+            <label>Fotos
+              <select value={filtros.fotos}
+                onChange={(e) => setFiltros((f) => ({ ...f, fotos: e.target.value }))}>
+                <option value="">Tanto faz</option>
+                <option value="com">Com foto</option>
+                <option value="sem">Sem foto</option>
+              </select>
+            </label>
+            <label>Anexos
+              <select value={filtros.anexos}
+                onChange={(e) => setFiltros((f) => ({ ...f, anexos: e.target.value }))}>
+                <option value="">Tanto faz</option>
+                <option value="com">Com anexo</option>
+                <option value="sem">Sem anexo</option>
+              </select>
+            </label>
+
             <label>Leads
               <select value={filtros.leads}
                 onChange={(e) => setFiltros((f) => ({ ...f, leads: e.target.value }))}>
@@ -979,6 +1000,36 @@ export default function ConsultaImoveis() {
                     </>
                   )}
 
+
+                  {/* Fotos e anexos do Imoview. Só os NOMES dos anexos: as URLs do
+                      Imoview abrem sem autenticação nenhuma, então não são guardadas
+                      nem exibidas — quem precisa do arquivo abre no CRM. */}
+                  <h4 className="ci-sub">Fotos e anexos</h4>
+                  {interno?.arquivos_imoview?.sem_dado ? (
+                    <p className="ci-vazio">Este imóvel ainda não passou pela varredura de mídia.</p>
+                  ) : (
+                    <>
+                      <div className="ci-midia-resumo">
+                        <span className={interno?.arquivos_imoview?.fotos ? '' : 'is-alerta'}>
+                          <strong>{numero(interno?.arquivos_imoview?.fotos || 0)}</strong> foto(s)
+                        </span>
+                        <span>
+                          <strong>{numero(interno?.arquivos_imoview?.anexos || 0)}</strong> anexo(s)
+                        </span>
+                        {interno?.arquivos_imoview?.tem_video && <span>vídeo</span>}
+                      </div>
+                      {(interno?.arquivos_imoview?.anexos_nomes || []).length > 0 && (
+                        <ul className="ci-anexos">
+                          {interno.arquivos_imoview.anexos_nomes.map((a, i) => (
+                            <li key={`${a.nome}-${i}`}>
+                              {a.nome}
+                              {a.visibilidade && <em>{a.visibilidade}</em>}
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </>
+                  )}
 
                   {!!interno?.visitas?.itens?.length && (
                     <table className="ci-tabela">

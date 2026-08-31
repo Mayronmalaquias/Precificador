@@ -425,3 +425,19 @@
   padding: 6px 9px; border: 1px solid var(--gm-linha); border-radius: 8px;
   font-size: 12px; background: var(--gm-fundo); color: var(--gm-ink);
 }
+
+/* ── barra de filtros fixa (Gestão de Leads) ───────────────────────────────
+   Entre os filtros e a lista existem os cards e cinco gráficos. Sem fixar, ajustar um
+   recorte no meio da tabela obrigava a rolar a página inteira de volta. */
+.gm-barra--fixa {
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  background: var(--gm-fundo, #fff);
+  /* A barra é mais estreita que o conteúdo; o padding negativo faz o fundo cobrir a
+     largura toda para a lista não aparecer por baixo ao rolar. */
+  margin: 0 -4px;
+  padding: 8px 4px;
+  border-bottom: 1px solid #ece9f1;
+  box-shadow: 0 6px 14px -12px rgba(28, 26, 34, .5);
+}

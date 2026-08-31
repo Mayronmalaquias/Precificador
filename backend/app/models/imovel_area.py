@@ -9,6 +9,8 @@ area fica registrada ANTES da venda e sobrevive ao imovel sair do ar.
 """
 from sqlalchemy import Boolean, Column, DateTime, Integer, Numeric, String, Text, func
 
+from sqlalchemy.dialects.postgresql import JSONB
+
 from app.models.base import Base
 
 
@@ -74,6 +76,16 @@ class ImovelArea(Base):
     exibir_meu_site = Column(Boolean, nullable=True)
     destaque_site = Column(Text, nullable=True)
     portais_em = Column(DateTime, nullable=True)
+
+    # ── fotos e anexos (RetornarImoveis com `exibiranexos=true`) ──────────────
+    # `anexos_nomes` guarda so nome e visibilidade. A URL do Imoview abre sem
+    # autenticacao — nao grava-la e o que impede a tela de redistribuir certidao e ficha
+    # cadastral do proprietario por engano.
+    qtd_fotos = Column(Integer, nullable=True, index=True)
+    qtd_anexos = Column(Integer, nullable=True, index=True)
+    anexos_nomes = Column(JSONB, nullable=True)
+    tem_video = Column(Boolean, nullable=True)
+    midia_em = Column(DateTime, nullable=True)
 
     origem = Column(String(30), nullable=True, default="imoview")
     atualizado_em = Column(DateTime, server_default=func.now(), onupdate=func.now(), nullable=True)

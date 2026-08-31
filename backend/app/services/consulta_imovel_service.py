@@ -162,6 +162,7 @@ FILTROS_DE_CATALOGO = (
     "visitas", "visita_de", "visita_ate",
     "propostas",
     "leads", "lead_de", "lead_ate",
+    "fotos", "anexos",
 )
 
 
@@ -386,6 +387,21 @@ def _aplicar_recortes(session, query, termo, situacao, f):
             query = query.filter(ImovelArea.codigo.notin_(sub))
         else:
             query = query.filter(ImovelArea.codigo.in_(sub))
+
+    # Fotos e anexos: "com" e "sem". `qtd_* IS NULL` = imovel que ainda nao passou pela
+    # varredura de midia — fica FORA dos dois lados, como em `portais`. Chamar de "sem
+    # foto" o que so nao foi medido mandaria a operacao atras de problema inexistente.
+    fotos = _texto(f.get("fotos")).lower()
+    if fotos == "com":
+        query = query.filter(ImovelArea.qtd_fotos > 0)
+    elif fotos == "sem":
+        query = query.filter(ImovelArea.qtd_fotos == 0)
+
+    anexos = _texto(f.get("anexos")).lower()
+    if anexos == "com":
+        query = query.filter(ImovelArea.qtd_anexos > 0)
+    elif anexos == "sem":
+        query = query.filter(ImovelArea.qtd_anexos == 0)
 
     if f.get("foco"):
         condicao = _filtro_de_foco(session, f["foco"].lower())
@@ -1304,6 +1320,19 @@ def detalhe(solicitante_id, codigo):
                     ),
                 },
                 "leads": _leads_do_imovel(session, codigo),
+                # Fotos e anexos do IMOVIEW. Chave separada de `midia`, que ja existe
+                # acima e e a midia INTERNA (audio e ficha da visita) — colidir as duas
+                # apagaria uma delas em silencio, porque o dict aceita a chave repetida.
+                # So nomes de anexo: a URL do Imoview abre sem autenticacao e nao e
+                # guardada de proposito.
+                "arquivos_imoview": {
+                    "fotos": int(cache_local.qtd_fotos or 0) if cache_local else 0,
+                    "anexos": int(cache_local.qtd_anexos or 0) if cache_local else 0,
+                    "anexos_nomes": (cache_local.anexos_nomes or []) if cache_local else [],
+                    "tem_video": bool(cache_local.tem_video) if cache_local else False,
+                    # Nulo = nunca varrido. Diferente de "tem zero fotos".
+                    "sem_dado": bool(cache_local is None or cache_local.qtd_fotos is None),
+                },
                 "venda": {
                     "id_contrato": venda.get("id_contrato"),
                     "data": venda.get("data_contrato"),

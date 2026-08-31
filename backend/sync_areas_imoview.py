@@ -207,6 +207,33 @@ def _captadores(item):
     return dados
 
 
+def _midia(item):
+    """Fotos e anexos do imovel.
+
+    So o NOME do anexo entra. A URL (`app.imoview.com.br/url/short/...`) abre sem
+    autenticacao nenhuma — quem tem o link le certidao e ficha cadastral do proprietario.
+    Nao guardar a URL e o que impede a tela de virar distribuidor desses links.
+
+    `quantidadeanexos` e usado como fonte da contagem, e nao `len(anexos)`: se um dia a
+    flag deixar de ser enviada, o numero continua certo e so a lista de nomes esvazia.
+    """
+    anexos = []
+    for a in (item.get("anexos") or []):
+        nome = str((a or {}).get("nome") or "").strip()
+        if nome:
+            anexos.append({
+                "nome": nome,
+                "visibilidade": str((a or {}).get("visibilidade") or "").strip() or None,
+            })
+    return {
+        "qtd_fotos": len(item.get("fotos") or []),
+        "qtd_anexos": _inteiro(item.get("quantidadeanexos")) or len(anexos),
+        "anexos_nomes": anexos or None,
+        "tem_video": bool(str(item.get("urlvideo") or "").strip()),
+        "midia_em": datetime.now(),
+    }
+
+
 def _coletar_situacao(situacao, ordenacao=None, parar_antes_de=None, max_paginas=None):
     catalogo = {}
     pagina = 1
@@ -219,6 +246,9 @@ def _coletar_situacao(situacao, ordenacao=None, parar_antes_de=None, max_paginas
             # acreditava que a API nao informava o captador. Com ela, a cobertura medida
             # em 27/08/2026 foi de 100% (160 de 160 na amostra).
             "exibircaptadores": True,
+            # Mesma armadilha do `exibircaptadores`: sem esta flag o imovel devolve
+            # `quantidadeanexos` correto e `anexos: []`. Custa ~0,9s por pagina.
+            "exibiranexos": True,
         }
         if ordenacao:
             corpo["ordenacao"] = ordenacao
@@ -235,6 +265,7 @@ def _coletar_situacao(situacao, ordenacao=None, parar_antes_de=None, max_paginas
             # `areaprivativa` costuma vir como flag; só entra se for número de verdade.
             privativa = _num(item.get("areaprivativa"))
             catalogo[codigo] = {
+                **_midia(item),
                 "area": principal or interna or privativa,
                 "area_principal": principal,
                 "area_interna": interna,

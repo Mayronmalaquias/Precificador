@@ -17,6 +17,40 @@ const CANAIS = [
 ];
 const NEGOCIACOES = ["Comprar", "Alugar", "Lançamento"];
 
+/* Máscara de milhar pt-BR para os campos de faixa, no mesmo espírito do
+ * `formatarMoedaBR` da tela de Nova Visita: o estado guarda SÓ DÍGITOS e a formatação
+ * acontece apenas na exibição.
+ *
+ * Guardar dígitos não é preferência de estilo, é correção. O back-end lê a faixa com
+ * `_num_filtro`, que só trata ponto como milhar quando existe vírgula decimal: enviar o
+ * texto mascarado faria "500.000" virar 500 e "1.000.000" virar nulo — errado por mil
+ * vezes, e em silêncio.
+ *
+ * Sem centavos, ao contrário da Nova Visita: lá se digita um preço exato; aqui é limite
+ * de faixa, sempre redondo. Com centavos, filtrar por 500 mil exigiria digitar 50000000.
+ */
+const CAMPOS_FAIXA = new Set(["valor_min", "valor_max", "area_min", "area_max"]);
+
+const soDigitos = (valor) => String(valor ?? "").replace(/[^0-9]/g, "");
+
+const milharBR = (valor) => {
+  const digitos = soDigitos(valor);
+  return digitos ? Number(digitos).toLocaleString("pt-BR") : "";
+};
+
+/* Rótulo humano de cada filtro, para os chips da barra fixa.
+ * Sem isto o chip mostraria a chave crua ("valor_min: 500000"), que não é o que a pessoa
+ * digitou nem o que ela procura quando quer desfazer. */
+const ROTULO_FILTRO = {
+  situacao: "Situação", fonte: "Portal", canal: "Canal", funil: "Funil",
+  motivo: "Motivo", arquivado: "Arquivado", fechado: "Fechado",
+  bairro: "Bairro", tipo: "Tipo", quartos: "Quartos",
+  valor_min: "Valor min", valor_max: "Valor máx",
+  area_min: "Área min", area_max: "Área máx",
+  origem_de: "Entrada de", origem_ate: "Entrada até",
+  por: "Período por",
+};
+
 const FILTROS_VAZIOS = {
   situacao: "", fonte: "", canal: "", funil: "", motivo: "",
   arquivado: "", fechado: "", por: "criacao",
@@ -396,6 +430,31 @@ export default function RelatorioLeads({ idSolicitante, equipe, inicio, fim, cor
   const ativos = Object.entries(filtros)
     .filter(([k, v]) => v && !(k === "por" && v === "criacao")).length;
   const limparFiltros = () => setFiltros(FILTROS_VAZIOS);
+
+  // Um handler para os quatro campos de faixa: guarda dígitos, descarta o resto.
+  const setFaixa = (chave) => (e) =>
+    setFiltros((f) => ({ ...f, [chave]: soDigitos(e.target.value) }));
+
+  /* Chips do que está aplicado AGORA (`filtrosAtivos`, não o rascunho).
+   * Mostrar o rascunho enganaria: diria que a lista está filtrada por algo que ainda não
+   * foi buscado. Remover um chip aplica na hora — é a única ação da tela que dispensa o
+   * "Buscar", porque tirar recorte só pode aumentar o resultado. */
+  const chips = Object.entries(filtrosAtivos)
+    .filter(([k, v]) => v && !(k === "por" && v === "criacao"))
+    .map(([k, v]) => ({
+      chave: k,
+      rotulo: ROTULO_FILTRO[k] || k,
+      // O chip repete o que está escrito no campo: o estado guarda dígitos crus, e
+      // mostrar "1200000" ao lado de um campo escrito "1.200.000" pareceria outro filtro.
+      valor: CAMPOS_FAIXA.has(k) ? milharBR(v) : String(v),
+    }));
+
+  const removerChip = (chave) => {
+    const proximos = { ...filtros, [chave]: chave === "por" ? "criacao" : "" };
+    setFiltros(proximos);
+    setFiltrosAtivos(proximos);
+    carregar(1, buscaAtiva, proximos);
+  };
   // Com filtro local o total pode ser desconhecido, entao a navegacao usa `tem_mais`
   // em vez de um numero de paginas que seria chute.
   const paginas = dados.total == null
@@ -445,9 +504,40 @@ export default function RelatorioLeads({ idSolicitante, equipe, inicio, fim, cor
             ? `${dados.itens?.length || 0}+ leads`
             : `${dados.total.toLocaleString("pt-BR")} lead${dados.total === 1 ? "" : "s"}`}
         </span>
+
+        {/* Chips do que está aplicado. Ficam DENTRO da barra fixa para poder desfazer um
+            recorte no meio da lista, sem subir e sem abrir a gaveta. */}
+        {chips.length > 0 && (
+          <div className="raba-chips">
+            {chips.map((c) => (
+              <button key={c.chave} type="button" className="raba-chip"
+                title={`Remover filtro ${c.rotulo}`}
+                onClick={() => removerChip(c.chave)}>
+                <span>{c.rotulo}</span><b>{c.valor}</b><i aria-hidden="true">×</i>
+              </button>
+            ))}
+            <button type="button" className="raba-link raba-chips-limpar"
+              onClick={() => { limparFiltros(); setFiltrosAtivos(FILTROS_VAZIOS);
+                               carregar(1, buscaAtiva, FILTROS_VAZIOS); }}>
+              Limpar tudo
+            </button>
+          </div>
+        )}
       </div>
 
+      {/* Gaveta lateral. Antes o painel abria no fluxo e empurrava a lista para baixo —
+          quem estava no meio da tabela perdia a posição ao abrir os filtros. Como gaveta,
+          a lista fica onde está e continua rolável atrás. */}
       {maisFiltros && (
+        <div className="raba-gaveta-bg" onClick={() => setMaisFiltros(false)} />
+      )}
+      {maisFiltros && (
+        <aside className="raba-gaveta" role="dialog" aria-label="Filtros dos leads">
+          <header className="raba-gaveta-topo">
+            <strong>Filtros{ativos ? ` (${ativos})` : ""}</strong>
+            <button type="button" className="raba-link"
+              onClick={() => setMaisFiltros(false)}>Fechar</button>
+          </header>
         <div className="raba-filtros">
           {/* Motivo, situação e funil vêm do catálogo fixo da C2S (carregado ao abrir,
               sem consultar a API deles). Portal e canal não têm catálogo, então só
@@ -506,20 +596,20 @@ export default function RelatorioLeads({ idSolicitante, equipe, inicio, fim, cor
               catálogo, então o recorte é representativo — mas lead sem código, ou com
               código fora do catálogo, sai do resultado, igual a bairro/tipo/quartos. */}
           <label>Valor do imóvel — de
-            <input type="number" min="0" step="10000" placeholder="R$ mínimo"
-              value={filtros.valor_min} onChange={setFiltro("valor_min")} />
+            <input type="text" inputMode="numeric" placeholder="Ex: 500.000"
+              value={milharBR(filtros.valor_min)} onChange={setFaixa("valor_min")} />
           </label>
           <label>até
-            <input type="number" min="0" step="10000" placeholder="R$ máximo"
-              value={filtros.valor_max} onChange={setFiltro("valor_max")} />
+            <input type="text" inputMode="numeric" placeholder="Ex: 1.200.000"
+              value={milharBR(filtros.valor_max)} onChange={setFaixa("valor_max")} />
           </label>
           <label>Metragem — de
-            <input type="number" min="0" step="10" placeholder="m² mínimo"
-              value={filtros.area_min} onChange={setFiltro("area_min")} />
+            <input type="text" inputMode="numeric" placeholder="Ex: 80"
+              value={milharBR(filtros.area_min)} onChange={setFaixa("area_min")} />
           </label>
           <label>até
-            <input type="number" min="0" step="10" placeholder="m² máximo"
-              value={filtros.area_max} onChange={setFiltro("area_max")} />
+            <input type="text" inputMode="numeric" placeholder="Ex: 250"
+              value={milharBR(filtros.area_max)} onChange={setFaixa("area_max")} />
           </label>
 
           {/* Data de ENTRADA do lead, separada da janela do topo de propósito. Com o
@@ -562,10 +652,23 @@ export default function RelatorioLeads({ idSolicitante, equipe, inicio, fim, cor
               <option value="atualizacao">Data de atualizacao</option>
             </select>
           </label>
-          {!!ativos && (
-            <button type="button" className="raba-link" onClick={limparFiltros}>Limpar filtros</button>
-          )}
         </div>
+          <footer className="raba-gaveta-rodape">
+            {!!ativos && (
+              <button type="button" className="raba-link" onClick={limparFiltros}>
+                Limpar filtros
+              </button>
+            )}
+            {/* O "Buscar" também vive aqui: com 20 controles, obrigar a fechar a gaveta
+                para aplicar seria um clique a mais em cada ajuste. */}
+            <button type="button"
+              className={`raba-cta ${pendente ? "raba-cta--pendente" : ""}`}
+              disabled={carregando}
+              onClick={() => { aplicarFiltros(); setMaisFiltros(false); }}>
+              {carregando ? "Buscando…" : "Aplicar filtros"}
+            </button>
+          </footer>
+        </aside>
       )}
 
       {dados.total_exato === false && (

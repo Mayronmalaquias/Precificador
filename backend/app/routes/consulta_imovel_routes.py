@@ -61,6 +61,8 @@ class ConsultaLista(Resource):
         "leads": "qualquer | ativos | arquivados | sem — imóveis por lead recebido.",
         "lead_de": "Data inicial do lead (YYYY-MM-DD). Não afeta `leads=sem`.",
         "lead_ate": "Data final do lead (YYYY-MM-DD).",
+        "fotos": "com | sem — imóveis com ou sem foto no Imoview.",
+        "anexos": "com | sem — imóveis com ou sem anexo no Imoview.",
     })
     def get(self):
         try:

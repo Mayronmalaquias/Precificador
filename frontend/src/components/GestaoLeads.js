@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState, useRef } from "react";
 import { BASE } from "../services/api";
 import { useAuth } from "../context/AuthContext";
 import { useEquipes } from "../context/EquipesContext";
@@ -64,6 +64,21 @@ export default function GestaoLeads() {
   // com o que o servidor compara. Vale para gerente também — antes a tela mandava
   // `corretor=""` fixo e o controle nem existia.
   const [corretor, setCorretor] = useState("");
+
+  // Altura real da barra fixa -> variável CSS herdada pelos filhos.
+  const barraRef = useRef(null);
+  useEffect(() => {
+    const alvo = barraRef.current;
+    if (!alvo || typeof ResizeObserver === "undefined") return undefined;
+    const medir = () => {
+      const raiz = alvo.closest(".gm") || document.documentElement;
+      raiz.style.setProperty("--gl-barra-h", `${alvo.offsetHeight}px`);
+    };
+    medir();
+    const observador = new ResizeObserver(medir);
+    observador.observe(alvo);
+    return () => observador.disconnect();
+  }, []);
   const [resumo, setResumo] = useState(null);
   const [carregandoResumo, setCarregandoResumo] = useState(true);
   const [erroResumo, setErroResumo] = useState("");
@@ -147,7 +162,11 @@ export default function GestaoLeads() {
         </div>
       </header>
 
-      <div className="gm-barra">
+      {/* Barra fixa no topo. Mede a própria altura em `--gl-barra-h` para a barra de
+          busca do RelatorioLeads encaixar logo abaixo em vez de ficar escondida atrás
+          desta — a altura muda com o perfil (o gerente não vê o seletor de equipe), então
+          um valor cravado no CSS erraria para metade dos usuários. */}
+      <div className="gm-barra gm-barra--fixa" ref={barraRef}>
         <label>De
           <input type="date" value={periodo.inicio}
             onChange={(e) => setPeriodo((p) => ({ ...p, inicio: e.target.value }))} />
