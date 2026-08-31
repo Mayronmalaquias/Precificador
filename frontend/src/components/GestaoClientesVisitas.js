@@ -986,9 +986,12 @@ function GestaoClientesVisitas() {
               onChange={(e) => setFiltros((f) => ({ ...f, id_corretor: e.target.value }))}
             >
               <option value="">Selecione</option>
+              {/* A lista vem só com ativos. O inativo só aparece se já estiver
+                  selecionado — e aí marcado, para o gerente saber por que aquele nome
+                  está ali e some quando ele trocar. */}
               {corretores.map((c) => (
                 <option key={c.id_corretor} value={c.id_corretor}>
-                  {c.id_corretor} - {texto(c.nome)}
+                  {c.id_corretor} - {texto(c.nome)}{c.ativo === false ? " (desligado)" : ""}
                 </option>
               ))}
             </select>

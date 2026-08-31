@@ -570,9 +570,21 @@ def acompanhar_espelho(solicitante_id, id_c2s, dados: Dict[str, Any]) -> Dict[st
         _aplicar_acompanhamento(lead, dados, perfil["id"])
 
         # Espelha no legado quando ha elo: o relatorio historico ainda le de la.
+        #
+        # So quando o elo e do MESMO lead. `id_legado` e montado por cliente + telefone,
+        # entao cliente que volta anos depois e ligado ao proprio registro antigo — e
+        # 5.282 linhas do legado sao compartilhadas por 16.272 leads do espelho. Sem esta
+        # guarda, gravar acompanhamento num lead reescrevia o de outro atendimento: o
+        # caso medido em 28/08/2026 gravou numa linha de 14/03/2024, de outra equipe,
+        # que serve a 9 leads diferentes.
+        #
+        # Perder o espelhamento nesses casos e o lado certo do erro: o relatorio antigo
+        # deixa de ver este acompanhamento, mas nenhum registro alheio e sobrescrito. O
+        # dado continua inteiro em `leads_c2s`, que e onde ele mora desde a migracao
+        # 20260825_acomp_c2s.
         if lead.id_legado:
             legado = session.query(LeadLegado).filter(LeadLegado.id == lead.id_legado).first()
-            if legado:
+            if legado and _legado_do_mesmo_lead(lead, legado):
                 for campo in ("contato_status", "visita_agendada", "motivo_sem_visita",
                               "proxima_acao", "acompanhamento_por", "acompanhamento_em"):
                     setattr(legado, campo, getattr(lead, campo))
@@ -598,12 +610,26 @@ def atualizar_acompanhamento(solicitante_id, lead_id, dados: Dict[str, Any]) -> 
     """
     session = SessionLocal()
     try:
-        espelho = session.query(LeadC2S.id_c2s).filter(LeadC2S.id_legado == lead_id).first()
+        legado_alvo = session.query(LeadLegado).filter(LeadLegado.id == lead_id).first()
+        candidatos = session.query(LeadC2S).filter(
+            LeadC2S.id_legado == lead_id
+        ).all() if legado_alvo else []
+        # Antes era `.first()`, que escolhia um irmao QUALQUER. O id inteiro nao endereca
+        # um lead so: 5.282 linhas do legado sao compartilhadas por 16.272 leads do
+        # espelho, porque o elo e por cliente + telefone. Medido em 28/08/2026: 17.221
+        # linhas tem exatamente um candidato plausivel (a janela de JANELA_ELO_DIAS),
+        # 2.510 tem dois ou mais e 1.211 nenhum.
+        #
+        # Com duvida, grava na linha que o chamador NOMEOU em vez de sortear um lead do
+        # espelho — errar no registro que a pessoa pediu e recuperavel; escrever no lead
+        # de outro atendimento nao aparece para ninguem.
+        plausiveis = [c for c in candidatos if _legado_do_mesmo_lead(c, legado_alvo)]
+        espelho = plausiveis[0].id_c2s if len(plausiveis) == 1 else None
     finally:
         session.close()
 
     if espelho:
-        return acompanhar_espelho(solicitante_id, espelho[0], dados)
+        return acompanhar_espelho(solicitante_id, espelho, dados)
 
     session = SessionLocal()
     try:

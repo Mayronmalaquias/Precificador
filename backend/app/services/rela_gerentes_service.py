@@ -297,14 +297,29 @@ def _resolver_ids_corretor_gestao(
         ids = {usuario_id} if usuario_id else set()
         modo = "corretor"
 
+    # O DROPDOWN mostra so quem esta ativo; `ids` acima continua com os inativos.
+    #
+    # Sao duas perguntas diferentes que nasciam da mesma variavel: "de quem contar os
+    # dados" (tem que incluir desligado — visita dele continua sendo visita do periodo,
+    # e tirar da conta faria o total divergir do painel do diretor) e "quem cabe escolher
+    # no filtro" (nao adianta oferecer quem nao trabalha mais aqui).
+    #
+    # Medido em 28/08/2026: o diretor via 267 opcoes, 175 delas de gente desligada.
     corretores = []
     for cid in sorted(ids):
         u = usuario_map.get(cid, {})
+        # O ja selecionado fica na lista mesmo inativo: sem esta excecao, abrir a tela
+        # com um corretor desligado escolhido deixaria o filtro valendo e o select em
+        # branco — e no escopo "corretor" a lista viria vazia.
+        if not u.get("ativo") and cid != id_corretor:
+            continue
         corretores.append({
             "id_corretor": cid,
             "nome": _usuario_label(u),
             "team": _safe_str(u.get("team")),
             "permissao": _safe_str(u.get("permissao")),
+            # A tela pode marcar o desligado que sobrou por estar selecionado.
+            "ativo": bool(u.get("ativo")),
         })
 
     meta = {
