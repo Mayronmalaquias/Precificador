@@ -609,6 +609,46 @@ export default function ConsultaImoveis() {
         </section>
       )}
 
+      {/* Publicação portal a portal.
+          Os cards acima somam o MAIOR destaque de cada imóvel, e isso esconde o portal
+          que interessa: em 29/08/2026 os 118 "super destaque" eram 117 do Imóvel Web e
+          ZERO do DF imóveis, que é o portal principal da operação. Aqui cada linha é um
+          portal, com o que ele tem de fato. */}
+      {resumo && !carregando && (resumo.portais?.por_portal || []).length > 0 && (
+        <section className="ci-portais">
+          <header>
+            <h3>Publicação por portal</h3>
+            <p>Anúncios ativos no recorte, com o destaque contratado em cada um</p>
+          </header>
+          <table>
+            <thead>
+              <tr>
+                <th>Portal</th><th>Ativos</th><th>Simples</th>
+                <th>Destaque</th><th>Super destaque</th><th>Já retirados</th>
+              </tr>
+            </thead>
+            <tbody>
+              {resumo.portais.por_portal.map((p) => {
+                // DF imóveis é o portal principal — fica marcado para não se perder no
+                // meio dos outros quatro.
+                const principal = /df\s*im/i.test(p.portal);
+                return (
+                  <tr key={p.codigo} className={principal ? 'is-principal' : ''}>
+                    <td>{p.portal}{principal && <em>principal</em>}</td>
+                    <td><strong>{numero(p.ativos)}</strong></td>
+                    <td>{numero(p.simples)}</td>
+                    <td>{numero(p.destaque)}</td>
+                    {/* Zero em super destaque não é ausência de dado: é a informação. */}
+                    <td className={p.super_destaque ? '' : 'is-zero'}>{numero(p.super_destaque)}</td>
+                    <td className="ci-portais-fora">{numero(p.retirados)}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </section>
+      )}
+
       {painelGraficos && (
         <section className="ci-graficos">
           {carregandoGraficos && <p className="ci-estado">Montando gráficos…</p>}

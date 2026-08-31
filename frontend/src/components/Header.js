@@ -83,7 +83,7 @@ function Header() {
     { to: '/NovaVisita', label: 'Criar Visita', show: isLogado },
     { to: '/JornadaCaptacao?novo=1', label: 'Novo Imóvel', subtitle: 'captação', show: isLogado },
     { to: '/AppVisita', label: 'Corretor', show: isLogado },
-    { to: '/Tarefas', label: 'Minhas Tarefas', subtitle: 'pendências de todos os módulos', show: isLogado },
+    { to: '/Tarefas', label: 'Minhas Tarefas', subtitle: 'pendências de todos os módulos', show: isLogado && isAdmin},
     { to: '/GestaoLeads', label: 'Gestão de Leads', subtitle: 'ao vivo do C2S', show: isLogado && isAdmin },
     { to: '/GestaoClientes', label: 'Gestao de Clientes', show: isLogado },
     { to: '/GestaoVisitas', label: 'Gestão de Visitas', subtitle: 'revisão e conversão', show: isLogado && isAdmin },

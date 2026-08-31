@@ -152,6 +152,7 @@ def main() -> int:
             lidos = com_portal = 0
             for i in range(0, len(codigos), POR_LOTE):
                 lote = codigos[i:i + POR_LOTE]
+                detalhe_lote = []
                 dados = _pedir(lote)
                 for item in (dados.get("lista") or []):
                     codigo = str(item.get("codigoimovel") or "").strip()
@@ -166,18 +167,23 @@ def main() -> int:
                     for campo, valor in resumo.items():
                         setattr(registro, campo, valor)
 
-                    # Detalhe por portal: apaga e regrava as linhas DESTE imovel. Upsert
-                    # deixaria para tras o portal que sumiu da resposta; o recorte e por
-                    # imovel, entao apagar so o dele nao toca em mais nada.
-                    session.query(ImovelPortal).filter(
-                        ImovelPortal.codigo == codigo
-                    ).delete(synchronize_session=False)
-                    detalhe = _linhas_por_portal(codigo, item, agora_dt)
-                    if detalhe:
-                        session.bulk_insert_mappings(ImovelPortal, detalhe)
+                    # Detalhe por portal: acumula e grava de uma vez no fim do lote.
+                    # Um DELETE por imovel eram 998 roundtrips e a rodada estourava 10
+                    # minutos; por lote sao 5.
+                    detalhe_lote.extend(_linhas_por_portal(codigo, item, agora_dt))
 
                     lidos += 1
                     com_portal += 1 if resumo["portais_ativos"] else 0
+                # Apaga e regrava as linhas dos imoveis DESTE lote. Apagar em vez de
+                # upsert porque o portal que sumiu da resposta tem que sumir da tabela —
+                # um upsert o deixaria para tras como se ainda estivesse publicado.
+                if lote:
+                    session.query(ImovelPortal).filter(
+                        ImovelPortal.codigo.in_(lote)
+                    ).delete(synchronize_session=False)
+                if detalhe_lote:
+                    session.bulk_insert_mappings(ImovelPortal, detalhe_lote)
+
                 # Commit por lote: uma falha na chamada 40 nao joga fora as 39 anteriores.
                 session.commit()
                 print(f"  lote {i // POR_LOTE + 1}: {len(lote)} codigos", file=sys.stderr)

@@ -22,6 +22,7 @@ from app.models.contrato import Contrato
 from app.models.dfimoveis_acesso import DfImoveisAcesso
 from app.models.fato_bases import FatoCaptacao, FatoEstoque, FatoSaida
 from app.models.imovel_area import ImovelArea
+from app.models.imovel_portal import ImovelPortal
 from app.models.legado_diversos import ImovelLegado
 from app.models.lead_c2s import LeadC2S
 from app.models.proposta_efetiva import PropostaEfetiva, SITUACOES_FECHADAS
@@ -609,10 +610,52 @@ def _portais_da_query(query):
         if qtd:
             por_destaque.append({"nivel": nivel, "rotulo": rotulo, "total": qtd})
 
+    # ── quebra por PORTAL ────────────────────────────────────────────────────
+    # O agregado acima responde "esta publicado" e "qual o maior destaque", e esconde o
+    # portal que interessa: em 29/08/2026 os 106 "super destaque" eram 117 do Imovel Web
+    # e ZERO do DF imoveis, que e o portal principal da operacao.
+    #
+    # Subconsulta com os codigos do recorte em vez de join: imovel publicado em 5 portais
+    # apareceria 5 vezes e os totais de cima passariam a mentir.
+    codigos_recorte = query.with_entities(ImovelArea.codigo).scalar_subquery()
+    por_portal = []
+    bruto_portal = (
+        query.session.query(
+            ImovelPortal.codigo_portal,
+            ImovelPortal.nome_portal,
+            func.count(ImovelPortal.codigo),
+            func.sum(case((ImovelPortal.destaque_nivel == 1, 1), else_=0)),
+            func.sum(case((ImovelPortal.destaque_nivel == 2, 1), else_=0)),
+            func.sum(case((ImovelPortal.destaque_nivel >= 3, 1), else_=0)),
+        )
+        .filter(ImovelPortal.codigo.in_(codigos_recorte), ImovelPortal.situacao == 1)
+        .group_by(ImovelPortal.codigo_portal, ImovelPortal.nome_portal)
+        .order_by(func.count(ImovelPortal.codigo).desc())
+        .all()
+    )
+    # Quantos do recorte JA foram para cada portal e sairam. "609 ativos" sozinho nao
+    # diz se os outros nunca foram anunciados ou se foram tirados do ar.
+    retirados = dict(
+        query.session.query(ImovelPortal.codigo_portal, func.count(ImovelPortal.codigo))
+        .filter(ImovelPortal.codigo.in_(codigos_recorte), ImovelPortal.situacao != 1)
+        .group_by(ImovelPortal.codigo_portal).all()
+    )
+    for cod, nome, ativos, simples, destaque, super_ in bruto_portal:
+        por_portal.append({
+            "codigo": int(cod or 0),
+            "portal": _texto(nome) or f"Portal {cod}",
+            "ativos": int(ativos or 0),
+            "simples": int(simples or 0),
+            "destaque": int(destaque or 0),
+            "super_destaque": int(super_ or 0),
+            "retirados": int(retirados.get(cod, 0) or 0),
+        })
+
     return {
         "publicados": int(publicados or 0),
         "sem_portal": int(com_dado or 0) - int(publicados or 0),
         "no_site_proprio": int(no_site or 0),
+        "por_portal": por_portal,
         # Quantos ainda nao passaram pelo `sync_portais_imoview.py`. Sem isto, um sync
         # incompleto pareceria "ninguem publicado".
         "sem_dado": int(total or 0) - int(com_dado or 0),

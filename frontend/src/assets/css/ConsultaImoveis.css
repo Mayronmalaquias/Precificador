@@ -321,3 +321,35 @@
 .ci-origens span { font-size: 11px; color: #6f6880; }
 .ci-origens strong { font-size: 18px; color: #1c1a22; font-variant-numeric: tabular-nums; }
 .ci-origens small { font-size: 10.5px; color: #9a94a6; }
+
+/* ── publicação por portal ── */
+.ci-portais {
+  background: #fff; border: 1px solid #e6e2ec; border-radius: 11px;
+  padding: 14px 16px; margin: 0 0 16px; overflow-x: auto;
+}
+.ci-portais header { margin-bottom: 10px; }
+.ci-portais h3 { margin: 0; font-size: 14px; letter-spacing: -.3px; color: #1c1a22; }
+.ci-portais header p { margin: 2px 0 0; font-size: 11.5px; color: #857f92; }
+.ci-portais table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+.ci-portais th {
+  text-align: right; font-size: 10px; font-weight: 700; letter-spacing: .06em;
+  text-transform: uppercase; color: #857f92; padding: 6px 8px;
+  border-bottom: 1px solid #eceaf1; white-space: nowrap;
+}
+.ci-portais th:first-child, .ci-portais td:first-child { text-align: left; }
+.ci-portais td {
+  text-align: right; padding: 8px; border-bottom: 1px solid #f4f2f7;
+  font-variant-numeric: tabular-nums; color: #3f3b4a;
+}
+.ci-portais tr:last-child td { border-bottom: 0; }
+.ci-portais td strong { color: #1c1a22; }
+.ci-portais tr.is-principal td { background: #fdf2f6; }
+.ci-portais tr.is-principal td:first-child { font-weight: 700; color: #1c1a22; }
+.ci-portais em {
+  font-style: normal; font-size: 9px; font-weight: 800; text-transform: uppercase;
+  letter-spacing: .05em; color: var(--rosa, #e1005b); margin-left: 6px;
+  border: 1px solid currentColor; border-radius: 5px; padding: 1px 5px;
+}
+/* Zero em super destaque é achado, não dado faltando — fica visível, não apagado. */
+.ci-portais td.is-zero { color: #b6bbc9; }
+.ci-portais-fora { color: #9a94a6; }
