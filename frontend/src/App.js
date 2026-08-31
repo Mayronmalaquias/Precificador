@@ -133,7 +133,7 @@ function App() {
                 />
                 <Route
                   path="/Tarefas"
-                  element={<PrivateRoute><Tarefas /></PrivateRoute>}
+                  element={<AdminRoute><Tarefas /></AdminRoute>}
                 />
                 <Route
                   path="/ControleCorretor"

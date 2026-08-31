@@ -27,6 +27,7 @@ sys.path.insert(0, ".")
 from app import create_app                                      # noqa: E402
 from app.database import SessionLocal                            # noqa: E402
 from app.models.imovel_area import ImovelArea                    # noqa: E402
+from app.models.imovel_portal import ImovelPortal                # noqa: E402
 from app.services.imoview_service import IMOVIEW_BASE, _headers  # noqa: E402
 
 ENDPOINT = f"{IMOVIEW_BASE}/Imovel/RetornarPortaisImoveis"
@@ -55,6 +56,53 @@ def _pedir(codigos):
             continue
         break
     raise RuntimeError(f"Imoview HTTP {ultimo.status_code}: {ultimo.text[:200]}")
+
+
+def _data(valor):
+    """"29/08/2026 19:01:57" -> datetime. O Imoview manda no formato BR."""
+    texto = str(valor or "").strip()
+    if not texto:
+        return None
+    for formato in ("%d/%m/%Y %H:%M:%S", "%d/%m/%Y"):
+        try:
+            return datetime.strptime(texto, formato)
+        except ValueError:
+            continue
+    return None
+
+
+def _inteiro(valor):
+    try:
+        return int(valor)
+    except (TypeError, ValueError):
+        return None
+
+
+def _linhas_por_portal(codigo, item, agora):
+    """Uma linha por portal do imovel, inclusive os RETIRADOS.
+
+    O retirado entra com `situacao=2`: apagar a linha perderia a diferenca entre "nunca
+    foi para esse portal" e "saiu de la", que e o que permite ver um imovel despublicado.
+    """
+    linhas = []
+    for p in (item.get("portais") or []):
+        codigo_portal = _inteiro(p.get("codigoportal"))
+        if codigo_portal is None:
+            continue
+        linhas.append({
+            "codigo": codigo,
+            "codigo_portal": codigo_portal,
+            "nome_portal": str(p.get("nomeportal") or "").strip() or None,
+            "situacao": _inteiro(p.get("codigosituacao")),
+            "situacao_rotulo": str(p.get("situacao") or "").strip() or None,
+            "destaque_nivel": _inteiro(p.get("codigotipodestaque")),
+            "destaque_rotulo": str(p.get("tipodestaque") or "").strip() or None,
+            "dias_publicacao": _inteiro(p.get("quantidadediaspublicacao")),
+            "primeiro_envio": _data(p.get("dataprimeiroenvio")),
+            "ultimo_envio": _data(p.get("dataultimoenvio")),
+            "atualizado_em": agora,
+        })
+    return linhas
 
 
 def _resumir(item):
@@ -86,7 +134,8 @@ def _resumir(item):
 
 def main() -> int:
     tudo = "--tudo" in sys.argv
-    agora = datetime.now().isoformat(timespec="seconds")
+    agora_dt = datetime.now()
+    agora = agora_dt.isoformat(timespec="seconds")
 
     app = create_app()
     with app.app_context():
@@ -116,6 +165,17 @@ def main() -> int:
                     resumo = _resumir(item)
                     for campo, valor in resumo.items():
                         setattr(registro, campo, valor)
+
+                    # Detalhe por portal: apaga e regrava as linhas DESTE imovel. Upsert
+                    # deixaria para tras o portal que sumiu da resposta; o recorte e por
+                    # imovel, entao apagar so o dele nao toca em mais nada.
+                    session.query(ImovelPortal).filter(
+                        ImovelPortal.codigo == codigo
+                    ).delete(synchronize_session=False)
+                    detalhe = _linhas_por_portal(codigo, item, agora_dt)
+                    if detalhe:
+                        session.bulk_insert_mappings(ImovelPortal, detalhe)
+
                     lidos += 1
                     com_portal += 1 if resumo["portais_ativos"] else 0
                 # Commit por lote: uma falha na chamada 40 nao joga fora as 39 anteriores.
