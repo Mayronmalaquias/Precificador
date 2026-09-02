@@ -214,20 +214,27 @@ def _visitas_sem_revisao(session, escopo, hoje) -> List[Dict[str, Any]]:
     tarefa, e virar backlog eterno faz o gerente ignorar a lista inteira.
     """
     corte = (hoje - timedelta(days=30)).date()
-    query = session.query(GerenteVisitaVisualizada, Visita, Usuarios).join(
-        Visita, Visita.id_visita == GerenteVisitaVisualizada.id_visita
+    # Parte da VISITA, com as flags em `outerjoin` — mesma montagem de
+    # `gestao_visitas_service.listar`. Antes a consulta comecava na tabela de flags com
+    # join interno, e visita ainda nao aberta por ninguem nao tem linha la: ela nunca
+    # virava tarefa. Medido em 01/09/2026: 138 das 476 visitas dos ultimos 30 dias
+    # estavam nessa situacao, e TODAS as 138 tinham anexo ou nota — ou seja, pendencia
+    # real invisivel. Sem linha de flags, "nada foi revisado" e a leitura certa.
+    query = session.query(GerenteVisitaVisualizada, Visita, Usuarios).select_from(
+        Visita
     ).outerjoin(
         Usuarios, Usuarios.id_usuarios == Visita.id_corretor
-    ).filter(
-        Visita.data_visita >= corte,
-        or_(
-            GerenteVisitaVisualizada.viu_anexo.is_(False),
-            GerenteVisitaVisualizada.viu_notas.is_(False),
-            GerenteVisitaVisualizada.add_motivo.is_(False),
-        ),
-    )
+    ).outerjoin(
+        GerenteVisitaVisualizada,
+        (GerenteVisitaVisualizada.id_visita == Visita.id_visita)
+        & (GerenteVisitaVisualizada.id_gerente == Usuarios.team),
+    ).filter(Visita.data_visita >= corte)
+    # O pre-filtro por flags saiu junto: com `outerjoin` ele descartaria justamente as
+    # linhas nulas. Quem decide e `pendencias_de_revisao`, e a janela de 30 dias mantem
+    # a varredura pequena.
     if not escopo["ve_tudo"] and escopo["team"]:
-        query = query.filter(GerenteVisitaVisualizada.id_gerente == escopo["team"])
+        # Escopo pela equipe do CORRETOR, nao pela linha de flags, que pode nao existir.
+        query = query.filter(Usuarios.team == escopo["team"])
 
     tarefas = []
     for flags, visita, corretor in query.limit(TETO_COLETA).all():
@@ -238,11 +245,14 @@ def _visitas_sem_revisao(session, escopo, hoje) -> List[Dict[str, Any]]:
         pendentes = pendencias_de_revisao(visita, flags)
         if not pendentes:
             continue
+        equipe_visita = (flags.id_gerente if flags else None) or (
+            corretor.team if corretor else None) or ""
         dias = _dias(visita.data_visita, hoje)
         if dias < DIAS_VISITA_SEM_REVISAO:
             continue
         tarefas.append({
-            "chave": f"visita:{visita.id_visita}:{flags.id_gerente}",
+            # A equipe vem do corretor quando ainda nao ha linha de flags.
+            "chave": f"visita:{visita.id_visita}:{equipe_visita}",
             "tipo": "visita",
             "titulo": visita.id_imovel or visita.endereco_externo or "Visita sem imóvel",
             "detalhe": " · ".join(x for x in [
@@ -250,7 +260,7 @@ def _visitas_sem_revisao(session, escopo, hoje) -> List[Dict[str, Any]]:
                 f"resposta {visita.proposta}" if visita.proposta else "",
             ] if x),
             "responsavel": (corretor.nome or corretor.username) if corretor else visita.id_corretor,
-            "equipe": flags.id_gerente,
+            "equipe": equipe_visita,
             "dias": dias,
             "nivel": _nivel(dias, "visita"),
             "motivo": f"Falta revisar: {', '.join(pendentes)}",

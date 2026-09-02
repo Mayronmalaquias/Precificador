@@ -30,10 +30,18 @@ MERGES = [
     # id_imoview 256), as duas na LOTUS. A conta velha segurava 290 referencias — 276
     # delas em `captacao_snapshot` — e por isso o Andre aparecia DUAS vezes na Jornada
     # de Captacao, uma com o historico e outra com o cadastro atual.
-    ("C61249", "C61248", "Andre Brusk: conta ativa recebe o historico da andre_brusk_old"),
+    # ("C61249", "C61248", ...) — Andre Brusk, aplicado em 01/09/2026.
+
+    # Renata Almeida, as DUAS ativas na LOTUS (recadastro: `renata-almeida` com hifen x
+    # `renata_almeida` com underscore). Fica a ANTIGA: e nela que a pessoa trabalha —
+    # 95 visitas ate 27/08, 36 snapshots ate hoje — enquanto a nova so tem linhas de
+    # sincronizacao do Imoview. Apagar a que ela usa quebraria o login dela.
+    # `CAMPOS_COMPLETAR` leva o `id_imoview=32` da descartada para a que fica, o que
+    # tambem conserta o casamento por nome do sync de estoque.
+    ("C61086", "C61250", "Renata Almeida: conta de trabalho recebe o id_imoview da nova"),
 ]
 
-SUFIXO = "2026_09_01"
+SUFIXO = "2026_09_01b"
 TB_BACKUP = f"usuarios_merge_backup_{SUFIXO}"
 TB_REFS = f"usuarios_merge_refs_backup_{SUFIXO}"
 
