@@ -481,6 +481,138 @@ def _contagem_foco(codigos, foco_por_codigo):
     }
 
 
+def _coletar_estoque_bruto(session, start, end):
+    """Le UMA vez tudo que os recortes de estoque precisam, sem filtro de dono.
+
+    Existe porque `_estoque_semanal` pedia os numeros recorte a recorte — o global, um
+    por equipe e um por corretor. Eram 58 chamadas de 3 consultas cada, 174 idas ao
+    banco, 30s medidos em 31/08/2026, sobre um universo de ~1.200 linhas. O custo nao
+    era o dado, era a repeticao.
+
+    Aqui as tres colecoes vem inteiras e o recorte passa a ser feito em memoria por
+    `_numeros_do_recorte`. As consultas sao as MESMAS de antes, so que sem o join de
+    escopo — o que garante que os numeros nao mudam.
+    """
+    inicio = datetime.combine(start, datetime.min.time())
+    fim = datetime.combine(end, datetime.max.time())
+
+    entradas = session.query(
+        FatoCaptacao.codigo_imovel, FatoCaptacao.foco_pp, FatoCaptacao.foco_ac,
+        FatoCaptacao.captador1, FatoCaptacao.captador2, FatoCaptacao.captador3,
+    ).filter(
+        FatoCaptacao.data_entrada >= start, FatoCaptacao.data_entrada <= end,
+        FatoCaptacao.codigo_imovel.isnot(None),
+        ~FatoCaptacao.codigo_imovel.in_(
+            session.query(ImovelArea.codigo).filter(ImovelArea.finalidade.ilike(ALUGUEL_LIKE))
+        ),
+    ).all()
+
+    saidas = [r[0] for r in _so_venda(
+        session.query(ImovelArea.codigo).filter(
+            ImovelArea.situacao_em >= inicio, ImovelArea.situacao_em <= fim,
+            ImovelArea.situacao.isnot(None),
+            ~ImovelArea.situacao.ilike(DISPONIVEL_LIKE),
+            ~ImovelArea.situacao.ilike(MODERACAO_LIKE),
+        )
+    ).distinct().all()]
+
+    estoque = [r[0] for r in _so_venda(
+        session.query(ImovelArea.codigo).filter(ImovelArea.situacao.ilike(DISPONIVEL_LIKE))
+    ).distinct().all()]
+
+    # Codigo -> captadores PRINCIPAIS. Espelha `_dono_do_imovel`, que usa so `captador1`:
+    # saidas e estoque se amarram ao dono por ele, enquanto entradas aceitam captador
+    # 1, 2 ou 3. A assimetria e do codigo original e foi preservada de proposito.
+    donos = {}
+    for codigo, captador in session.query(
+        FatoCaptacao.codigo_imovel, FatoCaptacao.captador1
+    ).filter(FatoCaptacao.codigo_imovel.isnot(None)).distinct().all():
+        donos.setdefault(codigo, set()).add(captador)
+
+    equipe_do_usuario = {
+        uid: team for uid, team in session.query(Usuarios.id_usuarios, Usuarios.team).all()
+    }
+    return {"entradas": entradas, "saidas": saidas, "estoque": estoque,
+            "donos": donos, "equipe_do_usuario": equipe_do_usuario}
+
+
+def _no_escopo(codigo, dados, selected_team, selected_broker):
+    """O imovel pertence ao recorte? Mesma regra do join de `_escopo_por_captacao`."""
+    if not (selected_team or selected_broker):
+        return True
+    captadores = dados["donos"].get(codigo)
+    if not captadores:
+        # Sem captacao registrada o imovel some da visao filtrada — o join fazia igual.
+        return False
+    if selected_broker:
+        return selected_broker in captadores
+    return any(dados["equipe_do_usuario"].get(c) == selected_team for c in captadores)
+
+
+def _numeros_do_recorte(dados, foco_por_codigo, selected_team=None, selected_broker=None):
+    """Mesmos numeros de `_numeros_de_estoque`, recortados em memoria."""
+    if selected_broker:
+        linhas = [r for r in dados["entradas"]
+                  if selected_broker in (r[3], r[4], r[5])]
+    elif selected_team:
+        linhas = [r for r in dados["entradas"]
+                  if dados["equipe_do_usuario"].get(r[3]) == selected_team]
+    else:
+        linhas = dados["entradas"]
+
+    entradas_por_codigo = {}
+    for codigo, foco_pp, foco_ac, _c1, _c2, _c3 in linhas:
+        codigo = str(codigo or "").strip()
+        if not codigo:
+            continue
+        if codigo in foco_por_codigo:
+            classificacao = foco_por_codigo[codigo]
+        elif foco_pp is not None or foco_ac is not None:
+            classificacao = (bool(foco_pp), bool(foco_ac))
+        else:
+            classificacao = None
+        anterior = entradas_por_codigo.get(codigo)
+        if anterior is not None and classificacao is not None:
+            classificacao = (
+                anterior[0] or classificacao[0], anterior[1] or classificacao[1]
+            )
+        if anterior is None or classificacao is not None:
+            entradas_por_codigo[codigo] = classificacao
+
+    entradas = len(entradas_por_codigo)
+    entradas_foco_pp = sum(item == (True, False) for item in entradas_por_codigo.values())
+    entradas_foco_ac = sum(item == (False, True) for item in entradas_por_codigo.values())
+    entradas_foco_pp_ac = sum(item == (True, True) for item in entradas_por_codigo.values())
+    entradas_foco = entradas_foco_pp + entradas_foco_ac + entradas_foco_pp_ac
+    entradas_nao_foco = sum(item == (False, False) for item in entradas_por_codigo.values())
+    entradas_sem_classificacao = sum(item is None for item in entradas_por_codigo.values())
+
+    saidas_codigos = [c for c in dados["saidas"]
+                      if _no_escopo(c, dados, selected_team, selected_broker)]
+    saidas = len(set(saidas_codigos))
+    saidas_por_foco = _contagem_foco(saidas_codigos, foco_por_codigo)
+
+    estoque = len({c for c in dados["estoque"]
+                   if _no_escopo(c, dados, selected_team, selected_broker)})
+
+    return {
+        "entradas": int(entradas), "saidas": int(saidas), "estoque": int(estoque),
+        "entradas_foco": int(entradas_foco),
+        "entradas_foco_pp": int(entradas_foco_pp),
+        "entradas_foco_ac": int(entradas_foco_ac),
+        "entradas_foco_pp_ac": int(entradas_foco_pp_ac),
+        "entradas_nao_foco": int(entradas_nao_foco),
+        "entradas_sem_classificacao": int(entradas_sem_classificacao),
+        "saidas_foco": int(saidas_por_foco["foco"]),
+        "saidas_foco_pp": int(saidas_por_foco["foco_pp"]),
+        "saidas_foco_ac": int(saidas_por_foco["foco_ac"]),
+        "saidas_foco_pp_ac": int(saidas_por_foco["foco_pp_ac"]),
+        "saidas_nao_foco": int(saidas_por_foco["nao_foco"]),
+        "saidas_sem_classificacao": int(saidas_por_foco["sem_classificacao"]),
+        "saldo": int(entradas) - int(saidas),
+    }
+
+
 def _numeros_de_estoque(
     session, start, end, selected_team=None, selected_broker=None, foco_por_codigo=None
 ):
@@ -597,16 +729,16 @@ def _estoque_semanal(session, start, end, selected_team, selected_broker=None, t
     visão sem ir ao servidor.
     """
     foco_por_codigo = _mapa_foco_imoveis(session)
-    atual = _numeros_de_estoque(
-        session, start, end, selected_team, selected_broker, foco_por_codigo
-    )
+    # Uma leitura para TODOS os recortes. Antes cada linha da quebra por gerente e por
+    # corretor disparava as proprias tres consultas: 58 recortes = 174 idas ao banco e
+    # 30s medidos. Agora sao 4 consultas e o recorte e feito em memoria.
+    dados = _coletar_estoque_bruto(session, start, end)
+    atual = _numeros_do_recorte(dados, foco_por_codigo, selected_team, selected_broker)
     data_catalogo = session.query(func.max(ImovelArea.atualizado_em)).scalar()
 
     por_gerente, por_corretor = [], []
     for item in (teams or []):
-        numeros = _numeros_de_estoque(
-            session, start, end, item["id"], None, foco_por_codigo
-        )
+        numeros = _numeros_do_recorte(dados, foco_por_codigo, item["id"], None)
         if any(numeros[c] for c in ("entradas", "saidas", "estoque")):
             por_gerente.append({"id": item["id"], "nome": item["nome"],
                                 "gerente": item.get("gerente"), **numeros})
@@ -626,9 +758,7 @@ def _estoque_semanal(session, start, end, selected_team, selected_broker=None, t
     ).all()
     rotulo = {item["id"]: item["nome"] for item in (teams or [])}
     for pessoa in captadores:
-        numeros = _numeros_de_estoque(
-            session, start, end, None, pessoa.id_usuarios, foco_por_codigo
-        )
+        numeros = _numeros_do_recorte(dados, foco_por_codigo, None, pessoa.id_usuarios)
         if any(numeros[c] for c in ("entradas", "saidas", "estoque")):
             por_corretor.append({
                 "id": pessoa.id_usuarios,
