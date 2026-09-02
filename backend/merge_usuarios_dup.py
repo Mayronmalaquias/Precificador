@@ -23,10 +23,17 @@ MERGES = [
     # Conta antiga da Paolla, inativa, mas com `team=G61010` (LOTUS) — e ela e gerente da
     # LIDER. Como o escopo do gerente e "todo usuario com este team", a conta velha fazia
     # os 270 leads dela aparecerem no relatorio da equipe da Thais.
-    ("G61016", "C61170", "Paolla Gardenia / PAOLLA GARDENIA GOMES (conta antiga em LOTUS)"),
+    # ("G61016", "C61170", ...) — Paolla, aplicado em 20/08/2026. Fora da lista porque a
+    # conta descartada ja nao existe e o script aborta quando um dos lados falta.
+
+    # Recadastro: `andre_brusk_old` (inativa, sem id_imoview) x `andre_brusk` (ativa,
+    # id_imoview 256), as duas na LOTUS. A conta velha segurava 290 referencias — 276
+    # delas em `captacao_snapshot` — e por isso o Andre aparecia DUAS vezes na Jornada
+    # de Captacao, uma com o historico e outra com o cadastro atual.
+    ("C61249", "C61248", "Andre Brusk: conta ativa recebe o historico da andre_brusk_old"),
 ]
 
-SUFIXO = "2026_08_20"
+SUFIXO = "2026_09_01"
 TB_BACKUP = f"usuarios_merge_backup_{SUFIXO}"
 TB_REFS = f"usuarios_merge_refs_backup_{SUFIXO}"
 
