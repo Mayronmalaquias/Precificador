@@ -321,3 +321,55 @@ def incluir_imovel(parametros: Dict[str, Any], fotos: Optional[List[Any]] = None
         return resp.json() or {}
     except ValueError:
         return {"mensagem": resp.text[:500], "codigo": None}
+
+
+# Portais habilitados no convenio da 61, incluindo o site proprio (codigo 0). Descobertos
+# pela mensagem de erro do proprio endpoint, que lista os aceitos.
+PORTAIS_DA_CONTA = (
+    (0, "Meu site"),
+    (2, "OLX Brasil (ZAP, Viva Real e OLX)"),
+    (3, "Imovel Web"),
+    (21, "Facebook (Imovel)"),
+    (29, "DF imoveis"),
+    (30, "Facebook (Produto)"),
+)
+
+ENDPOINT_PORTAIS = f"{IMOVIEW_BASE}/Imovel/AlterarPortaisImoveis"
+
+
+def desativar_publicacao(codigo) -> Dict[str, Any]:
+    """Tira o imovel de todos os portais e do site proprio.
+
+    O Imoview cria o imovel JA publicado, e ate 03/09/2026 o assistente desligava tudo na
+    mao a cada lancamento. A publicacao passou a ser um passo posterior e deliberado:
+    imovel novo nao vai ao ar ate alguem decidir que vai.
+
+    Idempotente — rodar sobre portal ja desligado responde sucesso e nao muda nada.
+
+    > ARMADILHA: `codigosituacao`, `situacao`, `ativo` e `desativar` sao aceitos pelo
+    > endpoint, IGNORADOS, e **ATIVAM** o portal com destaque Simples, respondendo
+    > `sucesso: true`. So `remover: true` desativa. Custou uma ativacao indevida no imovel
+    > 12468 em 01/09/2026 para descobrir. Ver `1.10 - Catalogo Completo do Imoview`.
+    """
+    if not codigo:
+        return {"ok": False, "error": "sem codigo do imovel"}
+
+    corpo = {"imoveis": [{
+        "codigoimovel": int(codigo),
+        "portais": [{"codigoportal": cod, "remover": True} for cod, _ in PORTAIS_DA_CONTA],
+    }]}
+    resposta = requests.post(ENDPOINT_PORTAIS, headers=_headers(), json=corpo, timeout=45)
+    if resposta.status_code >= 400:
+        return {"ok": False, "error": f"Imoview HTTP {resposta.status_code}",
+                "detalhe": resposta.text[:200]}
+
+    dados = resposta.json() or {}
+    falhas = [
+        f"{item.get('nomeportal')}: {item.get('mensagem')}"
+        for item in (dados.get("lista") or []) if not item.get("sucesso")
+    ]
+    return {
+        "ok": not falhas,
+        "desativados": int(dados.get("quantidadesucesso") or 0),
+        "falhas": falhas,
+    }

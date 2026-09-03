@@ -556,6 +556,15 @@ def lancar_imovel(
     resultado_imoview = _incluir_com_fallback_sem_documento(parametros, fotos)
     codigo = resultado_imoview.get("codigo")
 
+    # Tira de todos os portais e do site proprio. Nao-fatal: o imovel ja entrou no CRM, e
+    # falhar aqui so significa que o assistente ainda precisa desligar na mao — que era o
+    # estado anterior.
+    publicacao: Dict[str, Any] = {"ok": False}
+    try:
+        publicacao = imoview_service.desativar_publicacao(codigo)
+    except Exception as e:
+        publicacao = {"ok": False, "error": str(e)}
+
     # Classifica e persiste o foco em imovel_legado (é o que a classificação de foco lê;
     # sem isso o imóvel entra como 'NÃO LOCALIZADO'). Não-fatal.
     foco = _persistir_foco(dados, codigo)
@@ -607,4 +616,5 @@ def lancar_imovel(
         "captacao": captacao,
         "sheet": sheet,
         "trello": trello,
+        "publicacao": publicacao,
     }
