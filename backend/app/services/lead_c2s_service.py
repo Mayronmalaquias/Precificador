@@ -608,6 +608,51 @@ def _contem_sem_acento(coluna, termo: str):
     return func.lower(func.translate(coluna, _COM_ACENTO, _SEM_ACENTO)).like(f"%{alvo}%")
 
 
+# ── escopo de EQUIPE do espelho: uma definicao para todos os consumidores ────────
+#
+# O espelho guarda o NOME da empresa como o C2S digitou; o cadastro guarda o nome como a
+# 61 escreve. As duas grafias divergem no acento, e em lados opostos:
+#
+#     cadastro 'LIDER'        x  espelho 'LIDER' com acento
+#     cadastro 'NOVA UNIAO'   x  espelho 'NOVA UNIAO' sem til
+#
+# Comparacao exata devolve ZERO sem erro nenhum. Ate 03/09/2026 existiam TRES
+# implementacoes diferentes disso — `_igual` aqui, `func.lower(...)` na gestao e
+# `translate` nas tarefas — e as duas primeiras deixavam os gerentes da LIDER e da NOVA
+# UNIAO com a tela de leads inteira vazia (109 e 274 leads invisiveis).
+#
+# Quem precisar recortar leads por equipe usa `filtro_equipe`. Nao reescrever a regra.
+
+
+def coluna_equipe_normalizada(coluna=None):
+    """A coluna de equipe em minuscula e sem acento, do lado do banco."""
+    coluna = LeadC2S.equipe if coluna is None else coluna
+    return func.lower(func.translate(coluna, _COM_ACENTO, _SEM_ACENTO))
+
+
+def filtro_equipe(nome, coluna=None):
+    """Predicado `equipe == nome`, imune a acento e caixa nos dois lados."""
+    return coluna_equipe_normalizada(coluna) == _norm_equipe(nome)
+
+
+def filtro_equipes_ativas(session, coluna=None):
+    """Predicado que restringe aos nomes das equipes ATIVAS do cadastro.
+
+    Serve as visoes globais (diretor): o espelho tem empresas do C2S que nao sao equipe
+    nossa — "Equipe Locacao" e "61 Imoveis" — e elas nao tem gerente para cobrar.
+    Devolve `None` quando nao ha equipe ativa, para o chamador decidir o que fazer.
+    """
+    from app.models.equipe import Equipe
+
+    nomes = [
+        _norm_equipe(nome or id_equipe)
+        for id_equipe, nome in session.query(Equipe.id_equipe, Equipe.nome)
+                                      .filter(Equipe.ativo.is_(True)).all()
+    ]
+    nomes = [n for n in nomes if n]
+    return coluna_equipe_normalizada(coluna).in_(nomes) if nomes else None
+
+
 def _igual(coluna, valor: str):
     """Comparacao exata sem depender de caixa.
 
@@ -630,9 +675,9 @@ def _aplicar_filtros(query, f: Dict[str, str], escopo: Dict[str, Any]):
     indice de data resolve o recorte.
     """
     if escopo["equipe"]:
-        query = query.filter(_igual(LeadC2S.equipe, escopo["equipe"]))
+        query = query.filter(filtro_equipe(escopo["equipe"]))
     elif _texto(f.get("equipe")):
-        query = query.filter(_igual(LeadC2S.equipe, f["equipe"]))
+        query = query.filter(filtro_equipe(f["equipe"]))
     if escopo["corretor"]:
         query = query.filter(_contem(LeadC2S.corretor, escopo["corretor"]))
     elif _texto(f.get("corretor")):

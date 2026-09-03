@@ -748,9 +748,12 @@ def _base_espelho(session, solicitante_id, inicio, fim, equipe, corretor):
     escopo = c2s._escopo(session, solicitante_id, equipe)
     query = session.query(LeadC2S)
     if escopo["equipe"]:
-        query = query.filter(func.lower(LeadC2S.equipe) == escopo["equipe"].strip().lower())
+        # `filtro_equipe` e a definicao unica do recorte por equipe do espelho — ver
+        # `lead_c2s_service`. A comparacao exata que estava aqui deixava os gerentes da
+        # LIDER e da NOVA UNIAO com a tela vazia por causa do acento.
+        query = query.filter(c2s.filtro_equipe(escopo["equipe"]))
     elif _texto(equipe):
-        query = query.filter(func.lower(LeadC2S.equipe) == _texto(equipe).strip().lower())
+        query = query.filter(c2s.filtro_equipe(equipe))
     if escopo["corretor"]:
         query = query.filter(LeadC2S.corretor.ilike(f"%{escopo['corretor'].strip()}%"))
     elif _texto(corretor):

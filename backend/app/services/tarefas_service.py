@@ -38,17 +38,12 @@ from app.models.lead_c2s import LeadC2S
 from app.models.gerente_visita_visualizada import GerenteVisitaVisualizada
 from app.services.gestao_visitas_service import pendencias_de_revisao
 from app.models.proposta_efetiva import SITUACOES_FECHADAS, PropostaEfetiva
-from app.models.equipe import Equipe
 from app.models.usuarios import Usuarios
 from app.models.visita import ClienteVisita, Visita
 
 # Reguas — as mesmas dos modulos de origem, importadas de la para nao divergirem.
 from app.services.proposta_service import DIAS_ATENCAO, DIAS_CRITICO
 
-# Pares acento -> sem acento para o `translate` do Postgres, igual ao usado na Gestao de
-# Imoveis. `unaccent` seria mais limpo, mas e extensao e pode nao estar instalada no RDS.
-_COM_ACENTO = "áàâãäéèêëíìîïóòôõöúùûüçÁÀÂÃÄÉÈÊËÍÌÎÏÓÒÔÕÖÚÙÛÜÇ"
-_SEM_ACENTO = "aaaaaeeeeiiiiooooouuuucAAAAAEEEEIIIIOOOOOUUUUC"
 
 PERFIS_GLOBAIS = {"administrador", "administrativo", "diretor", "inteligencia"}
 
@@ -307,26 +302,20 @@ def _leads_sem_contato(session, escopo, hoje) -> List[Dict[str, Any]]:
         # Casamento sem acento porque a grafia diverge: "NOVA UNIAO" no C2S contra
         # "NOVA UNIAO" com til no cadastro, "LIDER" contra "LIDER" com acento. Reusa o
         # `_norm_equipe` do servico de leads em vez de uma segunda regra aqui.
-        nomes_ativos = [
-            c2s._norm_equipe(nome or id_equipe)
-            for id_equipe, nome in session.query(Equipe.id_equipe, Equipe.nome)
-                                          .filter(Equipe.ativo.is_(True)).all()
-        ]
-        nomes_ativos = [n for n in nomes_ativos if n]
-        if nomes_ativos:
-            query = query.filter(
-                func.lower(func.translate(LeadC2S.equipe, _COM_ACENTO, _SEM_ACENTO))
-                .in_(nomes_ativos)
-            )
+        so_ativas = c2s.filtro_equipes_ativas(session)
+        if so_ativas is not None:
+            query = query.filter(so_ativas)
     else:
         # O espelho guarda NOME de equipe e de corretor (o C2S nao conhece nossos ids),
         # entao o recorte tem que ser traduzido. Mesma regra da tela de leads — duas
         # regras de escopo sobre o mesmo dado divergiriam.
         recorte = c2s._escopo(session, escopo["id"], None)
         if recorte["equipe"]:
-            query = query.filter(
-                func.lower(LeadC2S.equipe) == recorte["equipe"].strip().lower()
-            )
+            # Sem acento nos DOIS lados. A comparacao exata deixava dois gerentes com
+            # ZERO leads: o cadastro grava "LIDER" e "NOVA UNIAO" com acento, o C2S grava
+            # "LIDER" e "NOVA UNIAO" sem — e vice-versa. A Visao do Diretor ja normalizava;
+            # este caminho tinha ficado para tras.
+            query = query.filter(c2s.filtro_equipe(recorte["equipe"]))
         elif recorte["corretor"]:
             query = query.filter(LeadC2S.corretor.ilike(f"%{recorte['corretor'].strip()}%"))
         else:

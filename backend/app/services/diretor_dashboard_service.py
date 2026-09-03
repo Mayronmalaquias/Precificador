@@ -1776,20 +1776,21 @@ def _leads_sem_acompanhamento_por_equipe(session, teams):
     de fora — mesma regra do `equipes_validas` do bloco.
     """
     from app.models.lead_c2s import LeadC2S
-    from app.services.lead_c2s_service import _norm_equipe
+    from app.services import lead_c2s_service as c2s
 
-    bruto = {}
-    linhas = session.query(LeadC2S.equipe, func.count(LeadC2S.id_c2s)).filter(
-        LeadC2S.acompanhamento_em.is_(None)
-    ).group_by(LeadC2S.equipe).all()
-    for equipe, total in linhas:
-        chave = _norm_equipe(equipe)
-        if chave:
-            bruto[chave] = bruto.get(chave, 0) + int(total or 0)
+    # Agrupa pela coluna JA normalizada — mesma expressao que `filtro_equipe` usa do outro
+    # lado, para o balde e o recorte nunca discordarem.
+    coluna = c2s.coluna_equipe_normalizada()
+    bruto = {
+        chave: int(total or 0)
+        for chave, total in session.query(coluna, func.count(LeadC2S.id_c2s)).filter(
+            LeadC2S.acompanhamento_em.is_(None)
+        ).group_by(coluna).all() if chave
+    }
 
     return {
-        item["id"]: bruto.get(_norm_equipe(item["nome"]), 0)
-        + bruto.get(_norm_equipe(item["id"]), 0)
+        item["id"]: bruto.get(c2s._norm_equipe(item["nome"]), 0)
+        + bruto.get(c2s._norm_equipe(item["id"]), 0)
         for item in teams
     }
 
