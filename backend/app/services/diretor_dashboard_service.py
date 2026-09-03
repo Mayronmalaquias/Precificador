@@ -1763,7 +1763,59 @@ def _motivo_da_visita(visit):
     return ""
 
 
+def _leads_sem_acompanhamento_por_equipe(session, teams):
+    """Leads que ninguem respondeu, por equipe. Sem recorte de periodo, como o resto do
+    bloco de pendencias: lead de julho sem resposta continua sendo trabalho de hoje.
+
+    O espelho guarda o NOME da equipe (o C2S nao conhece nossos ids) e a grafia diverge do
+    cadastro — "NOVA UNIAO" x "NOVA UNIAO" com til, "LIDER" x "LIDER" com acento. Por isso
+    o casamento e feito sem acento, reusando `_norm_equipe` do servico de leads em vez de
+    uma segunda regra de normalizacao aqui.
+
+    Equipe que so existe no C2S (Equipe Locacao, 61 Imoveis) nao casa com nenhum id e fica
+    de fora — mesma regra do `equipes_validas` do bloco.
+    """
+    from app.models.lead_c2s import LeadC2S
+    from app.services.lead_c2s_service import _norm_equipe
+
+    bruto = {}
+    linhas = session.query(LeadC2S.equipe, func.count(LeadC2S.id_c2s)).filter(
+        LeadC2S.acompanhamento_em.is_(None)
+    ).group_by(LeadC2S.equipe).all()
+    for equipe, total in linhas:
+        chave = _norm_equipe(equipe)
+        if chave:
+            bruto[chave] = bruto.get(chave, 0) + int(total or 0)
+
+    return {
+        item["id"]: bruto.get(_norm_equipe(item["nome"]), 0)
+        + bruto.get(_norm_equipe(item["id"]), 0)
+        for item in teams
+    }
+
+
 def _visit_reviews(session, start, end, selected_team, teams, selected_broker=None):
+    """Auditoria de revisao do gerente. **Ignora o periodo de proposito.**
+
+    Pendencia nao expira: visita de julho que o gerente nunca abriu continua sendo trabalho
+    dele hoje. Recortar por periodo fazia a pendencia SUMIR DA TELA quando o diretor trocava
+    o mes — o oposto de uma lista de cobranca.
+
+    Custo de nao recortar, medido em 02/09/2026:
+
+    | janela     | pendencias |
+    |------------|-----------:|
+    | 30 dias    |        235 |
+    | 90 dias    |        237 |
+    | sem janela |        240 |
+
+    Cinco a mais que os 30 dias: o passivo antigo ja estava quase todo revisado. O que muda
+    de verdade e o DENOMINADOR (474 -> 2.401 visitas), e por isso o rotulo do bloco na tela
+    deixou de dizer "no periodo".
+
+    `start` e `end` continuam na assinatura porque a chamada e compartilhada com o resto da
+    view; aqui sao ignorados.
+    """
     query = session.query(Visita, Usuarios, GerenteVisitaVisualizada).join(
         Usuarios, Usuarios.id_usuarios == Visita.id_corretor
     ).outerjoin(
@@ -1772,7 +1824,7 @@ def _visit_reviews(session, start, end, selected_team, teams, selected_broker=No
             GerenteVisitaVisualizada.id_visita == Visita.id_visita,
             GerenteVisitaVisualizada.id_gerente == Usuarios.team,
         ),
-    ).filter(Visita.data_visita >= start, Visita.data_visita <= end)
+    )
     if selected_broker:
         query = query.filter(Usuarios.id_usuarios == selected_broker)
     elif selected_team:
@@ -1829,6 +1881,7 @@ def _visit_reviews(session, start, end, selected_team, teams, selected_broker=No
             "equipe": info.get("nome") or team_id,
             "gerente": info.get("gerente") or "Sem gerente cadastrado",
             "total_visitas": 0, "nao_viu_visita": 0,
+            "leads_sem_acompanhamento": 0,
             "notas_aplicaveis": 0, "nao_viu_nota": 0,
             "anexos_aplicaveis": 0, "nao_viu_anexo": 0,
             "motivos_aplicaveis": 0, "nao_adicionou_motivo": 0,
@@ -1871,15 +1924,26 @@ def _visit_reviews(session, start, end, selected_team, teams, selected_broker=No
             row = grouped.setdefault(team_id, _linha_vazia(team_id, team_names.get(team_id, {})))
         row["propostas_abertas"] = contagem["abertas"]
         row["propostas_sem_acao"] = contagem["sem_acao"]
+    # Leads sem resposta entram como mais uma coluna de pendencia do gerente.
+    leads_sem = _leads_sem_acompanhamento_por_equipe(session, teams)
+    for team_id, quantos in leads_sem.items():
+        if team_id not in equipes_validas:
+            continue
+        row = grouped.setdefault(team_id, _linha_vazia(team_id, team_names.get(team_id, {})))
+        row["leads_sem_acompanhamento"] = quantos
+
     for row in grouped.values():
         row.setdefault("propostas_abertas", 0)
         row.setdefault("propostas_sem_acao", 0)
+        row.setdefault("leads_sem_acompanhamento", 0)
 
     by_team = sorted(grouped.values(), key=lambda row: (
         -(row["nao_viu_visita"] + row["nao_viu_nota"] + row["nao_viu_anexo"]
-          + row["nao_adicionou_motivo"] + row["propostas_sem_acao"]),
+          + row["nao_adicionou_motivo"] + row["propostas_sem_acao"]
+          + row["leads_sem_acompanhamento"]),
         row["equipe"],
     ))
+    totals["leads_sem_acompanhamento"] = sum(r["leads_sem_acompanhamento"] for r in by_team)
     totals["propostas_sem_acao"] = sum(r["propostas_sem_acao"] for r in by_team)
     totals["propostas_abertas"] = sum(r["propostas_abertas"] for r in by_team)
     return {"totais": totals, "por_equipe": by_team, "dias_followup": DIAS_FOLLOWUP}

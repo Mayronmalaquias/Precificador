@@ -414,3 +414,9 @@
 .ev-indicadores-grid strong { font-size: 30px; letter-spacing: -1px; margin: 9px 0 5px; }
 .ev-indicadores-grid small { font-size: 10px; color: #9298aa; }
 @media (max-width: 700px) { .ev-indicadores-grid { grid-template-columns: 1fr; } }
+
+/* Leads sem acompanhamento na auditoria: mesmo destaque das propostas paradas — as duas
+   são pendência de resposta, não de revisão de documento. Cor diferente para não somarem
+   visualmente com as três colunas de "não viu". */
+.ev-team-review-metrics > div.ev-review-lead { background: #fff9f0; border-radius: 8px; }
+.ev-team-review-metrics > div.ev-review-lead strong { color: #b97824; }

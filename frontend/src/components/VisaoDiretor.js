@@ -617,10 +617,12 @@ function VisaoDiretor() {
 
       <div className="ev-section-heading"><div><span>03 · REVISÃO GERENCIAL</span><h2>Flags de acompanhamento das visitas</h2></div><p>Confirmações gravadas quando o gerente interage com cada visita.</p></div>
       <section className="ev-card ev-review-card">
-        <CardTitle eyebrow="Auditoria por equipe" title="O que cada gerente ainda não revisou" description={`Pendências no período por equipe · proposta conta como parada após ${data?.revisao_visitas?.dias_followup || 1} dia sem ação.`} />
+        <CardTitle eyebrow="Auditoria por equipe" title="O que cada gerente ainda não revisou" description={`Pendências em aberto por equipe, de todo o histórico — pendência não expira com a troca de período · proposta conta como parada após ${data?.revisao_visitas?.dias_followup || 1} dia sem ação.`} />
         <div className="ev-team-review-list">
           {(data?.revisao_visitas?.por_equipe || []).map((item) => {
-            const pending = item.nao_viu_visita + item.nao_viu_nota + item.nao_viu_anexo + item.nao_adicionou_motivo + (item.propostas_sem_acao || 0);
+            const pending = item.nao_viu_visita + item.nao_viu_nota + item.nao_viu_anexo
+              + item.nao_adicionou_motivo + (item.propostas_sem_acao || 0)
+              + (item.leads_sem_acompanhamento || 0);
             return <article key={item.equipe_id} className={pending ? 'has-pending' : 'complete'}>
               <div className="ev-team-review-name"><span>{item.equipe_id}</span><strong>{item.equipe}</strong><small>{item.gerente} · {item.total_visitas} visitas</small></div>
               <div className="ev-team-review-metrics">
@@ -632,6 +634,15 @@ function VisaoDiretor() {
                   <span>Propostas sem ação</span>
                   <strong>{item.propostas_sem_acao || 0}</strong>
                   <small>de {item.propostas_abertas || 0} em aberto</small>
+                </div>
+                {/* Lead sem acompanhamento: sem "de X" porque o denominador seria a base
+                    inteira da equipe (milhares), o que não diz nada. E o número está
+                    subestimado enquanto o carimbo `sistema_corte_20260826` contar como
+                    acompanhamento — ver 2.18 §11.3. */}
+                <div className={item.leads_sem_acompanhamento ? 'ev-review-lead' : ''}>
+                  <span>Leads sem acompanhamento</span>
+                  <strong>{item.leads_sem_acompanhamento || 0}</strong>
+                  <small>ninguém respondeu</small>
                 </div>
               </div>
               <span className={`ev-team-review-status ${pending ? 'pending' : 'done'}`}>{pending ? `${pending} pendências` : 'Tudo revisado'}</span>
