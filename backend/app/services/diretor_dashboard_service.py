@@ -98,10 +98,26 @@ def _period_query(query, column, start, end):
 
 def _team_maps(session):
     teams = session.query(Equipe).filter(Equipe.ativo.is_(True)).order_by(Equipe.nome).all()
+    # Aceita quem ACUMULA diretor e gerente da equipe — Jose Marques responde pela AGEF
+    # com `permissao='diretor'`, e filtrar so por 'gerente' deixava a equipe orfa: a
+    # auditoria dizia "Sem gerente cadastrado" e os 48 leads dela nao tinham dono.
+    # `_nomes_de_gerente_por_equipe` ja tratava esse caso; esta funcao ficara para tras.
+    #
+    # Trocar a permissao dele para 'gerente' resolveria a tela e tiraria o acesso global
+    # de diretor — por isso a correcao e aqui, nao no cadastro.
     managers = session.query(Usuarios).filter(
-        Usuarios.ativo.is_(True), func.lower(Usuarios.permissao) == "gerente"
+        Usuarios.ativo.is_(True),
+        or_(
+            func.lower(Usuarios.permissao) == "gerente",
+            # Convencao da casa: o id do responsavel e o proprio id da equipe
+            # (G61010 = Thais na LOTUS, G61015 = Helio na SENNA, G61001 = Jose na AGEF).
+            Usuarios.id_usuarios == Usuarios.team,
+        ),
     ).all()
-    manager_by_team = {str(u.team or ""): u for u in managers}
+    # Gerente de verdade tem precedencia sobre o acumulo, se um dia houver os dois.
+    manager_by_team = {}
+    for u in sorted(managers, key=lambda x: str(x.permissao or "").lower() == "gerente"):
+        manager_by_team[str(u.team or "")] = u
     result = []
     for team in teams:
         manager = manager_by_team.get(team.id_equipe)
