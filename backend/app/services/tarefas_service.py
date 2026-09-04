@@ -38,6 +38,7 @@ from app.models.lead_c2s import LeadC2S
 from app.models.gerente_visita_visualizada import GerenteVisitaVisualizada
 from app.services.gestao_visitas_service import pendencias_de_revisao
 from app.models.proposta_efetiva import SITUACOES_FECHADAS, PropostaEfetiva
+from app.models.equipe import Equipe
 from app.models.usuarios import Usuarios
 from app.models.visita import ClienteVisita, Visita
 
@@ -306,20 +307,31 @@ def _leads_sem_contato(session, escopo, hoje) -> List[Dict[str, Any]]:
         if so_ativas is not None:
             query = query.filter(so_ativas)
     else:
-        # O espelho guarda NOME de equipe e de corretor (o C2S nao conhece nossos ids),
-        # entao o recorte tem que ser traduzido. Mesma regra da tela de leads — duas
-        # regras de escopo sobre o mesmo dado divergiriam.
-        recorte = c2s._escopo(session, escopo["id"], None)
-        if recorte["equipe"]:
-            # Sem acento nos DOIS lados. A comparacao exata deixava dois gerentes com
-            # ZERO leads: o cadastro grava "LIDER" e "NOVA UNIAO" com acento, o C2S grava
-            # "LIDER" e "NOVA UNIAO" sem — e vice-versa. A Visao do Diretor ja normalizava;
-            # este caminho tinha ficado para tras.
-            query = query.filter(c2s.filtro_equipe(recorte["equipe"]))
-        elif recorte["corretor"]:
-            query = query.filter(LeadC2S.corretor.ilike(f"%{recorte['corretor'].strip()}%"))
+        # O espelho guarda o NOME da equipe (o C2S nao conhece nossos ids), entao o
+        # recorte e traduzido pelo cadastro. `filtro_equipe` normaliza acento e caixa —
+        # sem isso os gerentes da LIDER e da NOVA UNIAO viam ZERO, porque as duas bases
+        # escrevem o acento em lados opostos.
+        #
+        # A equipe sai de `escopo["team"]`, que ja vem resolvido. Antes era re-derivada
+        # com `c2s._escopo(escopo["id"])`, e isso quebrava para quem ACUMULA diretor e
+        # gerente: `_escopo` devolve "ve tudo, sem equipe" para o Jose Marques, o `else`
+        # abaixo devolvia lista vazia, e filtrar o painel por ele dava 0 leads enquanto
+        # visitas e propostas apareciam normalmente.
+        nome_equipe = ""
+        if _texto(escopo.get("team")):
+            equipe = session.query(Equipe).filter(
+                Equipe.id_equipe == _texto(escopo["team"])
+            ).first()
+            nome_equipe = _texto(equipe.nome if equipe else "") or _texto(escopo["team"])
+
+        if nome_equipe:
+            query = query.filter(c2s.filtro_equipe(nome_equipe))
         else:
-            return []
+            # Sem equipe: corretor ve so o proprio atendimento.
+            recorte = c2s._escopo(session, escopo["id"], None)
+            if not recorte["corretor"]:
+                return []
+            query = query.filter(LeadC2S.corretor.ilike(f"%{recorte['corretor'].strip()}%"))
 
     tarefas = []
     for lead in query.order_by(LeadC2S.data.desc()).limit(TETO_COLETA).all():
