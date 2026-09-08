@@ -59,6 +59,8 @@ class Propostas(Resource):
                 "valor_min": request.args.get("valor_min"),
                 "valor_max": request.args.get("valor_max"),
                 "sem_acao_min": request.args.get("sem_acao_min"),
+                "fechamento_7_dias": request.args.get("fechamento_7_dias"),
+                "probabilidade_fechamento": request.args.get("probabilidade_fechamento"),
             }), 200
         except Exception as e:
             return _erro(e, "Erro ao listar propostas efetivas")

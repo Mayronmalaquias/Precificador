@@ -100,7 +100,7 @@ class RankingFechamento(Resource):
             dados = servico.fechamento(mes, meta=meta)
             return {
                 "ok": True, "mes": mes,
-                "texto": servico.gerar_texto_fechamento(mes, meta=meta),
+                "texto": servico.gerar_texto_fechamento(mes, meta=meta, dados=dados),
                 "equipes": dados["equipes"],
                 "orfas": dados["orfas"],
                 "resumo": dados["resumo"],

@@ -19,6 +19,7 @@ from sqlalchemy import func, or_
 from app.database import SessionLocal
 from app.models.proposta_efetiva import (
     FORMAS_PAGAMENTO,
+    PROBABILIDADES_FECHAMENTO,
     SITUACOES,
     SITUACOES_FECHADAS,
     PropostaEfetiva,
@@ -55,6 +56,10 @@ ROTULO_SITUACAO = {
     "vendido": "Vendido",
     "recusada": "Recusada",
     "cancelada": "Cancelada",
+}
+ROTULO_PROBABILIDADE = {
+    "alta": "Alta", "media_alta": "Média alta", "media": "Média",
+    "media_baixa": "Média baixa", "baixa": "Baixa",
 }
 ROTULO_PAGAMENTO = {
     "permuta": "Permuta",
@@ -367,6 +372,9 @@ def _serializar(proposta, hoje=None, com_acoes=False):
         "situacao": proposta.situacao,
         "situacao_label": ROTULO_SITUACAO.get(proposta.situacao, proposta.situacao),
         "fechada": fechada,
+        "fechamento_7_dias": bool(proposta.fechamento_7_dias),
+        "probabilidade_fechamento": proposta.probabilidade_fechamento,
+        "probabilidade_fechamento_label": ROTULO_PROBABILIDADE.get(proposta.probabilidade_fechamento),
         "team": proposta.team,
         "id_gerente": proposta.id_gerente,
         "gerente_nome": proposta.gerente_nome,
@@ -459,6 +467,13 @@ def listar(solicitante_id, filtros=None):
             query = query.filter(PropostaEfetiva.situacao == situacao_pedida)
         if filtros.get("team") and escopo["ve_tudo"]:
             query = query.filter(PropostaEfetiva.team == filtros["team"])
+        if filtros.get("fechamento_7_dias") == "true":
+            query = query.filter(PropostaEfetiva.fechamento_7_dias.is_(True))
+        if filtros.get("probabilidade_fechamento"):
+            probabilidade = filtros["probabilidade_fechamento"]
+            if probabilidade not in PROBABILIDADES_FECHAMENTO:
+                raise PropostaErro("Probabilidade de fechamento inválida")
+            query = query.filter(PropostaEfetiva.probabilidade_fechamento == probabilidade)
         if filtros.get("forma_pagamento"):
             query = query.filter(PropostaEfetiva.forma_pagamento == filtros["forma_pagamento"])
         # Corretor do filtro do topo do relatorio. Separado da `busca` de proposito: a
@@ -555,6 +570,7 @@ def listar(solicitante_id, filtros=None):
                     {"value": "ativos", "label": "Ativas (em andamento)"},
                     {"value": "inativos", "label": "Inativas (vendidas ou canceladas)"},
                 ] + [{"value": s, "label": ROTULO_SITUACAO[s]} for s in SITUACOES],
+                "probabilidades_fechamento": [{"value": p, "label": ROTULO_PROBABILIDADE[p]} for p in PROBABILIDADES_FECHAMENTO],
                 "formas_pagamento": [{"value": f, "label": ROTULO_PAGAMENTO[f]} for f in FORMAS_PAGAMENTO],
                 "dias_atencao": DIAS_ATENCAO,
                 "dias_critico": DIAS_CRITICO,
@@ -606,6 +622,12 @@ def _validar(dados, parcial=False):
     forma = _texto(dados.get("forma_pagamento")).lower() or None
     if forma and forma not in FORMAS_PAGAMENTO:
         raise PropostaErro(f"Forma de pagamento inválida. Use uma destas: {', '.join(FORMAS_PAGAMENTO)}")
+    if "fechamento_7_dias" in dados and type(dados["fechamento_7_dias"]) is not bool:
+        raise PropostaErro("Fechamento nos próximos 7 dias deve ser verdadeiro ou falso")
+    if "probabilidade_fechamento" in dados:
+        probabilidade = dados["probabilidade_fechamento"]
+        if probabilidade not in (None, "") and probabilidade not in PROBABILIDADES_FECHAMENTO:
+            raise PropostaErro("Probabilidade de fechamento inválida")
     return situacao, forma
 
 
@@ -657,6 +679,8 @@ def criar(solicitante_id, dados):
             descricao_permuta=_texto(dados.get("descricao_permuta")) or None if forma == "permuta" else None,
             forma_pagamento=forma,
             situacao=situacao or "em_analise",
+            fechamento_7_dias=dados.get("fechamento_7_dias", False),
+            probabilidade_fechamento=dados.get("probabilidade_fechamento") or None,
             team=team,
             id_gerente=id_gerente,
             gerente_nome=gerente_nome,
@@ -700,6 +724,12 @@ def atualizar(solicitante_id, proposta_id, dados):
 
         situacao, forma = _validar(dados, parcial=True)
         situacao_anterior = proposta.situacao
+        for campo in ("fechamento_7_dias", "probabilidade_fechamento"):
+            if campo in dados:
+                valor = dados[campo]
+                if campo == "probabilidade_fechamento":
+                    valor = valor or None
+                setattr(proposta, campo, valor)
 
         for campo in CAMPOS_TEXTO:
             if campo in dados:

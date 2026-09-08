@@ -30,6 +30,7 @@ const VAZIO = {
   codigo_imovel: '', imovel_endereco: '', bairro: '', tipo: '', numero: '',
   bloco: '', complemento: '', quartos: '', vagas: '', area: '',
   valor: '', forma_pagamento: '', valor_permuta: '', descricao_permuta: '',
+  fechamento_7_dias: false, probabilidade_fechamento: '',
   situacao: 'em_analise', cliente: '', observacao: '', data_proposta: '',
   id_corretor: '', id_visita: '', id_gerente: '', gerente_nome: '',
 };
@@ -62,6 +63,7 @@ export default function PropostasEfetivas() {
   const [carregando, setCarregando] = useState(true);
   const [filtros, setFiltros] = useState({
     situacao: '', forma_pagamento: '', busca: '',
+    fechamento_7_dias: '', probabilidade_fechamento: '',
     // Recortes acrescentados em 25/08/2026. `team` e `id_gerente` só têm efeito para
     // perfil global — o servidor ignora para gerente e corretor, cujo escopo sai do
     // cadastro.
@@ -90,7 +92,7 @@ export default function PropostasEfetivas() {
   // o servidor o ignoraria, e um controle que não faz nada é pior que controle ausente.
   const veTudo = !!dados?.escopo?.ve_tudo;
   const filtrosLigados = ['team', 'bairro', 'tipo', 'valor_min',
-    'valor_max', 'sem_acao_min'].filter((k) => String(filtros[k] || '').trim()).length;
+    'valor_max', 'sem_acao_min', 'fechamento_7_dias', 'probabilidade_fechamento'].filter((k) => String(filtros[k] || '').trim()).length;
 
   // O gerente da proposta pode nao estar na lista (deixou de ser gerente, ou a proposta
   // e de outra equipe). Sem acrescenta-lo, o select abriria em branco e salvar
@@ -212,6 +214,8 @@ export default function PropostasEfetivas() {
       descricao_permuta: item.descricao_permuta || '', situacao: item.situacao || 'em_analise',
       cliente: item.cliente || '', observacao: item.observacao || '',
       data_proposta: item.data_proposta || '',
+      fechamento_7_dias: !!item.fechamento_7_dias,
+      probabilidade_fechamento: item.probabilidade_fechamento || '',
       id_corretor: item.id_corretor || '', id_visita: item.id_visita || '',
       id_gerente: item.id_gerente || '',
       gerente_nome: item.gerente_nome || '',
@@ -497,6 +501,18 @@ export default function PropostasEfetivas() {
           )}
           {/* Só o que existe nas propostas do escopo — as listas vêm do servidor já
               deduplicadas por caixa ("Apartamento" e "APARTAMENTO" viram uma opção só). */}
+          <label>Fechamento nos próximos 7 dias
+            <select value={filtros.fechamento_7_dias} onChange={setF('fechamento_7_dias')}>
+              <option value="">Todas as propostas</option>
+              <option value="true">Marcadas pelo gerente</option>
+            </select>
+          </label>
+          <label>Probabilidade de fechamento
+            <select value={filtros.probabilidade_fechamento} onChange={setF('probabilidade_fechamento')}>
+              <option value="">Todas as probabilidades</option>
+              {(opcoes.probabilidades_fechamento || []).map((p) => <option key={p.value} value={p.value}>{p.label}</option>)}
+            </select>
+          </label>
           <label>Bairro
             <select value={filtros.bairro} onChange={setF('bairro')}>
               <option value="">Todos os bairros</option>
@@ -520,7 +536,7 @@ export default function PropostasEfetivas() {
               onChange={setF('sem_acao_min')} />
           </label>
           <button type="button" className="pe-limpar" onClick={() => setFiltros((p) => ({
-            ...p, team: '', bairro: '', tipo: '',
+            ...p, team: '', bairro: '', tipo: '', fechamento_7_dias: '', probabilidade_fechamento: '',
             valor_min: '', valor_max: '', sem_acao_min: '',
           }))}>
             Limpar
@@ -533,7 +549,7 @@ export default function PropostasEfetivas() {
           <thead>
             <tr>
               <th>Imóvel</th><th>Bairro / Tipo</th><th>Valor</th><th>Pagamento</th>
-              <th>Situação</th><th>Em aberto</th><th>Sem ação</th><th>Corretor</th><th>Gerente</th><th />
+              <th>Situação</th><th>Próximos 7 dias</th><th>Probabilidade</th><th>Em aberto</th><th>Sem ação</th><th>Corretor</th><th>Gerente</th><th />
             </tr>
           </thead>
           <tbody>
@@ -550,6 +566,8 @@ export default function PropostasEfetivas() {
                 </td>
                 <td onClick={() => abrirDetalhe(item.id)}>{item.forma_pagamento_label || '—'}</td>
                 <td onClick={() => abrirDetalhe(item.id)}><span className={`pe-situacao s-${item.situacao}`}>{item.situacao_label}</span></td>
+                <td onClick={() => abrirDetalhe(item.id)}>{item.fechamento_7_dias ? 'Marcada' : '—'}</td>
+                <td onClick={() => abrirDetalhe(item.id)}>{item.probabilidade_fechamento_label || 'Não informada'}</td>
                 <td onClick={() => abrirDetalhe(item.id)}>{item.dias_em_aberto == null ? '—' : `${item.dias_em_aberto} d`}</td>
                 <td onClick={() => abrirDetalhe(item.id)} className={item.alerta || ''}>{item.fechada ? '—' : `${item.dias_sem_acao ?? 0} d`}</td>
                 <td onClick={() => abrirDetalhe(item.id)}>{item.corretor_nome || '—'}{item.id_visita ? <span>visita vinculada</span> : null}</td>
@@ -661,6 +679,17 @@ export default function PropostasEfetivas() {
                   {opcoes.formas_pagamento.map((f) => <option key={f.value} value={f.value}>{f.label}</option>)}
                 </select>
               </label>
+              <label>Fechamento nos próximos 7 dias
+                <input type="checkbox" checked={form.fechamento_7_dias}
+                  onChange={(e) => setForm((f) => ({ ...f, fechamento_7_dias: e.target.checked }))} />
+                <small className="pe-hint">Marque se acredita que a proposta fechará nesse prazo. A marcação é manual.</small>
+              </label>
+              <label>Probabilidade de fechamento
+                <select value={form.probabilidade_fechamento} onChange={set('probabilidade_fechamento')}>
+                  <option value="">Não informada</option>
+                  {(opcoes.probabilidades_fechamento || []).map((p) => <option key={p.value} value={p.value}>{p.label}</option>)}
+                </select>
+              </label>
               <label>Situação
                 <select value={form.situacao} onChange={set('situacao')}>
                   {opcoes.situacoes.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
@@ -723,6 +752,8 @@ export default function PropostasEfetivas() {
             )}
 
             <div className="pe-detalhe-grid">
+              <div><span>Fechamento nos próximos 7 dias</span><strong>{detalhe.fechamento_7_dias ? 'Marcada pelo gerente' : 'Não marcada'}</strong></div>
+              <div><span>Probabilidade de fechamento</span><strong>{detalhe.probabilidade_fechamento_label || 'Não informada'}</strong></div>
               <div><span>Proposta em</span><strong>{dataBR(detalhe.data_proposta)}</strong></div>
               {/* A data digitada quase sempre difere da de lançamento (vem retroativa), e é
                   pela de lançamento que o painel do diretor recorta o período. Mostrar as duas

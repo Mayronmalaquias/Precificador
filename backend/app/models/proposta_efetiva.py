@@ -21,6 +21,8 @@ SITUACOES = ("em_analise", "contraproposta", "aceita", "vendido", "recusada", "c
 # proposta que precisa acompanhar ate virar contrato.
 SITUACOES_FECHADAS = ("vendido", "cancelada")
 
+PROBABILIDADES_FECHAMENTO = ("alta", "media_alta", "media", "media_baixa", "baixa")
+
 FORMAS_PAGAMENTO = ("permuta", "consorcio", "financiamento", "recurso_proprio", "outros")
 
 
@@ -51,6 +53,9 @@ class PropostaEfetiva(Base):
 
     forma_pagamento = Column(String(30), nullable=True)
     situacao = Column(String(30), nullable=False, default="em_analise", index=True)
+
+    fechamento_7_dias = Column(Boolean, nullable=False, default=False, server_default="false")
+    probabilidade_fechamento = Column(String(20), nullable=True)
 
     # Dono da proposta: equipe manda no escopo (gerente so ve/edita a propria).
     team = Column(String(50), nullable=True, index=True)

@@ -969,40 +969,19 @@ class RankingService:
         return f"{arredondado:.1f}".replace(".", ",")
 
     def fechamento(self, mes: str, meta: int = 4) -> Dict[str, Any]:
-        """Dados do fechamento do mes por equipe.
-
-        Fonte unica do texto E do dashboard: com dois calculos, o numero colado no grupo
-        e o numero da tela divergiriam no primeiro ajuste feito em um so.
-
-        Tres correcoes sobre a versao anterior, todas medidas em agosto/2026:
-
-          1. Casamento sem acento (`_chave_captador`) — cinco captacoes ficavam orfas.
-          2. Cada captacao conta UMA vez. O cadastro tem contas duplicadas, e como o
-             casamento e por nome, dois usuarios com o mesmo nome recebiam a contagem
-             inteira cada um: o texto somava 78 atribuidas MAIS 5 orfas de um total de 78.
-          3. Membro que nao e corretor nem gerente entra quando tem captacao. Jose Marques
-             encabeca a AGEF sem a permissao formal, e sumia do texto junto com a
-             captacao dele.
-        """
+        """Agrupa os participantes do ranking de captacao do mes, sem rateio."""
         from app.database import SessionLocal
         from app.models.equipe import Equipe
         from app.models.usuarios import Usuarios
 
         ano, m, start, end = self._mes_para_intervalo(mes)
-
-        # Por ID, com rateio. Casar por nome era a origem de dois defeitos: captacao orfa
-        # por diferenca de acento, e contagem dobrada quando o cadastro tem a mesma pessoa
-        # em duas contas. O id e o que `fato_captacao` grava.
-        por_id = self._captacoes_rateadas(start, end)
-        id_to_name, name_to_id = self._maps_corretores()
-
+        ranking = self.get_ranking("captacao", start, end)
         counts: Dict[str, float] = {}
         rotulo_original: Dict[str, str] = {}
-        for chave, valor in por_id.items():
-            # Linha antiga pode ter nome no lugar do id; resolve o caminho inverso.
-            alvo = chave if chave in id_to_name else name_to_id.get(chave, chave)
-            counts[alvo] = counts.get(alvo, 0.0) + valor
-            rotulo_original.setdefault(alvo, id_to_name.get(alvo) or chave)
+        for item in ranking:
+            chave = str(item["id_corretor"] or item["corretor"]).strip().upper()
+            counts[chave] = counts.get(chave, 0.0) + item["total"]
+            rotulo_original[chave] = item["corretor"]
 
         session = SessionLocal()
         try:
@@ -1019,7 +998,8 @@ class RankingService:
         finally:
             session.close()
 
-        ativos = [u for u in usuarios if u.ativo]
+        ativos = [u for u in usuarios if u.ativo
+                  and str(u.id_usuarios or "").strip().upper() in counts]
         inativos_com_captacao = [
             u for u in usuarios
             if not u.ativo and counts.get(str(u.id_usuarios or "").strip().upper(), 0)
@@ -1072,13 +1052,13 @@ class RankingService:
 
             linhas = []
             for u in corretores:
-                linhas.append({"nome": u.nome, "papel": "corretor", "total": consumir(u)})
+                linhas.append({"nome": rotulo_original[str(u.id_usuarios).strip().upper()], "papel": "corretor", "total": consumir(u)})
             for u in gerentes:
-                linhas.append({"nome": u.nome, "papel": "gerente", "total": consumir(u)})
+                linhas.append({"nome": rotulo_original[str(u.id_usuarios).strip().upper()], "papel": "gerente", "total": consumir(u)})
             for u in outros:
-                linhas.append({"nome": u.nome, "papel": "outro", "total": consumir(u)})
+                linhas.append({"nome": rotulo_original[str(u.id_usuarios).strip().upper()], "papel": "outro", "total": consumir(u)})
             for u in saiu:
-                linhas.append({"nome": u.nome, "papel": "inativo", "total": consumir(u)})
+                linhas.append({"nome": rotulo_original[str(u.id_usuarios).strip().upper()], "papel": "inativo", "total": consumir(u)})
 
             total = round(sum(x["total"] for x in linhas), 2)
             com_captacao = sum(1 for x in linhas if x["total"])
@@ -1121,17 +1101,15 @@ class RankingService:
                 "com_captacao": sum(t["com_captacao"] for t in times),
                 "bateram_meta": sum(t["bateram_meta"] for t in times),
                 "meta_total": sum(t["meta_equipe"] for t in times),
-                # De onde saiu o rateio de cada captacao. `igual` e aproximacao: imovel
-                # que a varredura do catalogo ainda nao alcancou.
-                "rateio": getattr(self, "_origem_rateio", {}),
             },
         }
 
-    def gerar_texto_fechamento(self, mes: str, meta: int = 4) -> str:
+    def gerar_texto_fechamento(self, mes: str, meta: int = 4, dados=None) -> str:
         """Texto do fechamento para colar no grupo. Renderiza `fechamento()`."""
         MESES = ["", "JANEIRO", "FEVEREIRO", "MARÇO", "ABRIL", "MAIO", "JUNHO",
                  "JULHO", "AGOSTO", "SETEMBRO", "OUTUBRO", "NOVEMBRO", "DEZEMBRO"]
-        dados = self.fechamento(mes, meta)
+        if dados is None:
+            dados = self.fechamento(mes, meta)
         ano, m = int(dados["mes"][:4]), int(dados["mes"][5:7])
 
         linhas = [f"*{MESES[m]}/{str(ano)[2:]}*", ""]
