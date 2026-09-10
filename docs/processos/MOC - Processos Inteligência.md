@@ -263,3 +263,7 @@ conflitante, 1.688 marcados PP abaixo do valor da regra e 890 acima do valor sem
 histórico **não foi recalculado** de propósito; a partir de 11/08/2026 o foco é declarado
 e a divergência com a regra fica gravada para decidir depois quem ajusta — a regra ou o
 processo.
+## Análise 2026-09-09 — Sistema financeiro
+
+- [[Analise - Sistema Financeiro - 2026-09-09]] — requisitos dos 17 cartões do Trello, estrutura atual do Precificador, consulta somente leitura ao banco, fontes em planilhas, proposta de modelo financeiro, integração Superlógica, migração e critérios de aceite.
+- **Situação:** análise e proposta de evolução; nenhuma funcionalidade implementada. Os números representam a consulta de 09/09/2026 ao banco configurado no ambiente do projeto, com as limitações registradas na nota.

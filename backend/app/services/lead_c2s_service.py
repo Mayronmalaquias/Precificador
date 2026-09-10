@@ -322,8 +322,11 @@ def _escopo(session, solicitante_id: str, equipe_pedida: Optional[str]) -> Dict[
     if global_:
         # O dropdown de equipe do relatorio so vale para quem ja enxerga tudo.
         return {"ve_tudo": True, "equipe": nome_da_equipe(equipe_pedida), "corretor": ""}
-    if permissao == "gerente" and team_id:
-        return {"ve_tudo": False, "equipe": nome_da_equipe(team_id), "corretor": ""}
+    if permissao == "gerente":
+        equipe = session.query(Equipe).filter(Equipe.id_equipe == team_id).first() if team_id else None
+        if not equipe or not _norm_equipe(equipe.nome):
+            raise LeadC2SErro("Gerente sem equipe válida cadastrada para consultar leads", 403)
+        return {"ve_tudo": False, "equipe": _texto(equipe.nome), "corretor": ""}
     # Corretor e assistente veem so o proprio atendimento.
     return {"ve_tudo": False, "equipe": "",
             "corretor": _texto(user.nome or user.username)}

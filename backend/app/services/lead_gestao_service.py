@@ -98,6 +98,32 @@ def _filtro_de_escopo(session, perfil: Dict[str, Any], equipe_pedida: Optional[s
     return _chaves_do_usuario(proprio) if proprio else [perfil["id"]]
 
 
+def _aplicar_escopo_legado(query, session, perfil, equipe=None):
+    """Equipe explicita prevalece sobre o atendente, inclusive apos transferencias."""
+    from app.services import lead_c2s_service as c2s
+
+    escopo = c2s._escopo(session, perfil["id"], equipe)
+    chaves = _filtro_de_escopo(session, perfil, equipe)
+    if escopo["equipe"]:
+        from app.models.equipe import Equipe
+        equipes = session.query(Equipe).all()
+        ids = [e.id_equipe for e in equipes
+               if c2s._norm_equipe(e.nome) == c2s._norm_equipe(escopo["equipe"])]
+        return query.filter(
+            c2s.filtro_equipe(escopo["equipe"], LeadLegado.equipe)
+            | LeadLegado.equipe.in_(ids)
+        )
+    if chaves is not None:
+        return query.filter(LeadLegado.atendimento.in_(chaves))
+    return query
+
+
+def _pode_acessar_legado(session, perfil, lead):
+    return _aplicar_escopo_legado(
+        session.query(LeadLegado), session, perfil
+    ).filter(LeadLegado.id == lead.id).first() is not None
+
+
 def _codigo_limpo(valor) -> str:
     """"10.258" -> "10258". O codigo do lead vem do C2S como texto livre."""
     texto = _texto(valor)
@@ -165,13 +191,7 @@ def listar(solicitante_id, busca="", page=1, per_page=30, inicio=None, fim=None,
         query = session.query(LeadLegado)
 
         chaves = _filtro_de_escopo(session, perfil, equipe)
-        if chaves is not None:
-            # `equipe` entra no OR porque lead de recepcao chega sem atendimento
-            # definido, mas com a equipe preenchida — sem isso ele sumia da tela do
-            # gerente justamente quando mais importa (lead novo, ainda sem dono).
-            query = query.filter(
-                LeadLegado.atendimento.in_(chaves) | LeadLegado.equipe.in_(chaves)
-            )
+        query = _aplicar_escopo_legado(query, session, perfil, equipe)
 
         # Filtro de corretor do topo do relatorio: texto livre com o NOME. Como
         # `atendimento` guarda ora o id, ora o nome, resolve o texto -> ids antes de
@@ -262,7 +282,7 @@ def detalhe(solicitante_id, lead_id) -> Dict[str, Any]:
             raise LeadErro("Lead não encontrado", 404)
 
         chaves = _filtro_de_escopo(session, perfil)
-        if chaves is not None and _texto(lead.atendimento) not in chaves and _texto(lead.equipe) not in chaves:
+        if not _pode_acessar_legado(session, perfil, lead):
             raise LeadErro("Esse lead é de outra equipe", 403)
 
         atendente = session.query(Usuarios).filter(
@@ -362,7 +382,7 @@ def detalhe_espelho(solicitante_id, id_c2s) -> Dict[str, Any]:
             legado = session.query(LeadLegado).filter(LeadLegado.id == lead.id_legado).first()
             # Elo distante no tempo e a mesma PESSOA, nao o mesmo LEAD. Melhor abrir sem
             # correcao de dados do que oferecer um botao que grava no registro errado.
-            if not _legado_do_mesmo_lead(lead, legado):
+            if not _legado_do_mesmo_lead(lead, legado) or not _pode_acessar_legado(session, perfil, legado):
                 legado = None
 
         return {
@@ -584,7 +604,7 @@ def acompanhar_espelho(solicitante_id, id_c2s, dados: Dict[str, Any]) -> Dict[st
         # 20260825_acomp_c2s.
         if lead.id_legado:
             legado = session.query(LeadLegado).filter(LeadLegado.id == lead.id_legado).first()
-            if legado and _legado_do_mesmo_lead(lead, legado):
+            if legado and _legado_do_mesmo_lead(lead, legado) and _pode_acessar_legado(session, perfil, legado):
                 for campo in ("contato_status", "visita_agendada", "motivo_sem_visita",
                               "proxima_acao", "acompanhamento_por", "acompanhamento_em"):
                     setattr(legado, campo, getattr(lead, campo))
@@ -642,7 +662,7 @@ def atualizar_acompanhamento(solicitante_id, lead_id, dados: Dict[str, Any]) -> 
             raise LeadErro("Lead não encontrado", 404)
 
         chaves = _filtro_de_escopo(session, perfil)
-        if chaves is not None and _texto(lead.atendimento) not in chaves and _texto(lead.equipe) not in chaves:
+        if not _pode_acessar_legado(session, perfil, lead):
             raise LeadErro("Esse lead é de outra equipe", 403)
 
         _aplicar_acompanhamento(lead, dados, perfil["id"])
@@ -685,10 +705,7 @@ def _query_com_escopo(session, perfil, equipe, inicio, fim, corretor=None):
     """Mesmo recorte de `listar`, sem paginacao — para contar em vez de exibir."""
     query = session.query(LeadLegado)
     chaves = _filtro_de_escopo(session, perfil, equipe)
-    if chaves is not None:
-        query = query.filter(
-            LeadLegado.atendimento.in_(chaves) | LeadLegado.equipe.in_(chaves)
-        )
+    query = _aplicar_escopo_legado(query, session, perfil, equipe)
     corretor = _texto(corretor)
     if corretor:
         alvo = f"%{corretor}%"
@@ -1045,7 +1062,7 @@ def editar_lead(solicitante_id, lead_id, dados: Dict[str, Any]) -> Dict[str, Any
             raise LeadErro("Lead nao encontrado", 404)
 
         chaves = _filtro_de_escopo(session, perfil)
-        if chaves is not None and _texto(lead.atendimento) not in chaves and _texto(lead.equipe) not in chaves:
+        if not _pode_acessar_legado(session, perfil, lead):
             raise LeadErro("Esse lead e de outra equipe", 403)
 
         alterados: List[str] = []

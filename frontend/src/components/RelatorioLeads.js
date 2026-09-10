@@ -147,6 +147,8 @@ export default function RelatorioLeads({ idSolicitante, equipe, inicio, fim, cor
     if (!idSolicitante) return;
     const params = montarParams(pagina, termo, ativos);
     const chave = params.toString();
+    const meu = ++pedidoRef.current;
+    if (abortRef.current) abortRef.current.abort();
 
     // Cache por combinação exata: voltar a uma busca já feita é instantâneo.
     const guardado = cacheRef.current.get(chave);
@@ -157,8 +159,6 @@ export default function RelatorioLeads({ idSolicitante, equipe, inicio, fim, cor
       return;
     }
 
-    const meu = ++pedidoRef.current;
-    if (abortRef.current) abortRef.current.abort();
     const controle = new AbortController();
     abortRef.current = controle;
 
@@ -183,6 +183,21 @@ export default function RelatorioLeads({ idSolicitante, equipe, inicio, fim, cor
   // e leva minutos, entao ela so acontece quando o usuario pede. Trocar de aba ou de
   // periodo nao pode disparar isso sem querer.
   const [jaBuscou, setJaBuscou] = useState(false);
+
+  useEffect(() => {
+    const pedidos = pedidoRef;
+    ++pedidoRef.current;
+    if (abortRef.current) abortRef.current.abort();
+    cacheRef.current.clear();
+    setDados({ itens: [], total: 0, page: 1, paginas: 1 });
+    setDetalhe(null);
+    setJaBuscou(false);
+    setCarregando(false);
+    return () => {
+      ++pedidos.current;
+      if (abortRef.current) abortRef.current.abort();
+    };
+  }, [idSolicitante]);
 
   // Catálogo fixo dos filtros. É uma chamada local (não consulta o Contact2Sale), então
   // pode rodar ao abrir — é o que permite escolher o motivo antes da primeira busca.
@@ -244,7 +259,7 @@ export default function RelatorioLeads({ idSolicitante, equipe, inicio, fim, cor
     if (jaBuscou || !idSolicitante || !inicio || !fim) return;
     aplicarFiltros();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [idSolicitante, inicio, fim]);
+  }, [idSolicitante, inicio, fim, jaBuscou]);
 
   // Aplicar = promover o rascunho. Os valores vao por parametro porque `setState` e
   // assincrono: ler `filtrosAtivos` aqui pegaria o valor anterior.
