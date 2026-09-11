@@ -4,9 +4,31 @@ import unicodedata
 from werkzeug.utils import secure_filename
 from app.models.solicitacao import Solicitacao, SolicitacaoAnexo, SolicitacaoEvento
 
-EQUIPES = ["AGEF", "AGUIA", "LOTUS", "PRIME", "SENNA", "NOVA UNIÃO", "Controle de Qualidade", "LIDER"]
+# Equipe de verdade tem id no padrao G61xxx (o mesmo que equipes_service.proximo_id_equipe
+# gera). A tabela tambem guarda linhas de outra natureza (ex.: "administrativo" e ids C61xxx),
+# que nao sao equipe comercial e nao podem virar opcao de solicitacao.
+ID_EQUIPE = re.compile(r"G\d+", re.IGNORECASE)
+CQC = "Controle de Qualidade"
+
+
+def equipes_validas():
+    """Nomes de equipe aceitos, lidos do cadastro.
+
+    Era uma lista fixa no codigo. Ela envelheceu nos dois sentidos: seguia oferecendo
+    PRIME (desativada) e recusava Alpha, Aurea e Legacy, que existem e estao ativas.
+    A tela e a validacao agora leem a MESMA fonte, entao equipe nova passa a valer sem
+    precisar de deploy.
+    """
+    from app.services.equipes_service import listar_equipes
+
+    return {
+        (e.get("nome") or "").strip()
+        for e in listar_equipes()
+        if (e.get("nome") or "").strip()
+        and ID_EQUIPE.fullmatch(str(e.get("id_equipe") or "").strip())
+    }
 TIPOS = ["Ônus", "Parecer Jurídico", "Troca de Titularidade", "Celer"]
-FINALIDADES = {"Real": ["Venda", "Pós-venda"], "Cópia": ["Captação (Apenas para o CQC)", "Assertiva", "Pós-Venda", "Imóvel Seguro"]}
+FINALIDADES = {"Real": ["Venda", "Pós-venda"], "Cópia": ["Captação", "Assertiva", "Pós-Venda", "Imóvel Seguro"]}
 
 def norm(value):
     return "".join(c for c in unicodedata.normalize("NFKD", str(value or "")) if not unicodedata.combining(c)).strip().lower()
@@ -48,8 +70,6 @@ def validar(dados, arquivos):
             raise ValueError("Selecione um ofício de 1 a 9.")
         if d["tipo_onus"] == "Cópia":
             required.append("corretor")
-        if d["finalidade"] == FINALIDADES["Cópia"][0] and d["equipe"] != "Controle de Qualidade":
-            raise ValueError("Captação é uma finalidade exclusiva do Controle de Qualidade.")
     elif d["tipo"] == "Parecer Jurídico":
         required = ["endereco", "codigo_imovel"]
         if d["possui_onus"] not in ("Sim", "Não"):
@@ -62,11 +82,11 @@ def validar(dados, arquivos):
         required = ["codigo_imovel", "equipe"]
         if not arquivos:
             raise ValueError("Anexe a foto do Celer.")
-        if d["equipe"] == "Controle de Qualidade":
+        if d["equipe"] == CQC:
             raise ValueError("Equipe não disponível para Celer.")
     if any(not d[k] for k in required):
         raise ValueError("Preencha todos os campos obrigatórios.")
-    if "equipe" in required and d["equipe"] not in EQUIPES:
+    if "equipe" in required and d["equipe"] not in equipes_validas():
         raise ValueError("Equipe inválida.")
     if len(arquivos) > 5:
         raise ValueError("Envie no máximo 5 arquivos.")

@@ -3,16 +3,20 @@ import { BASE } from '../services/api';
 import '../assets/css/Solicitacoes.css';
 
 const TIPOS = ['Ônus', 'Parecer Jurídico', 'Troca de Titularidade', 'Celer'];
-const EQUIPES = ['AGEF', 'AGUIA', 'LOTUS', 'PRIME', 'SENNA', 'NOVA UNIÃO', 'Controle de Qualidade', 'LIDER'];
-const FINALIDADES = { Real: ['Venda', 'Pós-venda'], 'Cópia': ['Captação (Apenas para o CQC)', 'Assertiva', 'Pós-Venda', 'Imóvel Seguro'] };
+// Equipe nao e mais lista fixa: vem da tabela `equipes`. A lista antiga envelheceu nos
+// dois sentidos — oferecia PRIME (desativada) e nao tinha Alpha, Aurea e Legacy.
+// So id no padrao G61xxx e equipe comercial; a tabela tambem guarda outras linhas.
+const ID_EQUIPE = /^G\d+$/i;
+const CQC = 'Controle de Qualidade';
+const FINALIDADES = { Real: ['Venda', 'Pós-venda'], 'Cópia': ['Captação', 'Assertiva', 'Pós-Venda', 'Imóvel Seguro'] };
 const STATUS = { aguardando_trello: 'Aguardando Trello', criacao_incerta: 'Integração a conferir', em_atendimento: 'Em atendimento', pronto: 'Pronto para envio', envio_incerto: 'Envio a conferir', enviado_pendente_trello: 'E-mail enviado · atualizando Trello', enviado: 'Enviado' };
 const OFICIOS = ['Asa Sul, Lago Sul, Sudoeste, Cruzeiro, Octogonal e Setor Gráfico Sul', 'Parte norte do Plano Piloto, áreas adjacentes, Paranoá e Jardim', 'Taguatinga, Águas Claras, Samambaia, Recanto das Emas e SHVP (exceto trecho 01)', 'Guará, Núcleo Bandeirante, Candangolândia, Riacho Fundo, Setor de Indústria, SMPW e SHVP trecho 01', 'Gama e Santa Maria', 'Ceilândia', 'Sobradinho', 'Planaltina/DF', 'Brazlândia'];
 // Espelha a regra do back (solicitacao_service.validar): Captação só existe para o CQC.
-const CAPTACAO_CQC = FINALIDADES['Cópia'][0];
-function equipesDisponiveis(form) {
-  if (form.tipo === 'Celer') return EQUIPES.filter(e => e !== 'Controle de Qualidade');
-  if (form.finalidade === CAPTACAO_CQC) return ['Controle de Qualidade'];
-  return EQUIPES;
+function equipesDisponiveis(form, equipes) {
+  const nomes = equipes.map(e => e.nome);
+  // Celer e a unica restricao que sobrou: o CQC nao atende esse tipo.
+  if (form.tipo === 'Celer') return nomes.filter(e => e !== CQC);
+  return nomes;
 }
 const initial = { tipo: 'Ônus', tipo_onus: 'Real' };
 const data = value => value ? new Date(value).toLocaleString('pt-BR') : '—';
@@ -44,6 +48,8 @@ export default function Solicitacoes() {
   const [salvandoEmail, setSalvandoEmail] = useState(false);
   const [erroEmail, setErroEmail] = useState('');
   const [carregando, setCarregando] = useState(true);
+  const [equipes, setEquipes] = useState([]);
+  const [corretores, setCorretores] = useState([]);
   const chave = useRef(null);
   const erroRef = useRef(null);
   const seq = useRef(0);
@@ -61,6 +67,47 @@ export default function Solicitacoes() {
   // O banner fica no topo e o botao de enviar no fim do formulario: sem isto, a
   // recusa do back acontece fora da area visivel e a tela parece nao reagir.
   useEffect(() => { if (erro) erroRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' }); }, [erro]);
+  // Equipes do cadastro. Mesma fonte que o back usa para validar, entao o formulario
+  // nunca oferece uma opcao que o servidor vai recusar.
+  useEffect(() => {
+    let vivo = true;
+    (async () => {
+      try {
+        const r = await fetch(`${BASE}/equipes`);
+        const d = await r.json();
+        if (!vivo || !r.ok) return;
+        const ativas = (d.equipes || [])
+          .filter(e => e.ativo && (e.nome || '').trim() && ID_EQUIPE.test(String(e.id_equipe || '').trim()))
+          .map(e => ({ id_equipe: String(e.id_equipe).trim(), nome: e.nome.trim() }))
+          .sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
+        setEquipes(ativas);
+      } catch { /* dropdown fica vazio; o required impede enviar em branco */ }
+    })();
+    return () => { vivo = false; };
+  }, []);
+
+  // Corretores da equipe escolhida. `usuarios.team` guarda o ID da equipe, por isso a
+  // busca e pelo id e nao pelo nome que aparece no select.
+  useEffect(() => {
+    const equipe = equipes.find(e => e.nome === form.equipe);
+    if (!equipe) { setCorretores([]); return; }
+    let vivo = true;
+    (async () => {
+      try {
+        const r = await fetch(`${BASE}/corretor/retornar-lista?gerente=${encodeURIComponent(equipe.id_equipe)}&ativo=true`);
+        const d = await r.json();
+        if (!vivo || !r.ok) return;
+        const nomes = (d.lista || [])
+          .filter(u => String(u.permissao || '').toLowerCase() === 'corretor')
+          .map(u => (u.nome || u.username || '').trim())
+          .filter(Boolean)
+          .sort((a, b) => a.localeCompare(b, 'pt-BR'));
+        setCorretores([...new Set(nomes)]);
+      } catch { if (vivo) setCorretores([]); }
+    })();
+    return () => { vivo = false; };
+  }, [form.equipe, equipes]);
+
   useEffect(() => {
     setLista({ itens: [], resumo: {}, total: 0 });
     carregar();
@@ -124,10 +171,10 @@ export default function Solicitacoes() {
     {lista.precisa_email === true && <form onSubmit={salvarEmail} className="sol-panel" aria-label="Cadastrar e-mail"><h2>Cadastre seu e-mail</h2><p>Informe o endereço em que deseja receber os resultados das solicitações. Ele será salvo no seu cadastro.</p><div className="sol-grid"><label>Seu e-mail *<input type="email" autoComplete="email" required maxLength={255} value={emailCadastro} disabled={salvandoEmail} onChange={e => setEmailCadastro(e.target.value)} placeholder="nome@exemplo.com" /></label></div>{erroEmail && <p className="sol-error" role="alert">{erroEmail}</p>}<button type="submit" disabled={salvandoEmail}>{salvandoEmail ? 'Salvando…' : 'Salvar e-mail'}</button></form>}
     {aberto && lista.precisa_email === false && <form onSubmit={salvar} className="sol-panel"><h2>Nova solicitação</h2><fieldset disabled={enviando}><div className="sol-grid">
       <label>Tipo de solicitação *<select value={form.tipo} onChange={e => { setForm({ tipo: e.target.value, tipo_onus: 'Real' }); setArquivos([]); }}><option>Ônus</option><option>Parecer Jurídico</option><option>Troca de Titularidade</option><option>Celer</option></select></label>
-      {form.tipo === 'Ônus' && <><label>Tipo de ônus *<select value={form.tipo_onus} onChange={e => setForm({ ...form, tipo_onus: e.target.value, finalidade: '' })}><option>Real</option><option>Cópia</option></select></label>{campo('finalidade', 'Finalidade', FINALIDADES[form.tipo_onus], v => ({ equipe: v === CAPTACAO_CQC ? 'Controle de Qualidade' : '' }))}</>}
+      {form.tipo === 'Ônus' && <><label>Tipo de ônus *<select value={form.tipo_onus} onChange={e => setForm({ ...form, tipo_onus: e.target.value, finalidade: '' })}><option>Real</option><option>Cópia</option></select></label>{campo('finalidade', 'Finalidade', FINALIDADES[form.tipo_onus])}</>}
       {form.tipo !== 'Celer' && campo('endereco', 'Endereço')}
-      {['Ônus','Celer'].includes(form.tipo) && campo('equipe', 'Equipe', equipesDisponiveis(form))}
-      {form.tipo === 'Ônus' && <>{campo('oficio', 'Ofício', ['1','2','3','4','5','6','7','8','9'])}{campo('matricula', 'Matrícula')}{form.tipo_onus === 'Cópia' && campo('corretor', 'Corretor')}<p className="sol-note">{form.oficio ? `${form.oficio}º Ofício — ${OFICIOS[Number(form.oficio)-1]}` : 'Selecione o ofício para consultar sua abrangência.'}</p></>}
+      {['Ônus','Celer'].includes(form.tipo) && campo('equipe', 'Equipe', equipesDisponiveis(form, equipes), () => ({ corretor: '' }))}
+      {form.tipo === 'Ônus' && <>{campo('oficio', 'Ofício', ['1','2','3','4','5','6','7','8','9'])}{campo('matricula', 'Matrícula')}{form.tipo_onus === 'Cópia' && campo('corretor', 'Corretor', corretores.length ? corretores : undefined)}<p className="sol-note">{form.oficio ? `${form.oficio}º Ofício — ${OFICIOS[Number(form.oficio)-1]}` : 'Selecione o ofício para consultar sua abrangência.'}</p></>}
       {['Celer','Parecer Jurídico'].includes(form.tipo) && campo('codigo_imovel', 'Código do imóvel')}
       {form.tipo === 'Parecer Jurídico' && campo('possui_onus', 'Possui ônus?', ['Sim','Não'])}
       {['Celer','Troca de Titularidade'].includes(form.tipo) && <label>{form.tipo === 'Celer' ? 'Foto *' : 'Ônus real atualizado e ficha cadastral (dois arquivos) *'}<input key={form.tipo} type="file" multiple required accept={form.tipo === 'Celer' ? 'image/png,image/jpeg' : 'application/pdf,image/png,image/jpeg'} onChange={e => setArquivos(Array.from(e.target.files))} /><small>Até 5 arquivos; 10 MB por arquivo e 20 MB no total. PDF, PNG ou JPEG.</small></label>}
