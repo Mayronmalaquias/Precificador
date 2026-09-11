@@ -17,6 +17,19 @@ from app.models.usuarios import Usuarios
 from app.models.visita import Avaliacao, ClienteVisita, Visita
 
 PERFIS_GLOBAIS = {"administrador", "administrativo", "diretor", "inteligencia"}
+
+# Data em que a cobranca de revisao passou a valer. Visita anterior conta como revisada:
+# nao e passivo de ninguem, e o processo so comecou a ser acompanhado a partir daqui.
+#
+# Existe porque a pendencia nao expira (ver `_visit_reviews` no painel do diretor). Sem
+# um inicio, remover a janela de 30 dias do painel de tarefas trouxe de volta 202
+# pendencias antigas contra 51 do periodo corrente (medido em 11/09/2026) — backlog que
+# ninguem ia trabalhar e que afogava o que importa.
+#
+# Alternativa descartada: gravar as flags de revisao dessas visitas no banco. Resolveria
+# igual, mas registraria como revisado o que ninguem abriu, sem volta e sem como
+# distinguir depois do acompanhamento real.
+INICIO_COBRANCA_REVISAO = date(2026, 8, 27)
 MAX_LINHAS = 3000
 
 
@@ -61,7 +74,12 @@ def pendencias_de_revisao(visita, flags) -> List[str]:
     Definicao unica de proposito: o painel de tarefas tinha a sua propria, olhando so as
     flags, e por isso mostrava 25 pendencias de motivo em visitas que nao exigiam motivo
     nenhum (medido em 25/08/2026).
+
+    Visita anterior a `INICIO_COBRANCA_REVISAO` nao gera pendencia nenhuma.
     """
+    if visita.data_visita and visita.data_visita < INICIO_COBRANCA_REVISAO:
+        return []
+
     tem_nota = bool(visita.audiodescricao_cliente_visita or visita.link_audio)
     tem_anexo = bool(visita.anexo_ficha_visita or visita.link_imagem)
 

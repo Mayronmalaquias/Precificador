@@ -19,6 +19,7 @@ from app.models.equipe import Equipe
 from app.models.estoque_legado import LeadLegado
 from app.models.fato_bases import FatoCaptacao
 from app.models.gerente_visita_visualizada import GerenteVisitaVisualizada
+from app.services.gestao_visitas_service import INICIO_COBRANCA_REVISAO
 from app.models.imovel_area import ImovelArea
 from app.models.legado_diversos import CampanhaLegado, ImovelLegado
 from app.models.proposta_efetiva import SITUACOES_FECHADAS, PropostaEfetiva
@@ -1860,7 +1861,13 @@ def _visit_reviews(session, start, end, selected_team, teams, selected_broker=No
     for visit, broker, flags in query.order_by(Visita.data_visita.desc()).limit(5000).all():
         if broker.team not in equipes_validas:
             continue
-        viewed = flags is not None
+        # Antes do inicio da cobranca a visita conta como revisada: fica no denominador
+        # (o volume aconteceu) mas nao gera pendencia. Mesma regra de
+        # `gestao_visitas_service.pendencias_de_revisao`, para os dois paineis nao
+        # divergirem de novo — foi assim que "Minhas Tarefas" e este bloco passaram a
+        # mostrar numeros diferentes para a mesma coisa.
+        antiga = bool(visit.data_visita and visit.data_visita < INICIO_COBRANCA_REVISAO)
+        viewed = flags is not None or antiga
         items.append({
             "id": visit.id_visita,
             "data": visit.data_visita.isoformat() if visit.data_visita else None,
@@ -1871,13 +1878,14 @@ def _visit_reviews(session, start, end, selected_team, teams, selected_broker=No
             "tem_nota": bool(visit.audiodescricao_cliente_visita or visit.link_audio),
             "tem_anexo": bool(visit.anexo_ficha_visita or visit.link_imagem),
             "viu_visita": viewed,
-            "viu_nota": bool(flags.viu_notas) if flags else False,
-            "viu_anexo": bool(flags.viu_anexo) if flags else False,
+            "viu_nota": antiga or (bool(flags.viu_notas) if flags else False),
+            "viu_anexo": antiga or (bool(flags.viu_anexo) if flags else False),
             # Motivo resolvido = flag do gerente OU o campo ja preenchido na visita. Sem a
             # segunda metade, visita que nasceu com motivo ficava pendente para sempre.
             # O campo cobrado depende da resposta: SIM -> motivo_sim, TALVEZ -> motivo_talvez.
             "adicionou_motivo": bool(
-                (flags.add_motivo if flags else False)
+                antiga
+                or (flags.add_motivo if flags else False)
                 or _motivo_da_visita(visit)
             ),
             "visualizado_em": flags.visualizado_em.isoformat() if flags and flags.visualizado_em else None,
