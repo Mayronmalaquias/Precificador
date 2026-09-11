@@ -41,6 +41,7 @@ import AdminBases from './components/AdminBases'
 import Vendas from './components/Vendas'
 import GerenteRHCorretores from './components/GerenteRHCorretores'
 import LancarImovel from './components/LancarImovel'
+import Solicitacoes from './components/Solicitacoes'
 import VisaoDiretor from './components/VisaoDiretor'
 import PropostasEfetivas from './components/PropostasEfetivas'
 import GestaoLeads from './components/GestaoLeads'
@@ -146,6 +147,10 @@ function App() {
                 <Route
                   path="/GerenciarEquipes"
                   element={<AdministradorRoute><GerenciarEquipes /></AdministradorRoute>}
+                />
+                <Route
+                  path="/Solicitacoes"
+                  element={<AssistenteRoute><Solicitacoes /></AssistenteRoute>}
                 />
                 <Route
                   path="/LancarImovel"

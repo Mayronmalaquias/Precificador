@@ -27,3 +27,4 @@ __pycache__/
 .env
 venv/
 .vscode/
+**/gmail_solicitacoes_token.json

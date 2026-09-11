@@ -267,3 +267,5 @@ processo.
 
 - [[Analise - Sistema Financeiro - 2026-09-09]] — requisitos dos 17 cartões do Trello, estrutura atual do Precificador, consulta somente leitura ao banco, fontes em planilhas, proposta de modelo financeiro, integração Superlógica, migração e critérios de aceite.
 - **Situação:** análise e proposta de evolução; nenhuma funcionalidade implementada. Os números representam a consulta de 09/09/2026 ao banco configurado no ambiente do projeto, com as limitações registradas na nota.
+
+- [[3.16 - Solicitacoes Assistentes]] — formulário, acompanhamento, Trello e envio a cada 15 minutos.

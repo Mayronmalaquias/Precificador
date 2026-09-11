@@ -60,6 +60,7 @@ def create_app(config_object=Config):
     from app.routes.admin_bases_routes import admin_bases_ns
     from app.routes.analise_routes import analise_ns
     from app.routes.assistente_routes import assistente_ns
+    from app.routes.solicitacao_routes import solicitacao_ns
     from app.routes.auth_routes import auth_ns
     from app.routes.captacao_routes import captacao_ns
     from app.routes.chat_routes import chat_ns
@@ -95,6 +96,7 @@ def create_app(config_object=Config):
     # Operação: captação -> visita -> proposta -> venda
     api.add_namespace(captacao_ns, path=api_prefix)
     api.add_namespace(assistente_ns, path=api_prefix)
+    api.add_namespace(solicitacao_ns, path=api_prefix)
     api.add_namespace(visita_ns, path=api_prefix)
     api.add_namespace(relatorio_visita, path=api_prefix)
     api.add_namespace(proposta_ns, path=api_prefix)

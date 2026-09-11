@@ -99,9 +99,10 @@ function Header() {
     { to: '/AdminBases', label: 'Gestão de Bases', show: isLogado && isAdministrador },
     { to: '/Vendas', label: 'Vendas', show: isLogado && (isAdministrador || isDiretor) },
     { to: '/JornadaCaptacao', label: 'Jornada Captação', show: isLogado },
+    { to: '/Solicitacoes', label: 'Solicitações', subtitle: 'pedidos e resultados', show: isLogado && (isAssistente || isAdministrador) },
     { to: '/LancarImovel', label: 'Lançar Imóvel', subtitle: 'Imoview + Trello', show: isLogado && (isAssistente || isAdministrador) },
     // Assistente (perfil do estagiário) só enxerga Lançar Imóvel e o acompanhamento das propostas.
-  ].filter((item) => item.show).filter((item) => !isAssistente || ['/LancarImovel', '/PropostasEfetivas', '/ConsultaImoveis'].includes(item.to));
+  ].filter((item) => item.show).filter((item) => !isAssistente || ['/Solicitacoes', '/LancarImovel', '/PropostasEfetivas', '/ConsultaImoveis'].includes(item.to));
 
   const gestao = [
     { to: '/GerenteRH', label: 'Controle Equipe', show: isLogado && (permissao === 'gerente' || isAdministrador) },

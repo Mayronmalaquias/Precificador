@@ -115,3 +115,5 @@ roda em produção.
 ├── DIAGRAMA_BANCO.md  # diagrama ER (Mermaid)
 └── docker-compose.yml
 ```
+
+- [Solicitações de assistentes: fluxo e implantação](docs/processos/3.16%20-%20Solicitacoes%20Assistentes.md)

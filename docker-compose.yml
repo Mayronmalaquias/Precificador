@@ -27,3 +27,13 @@ services:
     restart: unless-stopped
     depends_on:
       - backend
+
+  solicitacoes-worker:
+    profiles: ["solicitacoes"]
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    command: ["python", "processar_solicitacoes.py", "--loop"]
+    env_file:
+      - ./backend/.env
+    restart: unless-stopped
