@@ -5,6 +5,7 @@ import ssl
 import smtplib
 from datetime import datetime
 from email.message import EmailMessage
+from pathlib import Path
 from urllib.parse import urlsplit
 import requests
 from sqlalchemy import text
@@ -83,6 +84,194 @@ def integrar(session, item, trello):
     item.erro = None
     mudar(session, item, "em_atendimento", "Cartão e anexos registrados no Trello.")
 
+
+# ── E-mail de conclusão ──────────────────────────────────────────────────────
+# Layout em tabela e estilo inline de proposito: Gmail e Outlook descartam <style>
+# e nao suportam flex/grid. A logo vai embutida (CID) em vez de URL remota, que a
+# maioria dos clientes bloqueia por padrao — a marca simplesmente sumiria.
+
+# 96px (2x do tamanho exibido), nao a arte de 1080px: em base64 a original pesava
+# 62 KB por mensagem, e o Gmail corta o corpo acima de ~102 KB — com uma descricao
+# longa do juridico o e-mail ficaria truncado. Esta versao custa 5 KB.
+LOGO = Path(__file__).resolve().parents[2] / "app/utils/asserts/logo_61_email.png"
+LOGO_ORIGINAL = Path(__file__).resolve().parents[2] / "app/utils/asserts/logo_61.png"
+
+MARCA = "#E1005B"      # rosa da 61
+TINTA = "#173b58"      # navy da tela de Solicitacoes
+TEXTO = "#23364b"
+SUAVE = "#62778a"
+BORDA = "#dce4eb"
+FUNDO = "#eef2f6"
+
+# A descricao do card carrega a chave crua do formulario ("tipo onus", "oficio").
+# Sem traduzir, o e-mail sai sem acento e em caixa baixa — metade do problema.
+ROTULOS = {
+    "tipo": "Tipo", "tipo onus": "Tipo de ônus", "endereco": "Endereço",
+    "finalidade": "Finalidade", "equipe": "Equipe", "oficio": "Ofício",
+    "matricula": "Matrícula", "corretor": "Corretor",
+    "codigo imovel": "Código do imóvel", "possui onus": "Possui ônus",
+    "link do imovel": "Link do imóvel",
+}
+
+
+def _partes_descricao(texto):
+    """Separa a descricao do card em (campos, texto_livre).
+
+    O marcador `[61-SOL-n]` e controle interno de reconciliacao e nao pode chegar ao
+    destinatario. Linha "chave: valor" vira tabela; o resto e o que o juridico
+    escreveu a mao e sai como paragrafo, preservado como veio.
+    """
+    campos, livres = [], []
+    for linha in (texto or "").splitlines():
+        linha = linha.strip()
+        if not linha or (linha.startswith("[61-SOL-") and linha.endswith("]")):
+            continue
+        chave, sep, valor = linha.partition(":")
+        if sep and valor.strip() and len(chave) <= 40:
+            rotulo = ROTULOS.get(chave.strip().casefold(), chave.strip().capitalize())
+            campos.append((rotulo, valor.strip()))
+        else:
+            livres.append(linha)
+    return campos, livres
+
+
+def _corpo_html(item, campos, livres, links):
+    protocolo = "SOL-" + str(item.id).zfill(6)
+    e = html.escape
+
+    linhas = "".join(
+        '<tr>'
+        f'<td style="padding:10px 0;border-bottom:1px solid {BORDA};color:{SUAVE};'
+        f'font-size:13px;width:38%;vertical-align:top;">{e(rotulo)}</td>'
+        f'<td style="padding:10px 0;border-bottom:1px solid {BORDA};color:{TEXTO};'
+        f'font-size:14px;font-weight:600;vertical-align:top;">{e(valor)}</td>'
+        '</tr>'
+        for rotulo, valor in campos
+    )
+    tabela = (
+        '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" '
+        f'style="border-collapse:collapse;">{linhas}</table>'
+    ) if campos else ""
+
+    observacoes = ""
+    if livres:
+        corpo = "<br>".join(e(l) for l in livres)
+        observacoes = (
+            f'<div style="margin:20px 0 0;padding:14px 16px;background:{FUNDO};'
+            f'border-left:3px solid {MARCA};border-radius:4px;color:{TEXTO};'
+            f'font-size:14px;line-height:1.6;">{corpo}</div>'
+        )
+
+    anexos = ""
+    if links:
+        itens = "".join(
+            '<tr><td style="padding:7px 0;">'
+            f'<a href="{e(a["url"], quote=True)}" '
+            f'style="color:{MARCA};font-size:14px;font-weight:600;text-decoration:none;">'
+            f'&#128206;&nbsp;{e(a.get("nome") or "Anexo")}</a>'
+            '</td></tr>'
+            for a in links
+        )
+        anexos = (
+            '<div style="margin:24px 0 0;">'
+            f'<div style="color:{SUAVE};font-size:12px;letter-spacing:.08em;'
+            'text-transform:uppercase;margin:0 0 4px;">Anexos</div>'
+            '<table role="presentation" width="100%" cellpadding="0" cellspacing="0">'
+            f'{itens}</table></div>'
+        )
+
+    return f"""<!doctype html>
+<html lang="pt-BR"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="light only">
+<title>{protocolo}</title></head>
+<body style="margin:0;padding:0;background:{FUNDO};">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:{FUNDO};">
+<tr><td align="center" style="padding:32px 16px;">
+
+<table role="presentation" width="600" cellpadding="0" cellspacing="0"
+       style="max-width:600px;width:100%;background:#ffffff;border-radius:10px;
+              border:1px solid {BORDA};font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;">
+
+  <tr><td style="background:{TINTA};padding:22px 28px;border-radius:10px 10px 0 0;">
+    <table role="presentation" cellpadding="0" cellspacing="0"><tr>
+      <td style="vertical-align:middle;padding-right:14px;">
+        <img src="cid:logo61" width="44" height="44" alt="61 Imóveis"
+             style="display:block;border-radius:6px;background:#ffffff;">
+      </td>
+      <td style="vertical-align:middle;">
+        <div style="color:#ffffff;font-size:16px;font-weight:700;line-height:1.2;">61 Imóveis</div>
+        <div style="color:#b9c9d7;font-size:12px;line-height:1.5;">Solicitações</div>
+      </td>
+    </tr></table>
+  </td></tr>
+
+  <tr><td style="padding:28px 28px 4px;">
+    <div style="display:inline-block;background:{MARCA};color:#ffffff;font-size:12px;
+                font-weight:700;letter-spacing:.06em;padding:5px 11px;border-radius:99px;">
+      {protocolo}
+    </div>
+    <h1 style="margin:16px 0 6px;color:{TINTA};font-size:22px;line-height:1.3;font-weight:700;">
+      Sua solicitação foi concluída
+    </h1>
+    <p style="margin:0 0 18px;color:{SUAVE};font-size:14px;line-height:1.6;">
+      Abaixo estão os dados do pedido e os anexos disponíveis para download.
+    </p>
+  </td></tr>
+
+  <tr><td style="padding:0 28px 28px;">
+    {tabela}
+    {observacoes}
+    {anexos}
+  </td></tr>
+
+  <tr><td style="background:{FUNDO};padding:18px 28px;border-top:1px solid {BORDA};
+                 border-radius:0 0 10px 10px;">
+    <p style="margin:0;color:{SUAVE};font-size:12px;line-height:1.6;">
+      Mensagem automática do sistema de solicitações da 61 Imóveis.<br>
+      Não é necessário responder a este e-mail.
+    </p>
+  </td></tr>
+
+</table>
+</td></tr></table>
+</body></html>"""
+
+
+def _corpo_texto(item, campos, livres, links):
+    """Alternativa em texto puro: cliente sem HTML ve o mesmo conteudo."""
+    linhas = ["Sua solicitação foi concluída.", "",
+              "Protocolo: SOL-" + str(item.id).zfill(6), ""]
+    linhas += [rotulo + ": " + valor for rotulo, valor in campos]
+    if livres:
+        linhas += [""] + livres
+    if links:
+        linhas += ["", "Anexos:"]
+        linhas += ["- " + (a.get("nome") or "Anexo") + ": " + a["url"] for a in links]
+    linhas += ["", "61 Imóveis — mensagem automática, não é necessário responder."]
+    return "\n".join(linhas)
+
+
+def _anexar_logo(msg):
+    """Embute a logo na parte HTML.
+
+    Falha de leitura NAO pode derrubar o envio: a mensagem ficaria presa em
+    `envio_incerto`, que so sai com reconciliacao manual. Sem logo e melhor que sem
+    e-mail — o `alt` cobre a ausencia.
+    """
+    try:
+        dados = LOGO.read_bytes()
+    except OSError:
+        try:
+            dados = LOGO_ORIGINAL.read_bytes()
+        except OSError:
+            return
+    partes = msg.get_payload()
+    if len(partes) < 2:
+        return
+    partes[1].add_related(dados, maintype="image", subtype="png", cid="<logo61>")
+
+
 def enviar_email(item):
     host = os.getenv("SOLICITACOES_SMTP_HOST", "")
     remetente = os.getenv("SOLICITACOES_EMAIL_FROM", "")
@@ -96,10 +285,10 @@ def enviar_email(item):
     msg["To"] = item.email
     msg["Message-ID"] = "<solicitacao-"+str(item.id)+"@"+remetente.split("@")[-1]+">"
     links = [a for a in resultado.get("anexos", []) if urlsplit(a.get("url", "")).scheme == "https"]
-    texto = resultado.get("descricao", "")
-    msg.set_content("Sua solicitação foi concluída.\n"+texto+"\n"+"\n".join(a["url"] for a in links))
-    lista = "".join('<li><a href="'+html.escape(a["url"], quote=True)+'">'+html.escape(a.get("nome") or "Anexo")+'</a></li>' for a in links)
-    msg.add_alternative("<h2>Sua solicitação foi concluída!</h2><p>Protocolo SOL-"+str(item.id).zfill(6)+"</p><pre>"+html.escape(texto)+"</pre><ul>"+lista+"</ul><p>Atenciosamente, 61 Imóveis</p>", subtype="html")
+    campos, livres = _partes_descricao(resultado.get("descricao", ""))
+    msg.set_content(_corpo_texto(item, campos, livres, links))
+    msg.add_alternative(_corpo_html(item, campos, livres, links), subtype="html")
+    _anexar_logo(msg)
     if provider == "gmail":
         from app.services.solicitacao_gmail import enviar
         enviar(msg)
