@@ -212,10 +212,14 @@ def _propostas_sem_acao(session, escopo, hoje) -> List[Dict[str, Any]]:
 def _visitas_sem_revisao(session, escopo, hoje) -> List[Dict[str, Any]]:
     """Visita cujo gerente ainda nao viu anexo/notas ou nao registrou o motivo.
 
-    A janela e de 30 dias, como no painel do diretor: visita de tres meses atras nao e
-    tarefa, e virar backlog eterno faz o gerente ignorar a lista inteira.
+    **Sem recorte de periodo**, igual a `diretor_dashboard_service._visit_reviews`.
+
+    Havia aqui uma janela de 30 dias, com o comentario "como no painel do diretor". O
+    painel do diretor removeu a janela depois disso (decisao documentada em 02/09/2026:
+    pendencia nao expira) e este arquivo ficou para tras, ainda afirmando que espelhava.
+    O resultado eram dois numeros para a mesma coisa na mesma tela: medido em 11/09/2026
+    para a equipe SENNA, 59 visitas com pendencia nos ultimos 30 dias contra 165 no total.
     """
-    corte = (hoje - timedelta(days=30)).date()
     # Parte da VISITA, com as flags em `outerjoin` — mesma montagem de
     # `gestao_visitas_service.listar`. Antes a consulta comecava na tabela de flags com
     # join interno, e visita ainda nao aberta por ninguem nao tem linha la: ela nunca
@@ -230,10 +234,9 @@ def _visitas_sem_revisao(session, escopo, hoje) -> List[Dict[str, Any]]:
         GerenteVisitaVisualizada,
         (GerenteVisitaVisualizada.id_visita == Visita.id_visita)
         & (GerenteVisitaVisualizada.id_gerente == Usuarios.team),
-    ).filter(Visita.data_visita >= corte)
+    )
     # O pre-filtro por flags saiu junto: com `outerjoin` ele descartaria justamente as
-    # linhas nulas. Quem decide e `pendencias_de_revisao`, e a janela de 30 dias mantem
-    # a varredura pequena.
+    # linhas nulas. Quem decide e `pendencias_de_revisao`.
     if not escopo["ve_tudo"] and escopo["team"]:
         # Escopo pela equipe do CORRETOR, nao pela linha de flags, que pode nao existir.
         query = query.filter(Usuarios.team == escopo["team"])
@@ -281,16 +284,19 @@ def _leads_sem_contato(session, escopo, hoje) -> List[Dict[str, Any]]:
     dos leads. Lead de portal nunca virava pendencia aqui, embora seja lead como
     qualquer outro.
 
-    Recorte de 30 dias pelo mesmo motivo das visitas: sem janela isso soterraria as outras
-    tres pendencias.
+    **Sem recorte de periodo**, pelo mesmo motivo das visitas. A janela de 30 dias que
+    existia aqui era inerte na pratica: medido em 11/09/2026, 107 leads com e sem ela na
+    SENNA, 389 contra 390 no global. O espelho do C2S so guarda o periodo recente.
+
+    `DIAS_LEAD_SEM_CONTATO` continua valendo e NAO e janela, e carencia: lead que entrou
+    hoje ainda nao esta "sem acompanhamento". E a unica diferenca que sobra para o painel
+    do diretor, que conta o lead no instante em que ele chega.
     """
     from app.services import lead_c2s_service as c2s
 
-    corte = (hoje - timedelta(days=30)).date()
     limite = (hoje - timedelta(days=DIAS_LEAD_SEM_CONTATO)).date()
     query = session.query(LeadC2S).filter(
         LeadC2S.acompanhamento_em.is_(None),
-        LeadC2S.data >= corte,
         LeadC2S.data <= limite,
     )
 
