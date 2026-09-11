@@ -1,4 +1,4 @@
-import { api, BASE } from '@/services/api';
+import { api, postForm } from '@/services/api';
 
 // ── Tipos ────────────────────────────────────────────────────────────────
 export type ClienteBusca = {
@@ -100,9 +100,13 @@ export async function uploadAnexo(params: {
   fd.append('imovelId', params.imovelId);
   fd.append('dataVisita', params.dataVisita);
 
-  const res = await fetch(`${BASE}/upload_pdf`, { method: 'POST', body: fd });
-  const d = await res.json().catch(() => ({}));
-  if (!res.ok || !d?.ok) throw new Error(d?.error || 'Erro ao enviar arquivo');
+  // `postForm` injeta X-API-KEY/Bearer. Com `fetch` cru a chamada saía sem
+  // credencial e a API respondia 401 desde que deixou de ser pública.
+  const d = await postForm<{ ok?: boolean; drivePath?: string; driveLink?: string; error?: string }>(
+    '/upload_pdf',
+    fd,
+  );
+  if (!d?.ok) throw new Error(d?.error || 'Erro ao enviar arquivo');
   return { drivePath: d.drivePath || '', driveLink: d.driveLink || '' };
 }
 

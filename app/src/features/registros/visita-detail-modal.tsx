@@ -1,4 +1,7 @@
+import { useEffect, useState } from 'react';
 import { Linking, StyleSheet, View } from 'react-native';
+
+import { Ionicons } from '@expo/vector-icons';
 
 import { Button } from '@/components/ui/button';
 import { ModalShell } from '@/components/ui/modal-shell';
@@ -6,7 +9,7 @@ import { SectionCard } from '@/components/ui/section-card';
 import { ThemedText } from '@/components/themed-text';
 import { useAppTheme } from '@/hooks/use-app-theme';
 import { Radius, Spacing, Typography } from '@/theme';
-import type { VisitaItem } from '@/features/registros/api';
+import { obterVisita, type VisitaDetalhe, type VisitaItem } from '@/features/registros/api';
 
 const NOTA_LABELS: { key: keyof NotaKeys; label: string }[] = [
   { key: 'localizacao', label: 'Localização' },
@@ -29,10 +32,36 @@ type NotaKeys = {
   notaGeral?: string;
 };
 
-type Props = { visita: VisitaItem; onClose: () => void };
+type Props = { visita: VisitaItem; solicitanteId: string; onClose: () => void };
 
-export function VisitaDetailModal({ visita, onClose }: Props) {
+/** Rótulo de cada pendência devolvida por `GET /visitas/{id}`. */
+const PENDENCIA_LABELS: Record<string, string> = {
+  anexo: 'Anexo não revisado',
+  notas: 'Notas não revisadas',
+  motivo: 'Motivo da resposta em aberto',
+};
+
+export function VisitaDetailModal({ visita, solicitanteId, onClose }: Props) {
   const { colors } = useAppTheme();
+
+  // Enriquecimento: `/visitas_busca` não traz resposta do cliente nem pendência
+  // de revisão. Falha em silêncio — o modal já renderiza sem isso.
+  const [detalhe, setDetalhe] = useState<VisitaDetalhe | null>(null);
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      try {
+        const d = await obterVisita(visita.id_visita, solicitanteId);
+        if (active) setDetalhe(d);
+      } catch {
+        // segue com o que veio da lista
+      }
+    })();
+    return () => {
+      active = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const clientePrincipal = visita.clientes?.[0];
   const naoCaptado = String(visita.imovelNaoCaptado || '').toLowerCase() === 'sim' || !visita.imovelId;
@@ -71,6 +100,26 @@ export function VisitaDetailModal({ visita, onClose }: Props) {
                   {aval[key] ?? '—'}
                 </ThemedText>
               </View>
+            </View>
+          ))}
+        </SectionCard>
+      )}
+
+      {!!detalhe && (!!detalhe.motivo_sim || !!detalhe.motivo_talvez) && (
+        <SectionCard title="Resposta do cliente" icon="chatbubble-ellipses-outline">
+          {!!detalhe.motivo_sim && <InfoRow label="Motivo (sim)" value={detalhe.motivo_sim} colors={colors} />}
+          {!!detalhe.motivo_talvez && <InfoRow label="Motivo (talvez)" value={detalhe.motivo_talvez} colors={colors} />}
+        </SectionCard>
+      )}
+
+      {!!detalhe?.revisao_pendente && (
+        <SectionCard title="Revisão do gerente" icon="alert-circle-outline">
+          {(detalhe.pendencias ?? []).map((p) => (
+            <View key={p} style={styles.infoRow}>
+              <Ionicons name="ellipse" size={8} color={colors.danger} />
+              <ThemedText style={[Typography.body, { color: colors.text, flex: 1 }]}>
+                {PENDENCIA_LABELS[p] ?? p}
+              </ThemedText>
             </View>
           ))}
         </SectionCard>

@@ -97,6 +97,51 @@ async function request<T = any>(path: string, options: RequestOptions = {}): Pro
   return data as T;
 }
 
+/**
+ * POST multipart (upload de arquivo).
+ *
+ * Não passa por `request` porque o corpo é `FormData`: o Content-Type precisa
+ * ser definido pelo runtime (que anexa o `boundary`), então ele NÃO é enviado
+ * aqui. Os headers de auth continuam obrigatórios — a API é fechada e devolve
+ * 401 em qualquer chamada sem `X-API-KEY` ou `Bearer`.
+ */
+export async function postForm<T = any>(
+  path: string,
+  form: FormData,
+  timeoutMs = 60000,
+): Promise<T> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+  let response: Response;
+  try {
+    response = await fetch(`${BASE}${path}`, {
+      method: 'POST',
+      signal: controller.signal,
+      headers: authHeaders(),
+      body: form,
+    });
+  } catch (err: any) {
+    if (err?.name === 'AbortError') {
+      throw new ApiError('Tempo de conexão esgotado. Tente novamente.', 0, null);
+    }
+    throw new ApiError('Sem conexão com o servidor.', 0, null);
+  } finally {
+    clearTimeout(timer);
+  }
+
+  const text = await response.text();
+  const data = text ? safeJson(text) : null;
+
+  if (!response.ok) {
+    const message =
+      (data && (data.error || data.message)) || `Erro no upload (${response.status})`;
+    throw new ApiError(message, response.status, data);
+  }
+
+  return data as T;
+}
+
 function safeJson(text: string): any {
   try {
     return JSON.parse(text);

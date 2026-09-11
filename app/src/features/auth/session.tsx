@@ -8,7 +8,7 @@ import {
   type ReactNode,
 } from 'react';
 
-import { loginRequest, type AppUser } from '@/services/auth';
+import { limparToken, loginRequest, restaurarToken, type AppUser } from '@/services/auth';
 import { storage } from '@/services/storage';
 
 const USER_KEY = 'app61.user';
@@ -41,6 +41,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     let alive = true;
     (async () => {
       try {
+        // O token vem junto: sem ele o app reabre logado mas sem Bearer.
+        await restaurarToken();
         const raw = await storage.getItem(USER_KEY);
         if (alive && raw) setUser(JSON.parse(raw));
       } catch {
@@ -61,6 +63,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const signOut = useCallback(async () => {
+    await limparToken();
     await storage.removeItem(USER_KEY);
     setUser(null);
   }, []);

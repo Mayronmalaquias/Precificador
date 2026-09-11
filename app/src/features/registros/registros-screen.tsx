@@ -15,10 +15,12 @@ import {
   listarClientes,
   listarImoveis,
   listarVisitas,
+  type ClienteDetalhe,
   type ClienteItem,
   type ImovelItem,
   type VisitaItem,
 } from '@/features/registros/api';
+import { ClienteEditModal } from '@/features/registros/cliente-edit-modal';
 import { VisitaDetailModal } from '@/features/registros/visita-detail-modal';
 
 type Seg = 'visitas' | 'clientes' | 'imoveis';
@@ -57,6 +59,7 @@ export function RegistrosScreen() {
   const [loading, setLoading] = useState(!!idCorretor);
   const [refreshing, setRefreshing] = useState(false);
   const [selectedVisita, setSelectedVisita] = useState<VisitaItem | null>(null);
+  const [selectedCliente, setSelectedCliente] = useState<ClienteItem | null>(null);
 
   const fetchSeg = useCallback(
     async (s: Seg) => {
@@ -162,7 +165,8 @@ export function RegistrosScreen() {
           }
           renderItem={({ item }) => {
             if (seg === 'visitas') return <VisitaCard item={item as VisitaItem} onPress={() => setSelectedVisita(item as VisitaItem)} />;
-            if (seg === 'clientes') return <ClienteCard item={item as ClienteItem} />;
+            if (seg === 'clientes')
+              return <ClienteCard item={item as ClienteItem} onEdit={() => setSelectedCliente(item as ClienteItem)} />;
             return <ImovelCard item={item as ImovelItem} />;
           }}
         />
@@ -172,7 +176,26 @@ export function RegistrosScreen() {
         <VisitaDetailModal
           key={selectedVisita.id_visita}
           visita={selectedVisita}
+          solicitanteId={idCorretor}
           onClose={() => setSelectedVisita(null)}
+        />
+      )}
+
+      {selectedCliente && (
+        <ClienteEditModal
+          key={String(selectedCliente.id_cliente)}
+          cliente={selectedCliente}
+          solicitanteId={idCorretor}
+          onClose={() => setSelectedCliente(null)}
+          onSaved={(c: ClienteDetalhe) =>
+            setClientes((prev) =>
+              prev.map((x) =>
+                String(x.id_cliente) === String(c.id_cliente)
+                  ? { ...x, nome: c.nome, telefone: c.telefone, email: c.email }
+                  : x,
+              ),
+            )
+          }
         />
       )}
     </Screen>
@@ -217,7 +240,7 @@ function VisitaCard({ item, onPress }: { item: VisitaItem; onPress: () => void }
   );
 }
 
-function ClienteCard({ item }: { item: ClienteItem }) {
+function ClienteCard({ item, onEdit }: { item: ClienteItem; onEdit: () => void }) {
   const { colors } = useAppTheme();
   const wa = whatsappUrl(item.telefone);
   return (
@@ -232,16 +255,34 @@ function ClienteCard({ item }: { item: ClienteItem }) {
           <ThemedText style={[Typography.caption, { color: colors.textMuted }]}>Sem contato</ThemedText>
         )}
       </View>
-      {wa && (
+      <View style={styles.clienteActions}>
+        {wa && (
+          <Pressable
+            onPress={() => Linking.openURL(wa)}
+            accessibilityRole="button"
+            accessibilityLabel="Abrir conversa no WhatsApp"
+            style={({ pressed }) => [
+              styles.waBtn,
+              styles.flex1,
+              { backgroundColor: WHATSAPP_GREEN, opacity: pressed ? 0.85 : 1 },
+            ]}>
+            <Ionicons name="logo-whatsapp" size={16} color="#FFFFFF" />
+            <ThemedText style={[Typography.label, { color: '#FFFFFF' }]}>WhatsApp</ThemedText>
+          </Pressable>
+        )}
         <Pressable
-          onPress={() => Linking.openURL(wa)}
+          onPress={onEdit}
           accessibilityRole="button"
-          accessibilityLabel="Abrir conversa no WhatsApp"
-          style={({ pressed }) => [styles.waBtn, { backgroundColor: WHATSAPP_GREEN, opacity: pressed ? 0.85 : 1 }]}>
-          <Ionicons name="logo-whatsapp" size={16} color="#FFFFFF" />
-          <ThemedText style={[Typography.label, { color: '#FFFFFF' }]}>WhatsApp</ThemedText>
+          accessibilityLabel="Editar cliente"
+          style={({ pressed }) => [
+            styles.waBtn,
+            styles.flex1,
+            { backgroundColor: colors.surfaceAlt, borderColor: colors.border, borderWidth: StyleSheet.hairlineWidth, opacity: pressed ? 0.85 : 1 },
+          ]}>
+          <Ionicons name="create-outline" size={16} color={colors.text} />
+          <ThemedText style={[Typography.label, { color: colors.text }]}>Editar</ThemedText>
         </Pressable>
-      )}
+      </View>
     </CardShell>
   );
 }
@@ -278,6 +319,8 @@ function Meta({ icon, text, colors }: { icon: keyof typeof Ionicons.glyphMap; te
 }
 
 const styles = StyleSheet.create({
+  clienteActions: { flexDirection: 'row', gap: Spacing.two },
+  flex1: { flex: 1 },
   headerBlock: { gap: Spacing.three, paddingBottom: Spacing.two },
   listContent: { padding: Spacing.four, gap: Spacing.three },
   card: {

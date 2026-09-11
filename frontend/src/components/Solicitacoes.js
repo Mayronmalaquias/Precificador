@@ -7,6 +7,13 @@ const EQUIPES = ['AGEF', 'AGUIA', 'LOTUS', 'PRIME', 'SENNA', 'NOVA UNIÃO', 'Con
 const FINALIDADES = { Real: ['Venda', 'Pós-venda'], 'Cópia': ['Captação (Apenas para o CQC)', 'Assertiva', 'Pós-Venda', 'Imóvel Seguro'] };
 const STATUS = { aguardando_trello: 'Aguardando Trello', criacao_incerta: 'Integração a conferir', em_atendimento: 'Em atendimento', pronto: 'Pronto para envio', envio_incerto: 'Envio a conferir', enviado_pendente_trello: 'E-mail enviado · atualizando Trello', enviado: 'Enviado' };
 const OFICIOS = ['Asa Sul, Lago Sul, Sudoeste, Cruzeiro, Octogonal e Setor Gráfico Sul', 'Parte norte do Plano Piloto, áreas adjacentes, Paranoá e Jardim', 'Taguatinga, Águas Claras, Samambaia, Recanto das Emas e SHVP (exceto trecho 01)', 'Guará, Núcleo Bandeirante, Candangolândia, Riacho Fundo, Setor de Indústria, SMPW e SHVP trecho 01', 'Gama e Santa Maria', 'Ceilândia', 'Sobradinho', 'Planaltina/DF', 'Brazlândia'];
+// Espelha a regra do back (solicitacao_service.validar): Captação só existe para o CQC.
+const CAPTACAO_CQC = FINALIDADES['Cópia'][0];
+function equipesDisponiveis(form) {
+  if (form.tipo === 'Celer') return EQUIPES.filter(e => e !== 'Controle de Qualidade');
+  if (form.finalidade === CAPTACAO_CQC) return ['Controle de Qualidade'];
+  return EQUIPES;
+}
 const initial = { tipo: 'Ônus', tipo_onus: 'Real' };
 const data = value => value ? new Date(value).toLocaleString('pt-BR') : '—';
 function tempo(inicio, fim) {
@@ -38,6 +45,7 @@ export default function Solicitacoes() {
   const [erroEmail, setErroEmail] = useState('');
   const [carregando, setCarregando] = useState(true);
   const chave = useRef(null);
+  const erroRef = useRef(null);
   const seq = useRef(0);
   const detalheSeq = useRef(0);
   const carregar = useCallback(async () => {
@@ -50,14 +58,17 @@ export default function Solicitacoes() {
     finally { if (id === seq.current) setCarregando(false); }
   }, [filtro]);
   const invalidar = useCallback(() => { seq.current++; detalheSeq.current++; }, []);
+  // O banner fica no topo e o botao de enviar no fim do formulario: sem isto, a
+  // recusa do back acontece fora da area visivel e a tela parece nao reagir.
+  useEffect(() => { if (erro) erroRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' }); }, [erro]);
   useEffect(() => {
     setLista({ itens: [], resumo: {}, total: 0 });
     carregar();
     const timer = setInterval(carregar, 60000);
     return () => { clearInterval(timer); invalidar(); };
   }, [carregar, invalidar]);
-  function campo(nome, label, options) {
-    return <label key={nome}>{label} *{options ? <select required value={form[nome] || ''} onChange={e => setForm({ ...form, [nome]: e.target.value })}><option value="">Selecione</option>{options.map(o => <option key={o} value={o}>{o}</option>)}</select> : <input required maxLength={1000} value={form[nome] || ''} onChange={e => setForm({ ...form, [nome]: e.target.value })} />}</label>;
+  function campo(nome, label, options, extra) {
+    return <label key={nome}>{label} *{options ? <select required value={form[nome] || ''} onChange={e => setForm({ ...form, [nome]: e.target.value, ...(extra ? extra(e.target.value) : {}) })}><option value="">Selecione</option>{options.map(o => <option key={o} value={o}>{o}</option>)}</select> : <input required maxLength={1000} value={form[nome] || ''} onChange={e => setForm({ ...form, [nome]: e.target.value })} />}</label>;
   }
   async function salvarEmail(e) {
     e.preventDefault();
@@ -109,13 +120,13 @@ export default function Solicitacoes() {
   return <main className="sol-page">
     <div className="sol-heading"><div><small>61 IMÓVEIS · SOLICITAÇÕES</small><h1>{lista.gestor ? 'Acompanhar solicitações' : 'Minhas solicitações'}</h1><p>Do pedido ao envio do resultado, acompanhe cada etapa.</p></div><button disabled={lista.precisa_email !== false || salvandoEmail} onClick={() => { setAberto(!aberto); setErro(''); }}> {aberto ? 'Fechar formulário' : '+ Nova solicitação'}</button></div>
     <p className="sol-note">Integração e envio de resultados a cada 15 minutos. O e-mail é obtido do cadastro: <strong>{lista.email || 'não cadastrado'}</strong>.</p>
-    {erro && <div className="sol-error" role="alert">{erro}</div>}{aviso && <div className="sol-success" role="status">{aviso}</div>}
+    {erro && <div className="sol-error" role="alert" ref={erroRef}>{erro}</div>}{aviso && <div className="sol-success" role="status">{aviso}</div>}
     {lista.precisa_email === true && <form onSubmit={salvarEmail} className="sol-panel" aria-label="Cadastrar e-mail"><h2>Cadastre seu e-mail</h2><p>Informe o endereço em que deseja receber os resultados das solicitações. Ele será salvo no seu cadastro.</p><div className="sol-grid"><label>Seu e-mail *<input type="email" autoComplete="email" required maxLength={255} value={emailCadastro} disabled={salvandoEmail} onChange={e => setEmailCadastro(e.target.value)} placeholder="nome@exemplo.com" /></label></div>{erroEmail && <p className="sol-error" role="alert">{erroEmail}</p>}<button type="submit" disabled={salvandoEmail}>{salvandoEmail ? 'Salvando…' : 'Salvar e-mail'}</button></form>}
     {aberto && lista.precisa_email === false && <form onSubmit={salvar} className="sol-panel"><h2>Nova solicitação</h2><fieldset disabled={enviando}><div className="sol-grid">
       <label>Tipo de solicitação *<select value={form.tipo} onChange={e => { setForm({ tipo: e.target.value, tipo_onus: 'Real' }); setArquivos([]); }}><option>Ônus</option><option>Parecer Jurídico</option><option>Troca de Titularidade</option><option>Celer</option></select></label>
-      {form.tipo === 'Ônus' && <><label>Tipo de ônus *<select value={form.tipo_onus} onChange={e => setForm({ ...form, tipo_onus: e.target.value, finalidade: '' })}><option>Real</option><option>Cópia</option></select></label>{campo('finalidade', 'Finalidade', FINALIDADES[form.tipo_onus])}</>}
+      {form.tipo === 'Ônus' && <><label>Tipo de ônus *<select value={form.tipo_onus} onChange={e => setForm({ ...form, tipo_onus: e.target.value, finalidade: '' })}><option>Real</option><option>Cópia</option></select></label>{campo('finalidade', 'Finalidade', FINALIDADES[form.tipo_onus], v => ({ equipe: v === CAPTACAO_CQC ? 'Controle de Qualidade' : '' }))}</>}
       {form.tipo !== 'Celer' && campo('endereco', 'Endereço')}
-      {['Ônus','Celer'].includes(form.tipo) && campo('equipe', 'Equipe', EQUIPES.filter(e => form.tipo !== 'Celer' || e !== 'Controle de Qualidade'))}
+      {['Ônus','Celer'].includes(form.tipo) && campo('equipe', 'Equipe', equipesDisponiveis(form))}
       {form.tipo === 'Ônus' && <>{campo('oficio', 'Ofício', ['1','2','3','4','5','6','7','8','9'])}{campo('matricula', 'Matrícula')}{form.tipo_onus === 'Cópia' && campo('corretor', 'Corretor')}<p className="sol-note">{form.oficio ? `${form.oficio}º Ofício — ${OFICIOS[Number(form.oficio)-1]}` : 'Selecione o ofício para consultar sua abrangência.'}</p></>}
       {['Celer','Parecer Jurídico'].includes(form.tipo) && campo('codigo_imovel', 'Código do imóvel')}
       {form.tipo === 'Parecer Jurídico' && campo('possui_onus', 'Possui ônus?', ['Sim','Não'])}

@@ -109,6 +109,20 @@ export async function fecharCaptacao(id: number, motivo: string): Promise<Captac
   return d.captacao;
 }
 
+/**
+ * Traz de volta uma captação encerrada. O back exige `motivo` e o grava no
+ * histórico junto com o motivo do fechamento anterior — a trilha fica completa.
+ * Volta na mesma etapa em que parou, com o contador de dias reiniciado.
+ */
+export async function recuperarCaptacao(id: number, motivo: string): Promise<Captacao> {
+  const d = await api.post<{ ok?: boolean; captacao?: Captacao; error?: string }>(
+    `/captacoes/${id}/recuperar`,
+    { motivo },
+  );
+  if (!d?.ok || !d.captacao) throw new Error(d?.error || 'Erro ao recuperar captação');
+  return d.captacao;
+}
+
 export async function marcarExclusividade(id: number, dataExclusividade: string): Promise<Captacao> {
   const d = await api.post<{ ok?: boolean; captacao?: Captacao; error?: string }>(
     `/captacoes/${id}/exclusividade`,

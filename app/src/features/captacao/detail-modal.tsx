@@ -20,6 +20,7 @@ import {
   listarHistorico,
   marcarExclusividade,
   proximaEtapa,
+  recuperarCaptacao,
   ETAPAS,
   ETAPA_LABELS,
   type Captacao,
@@ -46,6 +47,9 @@ export function DetailCaptacaoModal({ captacao, onClose, onChanged }: Props) {
   const [showFechar, setShowFechar] = useState(false);
   const [motivo, setMotivo] = useState('');
   const [showDate, setShowDate] = useState(false);
+
+  const [showRecuperar, setShowRecuperar] = useState(false);
+  const [motivoRecup, setMotivoRecup] = useState('');
 
   // Carrega histórico na montagem — o componente recebe key={id} do pai,
   // então remonta a cada captação (sem efeito de reset síncrono).
@@ -120,6 +124,17 @@ export function DetailCaptacaoModal({ captacao, onClose, onChanged }: Props) {
       return;
     }
     mutate(() => fecharCaptacao(cap!.id, motivo.trim())).then(() => setShowFechar(false));
+  }
+
+  function confirmarRecuperar() {
+    if (!motivoRecup.trim()) {
+      toast.show({ type: 'error', message: 'Informe o motivo da recuperação.' });
+      return;
+    }
+    mutate(() => recuperarCaptacao(cap!.id, motivoRecup.trim())).then(() => {
+      setShowRecuperar(false);
+      setMotivoRecup('');
+    });
   }
 
   function confirmarExcluir() {
@@ -253,6 +268,47 @@ export function DetailCaptacaoModal({ captacao, onClose, onChanged }: Props) {
           )}
 
           <Button label="Excluir" variant="danger" icon="trash-outline" onPress={confirmarExcluir} disabled={busy} />
+        </SectionCard>
+      )}
+
+      {/* Encerrada: única ação é trazer de volta. */}
+      {fechado && (
+        <SectionCard title="Ações" icon="options-outline">
+          {showRecuperar ? (
+            <View style={{ gap: Spacing.two }}>
+              <TextField
+                label="Motivo da recuperação"
+                icon="refresh-circle-outline"
+                placeholder="Ex: proprietário voltou a atender"
+                value={motivoRecup}
+                onChangeText={setMotivoRecup}
+              />
+              <View style={styles.actionsRow}>
+                <Button
+                  label="Cancelar"
+                  variant="secondary"
+                  onPress={() => setShowRecuperar(false)}
+                  fullWidth={false}
+                  style={styles.flex1}
+                />
+                <Button
+                  label="Confirmar"
+                  onPress={confirmarRecuperar}
+                  loading={busy}
+                  fullWidth={false}
+                  style={styles.flex1}
+                />
+              </View>
+            </View>
+          ) : (
+            <Button
+              label="Recuperar captação"
+              variant="secondary"
+              icon="refresh-outline"
+              onPress={() => setShowRecuperar(true)}
+              disabled={busy}
+            />
+          )}
         </SectionCard>
       )}
 
