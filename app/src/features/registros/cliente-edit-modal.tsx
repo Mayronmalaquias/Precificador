@@ -10,6 +10,7 @@ import { useToast } from '@/components/ui/toast';
 import { ThemedText } from '@/components/themed-text';
 import { useAppTheme } from '@/hooks/use-app-theme';
 import { Spacing, Typography } from '@/theme';
+import { mensagemErro } from '@/utils/erro';
 import {
   editarCliente,
   obterCliente,
@@ -55,8 +56,8 @@ export function ClienteEditModal({ cliente, solicitanteId, onClose, onSaved }: P
           setTelefone(c.telefone);
           setEmail(c.email);
         }
-      } catch (err: any) {
-        if (active) setErro(err?.message || 'Não foi possível abrir o cliente.');
+      } catch (err) {
+        if (active) setErro(mensagemErro(err, 'Não foi possível abrir o cliente.'));
       } finally {
         if (active) setLoading(false);
       }
@@ -93,8 +94,8 @@ export function ClienteEditModal({ cliente, solicitanteId, onClose, onSaved }: P
       toast.show({ type: 'success', message: 'Cliente atualizado.' });
       onSaved(atualizado);
       onClose();
-    } catch (err: any) {
-      toast.show({ type: 'error', message: err?.message || 'Erro ao salvar.' });
+    } catch (err) {
+      toast.show({ type: 'error', message: mensagemErro(err, 'Erro ao salvar.') });
     } finally {
       setBusy(false);
     }

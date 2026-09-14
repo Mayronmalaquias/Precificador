@@ -42,7 +42,9 @@
           "photosPermission": "O app usa suas fotos para anexar a ficha de visita assinada.",
           "cameraPermission": "O app usa a câmera para fotografar a ficha de visita assinada."
         }
-      ]
+      ],
+      "expo-image",
+      "expo-web-browser"
     ],
     "experiments": {
       "typedRoutes": true,

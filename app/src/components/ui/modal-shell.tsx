@@ -2,7 +2,6 @@ import type { ReactNode } from 'react';
 import {
   KeyboardAvoidingView,
   Modal,
-  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -14,6 +13,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAppTheme } from '@/hooks/use-app-theme';
 import { Radius, Spacing, Typography } from '@/theme';
 import { ThemedText } from '@/components/themed-text';
+import { FOLGA_TECLADO } from '@/components/ui/screen';
 
 type Props = {
   visible: boolean;
@@ -21,17 +21,26 @@ type Props = {
   title: string;
   children: ReactNode;
   footer?: ReactNode;
+  /** Folga acima do teclado, em px. Ver `FOLGA_TECLADO`. */
+  keyboardOffset?: number;
 };
 
 /** Modal em tela cheia com cabeçalho + corpo rolável e rodapé fixo opcional. */
-export function ModalShell({ visible, onClose, title, children, footer }: Props) {
+export function ModalShell({
+  visible,
+  onClose,
+  title,
+  children,
+  footer,
+  keyboardOffset = FOLGA_TECLADO,
+}: Props) {
   const { colors } = useAppTheme();
 
   return (
     <Modal visible={visible} onRequestClose={onClose} animationType="slide" transparent={false}>
       <SafeAreaView style={[styles.flex, { backgroundColor: colors.canvas }]} edges={['top', 'bottom']}>
         <View style={[styles.header, { borderBottomColor: colors.border }]}>
-          <ThemedText style={[Typography.title, { color: colors.text, flex: 1 }]} numberOfLines={1}>
+          <ThemedText style={[Typography.title, { flex: 1 }]} numberOfLines={1}>
             {title}
           </ThemedText>
           <Pressable
@@ -44,9 +53,13 @@ export function ModalShell({ visible, onClose, title, children, footer }: Props)
           </Pressable>
         </View>
 
+        {/* `padding` nos dois: sem `behavior` o componente e no-op no Android, e desde o
+            edge-to-edge do SDK 54+ a janela nao encolhe mais sozinha com o teclado. O
+            offset sobe o corpo alem do teclado para o rodape fixo nao comer o campo. */}
         <KeyboardAvoidingView
           style={styles.flex}
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+          behavior="padding"
+          keyboardVerticalOffset={keyboardOffset}>
           <ScrollView
             contentContainerStyle={styles.body}
             keyboardShouldPersistTaps="handled"

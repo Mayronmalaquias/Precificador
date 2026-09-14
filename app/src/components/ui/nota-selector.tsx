@@ -29,7 +29,7 @@ export function NotaSelector({ label, value, onChange }: Props) {
 
   return (
     <View style={styles.group}>
-      <ThemedText style={[Typography.label, { color: colors.text }]}>{label}</ThemedText>
+      <ThemedText style={Typography.label}>{label}</ThemedText>
       <View style={styles.grid}>
         {Array.from({ length: 10 }, (_, i) => i + 1).map((n) => {
           const active = value === n;

@@ -21,6 +21,7 @@ import {
 import { diasNaEtapa, statusMeta } from '@/features/captacao/helpers';
 import { CreateCaptacaoModal } from '@/features/captacao/create-modal';
 import { DetailCaptacaoModal } from '@/features/captacao/detail-modal';
+import { mensagemErro } from '@/utils/erro';
 
 type Filtro = 'todas' | Etapa;
 
@@ -45,8 +46,8 @@ export function CaptacaoScreen() {
       try {
         const data = await listarCaptacoes(idCorretor);
         if (active) setCaptacoes(data);
-      } catch (err: any) {
-        if (active) toast.show({ type: 'error', message: err?.message || 'Erro ao carregar captações.' });
+      } catch (err) {
+        if (active) toast.show({ type: 'error', message: mensagemErro(err, 'Erro ao carregar captações.') });
       } finally {
         if (active) setLoading(false);
       }
@@ -62,8 +63,8 @@ export function CaptacaoScreen() {
     setRefreshing(true);
     try {
       setCaptacoes(await listarCaptacoes(idCorretor));
-    } catch (err: any) {
-      toast.show({ type: 'error', message: err?.message || 'Erro ao carregar captações.' });
+    } catch (err) {
+      toast.show({ type: 'error', message: mensagemErro(err, 'Erro ao carregar captações.') });
     } finally {
       setRefreshing(false);
     }
@@ -109,7 +110,7 @@ export function CaptacaoScreen() {
   const header = (
     <View style={styles.headerBlock}>
       <View style={styles.titleRow}>
-        <ThemedText style={[Typography.h1, { color: colors.text }]}>Captação</ThemedText>
+        <ThemedText style={Typography.h1}>Captação</ThemedText>
         <Button
           label="Nova"
           icon="add"
@@ -190,7 +191,7 @@ function CaptacaoCard({ item, onPress }: { item: Captacao; onPress: () => void }
         { backgroundColor: colors.surface, borderColor: colors.border, opacity: pressed ? 0.9 : 1 },
       ]}>
       <View style={styles.cardTop}>
-        <ThemedText style={[Typography.bodyBold, { color: colors.text, flex: 1 }]} numberOfLines={1}>
+        <ThemedText style={[Typography.bodyBold, { flex: 1 }]} numberOfLines={1}>
           {item.endereco}
         </ThemedText>
         <View style={[styles.badge, { backgroundColor: meta.soft }]}>

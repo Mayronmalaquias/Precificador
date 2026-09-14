@@ -118,7 +118,7 @@ export function PrecificadorView({ headerRight }: Props) {
     <Screen scroll edges={['top']}>
       <View style={styles.headerRow}>
         <View style={{ flex: 1 }}>
-          <ThemedText style={[Typography.h1, { color: colors.text }]}>Precificador</ThemedText>
+          <ThemedText style={Typography.h1}>Precificador</ThemedText>
           <ThemedText style={[Typography.caption, { color: colors.textSecondary }]}>
             Estimativa de venda e locação por região
           </ThemedText>
@@ -247,7 +247,7 @@ function MetricCard({
         <View style={[styles.metricIcon, { backgroundColor: colors.brandSoft }]}>
           <Ionicons name={icon} size={18} color={colors.brand} />
         </View>
-        <ThemedText style={[Typography.title, { color: colors.text }]}>{title}</ThemedText>
+        <ThemedText style={Typography.title}>{title}</ThemedText>
       </View>
 
       {error ? (
@@ -263,7 +263,7 @@ function MetricCard({
             <ThemedText style={[Typography.caption, { color: colors.textMuted }]}>
               {highlightLabel}
             </ThemedText>
-            <ThemedText style={[Typography.display, { color: colors.text }]}>
+            <ThemedText style={Typography.display}>
               {highlightValue}
             </ThemedText>
           </View>
@@ -275,7 +275,7 @@ function MetricCard({
               <ThemedText style={[Typography.body, { color: colors.textSecondary }]}>
                 {r.label}
               </ThemedText>
-              <ThemedText style={[Typography.bodyBold, { color: colors.text }]}>
+              <ThemedText style={Typography.bodyBold}>
                 {r.value}
               </ThemedText>
             </View>

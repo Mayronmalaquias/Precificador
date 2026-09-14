@@ -1,73 +1,26 @@
-import { Platform, StyleSheet, Text, type TextProps } from 'react-native';
+import { Text, type TextProps } from 'react-native';
 
-import { Fonts, ThemeColor } from '@/constants/theme';
-import { useTheme } from '@/hooks/use-theme';
+import { useAppTheme } from '@/hooks/use-app-theme';
+import type { AppColors } from '@/theme';
 
 export type ThemedTextProps = TextProps & {
-  type?: 'default' | 'title' | 'small' | 'smallBold' | 'subtitle' | 'link' | 'linkPrimary' | 'code';
-  themeColor?: ThemeColor;
+  /** Cor da paleta da 61. Padrão `text`. */
+  themeColor?: keyof AppColors;
 };
 
-export function ThemedText({ style, type = 'default', themeColor, ...rest }: ThemedTextProps) {
-  const theme = useTheme();
+/**
+ * `Text` com a cor do tema resolvida.
+ *
+ * Lia a paleta do template (`constants/theme.Colors`, preto e branco puros) enquanto o
+ * resto do app usava a da 61 (`theme.Palette`) — por isso cada chamada precisava repetir
+ * `{ color: colors.text }` para corrigir o padrao. Com a paleta certa aqui, o padrao serve
+ * e as 34 repeticoes saem.
+ *
+ * As variantes de tamanho (`type="title" | "small" | ...`) foram removidas junto: nenhuma
+ * era passada, e os 94 usos ja trazem `Typography.*`, que as sobrescrevia de qualquer jeito.
+ */
+export function ThemedText({ style, themeColor = 'text', ...rest }: ThemedTextProps) {
+  const { colors } = useAppTheme();
 
-  return (
-    <Text
-      style={[
-        { color: theme[themeColor ?? 'text'] },
-        type === 'default' && styles.default,
-        type === 'title' && styles.title,
-        type === 'small' && styles.small,
-        type === 'smallBold' && styles.smallBold,
-        type === 'subtitle' && styles.subtitle,
-        type === 'link' && styles.link,
-        type === 'linkPrimary' && styles.linkPrimary,
-        type === 'code' && styles.code,
-        style,
-      ]}
-      {...rest}
-    />
-  );
+  return <Text style={[{ color: colors[themeColor] }, style]} {...rest} />;
 }
-
-const styles = StyleSheet.create({
-  small: {
-    fontSize: 14,
-    lineHeight: 20,
-    fontWeight: 500,
-  },
-  smallBold: {
-    fontSize: 14,
-    lineHeight: 20,
-    fontWeight: 700,
-  },
-  default: {
-    fontSize: 16,
-    lineHeight: 24,
-    fontWeight: 500,
-  },
-  title: {
-    fontSize: 48,
-    fontWeight: 600,
-    lineHeight: 52,
-  },
-  subtitle: {
-    fontSize: 32,
-    lineHeight: 44,
-    fontWeight: 600,
-  },
-  link: {
-    lineHeight: 30,
-    fontSize: 14,
-  },
-  linkPrimary: {
-    lineHeight: 30,
-    fontSize: 14,
-    color: '#3c87f7',
-  },
-  code: {
-    fontFamily: Fonts.mono,
-    fontWeight: Platform.select({ android: 700 }) ?? 500,
-    fontSize: 12,
-  },
-});

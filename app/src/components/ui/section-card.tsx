@@ -26,7 +26,7 @@ export function SectionCard({ title, icon, children }: Props) {
         <View style={[styles.iconWrap, { backgroundColor: colors.brandSoft }]}>
           <Ionicons name={icon} size={18} color={colors.brand} />
         </View>
-        <ThemedText style={[Typography.title, { color: colors.text }]}>{title}</ThemedText>
+        <ThemedText style={Typography.title}>{title}</ThemedText>
       </View>
       <View style={styles.body}>{children}</View>
     </View>

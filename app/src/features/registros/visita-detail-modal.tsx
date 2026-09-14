@@ -117,7 +117,7 @@ export function VisitaDetailModal({ visita, solicitanteId, onClose }: Props) {
           {(detalhe.pendencias ?? []).map((p) => (
             <View key={p} style={styles.infoRow}>
               <Ionicons name="ellipse" size={8} color={colors.danger} />
-              <ThemedText style={[Typography.body, { color: colors.text, flex: 1 }]}>
+              <ThemedText style={[Typography.body, { flex: 1 }]}>
                 {PENDENCIA_LABELS[p] ?? p}
               </ThemedText>
             </View>
@@ -143,7 +143,7 @@ function InfoRow({ label, value, colors }: { label: string; value: string; color
   return (
     <View style={styles.infoRow}>
       <ThemedText style={[Typography.body, { color: colors.textSecondary }]}>{label}</ThemedText>
-      <ThemedText style={[Typography.bodyBold, { color: colors.text, flex: 1, textAlign: 'right' }]} numberOfLines={2}>
+      <ThemedText style={[Typography.bodyBold, { flex: 1, textAlign: 'right' }]} numberOfLines={2}>
         {value}
       </ThemedText>
     </View>

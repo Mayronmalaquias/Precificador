@@ -64,7 +64,7 @@ export function FinanciamentoView({ headerRight }: Props) {
       {/* Header */}
       <View style={styles.header}>
         <View style={{ flex: 1 }}>
-          <ThemedText style={[Typography.h1, { color: colors.text }]}>61 Financeiro</ThemedText>
+          <ThemedText style={Typography.h1}>61 Financeiro</ThemedText>
           <ThemedText style={[Typography.caption, { color: colors.textSecondary }]}>
             Simulação de financiamento e capacidade estimada de compra
           </ThemedText>
@@ -162,7 +162,7 @@ function ResultCard({ label, value, hint }: { label: string; value: string; hint
         { backgroundColor: colors.surface, borderColor: colors.border },
       ]}>
       <ThemedText style={[Typography.caption, { color: colors.textSecondary }]}>{label}</ThemedText>
-      <ThemedText style={[Typography.h2, { color: colors.text }]}>{value}</ThemedText>
+      <ThemedText style={Typography.h2}>{value}</ThemedText>
       <ThemedText style={[Typography.caption, { color: colors.textMuted }]}>{hint}</ThemedText>
     </View>
   );

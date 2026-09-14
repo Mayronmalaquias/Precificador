@@ -12,6 +12,7 @@ import { ThemedText } from '@/components/themed-text';
 import { useSession } from '@/features/auth/session';
 import { useAppTheme } from '@/hooks/use-app-theme';
 import { Radius, Spacing, Typography, shadow } from '@/theme';
+import { mensagemErro } from '@/utils/erro';
 
 const LOGO = require('@/assets/images/logo-wordmark.png');
 
@@ -48,8 +49,8 @@ export default function LoginScreen() {
       await signIn(username.trim(), senha);
       toast.show({ type: 'success', message: 'Bem-vindo de volta!' });
       // A guarda de rota (Stack.Protected) fecha o login automaticamente ao autenticar.
-    } catch (err: any) {
-      const message = err?.message || 'Erro de conexão com o servidor.';
+    } catch (err) {
+      const message = mensagemErro(err, 'Erro de conexão com o servidor.');
       setErro(message);
       toast.show({ type: 'error', message });
     } finally {
@@ -77,7 +78,7 @@ export default function LoginScreen() {
           <View style={[styles.logoCard, shadow('md', isDark)]}>
             <Image source={LOGO} style={styles.logo} contentFit="contain" transition={200} />
           </View>
-          <ThemedText style={[Typography.display, { color: colors.text }]}>Entrar</ThemedText>
+          <ThemedText style={Typography.display}>Entrar</ThemedText>
           <ThemedText style={[Typography.body, { color: colors.textSecondary }]}>
             Acesse sua conta para continuar
           </ThemedText>

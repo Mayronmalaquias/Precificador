@@ -44,7 +44,7 @@ export default function PerfilScreen() {
 
   return (
     <Screen scroll edges={['top']}>
-      <ThemedText style={[Typography.h1, { color: colors.text }]}>Perfil</ThemedText>
+      <ThemedText style={Typography.h1}>Perfil</ThemedText>
 
       <View
         style={[
@@ -59,7 +59,7 @@ export default function PerfilScreen() {
             </ThemedText>
           </View>
           <View style={styles.headerText}>
-            <ThemedText style={[Typography.title, { color: colors.text }]} numberOfLines={1}>
+            <ThemedText style={Typography.title} numberOfLines={1}>
               {nomeUsuario}
             </ThemedText>
             <View style={[styles.badge, { backgroundColor: colors.brandSoft }]}>
@@ -78,7 +78,7 @@ export default function PerfilScreen() {
             <ThemedText style={[Typography.body, { color: colors.textSecondary, flex: 1 }]}>
               {r.label}
             </ThemedText>
-            <ThemedText style={[Typography.bodyBold, { color: colors.text }]} numberOfLines={1}>
+            <ThemedText style={Typography.bodyBold} numberOfLines={1}>
               {r.value}
             </ThemedText>
           </View>

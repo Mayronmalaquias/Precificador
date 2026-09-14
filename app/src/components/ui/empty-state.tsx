@@ -22,7 +22,7 @@ export function EmptyState({ icon, title, description, tag }: Props) {
         <Ionicons name={icon} size={40} color={colors.brand} />
       </View>
 
-      <ThemedText style={[Typography.h2, { color: colors.text, textAlign: 'center' }]}>
+      <ThemedText style={[Typography.h2, { textAlign: 'center' }]}>
         {title}
       </ThemedText>
 

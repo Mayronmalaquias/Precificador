@@ -28,6 +28,7 @@ import {
 } from '@/features/captacao/api';
 import { diasNaEtapa, formatDateBR, statusMeta } from '@/features/captacao/helpers';
 import { confirmAction } from '@/utils/confirm';
+import { mensagemErro } from '@/utils/erro';
 
 type Props = {
   captacao: Captacao;
@@ -92,8 +93,8 @@ export function DetailCaptacaoModal({ captacao, onClose, onChanged }: Props) {
       setCap(updated);
       onChanged(updated);
       await refreshHist(updated.id);
-    } catch (err: any) {
-      toast.show({ type: 'error', message: err?.message || 'Erro na operação.' });
+    } catch (err) {
+      toast.show({ type: 'error', message: mensagemErro(err, 'Erro na operação.') });
     } finally {
       setBusy(false);
     }
@@ -151,8 +152,8 @@ export function DetailCaptacaoModal({ captacao, onClose, onChanged }: Props) {
           toast.show({ type: 'success', message: 'Captação excluída.' });
           onChanged(null);
           onClose();
-        } catch (err: any) {
-          toast.show({ type: 'error', message: err?.message || 'Erro ao excluir.' });
+        } catch (err) {
+          toast.show({ type: 'error', message: mensagemErro(err, 'Erro ao excluir.') });
         } finally {
           setBusy(false);
         }
@@ -332,7 +333,7 @@ export function DetailCaptacaoModal({ captacao, onClose, onChanged }: Props) {
               <View key={h.id} style={styles.histItem}>
                 <View style={[styles.histDot, { backgroundColor: colors.brand }]} />
                 <View style={{ flex: 1 }}>
-                  <ThemedText style={[Typography.label, { color: colors.text }]}>{h.descricao}</ThemedText>
+                  <ThemedText style={Typography.label}>{h.descricao}</ThemedText>
                   <ThemedText style={[Typography.caption, { color: colors.textMuted }]}>
                     {ETAPA_LABELS[h.etapa as keyof typeof ETAPA_LABELS] || h.etapa} · {formatDateBR(h.created_at)}
                   </ThemedText>
@@ -349,7 +350,7 @@ function InfoRow({ label, value, colors }: { label: string; value: string; color
   return (
     <View style={styles.rowBetween}>
       <ThemedText style={[Typography.body, { color: colors.textSecondary }]}>{label}</ThemedText>
-      <ThemedText style={[Typography.bodyBold, { color: colors.text, flex: 1, textAlign: 'right' }]} numberOfLines={1}>
+      <ThemedText style={[Typography.bodyBold, { flex: 1, textAlign: 'right' }]} numberOfLines={1}>
         {value}
       </ThemedText>
     </View>

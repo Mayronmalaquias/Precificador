@@ -8,6 +8,8 @@
  * via EXPO_PUBLIC_API_KEY) em toda chamada. Após o login, um JWT pode ser
  * anexado como `Authorization: Bearer <token>` via `setAuthToken()`.
  */
+import { ehAbort } from '@/utils/erro';
+
 const API_PREFIX = '/api/v1';
 
 function normalizeBaseUrl(value?: string): string {
@@ -61,7 +63,7 @@ export class ApiError extends Error {
 
 type RequestOptions = Omit<RequestInit, 'body'> & { body?: unknown; timeoutMs?: number };
 
-async function request<T = any>(path: string, options: RequestOptions = {}): Promise<T> {
+async function request<T = unknown>(path: string, options: RequestOptions = {}): Promise<T> {
   const { body, timeoutMs = 20000, headers, ...rest } = options;
 
   const controller = new AbortController();
@@ -75,9 +77,9 @@ async function request<T = any>(path: string, options: RequestOptions = {}): Pro
       ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
       ...rest,
     });
-  } catch (err: any) {
+  } catch (err) {
     clearTimeout(timer);
-    if (err?.name === 'AbortError') {
+    if (ehAbort(err)) {
       throw new ApiError('Tempo de conexão esgotado. Tente novamente.', 0, null);
     }
     throw new ApiError('Sem conexão com o servidor.', 0, null);
@@ -89,8 +91,7 @@ async function request<T = any>(path: string, options: RequestOptions = {}): Pro
   const data = text ? safeJson(text) : null;
 
   if (!response.ok) {
-    const message =
-      (data && (data.error || data.message)) || `Erro na requisição (${response.status})`;
+    const message = mensagemDaResposta(data) ?? `Erro na requisição (${response.status})`;
     throw new ApiError(message, response.status, data);
   }
 
@@ -105,7 +106,7 @@ async function request<T = any>(path: string, options: RequestOptions = {}): Pro
  * aqui. Os headers de auth continuam obrigatórios — a API é fechada e devolve
  * 401 em qualquer chamada sem `X-API-KEY` ou `Bearer`.
  */
-export async function postForm<T = any>(
+export async function postForm<T = unknown>(
   path: string,
   form: FormData,
   timeoutMs = 60000,
@@ -121,8 +122,8 @@ export async function postForm<T = any>(
       headers: authHeaders(),
       body: form,
     });
-  } catch (err: any) {
-    if (err?.name === 'AbortError') {
+  } catch (err) {
+    if (ehAbort(err)) {
       throw new ApiError('Tempo de conexão esgotado. Tente novamente.', 0, null);
     }
     throw new ApiError('Sem conexão com o servidor.', 0, null);
@@ -134,25 +135,33 @@ export async function postForm<T = any>(
   const data = text ? safeJson(text) : null;
 
   if (!response.ok) {
-    const message =
-      (data && (data.error || data.message)) || `Erro no upload (${response.status})`;
+    const message = mensagemDaResposta(data) ?? `Erro no upload (${response.status})`;
     throw new ApiError(message, response.status, data);
   }
 
   return data as T;
 }
 
-function safeJson(text: string): any {
+/** `error` ou `message` do corpo, quando o corpo for um objeto com um deles em texto. */
+function mensagemDaResposta(data: unknown): string | null {
+  if (typeof data !== 'object' || data === null) return null;
+  const corpo = data as { error?: unknown; message?: unknown };
+  const texto = corpo.error ?? corpo.message;
+  return typeof texto === 'string' && texto ? texto : null;
+}
+
+function safeJson(text: string): unknown {
   try {
     return JSON.parse(text);
   } catch {
+    // Resposta que nao e JSON (HTML de erro do nginx, texto puro) vira mensagem.
     return { message: text };
   }
 }
 
 export const api = {
-  get: <T = any>(path: string) => request<T>(path),
-  post: <T = any>(path: string, body?: unknown) => request<T>(path, { method: 'POST', body }),
-  put: <T = any>(path: string, body?: unknown) => request<T>(path, { method: 'PUT', body }),
-  del: <T = any>(path: string) => request<T>(path, { method: 'DELETE' }),
+  get: <T = unknown>(path: string) => request<T>(path),
+  post: <T = unknown>(path: string, body?: unknown) => request<T>(path, { method: 'POST', body }),
+  put: <T = unknown>(path: string, body?: unknown) => request<T>(path, { method: 'PUT', body }),
+  del: <T = unknown>(path: string) => request<T>(path, { method: 'DELETE' }),
 };

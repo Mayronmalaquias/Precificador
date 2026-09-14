@@ -9,6 +9,7 @@ import { useToast } from '@/components/ui/toast';
 import { useSession } from '@/features/auth/session';
 import { Spacing } from '@/theme';
 import { criarCaptacao, type Captacao } from '@/features/captacao/api';
+import { mensagemErro } from '@/utils/erro';
 
 type Props = {
   visible: boolean;
@@ -69,8 +70,8 @@ export function CreateCaptacaoModal({ visible, onClose, onCreated }: Props) {
       toast.show({ type: 'success', message: 'Captação criada!' });
       reset();
       onCreated(c);
-    } catch (err: any) {
-      toast.show({ type: 'error', message: err?.message || 'Erro ao criar captação.' });
+    } catch (err) {
+      toast.show({ type: 'error', message: mensagemErro(err, 'Erro ao criar captação.') });
     } finally {
       setLoading(false);
     }

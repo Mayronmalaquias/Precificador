@@ -1,15 +1,23 @@
 /**
  * Design system do app 61.
  *
- * Fonte da verdade para cor, espaçamento, raio, tipografia e sombra.
- * Mantido separado de `@/constants/theme` (scaffold) para não quebrar os
- * componentes de demonstração; reaproveitamos apenas a escala `Spacing` (4/8px).
+ * Fonte da verdade para cor, espaçamento, raio, tipografia e sombra. Era dividido com
+ * `@/constants/theme` (scaffold do create-expo-app) "para não quebrar os componentes de
+ * demonstração" — que já não existem. O scaffold saiu e a escala veio para cá, então há
+ * um lugar só onde procurar um token.
  */
 import { Platform, type TextStyle, type ViewStyle } from 'react-native';
 
-import { Spacing } from '@/constants/theme';
-
-export { Spacing };
+/** Escala de espaçamento (4/8px). */
+export const Spacing = {
+  half: 2,
+  one: 4,
+  two: 8,
+  three: 16,
+  four: 24,
+  five: 32,
+  six: 64,
+} as const;
 
 /** Paleta semântica. Toda chave existe em light e dark (contrato do useAppTheme). */
 export const Palette = {

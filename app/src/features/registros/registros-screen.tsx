@@ -22,6 +22,7 @@ import {
 } from '@/features/registros/api';
 import { ClienteEditModal } from '@/features/registros/cliente-edit-modal';
 import { VisitaDetailModal } from '@/features/registros/visita-detail-modal';
+import { mensagemErro } from '@/utils/erro';
 
 type Seg = 'visitas' | 'clientes' | 'imoveis';
 
@@ -79,8 +80,8 @@ export function RegistrosScreen() {
     (async () => {
       try {
         await fetchSeg('visitas');
-      } catch (err: any) {
-        if (active) toast.show({ type: 'error', message: err?.message || 'Erro ao carregar.' });
+      } catch (err) {
+        if (active) toast.show({ type: 'error', message: mensagemErro(err, 'Erro ao carregar.') });
       } finally {
         if (active) setLoading(false);
       }
@@ -96,8 +97,8 @@ export function RegistrosScreen() {
     setLoading(true);
     try {
       await fetchSeg(s);
-    } catch (err: any) {
-      toast.show({ type: 'error', message: err?.message || 'Erro ao carregar.' });
+    } catch (err) {
+      toast.show({ type: 'error', message: mensagemErro(err, 'Erro ao carregar.') });
     } finally {
       setLoading(false);
     }
@@ -107,8 +108,8 @@ export function RegistrosScreen() {
     setRefreshing(true);
     try {
       await fetchSeg(seg);
-    } catch (err: any) {
-      toast.show({ type: 'error', message: err?.message || 'Erro ao carregar.' });
+    } catch (err) {
+      toast.show({ type: 'error', message: mensagemErro(err, 'Erro ao carregar.') });
     } finally {
       setRefreshing(false);
     }
@@ -119,7 +120,7 @@ export function RegistrosScreen() {
 
   const header = (
     <View style={styles.headerBlock}>
-      <ThemedText style={[Typography.h1, { color: colors.text }]}>Registros</ThemedText>
+      <ThemedText style={Typography.h1}>Registros</ThemedText>
       <ChipSelect options={SEGMENTOS} value={seg} onChange={trocarSeg} />
     </View>
   );
@@ -220,7 +221,7 @@ function VisitaCard({ item, onPress }: { item: VisitaItem; onPress: () => void }
   return (
     <CardShell onPress={onPress}>
       <View style={styles.rowTop}>
-        <ThemedText style={[Typography.bodyBold, { color: colors.text, flex: 1 }]} numberOfLines={1}>
+        <ThemedText style={[Typography.bodyBold, { flex: 1 }]} numberOfLines={1}>
           {item.cliente || 'Cliente'}
         </ThemedText>
         {!!item.proposta && (
@@ -245,7 +246,7 @@ function ClienteCard({ item, onEdit }: { item: ClienteItem; onEdit: () => void }
   const wa = whatsappUrl(item.telefone);
   return (
     <CardShell>
-      <ThemedText style={[Typography.bodyBold, { color: colors.text }]} numberOfLines={1}>
+      <ThemedText style={Typography.bodyBold} numberOfLines={1}>
         {item.nome || 'Cliente'}
       </ThemedText>
       <View style={styles.rowWrap}>
@@ -280,7 +281,7 @@ function ClienteCard({ item, onEdit }: { item: ClienteItem; onEdit: () => void }
             { backgroundColor: colors.surfaceAlt, borderColor: colors.border, borderWidth: StyleSheet.hairlineWidth, opacity: pressed ? 0.85 : 1 },
           ]}>
           <Ionicons name="create-outline" size={16} color={colors.text} />
-          <ThemedText style={[Typography.label, { color: colors.text }]}>Editar</ThemedText>
+          <ThemedText style={Typography.label}>Editar</ThemedText>
         </Pressable>
       </View>
     </CardShell>
@@ -291,7 +292,7 @@ function ImovelCard({ item }: { item: ImovelItem }) {
   const { colors } = useAppTheme();
   return (
     <CardShell>
-      <ThemedText style={[Typography.bodyBold, { color: colors.text }]} numberOfLines={1}>
+      <ThemedText style={Typography.bodyBold} numberOfLines={1}>
         {item.endereco_externo || (item.id_imovel ? `Cod. ${item.id_imovel}` : 'Imóvel')}
       </ThemedText>
       <View style={styles.rowWrap}>

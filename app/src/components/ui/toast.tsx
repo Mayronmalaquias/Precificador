@@ -87,7 +87,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
                 <Ionicons name={ICON[toast.type ?? 'info']} size={20} color={accent} />
               </View>
               <ThemedText
-                style={[Typography.caption, { color: colors.text, flex: 1 }]}
+                style={[Typography.caption, { flex: 1 }]}
                 numberOfLines={3}>
                 {toast.message}
               </ThemedText>
