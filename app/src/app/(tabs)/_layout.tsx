@@ -36,27 +36,11 @@ export default function TabsLayout() {
         tabBarLabelStyle: { ...Typography.caption, fontSize: 11 },
         sceneStyle: { backgroundColor: colors.canvas },
       }}>
-      {/* Home pública */}
+      {/* A ordem das telas aqui É a ordem dos botões na barra.
+          `index` é a Visita: a rota inicial do grupo é sempre o arquivo `index`, então é
+          assim que o app abre nela em vez de no Precificador. */}
       <Tabs.Screen
         name="index"
-        options={{
-          title: 'Precificador',
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="calculator-outline" size={size} color={color} />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="financiamento"
-        options={{
-          title: '61 Financeiro',
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="cash-outline" size={size} color={color} />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="visita"
         options={{
           title: 'Visita',
           tabBarIcon: ({ color, size }) => (
@@ -79,6 +63,25 @@ export default function TabsLayout() {
           title: 'Registros',
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="albums-outline" size={size} color={color} />
+          ),
+        }}
+      />
+      {/* Home pública, agora em `/precificador`. */}
+      <Tabs.Screen
+        name="precificador"
+        options={{
+          title: 'Precificador',
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="calculator-outline" size={size} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="financiamento"
+        options={{
+          title: '61 Financeiro',
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="cash-outline" size={size} color={color} />
           ),
         }}
       />
