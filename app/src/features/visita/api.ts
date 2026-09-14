@@ -1,4 +1,6 @@
 import { api, postForm } from '@/services/api';
+import { File } from 'expo-file-system';
+import { Platform } from 'react-native';
 
 // ── Tipos ────────────────────────────────────────────────────────────────
 export type ClienteBusca = {
@@ -94,8 +96,18 @@ export async function uploadAnexo(params: {
   dataVisita: string;
 }): Promise<{ drivePath: string; driveLink: string }> {
   const fd = new FormData();
-  // No RN, arquivos vão como { uri, name, type }.
-  fd.append('file', params.file as unknown as Blob);
+  // O fetch do Expo 57 exige Blob/bytes; o descritor { uri, name, type }
+  // do fetch antigo falha antes de enviar a requisição.
+  let arquivo: Blob;
+  if (Platform.OS === 'web') {
+    const response = await fetch(params.file.uri);
+    if (!response.ok) throw new Error('Não foi possível ler a ficha. Selecione o anexo novamente.');
+    arquivo = await response.blob();
+  } else {
+    const file = new File(params.file.uri);
+    arquivo = file;
+  }
+  fd.append('file', arquivo, params.file.name);
   fd.append('idCorretor', params.idCorretor);
   fd.append('imovelId', params.imovelId);
   fd.append('dataVisita', params.dataVisita);

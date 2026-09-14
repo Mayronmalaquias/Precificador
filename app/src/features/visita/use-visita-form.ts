@@ -349,8 +349,10 @@ export function useVisitaForm() {
     }
 
     setLoading(true);
+    let etapa = 'Cadastrar cliente';
     try {
       const idCliente = await criarClienteSeNecessario();
+      etapa = 'Enviar ficha da visita';
       const { drivePath, driveLink } = await uploadAnexo({
         file: anexo,
         idCorretor: corretor.id,
@@ -391,11 +393,12 @@ export function useVisitaForm() {
         avaliacoes: { ...notas },
       };
 
+      etapa = 'Salvar visita';
       const idVisita = await criarVisita(payload);
       toast.show({ type: 'success', message: `Visita lançada! ID: ${idVisita}` });
       resetForm();
     } catch (err) {
-      toast.show({ type: 'error', message: mensagemErro(err, 'Erro inesperado. Tente novamente.') });
+      toast.show({ type: 'error', message: `${etapa}: ${mensagemErro(err, 'Não foi possível concluir a operação.')}` });
     } finally {
       setLoading(false);
     }
