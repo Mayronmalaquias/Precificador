@@ -110,6 +110,37 @@ def test_envio_desativado_nao_envia(session, monkeypatch):
         send.assert_not_called()
         assert i.status == "pronto" and i.concluido_em
 
+def test_cartao_nasce_na_abertura_sem_varrer_o_board(session, monkeypatch):
+    monkeypatch.setenv("SOLICITACOES_INTEGRACAO_IMEDIATA", "true")
+    i = item(session)
+    assert i.status == "aguardando_trello" and not i.trello_id
+    t = Mock()
+    t.call.side_effect = [{"id": "card9", "shortUrl": "https://trello.com/c/x"}, {}, []]
+    with patch.object(worker, "Trello", return_value=t):
+        worker.integrar_imediato(session, i)
+    assert i.trello_id == "card9" and i.integrado_em and i.status == "em_atendimento"
+    assert i.trello_url == "https://trello.com/c/x"
+    # Protocolo novo nunca tentou criar cartao: nao ha o que reconciliar, e a varredura do
+    # board inteiro nao pode entrar no request de quem abriu a solicitacao.
+    assert not any("boards/" in c.args[1] for c in t.call.call_args_list)
+
+def test_abertura_nao_quebra_quando_o_trello_falha(session, monkeypatch):
+    monkeypatch.setenv("SOLICITACOES_INTEGRACAO_IMEDIATA", "true")
+    i = item(session)
+    with patch.object(worker, "Trello", side_effect=RuntimeError("Credenciais do Trello não configuradas.")):
+        devolvido = worker.integrar_imediato(session, i)
+    assert devolvido.id == i.id and devolvido.erro == "Credenciais do Trello não configuradas."
+    assert session.query(Solicitacao).count() == 1
+
+def test_integracao_imediata_desligada_deixa_para_o_worker(session, monkeypatch):
+    monkeypatch.delenv("SOLICITACOES_INTEGRACAO_IMEDIATA", raising=False)
+    monkeypatch.delenv("SOLICITACOES_WORKER_ENABLED", raising=False)
+    i = item(session)
+    with patch.object(worker, "Trello") as t:
+        worker.integrar_imediato(session, i)
+    t.assert_not_called()
+    assert i.status == "aguardando_trello" and not i.trello_id
+
 def test_criacao_ambigua_reconcilia_sem_duplicar(session):
     i = item(session); i.status = "criacao_incerta"; session.commit()
     t = Mock(); t.call.return_value = []

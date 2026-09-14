@@ -7,6 +7,7 @@ from app.database import SessionLocal
 from app.models.usuarios import Usuarios
 from app.models.solicitacao import Solicitacao, SolicitacaoAnexo, SolicitacaoEvento
 from app.services import solicitacao_service as svc
+from app.services import solicitacao_worker as worker
 from app.utils.auth_middleware import _check_bearer_jwt
 
 solicitacao_ns = Namespace("solicitacoes", description="Solicitações operacionais e acompanhamento")
@@ -57,6 +58,10 @@ class Solicitacoes(Resource):
         chave = request.form.get("chave_cliente", "")
         try:
             item = svc.criar(session, user, request.form, request.files.getlist("anexos"), chave)
+            # Cartão na abertura, nao na rodada seguinte do worker: a resposta ja sai com
+            # `trello_url` e a tela mostra o cartao em vez de "Aguardando Trello". Nunca
+            # levanta — a solicitacao esta gravada e o worker reprocessa o que falhar.
+            item = worker.integrar_imediato(session, item)
             return svc.serializar(item), 201
         except ValueError as e:
             session.rollback()

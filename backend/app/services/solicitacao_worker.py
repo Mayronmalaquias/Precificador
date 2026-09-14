@@ -45,12 +45,19 @@ def mudar(session, item, status, descricao):
 def integrar(session, item, trello):
     marker = "[61-SOL-"+str(item.id)+"]"
     if not item.trello_id:
-        # Reconcilia uma criação cuja resposta pode ter se perdido.
-        cards = trello.call("GET", "boards/"+BOARD+"/cards", query={"filter": "all", "fields": "id,desc,url,shortUrl"})
-        encontrados = [c for c in cards if marker in c.get("desc", "")]
-        if len(encontrados) > 1:
-            raise RuntimeError("Mais de um cartão para o protocolo. Revisão administrativa necessária.")
-        card = encontrados[0] if encontrados else None
+        card = None
+        # Reconcilia uma criação cuja resposta pode ter se perdido. Só faz sentido quando
+        # alguma tentativa já saiu daqui: `integrar` marca `criacao_incerta` ANTES do POST,
+        # então um protocolo ainda em `aguardando_trello` nunca chegou a criar cartão e não
+        # tem o que reconciliar. Varrer o board inteiro (`filter=all`, todo o histórico) no
+        # caminho de criação custava a chamada mais cara do fluxo para nada — e agora ela
+        # está dentro do request de quem abriu a solicitação.
+        if item.status != "aguardando_trello":
+            cards = trello.call("GET", "boards/"+BOARD+"/cards", query={"filter": "all", "fields": "id,desc,url,shortUrl"})
+            encontrados = [c for c in cards if marker in c.get("desc", "")]
+            if len(encontrados) > 1:
+                raise RuntimeError("Mais de um cartão para o protocolo. Revisão administrativa necessária.")
+            card = encontrados[0] if encontrados else None
         if not card:
             if item.status == "criacao_incerta":
                 raise RuntimeError("Criação anterior sem confirmação. Verifique o Trello antes de criar novamente.")
@@ -83,6 +90,64 @@ def integrar(session, item, trello):
     item.integrado_em = item.integrado_em or datetime.utcnow()
     item.erro = None
     mudar(session, item, "em_atendimento", "Cartão e anexos registrados no Trello.")
+
+
+def integracao_imediata_ativa():
+    """Sem variável própria, segue o worker: onde a integração está ligada, o cartão nasce
+    na abertura. Evita que uma máquina de desenvolvimento passe a criar cartões reais no
+    board de produção só por levantar a API."""
+    valor = os.getenv("SOLICITACOES_INTEGRACAO_IMEDIATA")
+    if valor is None:
+        valor = os.getenv("SOLICITACOES_WORKER_ENABLED", "false")
+    return valor.lower() == "true"
+
+
+def integrar_imediato(session, item):
+    """Cria o cartão ainda dentro do POST, para quem abriu a solicitação já sair com ele.
+
+    A rodada do worker (900s) continua existindo como rede de segurança: aqui NENHUMA falha
+    do Trello pode derrubar a abertura, porque a solicitação já está gravada e a integração
+    é recuperável. Erro vira `erro`/histórico do protocolo, exatamente como no worker.
+
+    Toma o MESMO advisory lock do worker. Sem ele, uma rodada em curso e este request
+    poderiam postar dois cartões para o mesmo protocolo — o marcador só detecta a
+    duplicidade depois, e exige revisão manual. Se o lock estiver ocupado, deixa para a
+    rodada que já está rodando.
+
+    Devolve o item vigente: um rollback aqui recarrega a linha do banco.
+    """
+    # `criar` e idempotente por `chave_cliente`: repetir o POST devolve o protocolo que ja
+    # existe. Sem esta guarda, cada repeticao gastaria chamadas ao Trello para reconfirmar
+    # um cartao pronto.
+    if item.integrado_em or not integracao_imediata_ativa():
+        return item
+    id = item.id
+    try:
+        if engine.dialect.name != "postgresql":
+            item.tentativas += 1
+            session.commit()
+            integrar(session, item, Trello())
+            return item
+        with engine.connect() as lock:
+            if not lock.execute(text("SELECT pg_try_advisory_lock(610915)")).scalar():
+                return item
+            try:
+                item.tentativas += 1
+                session.commit()
+                integrar(session, item, Trello())
+            finally:
+                lock.execute(text("SELECT pg_advisory_unlock(610915)"))
+        return item
+    except Exception as exc:
+        session.rollback()
+        item = session.get(Solicitacao, id)
+        # Não persistir URLs autenticadas, credenciais ou respostas externas.
+        erro = str(exc) if isinstance(exc, RuntimeError) else "Falha no processamento ("+type(exc).__name__+"). Revisão necessária."
+        if item.erro != erro:
+            evento(session, item, erro)
+        item.erro = erro
+        session.commit()
+        return item
 
 
 # ── E-mail de conclusão ──────────────────────────────────────────────────────
